@@ -48,7 +48,7 @@ module.exports = async function (json_data, res) {
                 }
             }
         }
-        console.log("result", result)
+        console.log("result", result);
         res.json({"result": result, "id": null, "error": null, "jsonrpc": "2.0"});
         return;
     } catch (err) {
