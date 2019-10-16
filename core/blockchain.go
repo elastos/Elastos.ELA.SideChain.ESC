@@ -42,6 +42,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
 	"github.com/hashicorp/golang-lru"
 )
@@ -139,6 +140,10 @@ type BlockChain struct {
 
 	badBlocks      *lru.Cache              // Bad block cache
 	shouldPreserve func(*types.Block) bool // Function used to determine whether should preserve the given block.
+
+	evilSigners *EvilSignersMap // EvilSigners contains evil signers
+	evilmu      sync.RWMutex    // evil signers lock
+	journal     *EvilJournal    // Journal of local  evilSingeerEvents to back up to disk
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -174,6 +179,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		engine:         engine,
 		vmConfig:       vmConfig,
 		badBlocks:      badBlocks,
+		journal:        NewEvilJournal(chainConfig.EvilSignersJournalDir),
 	}
 	bc.SetValidator(NewBlockValidator(chainConfig, bc, engine))
 	bc.SetProcessor(NewStateProcessor(chainConfig, bc, engine))
@@ -201,6 +207,18 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 				bc.SetHead(header.Number.Uint64() - 1)
 				log.Error("Chain rewind was successful, resuming normal operation")
 			}
+		}
+	}
+
+	if bc.journal != nil {
+		if err := bc.journal.Load(bc.addEvilSingerEvents); err != nil {
+			log.Warn("Failed to load evil singer events journal", "err", err)
+		}
+		if err := bc.removeOldEvilSigners(bc.CurrentBlock().Number(), 0); err != nil {
+			log.Warn("Failed to remove old evil signers", "err", err)
+		}
+		if err := bc.journal.Rotate(bc.getEvilSignerEvents()); err != nil {
+			log.Warn("Failed to rotate evil singer events ournal", "err", err)
 		}
 	}
 	// Take ownership of this particular state
@@ -578,6 +596,12 @@ func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 	return bc.HasState(block.Root())
 }
 
+func (bc *BlockChain) IsToManyEvilSingers() bool {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	return bc.evilSigners.IsDanger(spv.GetBlockSignerLen() / 2)
+}
+
 // GetBlock retrieves a block from the database by hash and number,
 // caching it if found.
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
@@ -702,6 +726,9 @@ func (bc *BlockChain) Stop() {
 		if size, _ := triedb.Size(); size != 0 {
 			log.Error("Dangling trie nodes after full cleanup")
 		}
+	}
+	if bc.journal != nil {
+		bc.journal.Close()
 	}
 	log.Info("Blockchain manager stopped")
 }
@@ -981,6 +1008,18 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 	// Write other block data using a batch.
 	batch := bc.db.NewBatch()
 	rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts)
+
+	isEvilSigner := bc.isNeedStopChain(block.Header())
+	if isEvilSigner {
+		err = errors.New("too many evil signers on the chain")
+		log.Error(err.Error())
+
+		go func() {
+			bc.chainSideFeed.Send(ChainSideEvent{Block: block})
+		}()
+
+		return SideStatTy, err
+	}
 
 	// If the total difficulty is higher than our known, add it to the canonical chain
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
@@ -1650,4 +1689,50 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 //SubscribeDangerousChainSideEvent registers a subscription of DangerousChainSideEvent
 func (bc *BlockChain) SubscribeDangerousChainSideEvent(ch chan<- DangerousChainSideEvent) event.Subscription {
 	return bc.scope.Track(bc.dangerousChainSideFeed.Subscribe(ch))
+}
+
+// addEvilSignerEvents add evilSignerEvents of []*EvilSingerEvent.
+func (bc *BlockChain) addEvilSingerEvents(evilEvents []*EvilSingerEvent) []error {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &EvilSignersMap{}
+	}
+	return bc.evilSigners.AddEvilSingerEvents(evilEvents)
+}
+
+// remove old evilSigners who have created  different blocks, and difference between  the blocks height
+// and currentHeight should biger then rangeValue.
+func (bc *BlockChain) removeOldEvilSigners(currentHeight *big.Int, rangeValue int64) error {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		return nil
+	}
+	return bc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
+}
+
+// getEvilSignerEvents return evilSignerEvents by now
+func (bc *BlockChain) getEvilSignerEvents() (res []*EvilSingerEvent) {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &EvilSignersMap{}
+	}
+
+	return bc.evilSigners.GetEvilSignerEvents()
+}
+
+// whether the block was created by evil signer.
+func (bc *BlockChain) isNeedStopChain(header *types.Header) bool {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &EvilSignersMap{}
+	}
+	headerOld := bc.GetHeaderByNumber(header.Number.Uint64())
+	if headerOld == nil {
+		return false
+	}
+	return IsNeedStopChain(header, headerOld, bc.engine, bc.evilSigners, bc.journal)
 }

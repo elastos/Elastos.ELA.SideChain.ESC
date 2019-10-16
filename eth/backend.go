@@ -122,6 +122,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlock(chainDb, config.Genesis)
 	chainConfig.PassBalance = config.PassBalance
 	chainConfig.BlackContractAddr = config.BlackContractAddr
+	chainConfig.EvilSignersJournalDir = config.EvilSignersJournalDir
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}

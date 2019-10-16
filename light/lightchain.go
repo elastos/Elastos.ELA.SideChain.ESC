@@ -71,6 +71,10 @@ type LightChain struct {
 	wg            sync.WaitGroup
 
 	engine consensus.Engine
+
+	evilSigners *core.EvilSignersMap // EvilSigners contains evil signers
+	evilmu      sync.RWMutex         // evil signers lock
+	journal     *core.EvilJournal    // Journal of local  evilSingeerEvents to back up to disk
 }
 
 // NewLightChain returns a fully initialised light chain using information
@@ -90,6 +94,7 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		bodyRLPCache:  bodyRLPCache,
 		blockCache:    blockCache,
 		engine:        engine,
+		journal:       core.NewEvilJournal(config.EvilSignersJournalDir),
 	}
 	var err error
 	bc.hc, err = core.NewHeaderChain(odr.Database(), config, bc.engine, bc.getProcInterrupt)
@@ -112,6 +117,18 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 			log.Error("Found bad hash, rewinding chain", "number", header.Number, "hash", header.ParentHash)
 			bc.SetHead(header.Number.Uint64() - 1)
 			log.Error("Chain rewind was successful, resuming normal operation")
+		}
+	}
+
+	if bc.journal != nil {
+		if err := bc.journal.Load(bc.addEvilSingerEvents); err != nil {
+			log.Warn("Failed to load evil singer events journal", "err", err)
+		}
+		if err := bc.removeOldEvilSigners(bc.CurrentHeader().Number, 0); err != nil {
+			log.Warn("Failed to remove old evil signers", "err", err)
+		}
+		if err := bc.journal.Rotate(bc.getEvilSignerEvents()); err != nil {
+			log.Warn("Failed to rotate evil singer events ournal", "err", err)
 		}
 	}
 	return bc, nil
@@ -309,6 +326,10 @@ func (bc *LightChain) Stop() {
 	atomic.StoreInt32(&bc.procInterrupt, 1)
 
 	bc.wg.Wait()
+
+	if bc.journal != nil {
+		bc.journal.Close()
+	}
 	log.Info("Blockchain manager stopped")
 }
 
@@ -375,7 +396,15 @@ func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) 
 		self.mu.Lock()
 		defer self.mu.Unlock()
 
-		status, err := self.hc.WriteHeader(header)
+		status := core.SideStatTy
+		var err error
+		isEvilSigner := self.isNeedStopChain(header)
+		if isEvilSigner {
+			err = errors.New("too many evil signers on the chain")
+			log.Error(err.Error())
+		} else {
+			status, err = self.hc.WriteHeader(header)
+		}
 
 		switch status {
 		case core.CanonStatTy:
@@ -388,6 +417,7 @@ func (self *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) 
 		}
 		return err
 	}
+
 	i, err := self.hc.InsertHeaderChain(chain, whFunc, start)
 	self.postChainEvents(events)
 	return i, err
@@ -532,4 +562,50 @@ func (self *LightChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 // LightChain does not send core.RemovedLogsEvent, so return an empty subscription.
 func (self *LightChain) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
 	return self.scope.Track(new(event.Feed).Subscribe(ch))
+}
+
+// addEvilSignerEvents add evilSignerEvents of []*EvilSingerEvent.
+func (bc *LightChain) addEvilSingerEvents(evilEvents []*core.EvilSingerEvent) []error {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &core.EvilSignersMap{}
+	}
+	return bc.evilSigners.AddEvilSingerEvents(evilEvents)
+}
+
+// remove old evilSigners who have created  different blocks, and difference between  the blocks height
+// and currentHeight should biger then rangeValue.
+func (bc *LightChain) removeOldEvilSigners(currentHeight *big.Int, rangeValue int64) error {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		return nil
+	}
+	return bc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
+}
+
+// getEvilSignerEvents return evilSignerEvents by now
+func (bc *LightChain) getEvilSignerEvents() (res []*core.EvilSingerEvent) {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &core.EvilSignersMap{}
+	}
+
+	return bc.evilSigners.GetEvilSignerEvents()
+}
+
+// whether the block was created by evil signer.
+func (bc *LightChain) isNeedStopChain(header *types.Header) bool {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &core.EvilSignersMap{}
+	}
+	headerOld := bc.GetHeaderByNumber(header.Number.Uint64())
+	if headerOld == nil {
+		return false
+	}
+	return core.IsNeedStopChain(header, headerOld, bc.engine, bc.evilSigners, bc.journal)
 }

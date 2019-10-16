@@ -71,6 +71,9 @@ const (
 
 	// Fixed number of extra-data suffix bytes reserved for signer seal
 	extraSeal = 65
+
+	// Fixed height of ela chain height with LitterEnd encode
+	extraElaHeight = 8
 )
 
 //type MinedBlockEvent struct{}
@@ -115,8 +118,8 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 
 	}
 	spvCfg := &spv.Config{
-		DataDir:     cfg.DataDir,
-		OnRollback:  nil, // Not implemented yet
+		DataDir:    cfg.DataDir,
+		OnRollback: nil, // Not implemented yet
 	}
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
@@ -148,7 +151,12 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 	if err != nil {
 		log.Error("IpcClient: ", "err", err)
 	}
-	singersNum := (len(genesis.Extra) - extraVanity - extraSeal) / ethCommon.AddressLength
+	length := len(genesis.Extra)
+	signersSize := length - extraVanity - extraSeal
+	if (length-extraVanity-extraSeal)%ethCommon.AddressLength == extraElaHeight {
+		signersSize -= extraElaHeight
+	}
+	singersNum := signersSize / ethCommon.AddressLength
 	if singersNum > 0 {
 		signers := make([]ethCommon.Address, singersNum)
 		for i := 0; i < singersNum; i++ {
@@ -280,6 +288,22 @@ func getDefaultSingerAddr() (ethCommon.Address, bool) {
 	}
 	_, ok := Signers[addr]
 	return addr, ok
+}
+
+func GetBlockSignerMaps() *map[ethCommon.Address]struct{} {
+	// TODO get from ELA
+	return &Signers
+}
+
+func GetBlockSignerLen() int {
+	// TODO get from ELA
+	return len(Signers)
+}
+
+func ValidateSigner(addr ethCommon.Address) bool {
+	signers := GetBlockSignerMaps()
+	_, ok := (*signers)[addr]
+	return ok
 }
 
 //savePayloadInfo save and send spv perception
@@ -519,4 +543,15 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	}
 	op := new(big.Int).SetInt64(o.IntValue())
 	return new(big.Int).Mul(fe, y), ethCommon.HexToAddress(addrs[0]), new(big.Int).Mul(op, y)
+}
+
+func SendEvilProof(addr ethCommon.Address, info interface{}) {
+	log.Info("Send evil Proof", "info", "signer", addr.String())
+	//ToDO connect ela chain
+
+}
+
+func GetElaHeight() uint64 {
+	//ToDO
+	return 0
 }

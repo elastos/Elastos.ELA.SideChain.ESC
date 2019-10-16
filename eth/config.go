@@ -131,6 +131,9 @@ type Config struct {
 	BlackContractAddr string
 
 	PassBalance uint64
+
+	// evil signer events jouranl local path
+	EvilSignersJournalDir  string
 }
 
 type configMarshaling struct {
