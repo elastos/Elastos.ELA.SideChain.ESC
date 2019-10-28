@@ -184,7 +184,6 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 		return common.Address{}, errMissingSignature
 	}
 	signature := header.Extra[len(header.Extra)-extraSeal:]
-
 	// Recover the public key and the Ethereum address
 	pubkey, err := crypto.Ecrecover(sigHash(header).Bytes(), signature)
 	if err != nil {
@@ -235,6 +234,37 @@ func New(config *params.CliqueConfig, db ethdb.Database) *Clique {
 		signatures: signatures,
 		proposals:  make(map[common.Address]bool),
 	}
+}
+
+//VerifyRecentAuthor implements consensus.Engine to determine the recent signer by snap
+func (c *Clique) VerifyRecentAuthor(chain consensus.ChainReader) (error, uint64) {
+	header := chain.CurrentHeader()
+	number := header.Number.Uint64()
+	if number == 0 {
+		return errUnknownBlock, 0
+	}
+	// Don't hold the signer fields for the entire sealing procedure
+	c.lock.RLock()
+	signer := c.signer
+	c.lock.RUnlock()
+	// Bail out if we're unauthorized to sign a block
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	if err != nil {
+		return err, 0
+	}
+	if _, authorized := snap.Signers[signer]; !authorized {
+		return errUnauthorizedSigner, 0
+	}
+	for seen, recent := range snap.Recents {
+		if recent == signer {
+			// Signer is among recents, only fail if the current block doesn't shift it out
+			if limit := uint64(len(snap.Signers)/2 + 1); seen > number-limit {
+				return nil, seen - 1
+			}
+		}
+	}
+
+	return nil, 0
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
