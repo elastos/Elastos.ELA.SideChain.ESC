@@ -130,6 +130,61 @@ func (b *testWorkerBackend) PostChainEvents(events []interface{}) {
 	b.chain.PostChainEvents(events, nil)
 }
 
+func newTimeoutTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, n int) *testWorkerBackend {
+	var (
+		db    = ethdb.NewMemDatabase()
+		gspec = core.Genesis{
+			Config: chainConfig,
+			Alloc:  core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
+		}
+	)
+
+	switch engine.(type) {
+	case *clique.Clique:
+		gspec.ExtraData = make([]byte, 32+2*common.AddressLength+65)
+		copy(gspec.ExtraData[32:], testBankAddress[:])
+		copy(gspec.ExtraData[52:], testUserAddress[:])
+
+	case *ethash.Ethash:
+	default:
+		t.Fatalf("unexpected consensus engine type: %T", engine)
+	}
+	genesis := gspec.MustCommit(db)
+
+	chain, _ := core.NewBlockChain(db, nil, gspec.Config, engine, vm.Config{}, nil)
+	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
+	engine.(*clique.Clique).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), nil)
+	// Generate a small n-block chain and an uncle block for it
+	blocks, _ := core.TimeoutGenerateChain(chain, testBankKey, chainConfig, genesis, engine, db, n, func(i int, gen *core.BlockGen) {
+		gen.SetCoinbase(testBankAddress)
+	})
+	if _, err := chain.InsertChain(blocks); err != nil {
+		t.Fatalf("failed to insert origin chain: %v", err)
+	}
+	engine.(*clique.Clique).Authorize(crypto.PubkeyToAddress(testUserKey.PublicKey), nil)
+	blocks1, _ := core.TimeoutGenerateChain(chain, testUserKey, chainConfig, blocks[0], engine, db, n, func(i int, gen *core.BlockGen) {
+		gen.SetCoinbase(testUserAddress)
+	})
+	blocks = append(blocks, blocks1[0])
+
+	if _, err := chain.InsertChain(blocks); err != nil {
+		t.Fatalf("failed to insert origin chain: %v", err)
+	}
+	time.Sleep(30 * time.Second)
+	engine.(*clique.Clique).Authorize(crypto.PubkeyToAddress(testBankKey.PublicKey), nil)
+	blocks, _ = core.TimeoutGenerateChain(chain, testBankKey, chainConfig, blocks1[0], engine, db, n, func(i int, gen *core.BlockGen) {
+		gen.SetCoinbase(testBankAddress)
+	})
+	if _, err := chain.InsertChain(blocks); err != nil {
+		t.Fatalf("failed to insert origin chain: %v", err)
+	}
+	return &testWorkerBackend{
+		db:     db,
+		chain:  chain,
+		txPool: txpool,
+	}
+}
+
 func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine, blocks int) (*worker, *testWorkerBackend) {
 	backend := newTestWorkerBackend(t, chainConfig, engine, blocks)
 	backend.txPool.AddLocals(pendingTxs)
@@ -138,6 +193,10 @@ func newTestWorker(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	return w, backend
 }
 
+//Tests that doing Timeout reset block header
+func TestTimeoutWorker(t *testing.T) {
+	newTimeoutTestWorkerBackend(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, ethdb.NewMemDatabase()), 1)
+}
 func TestPendingStateAndBlockEthash(t *testing.T) {
 	testPendingStateAndBlock(t, ethashChainConfig, ethash.NewFaker())
 }

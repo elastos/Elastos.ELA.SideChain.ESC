@@ -137,13 +137,15 @@ type worker struct {
 	gasCeil  uint64
 
 	// Subscriptions
-	mux          *event.TypeMux
-	txsCh        chan core.NewTxsEvent
-	txsSub       event.Subscription
-	chainHeadCh  chan core.ChainHeadEvent
-	chainHeadSub event.Subscription
-	chainSideCh  chan core.ChainSideEvent
-	chainSideSub event.Subscription
+	mux                  *event.TypeMux
+	txsCh                chan core.NewTxsEvent
+	txsSub               event.Subscription
+	chainHeadCh          chan core.ChainHeadEvent
+	chainHeadSub         event.Subscription
+	chainSideCh          chan core.ChainSideEvent
+	chainSideSub         event.Subscription
+	dangerouChainSideCh  chan core.DangerousChainSideEvent
+	dangerouChainSideSub event.Subscription
 
 	// Channels
 	newWorkCh          chan *newWorkReq
@@ -186,35 +188,36 @@ type worker struct {
 
 func newWorker(config *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, recommit time.Duration, gasFloor, gasCeil uint64, isLocalBlock func(*types.Block) bool) *worker {
 	worker := &worker{
-		config:             config,
-		engine:             engine,
-		eth:                eth,
-		mux:                mux,
-		chain:              eth.BlockChain(),
-		gasFloor:           gasFloor,
-		gasCeil:            gasCeil,
-		isLocalBlock:       isLocalBlock,
-		localUncles:        make(map[common.Hash]*types.Block),
-		remoteUncles:       make(map[common.Hash]*types.Block),
-		unconfirmed:        newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
-		pendingTasks:       make(map[common.Hash]*task),
-		txsCh:              make(chan core.NewTxsEvent, txChanSize),
-		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
-		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
-		newWorkCh:          make(chan *newWorkReq),
-		taskCh:             make(chan *task),
-		resultCh:           make(chan *types.Block, resultQueueSize),
-		exitCh:             make(chan struct{}),
-		startCh:            make(chan struct{}, 1),
-		resubmitIntervalCh: make(chan time.Duration),
-		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
+		config:              config,
+		engine:              engine,
+		eth:                 eth,
+		mux:                 mux,
+		chain:               eth.BlockChain(),
+		gasFloor:            gasFloor,
+		gasCeil:             gasCeil,
+		isLocalBlock:        isLocalBlock,
+		localUncles:         make(map[common.Hash]*types.Block),
+		remoteUncles:        make(map[common.Hash]*types.Block),
+		unconfirmed:         newUnconfirmedBlocks(eth.BlockChain(), miningLogAtDepth),
+		pendingTasks:        make(map[common.Hash]*task),
+		txsCh:               make(chan core.NewTxsEvent, txChanSize),
+		chainHeadCh:         make(chan core.ChainHeadEvent, chainHeadChanSize),
+		chainSideCh:         make(chan core.ChainSideEvent, chainSideChanSize),
+		dangerouChainSideCh: make(chan core.DangerousChainSideEvent, chainSideChanSize),
+		newWorkCh:           make(chan *newWorkReq),
+		taskCh:              make(chan *task),
+		resultCh:            make(chan *types.Block, resultQueueSize),
+		exitCh:              make(chan struct{}),
+		startCh:             make(chan struct{}, 1),
+		resubmitIntervalCh:  make(chan time.Duration),
+		resubmitAdjustCh:    make(chan *intervalAdjust, resubmitAdjustChanSize),
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
-
+	worker.dangerouChainSideSub = eth.BlockChain().SubscribeDangerousChainSideEvent(worker.dangerouChainSideCh)
 	// Sanitize recommit interval if the user-specified one is too short.
 	if recommit < minRecommitInterval {
 		log.Warn("Sanitizing miner recommit interval", "provided", recommit, "updated", minRecommitInterval)
@@ -397,6 +400,9 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			if w.resubmitHook != nil {
 				w.resubmitHook(minRecommit, recommit)
 			}
+		case <-w.dangerouChainSideCh:
+			log.Error("Chain split stop", "dangerouChainSideCh")
+			w.close()
 
 		case <-w.exitCh:
 			return
@@ -409,6 +415,7 @@ func (w *worker) mainLoop() {
 	defer w.txsSub.Unsubscribe()
 	defer w.chainHeadSub.Unsubscribe()
 	defer w.chainSideSub.Unsubscribe()
+	defer w.dangerouChainSideSub.Unsubscribe()
 
 	for {
 		select {
@@ -489,6 +496,8 @@ func (w *worker) mainLoop() {
 		case <-w.chainHeadSub.Err():
 			return
 		case <-w.chainSideSub.Err():
+			return
+		case <-w.dangerouChainSideSub.Err():
 			return
 		}
 	}

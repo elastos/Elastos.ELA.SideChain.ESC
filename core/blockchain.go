@@ -50,6 +50,12 @@ var (
 	blockInsertTimer = metrics.NewRegisteredTimer("chain/inserts", nil)
 
 	ErrNoGenesis = errors.New("Genesis not found in chain")
+
+	removeblock int32
+
+	scanSetHead int32
+
+	timer = time.NewTimer(0)
 )
 
 const (
@@ -95,14 +101,15 @@ type BlockChain struct {
 	triegc *prque.Prque   // Priority queue mapping block numbers to tries to gc
 	gcproc time.Duration  // Accumulates canonical block processing for trie dumping
 
-	hc            *HeaderChain
-	rmLogsFeed    event.Feed
-	chainFeed     event.Feed
-	chainSideFeed event.Feed
-	chainHeadFeed event.Feed
-	logsFeed      event.Feed
-	scope         event.SubscriptionScope
-	genesisBlock  *types.Block
+	hc                     *HeaderChain
+	rmLogsFeed             event.Feed
+	chainFeed              event.Feed
+	chainSideFeed          event.Feed
+	chainHeadFeed          event.Feed
+	logsFeed               event.Feed
+	dangerousChainSideFeed event.Feed
+	scope                  event.SubscriptionScope
+	genesisBlock           *types.Block
 
 	mu      sync.RWMutex // global mutex for locking chain operations
 	chainmu sync.RWMutex // blockchain insertion lock
@@ -1029,7 +1036,26 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 	n, events, logs, err := bc.insertChain(chain)
 	bc.PostChainEvents(events, logs)
+	timer.Reset(30*time.Second + time.Duration(mrand.Int63n(int64(10*time.Second))))
+	if atomic.LoadInt32(&removeblock) == 0 {
+		atomic.StoreInt32(&removeblock, 1)
+		atomic.StoreInt32(&scanSetHead, 0)
+		go removeBlockloop(bc)
+	}
 	return n, err
+}
+
+//removeBlockloop timeout to delete the latest local mining block
+func removeBlockloop(bc *BlockChain) {
+	for {
+		select {
+		case <-timer.C:
+			err, blocknum := bc.engine.VerifyRecentAuthor(bc)
+			if err == nil && blocknum > 0 && bc.CurrentHeader().Number.Uint64() > blocknum && atomic.LoadInt32(&scanSetHead) == 0 {
+				bc.SetHead(blocknum)
+			}
+		}
+	}
 }
 
 // insertChain will execute the actual chain insertion and event aggregation. The
@@ -1363,6 +1389,15 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
+	if len(oldChain) >= 7 {
+		log.Error("Chain split stop", "number", commonBlock.Number(), "hash", commonBlock.Hash(),
+			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
+		atomic.StoreInt32(&scanSetHead, 1)
+		go func() {
+			bc.dangerousChainSideFeed.Send(DangerousChainSideEvent{})
+		}()
+		return fmt.Errorf("Dangerous new chain")
+	}
 	// Insert the new chain, taking care of the proper incremental order
 	var addedTxs types.Transactions
 	for i := len(newChain) - 1; i >= 0; i-- {
@@ -1610,4 +1645,9 @@ func (bc *BlockChain) SubscribeChainSideEvent(ch chan<- ChainSideEvent) event.Su
 // SubscribeLogsEvent registers a subscription of []*types.Log.
 func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
 	return bc.scope.Track(bc.logsFeed.Subscribe(ch))
+}
+
+//SubscribeDangerousChainSideEvent registers a subscription of DangerousChainSideEvent
+func (bc *BlockChain) SubscribeDangerousChainSideEvent(ch chan<- DangerousChainSideEvent) event.Subscription {
+	return bc.scope.Track(bc.dangerousChainSideFeed.Subscribe(ch))
 }

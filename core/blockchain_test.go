@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -383,7 +384,12 @@ func testReorgShort(t *testing.T, full bool) {
 	for i := 0; i < len(diff); i++ {
 		diff[i] = -9
 	}
-	testReorg(t, easy, diff, 12615120, full)
+	if full {
+		testReorg(t, easy, diff, 12451840, full)
+	} else {
+		testReorg(t, easy, diff, 12615120, full)
+	}
+
 }
 
 func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
@@ -406,7 +412,9 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 			t.Fatalf("failed to insert easy chain: %v", err)
 		}
 		if _, err := blockchain.InsertChain(diffBlocks); err != nil {
-			t.Fatalf("failed to insert difficult chain: %v", err)
+			if err.Error() != "Dangerous new chain" {
+				t.Fatalf("failed to insert difficult chain: %v", err)
+			}
 		}
 	} else {
 		easyHeaders := make([]*types.Header, len(easyBlocks))
@@ -1323,9 +1331,13 @@ func TestTrieForkGC(t *testing.T) {
 // Tests that doing large reorgs works even if the state associated with the
 // forking point is not available any more.
 func TestLargeReorgTrieGC(t *testing.T) {
+	var (
+		dangerouChainSideCh  chan DangerousChainSideEvent
+		dangerouChainSideSub event.Subscription
+	)
 	// Generate the original common chain segment and the two competing forks
 	engine := ethash.NewFaker()
-
+	dangerouChainSideCh = make(chan DangerousChainSideEvent, 10)
 	db := ethdb.NewMemDatabase()
 	genesis := new(Genesis).MustCommit(db)
 
@@ -1341,6 +1353,20 @@ func TestLargeReorgTrieGC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}
+	dangerouChainSideSub = chain.SubscribeDangerousChainSideEvent(dangerouChainSideCh)
+	timer = time.NewTimer(3 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-dangerouChainSideCh:
+				return
+			case <-timer.C:
+				t.Fatalf("failed to insert shared chain")
+			}
+		}
+
+	}()
+
 	if _, err := chain.InsertChain(shared); err != nil {
 		t.Fatalf("failed to insert shared chain: %v", err)
 	}
@@ -1361,16 +1387,21 @@ func TestLargeReorgTrieGC(t *testing.T) {
 			t.Fatalf("competitor %d: low TD chain became processed", i)
 		}
 	}
+
 	// Import the head of the competitor chain, triggering the reorg and ensure we
 	// successfully reprocess all the stashed away blocks.
 	if _, err := chain.InsertChain(competitor[len(competitor)-2:]); err != nil {
-		t.Fatalf("failed to finalize competitor chain: %v", err)
+		if err.Error() != "Dangerous new chain" {
+			t.Fatalf("failed to finalize competitor chain: %v", err)
+		}
 	}
-	for i, block := range competitor[:len(competitor)-triesInMemory] {
+
+	for i, block := range competitor[:len(competitor)-triesInMemory-1] {
 		if node, _ := chain.stateCache.TrieDB().Node(block.Root()); node != nil {
 			t.Fatalf("competitor %d: competing chain state missing", i)
 		}
 	}
+	dangerouChainSideSub.Unsubscribe()
 }
 
 // Benchmarks large blocks with value transfers to non-existing accounts
