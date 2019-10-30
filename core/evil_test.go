@@ -172,9 +172,7 @@ func TestEvilSigners(t *testing.T) {
 
 	}
 
-	//blocks = append(blocks, blocksevil[1:]...)
 	chain, err := NewBlockChain(db, nil, &config, engine, vm.Config{}, nil)
-	//fmt.Println(chain.CurrentBlock().Number().String())
 	if err != nil {
 		t.Error("create chain fail", err)
 	}
