@@ -39,19 +39,19 @@ func (ei *EvilInfo) findBlockInfoByHeight(height *big.Int) *BlockInfo {
 		}
 	}
 	blockInfo := &BlockInfo{Height: height}
-	index:= len(ei.EvilBlocks)
+	index := len(ei.EvilBlocks)
 	for i, v := range ei.EvilBlocks {
 		if v.Height.Cmp(height) > 0 {
 			index = i
 		}
 	}
 
-	if index < len(ei.EvilBlocks){
-		evilBlocks :=  ei.EvilBlocks[:]
+	if index < len(ei.EvilBlocks) {
+		evilBlocks := ei.EvilBlocks[:]
 		ei.EvilBlocks = evilBlocks[:index]
 		ei.EvilBlocks = append(ei.EvilBlocks, blockInfo)
 		ei.EvilBlocks = append(ei.EvilBlocks, evilBlocks[index:]...)
-	}else{
+	} else {
 		ei.EvilBlocks = append(ei.EvilBlocks, blockInfo)
 	}
 
@@ -131,10 +131,16 @@ func (signers *EvilSignersMap) IsDanger(currentHeight *big.Int, threshold int) b
 	count := 0
 	signersLen := spv.GetBlockSignersCount()
 	earliestHeight := new(big.Int).Sub(currentHeight, big.NewInt(int64(signersLen)))
-	for _, v := range *signers{
-		ln := len(v.EvilBlocks)
-		if v.EvilBlocks[ln -1].Height.Cmp(currentHeight) <= 0 && v.EvilBlocks[ln -1].Height.Cmp(earliestHeight) > 0{
-			count++
+	for _, v := range *signers {
+		index := len(v.EvilBlocks) - 1
+		for {
+			if index < 0 {
+				break
+			}
+			if v.EvilBlocks[index].Height.Cmp(currentHeight) <= 0 && v.EvilBlocks[index].Height.Cmp(earliestHeight) > 0 {
+				count++
+			}
+			index--
 		}
 
 	}
@@ -218,7 +224,7 @@ func IsNeedStopChain(headerNew, headerOld *types.Header, engine consensus.Engine
 		}
 	}
 
-	if signers.IsDanger(headerNew.Number, spv.GetBlockSignersCount() / 2) {
+	if signers.IsDanger(headerNew.Number, spv.GetBlockSignersCount()*2/3) {
 		return true
 	}
 	return false

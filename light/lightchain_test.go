@@ -479,7 +479,7 @@ func TestEvilSigners(t *testing.T) {
 		chain.InsertHeaderChain([]*types.Header{block.Header()}, 1)
 	}
 
-	if !chain.evilSigners.IsDanger(big.NewInt(int64(len(signerkeys)*3)), len(signerkeys)/2) {
+	if !chain.evilSigners.IsDanger(big.NewInt(int64(len(signerkeys)*3)), len(signerkeys)*2/3) {
 		t.Error(" Count evil signers wrong")
 	}
 }

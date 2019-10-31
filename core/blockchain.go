@@ -599,7 +599,7 @@ func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 func (bc *BlockChain) IsToManyEvilSingers() bool {
 	bc.evilmu.Lock()
 	defer bc.evilmu.Unlock()
-	return bc.evilSigners.IsDanger(bc.CurrentBlock().Number(), spv.GetBlockSignersCount() / 2)
+	return bc.evilSigners.IsDanger(bc.CurrentBlock().Number(), spv.GetBlockSignersCount()*2/3)
 }
 
 // GetBlock retrieves a block from the database by hash and number,
