@@ -2,6 +2,8 @@ package core
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -19,13 +21,14 @@ type EvilInfo struct {
 
 type BlockInfo struct {
 	Height      *big.Int
-	BlockHashes map[common.Hash]struct{}
+	BlockHashes map[common.Hash]uint64 // key : hash of block, value:height of ela chain
 }
 
 type EvilSingerEvent struct {
-	Singer *common.Address
-	Height *big.Int
-	Hash   *common.Hash
+	Singer    *common.Address
+	Height    *big.Int
+	ElaHeight uint64
+	Hash      *common.Hash
 }
 
 // get evil signer signed blocks information by height
@@ -36,22 +39,31 @@ func (ei *EvilInfo) findBlockInfoByHeight(height *big.Int) *BlockInfo {
 		}
 	}
 	blockInfo := &BlockInfo{Height: height}
-	ei.EvilBlocks = append(ei.EvilBlocks, blockInfo)
+	index:= len(ei.EvilBlocks)
+	for i, v := range ei.EvilBlocks {
+		if v.Height.Cmp(height) > 0 {
+			index = i
+		}
+	}
+
+	if index < len(ei.EvilBlocks){
+		evilBlocks :=  ei.EvilBlocks[:]
+		ei.EvilBlocks = evilBlocks[:index]
+		ei.EvilBlocks = append(ei.EvilBlocks, blockInfo)
+		ei.EvilBlocks = append(ei.EvilBlocks, evilBlocks[index:]...)
+	}else{
+		ei.EvilBlocks = append(ei.EvilBlocks, blockInfo)
+	}
+
 	return blockInfo
 }
 
 // Remove old evil Signers when changing signers event comes from ela chain
 func (signers *EvilSignersMap) RemoveOldEvilSigners(currentHeight *big.Int, rangeValue int64) error {
-	signersNew := spv.GetBlockSignerMaps()
 	if signers == nil {
 		return nil
 	}
 	for k, v := range *signers {
-		if _, ok := (*signersNew)[k]; !ok {
-			log.Info("Remove evil signers", "old signer", k.String())
-			delete(*signers, k)
-			continue
-		}
 
 		if currentHeight == nil || rangeValue <= 0 {
 			continue
@@ -68,9 +80,24 @@ func (signers *EvilSignersMap) RemoveOldEvilSigners(currentHeight *big.Int, rang
 
 }
 
+// return lately height
+func getLatelyElaHeight(heights []uint64) (uint64, error) {
+	if len(heights) == 0 {
+		return 0, errors.New("input array length is zero")
+	}
+	res := heights[0]
+	for _, v := range heights {
+		if v > res {
+			res = v
+		}
+	}
+	return res, nil
+}
+
 // update evil signers, send evil message to ela chain return de-duplication hashes
-func (signers *EvilSignersMap) UpdateEvilSigners(addr common.Address, height *big.Int, hashes []*common.Hash) ([]*common.Hash, error) {
-	rangeValue := spv.GetBlockSignerLen()
+func (signers *EvilSignersMap) UpdateEvilSigners(addr common.Address, height *big.Int, hashes []*common.Hash,
+	elaHeights []uint64) (map[common.Hash]uint64, error) {
+	rangeValue := spv.GetBlockSignersCount()
 	signers.RemoveOldEvilSigners(height, int64(rangeValue))
 
 	evilInfo := &EvilInfo{}
@@ -82,26 +109,36 @@ func (signers *EvilSignersMap) UpdateEvilSigners(addr common.Address, height *bi
 	}
 	blockInfo := evilInfo.findBlockInfoByHeight(height)
 	if blockInfo.BlockHashes == nil {
-		blockInfo.BlockHashes = make(map[common.Hash]struct{}, 0)
+		blockInfo.BlockHashes = make(map[common.Hash]uint64, 0)
 	}
-	addHashes := make([]*common.Hash, 0)
-	for _, hash := range hashes {
+	addHashes := make(map[common.Hash]uint64, 0)
+	for index, hash := range hashes {
 		if _, ok := blockInfo.BlockHashes[*hash]; !ok {
-			log.Info("Update evil signers", "evil info", "signer", addr.String(), "height", height.String(), "blockHash", hash.String())
-			blockInfo.BlockHashes[*hash] = struct{}{}
-			addHashes = append(addHashes, hash)
-
+			log.Info("Update evil signers", "evil info", "signer", addr.String(), "height",
+				height.String(), "blockHash", hash.String())
+			blockInfo.BlockHashes[*hash] = elaHeights[index]
+			addHashes[*hash] = elaHeights[index]
 		}
 	}
 	return addHashes, nil
 }
 
 // Return whether is to much evil signers.
-func (signers *EvilSignersMap) IsDanger(threshold int) bool {
+func (signers *EvilSignersMap) IsDanger(currentHeight *big.Int, threshold int) bool {
 	if signers == nil || threshold <= 0 {
 		return false
 	}
-	return len(*signers) > threshold
+	count := 0
+	signersLen := spv.GetBlockSignersCount()
+	earliestHeight := new(big.Int).Sub(currentHeight, big.NewInt(int64(signersLen)))
+	for _, v := range *signers{
+		ln := len(v.EvilBlocks)
+		if v.EvilBlocks[ln -1].Height.Cmp(currentHeight) <= 0 && v.EvilBlocks[ln -1].Height.Cmp(earliestHeight) > 0{
+			count++
+		}
+
+	}
+	return count > threshold
 }
 
 func (signers *EvilSignersMap) AddEvilSingerEvents(evilEvents []*EvilSingerEvent) []error {
@@ -110,7 +147,7 @@ func (signers *EvilSignersMap) AddEvilSingerEvents(evilEvents []*EvilSingerEvent
 		if v.Singer == nil {
 			continue
 		}
-		_, err := signers.UpdateEvilSigners(*v.Singer, v.Height, []*common.Hash{v.Hash})
+		_, err := signers.UpdateEvilSigners(*v.Singer, v.Height, []*common.Hash{v.Hash}, []uint64{v.ElaHeight})
 		errs[i] = err
 	}
 	return errs
@@ -119,10 +156,11 @@ func (signers *EvilSignersMap) AddEvilSingerEvents(evilEvents []*EvilSingerEvent
 func (signers *EvilSignersMap) GetEvilSignerEvents() (res []*EvilSingerEvent) {
 	for singer, infos := range *signers {
 		for _, blockInfo := range infos.EvilBlocks {
-			for hash, _ := range blockInfo.BlockHashes {
+			for hash, v := range blockInfo.BlockHashes {
 				copyHash := common.Hash{}
 				copy(copyHash[:], hash[:])
-				res = append(res, &EvilSingerEvent{&singer, blockInfo.Height, &copyHash})
+				res = append(res, &EvilSingerEvent{&singer, blockInfo.Height,
+					v, &copyHash})
 			}
 
 		}
@@ -131,12 +169,25 @@ func (signers *EvilSignersMap) GetEvilSignerEvents() (res []*EvilSingerEvent) {
 	return res
 }
 
+// Parse Ela chain height from header extra
+func ParseElaHeightFromHead(head *types.Header) (uint64, error) {
+	length := len(head.Extra)
+	if length < 105 {
+		return 0, errors.New("header's extra length is to short")
+	}
+	heightBytes := head.Extra[length-73 : length-65]
+	return binary.LittleEndian.Uint64(heightBytes), nil
+}
+
 // whether the block was created by evil signer.
 func IsNeedStopChain(headerNew, headerOld *types.Header, engine consensus.Engine, signers *EvilSignersMap,
 	journal *EvilJournal) bool {
 
 	hashOld := headerOld.Hash()
 	hashNew := headerNew.Hash()
+
+	elaHeightOld, _ := ParseElaHeightFromHead(headerOld)
+	elaHeightNew, _ := ParseElaHeightFromHead(headerNew)
 
 	if bytes.Equal(hashNew[:], hashOld[:]) {
 		return false
@@ -153,19 +204,21 @@ func IsNeedStopChain(headerNew, headerOld *types.Header, engine consensus.Engine
 		return false
 	}
 
-	addHashes, err := signers.UpdateEvilSigners(singerNew, headerNew.Number, []*common.Hash{&hashOld, &hashNew})
+	addHashes, err := signers.UpdateEvilSigners(singerNew, headerNew.Number, []*common.Hash{&hashOld, &hashNew},
+		[]uint64{elaHeightOld, elaHeightNew})
 	if err != nil {
 		return false
 	}
 
 	if journal != nil {
-		for _, hash := range addHashes {
-			log.Info("EvilSignerEvent", "Insert", "Singer", singerNew.String(), "Number:", headerNew.Number.Uint64(), "Hash:", hash.String())
-			journal.Insert(&EvilSingerEvent{&singerNew, headerNew.Number, hash})
+		for hash, height := range addHashes {
+			log.Info("EvilSignerEvent", "Insert", "Singer", singerNew.String(), "Number:",
+				headerNew.Number.Uint64(), "Hash:", hash.String())
+			journal.Insert(&EvilSingerEvent{&singerNew, headerNew.Number, height, &hash})
 		}
 	}
 
-	if signers.IsDanger(spv.GetBlockSignerLen() / 2) {
+	if signers.IsDanger(headerNew.Number, spv.GetBlockSignersCount() / 2) {
 		return true
 	}
 	return false

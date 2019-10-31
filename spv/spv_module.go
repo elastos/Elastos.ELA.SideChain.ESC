@@ -290,18 +290,18 @@ func getDefaultSingerAddr() (ethCommon.Address, bool) {
 	return addr, ok
 }
 
-func GetBlockSignerMaps() *map[ethCommon.Address]struct{} {
+func GetBlockSignerMaps(elaHeight uint64) *map[ethCommon.Address]struct{} {
 	// TODO get from ELA
 	return &Signers
 }
 
-func GetBlockSignerLen() int {
+func GetBlockSignersCount() int {
 	// TODO get from ELA
 	return len(Signers)
 }
 
-func ValidateSigner(addr ethCommon.Address) bool {
-	signers := GetBlockSignerMaps()
+func ValidateSigner(elaHeight uint64, addr ethCommon.Address) bool {
+	signers := GetBlockSignerMaps(elaHeight)
 	_, ok := (*signers)[addr]
 	return ok
 }

@@ -63,9 +63,8 @@ func (ap *testerAccountPool) sign(header *types.Header, signer string, sigHash f
 }
 
 func TestRemoveOldEvilSigners(t *testing.T) {
-	evilMaps := &EvilSignersMap{}
-
 	for i := 0; i < 10; i++ {
+		evilMaps := &EvilSignersMap{}
 		signersNum := rand.Intn(10) + 1
 		spv.Signers = make(map[common.Address]struct{})
 		signers := make([]common.Address, 0)
@@ -89,12 +88,12 @@ func TestRemoveOldEvilSigners(t *testing.T) {
 				break
 			}
 
-			evilMaps.UpdateEvilSigners(signers[index%signersNum], big.NewInt(int64(index)), []*common.Hash{&common.Hash{}})
+			evilMaps.UpdateEvilSigners(signers[index%signersNum], big.NewInt(int64(index)),
+				[]*common.Hash{&common.Hash{}}, []uint64{0})
 			index++
 		}
 
 		if len(*evilMaps) != signersNum {
-
 			t.Errorf("Wrong result, detail: signersNumber:%v, evilEventsNum: %v, evilSigners: %v",
 				signersNum, evilEventsNum, len(*evilMaps))
 		}
@@ -135,7 +134,7 @@ func TestEvilSigners(t *testing.T) {
 	}
 	engine := clique.New(config.Clique, db)
 	engine.SetFakeDiff(true)
-	blocks, _ := GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerkeys)*4, nil)
+	blocks, _ := GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerkeys)*3, nil)
 	blocksevil, _ := GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerkeys), nil)
 	diffInTurn := big.NewInt(2)
 	for j, block := range blocks {
@@ -172,9 +171,7 @@ func TestEvilSigners(t *testing.T) {
 
 	}
 
-	//blocks = append(blocks, blocksevil[1:]...)
 	chain, err := NewBlockChain(db, nil, &config, engine, vm.Config{}, nil)
-	//fmt.Println(chain.CurrentBlock().Number().String())
 	if err != nil {
 		t.Error("create chain fail", err)
 	}
@@ -187,7 +184,7 @@ func TestEvilSigners(t *testing.T) {
 		chain.InsertChain(types.Blocks{block})
 	}
 
-	if !chain.evilSigners.IsDanger(len(signerkeys) / 2) {
+	if !chain.evilSigners.IsDanger(big.NewInt(int64(len(signerkeys)*3)), len(signerkeys)/2) {
 		t.Error("Count evil signers wrong")
 	}
 

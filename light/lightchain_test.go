@@ -430,7 +430,7 @@ func TestEvilSigners(t *testing.T) {
 	engine := clique.New(config.Clique, db)
 	engine.SetFakeDiff(true)
 
-	blocks, _ := core.GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerkeys)*4, nil)
+	blocks, _ := core.GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerkeys)*3, nil)
 	blocksevil, _ := core.GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerkeys), nil)
 	diffInTurn := big.NewInt(2)
 	for j, block := range blocks {
@@ -479,7 +479,7 @@ func TestEvilSigners(t *testing.T) {
 		chain.InsertHeaderChain([]*types.Header{block.Header()}, 1)
 	}
 
-	if !chain.evilSigners.IsDanger(len(signerkeys) / 2) {
+	if !chain.evilSigners.IsDanger(big.NewInt(int64(len(signerkeys)*3)), len(signerkeys)/2) {
 		t.Error(" Count evil signers wrong")
 	}
 }

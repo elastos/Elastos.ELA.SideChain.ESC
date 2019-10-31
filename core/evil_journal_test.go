@@ -36,7 +36,7 @@ func TestEvilJoural(t *testing.T) {
 		if _, err := rand.Read(hash[:]); err != nil {
 			t.Fatal(err)
 		}
-		events[index] = &EvilSingerEvent{&addr, height, &hash}
+		events[index] = &EvilSingerEvent{&addr, height, height.Uint64(), &hash}
 		joural.Insert(events[index])
 		index++
 	}
@@ -70,6 +70,10 @@ func TestEvilJoural(t *testing.T) {
 		}
 
 		if v.Height.Cmp(eventsNew[i].Height) != 0 {
+			t.Errorf("Write and Read event are not equal!")
+		}
+
+		if v.ElaHeight != eventsNew[i].ElaHeight {
 			t.Errorf("Write and Read event are not equal!")
 		}
 
