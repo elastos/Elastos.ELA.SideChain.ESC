@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"golang.org/x/net/context"
 	"math/big"
 	"path/filepath"
@@ -17,10 +16,12 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
 	"github.com/elastos/Elastos.ELA.SideChain/types"
@@ -42,7 +43,6 @@ var (
 	candSend         int32     //1 can send recharge transactions, 0 can not send recharge transactions
 	candIterator     int32 = 0 //0 Iteratively send recharge transactions, 1 can't iteratively send recharge transactions
 	MinedBlockSub    *event.TypeMuxSubscription
-	Signers          map[ethCommon.Address]struct{} // Set of authorized signers at this moment
 )
 
 const (
@@ -151,9 +151,9 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 	if err != nil {
 		log.Error("IpcClient: ", "err", err)
 	}
-	length := len(genesis.Extra)
-	signersSize := length - extraVanity - extraSeal
-	if (length-extraVanity-extraSeal)%ethCommon.AddressLength == extraElaHeight {
+
+	signersSize := len(genesis.Extra) - extraVanity - extraSeal
+	if signersSize%ethCommon.AddressLength == extraElaHeight {
 		signersSize -= extraElaHeight
 	}
 	singersNum := signersSize / ethCommon.AddressLength
@@ -162,9 +162,9 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 		for i := 0; i < singersNum; i++ {
 			copy(signers[i][:], genesis.Extra[extraVanity+i*ethCommon.AddressLength:])
 		}
-		Signers = make(map[ethCommon.Address]struct{})
+		blocksigner.Signers = make(map[ethCommon.Address]struct{})
 		for _, signer := range signers {
-			Signers[signer] = struct{}{}
+			blocksigner.Signers[signer] = struct{}{}
 		}
 	}
 	MinedBlockSub = s.EventMux().Subscribe(events.MinedBlockEvent{})
@@ -286,24 +286,8 @@ func getDefaultSingerAddr() (ethCommon.Address, bool) {
 			addr = accounts[0].Address
 		}
 	}
-	_, ok := Signers[addr]
+	_, ok := blocksigner.Signers[addr]
 	return addr, ok
-}
-
-func GetBlockSignerMaps(elaHeight uint64) *map[ethCommon.Address]struct{} {
-	// TODO get from ELA
-	return &Signers
-}
-
-func GetBlockSignersCount() int {
-	// TODO get from ELA
-	return len(Signers)
-}
-
-func ValidateSigner(elaHeight uint64, addr ethCommon.Address) bool {
-	signers := GetBlockSignerMaps(elaHeight)
-	_, ok := (*signers)[addr]
-	return ok
 }
 
 //savePayloadInfo save and send spv perception

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
@@ -66,7 +67,7 @@ func (signers *EvilSignersMap) RemoveOldEvilSigners(currentHeight *big.Int, rang
 	for k, v := range *signers {
 
 		if currentHeight == nil || rangeValue <= 0 {
-			continue
+			break
 		}
 		length := len(v.EvilBlocks)
 		height := v.EvilBlocks[length-1].Height
@@ -97,7 +98,7 @@ func getLatelyElaHeight(heights []uint64) (uint64, error) {
 // update evil signers, send evil message to ela chain return de-duplication hashes
 func (signers *EvilSignersMap) UpdateEvilSigners(addr common.Address, height *big.Int, hashes []*common.Hash,
 	elaHeights []uint64) (map[common.Hash]uint64, error) {
-	rangeValue := spv.GetBlockSignersCount()
+	rangeValue := blocksigner.GetBlockSignersCount()
 	signers.RemoveOldEvilSigners(height, int64(rangeValue))
 
 	evilInfo := &EvilInfo{}
@@ -129,7 +130,7 @@ func (signers *EvilSignersMap) IsDanger(currentHeight *big.Int, threshold int) b
 		return false
 	}
 	count := 0
-	signersLen := spv.GetBlockSignersCount()
+	signersLen := blocksigner.GetBlockSignersCount()
 	earliestHeight := new(big.Int).Sub(currentHeight, big.NewInt(int64(signersLen)))
 	for _, v := range *signers {
 		index := len(v.EvilBlocks) - 1
@@ -144,7 +145,7 @@ func (signers *EvilSignersMap) IsDanger(currentHeight *big.Int, threshold int) b
 		}
 
 	}
-	return count > threshold
+	return count >= threshold
 }
 
 func (signers *EvilSignersMap) AddEvilSingerEvents(evilEvents []*EvilSingerEvent) []error {
@@ -224,8 +225,5 @@ func IsNeedStopChain(headerNew, headerOld *types.Header, engine consensus.Engine
 		}
 	}
 
-	if signers.IsDanger(headerNew.Number, spv.GetBlockSignersCount()*2/3) {
-		return true
-	}
-	return false
+	return signers.IsDanger(headerNew.Number, blocksigner.GetBlockSignersCount()*2/3)
 }

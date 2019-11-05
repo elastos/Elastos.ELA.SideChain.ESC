@@ -341,8 +341,8 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 		return errMissingSignature
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
-	length := len(header.Extra)
-	signersBytes := length - extraVanity - extraSeal
+
+	signersBytes := len(header.Extra) - extraVanity - extraSeal
 	if signersBytes%common.AddressLength == extraElaHeight {
 		signersBytes -= extraElaHeight
 	}
@@ -447,9 +447,8 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
-				length := len(checkpoint.Extra)
-				signersSize := length - extraVanity - extraSeal
-				if (length-extraVanity-extraSeal)%common.AddressLength == extraElaHeight {
+				signersSize := len(checkpoint.Extra) - extraVanity - extraSeal
+				if signersSize %common.AddressLength == extraElaHeight {
 					signersSize -= extraElaHeight
 				}
 				signers := make([]common.Address, signersSize/common.AddressLength)

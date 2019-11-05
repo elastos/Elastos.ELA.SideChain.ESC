@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/mclock"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/prque"
@@ -42,7 +43,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
 	"github.com/hashicorp/golang-lru"
 )
@@ -599,7 +599,7 @@ func (bc *BlockChain) HasBlockAndState(hash common.Hash, number uint64) bool {
 func (bc *BlockChain) IsToManyEvilSingers() bool {
 	bc.evilmu.Lock()
 	defer bc.evilmu.Unlock()
-	return bc.evilSigners.IsDanger(bc.CurrentBlock().Number(), spv.GetBlockSignersCount()*2/3)
+	return bc.evilSigners.IsDanger(bc.CurrentBlock().Number(), blocksigner.GetBlockSignersCount()*2/3)
 }
 
 // GetBlock retrieves a block from the database by hash and number,
@@ -1015,7 +1015,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 		log.Error(err.Error())
 
 		go func() {
-			bc.chainSideFeed.Send(ChainSideEvent{Block: block})
+			bc.chainSideFeed.Send(DangerousChainSideEvent{})
 		}()
 
 		return SideStatTy, err
@@ -1428,7 +1428,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
-	if len(oldChain) >= 7 {
+	if len(oldChain) >= (blocksigner.GetBlockSignersCount()*2/3) {
 		log.Error("Chain split stop", "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
 		atomic.StoreInt32(&scanSetHead, 1)
@@ -1709,7 +1709,8 @@ func (bc *BlockChain) removeOldEvilSigners(currentHeight *big.Int, rangeValue in
 	if bc.evilSigners == nil {
 		return nil
 	}
-	return bc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
+
+	return nil
 }
 
 // getEvilSignerEvents return evilSignerEvents by now
