@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
@@ -32,7 +33,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 )
 
 // So we can deterministically seed different blockchains
@@ -400,10 +400,10 @@ func TestEvilSigners(t *testing.T) {
 	signerkeys := []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "M", "N"}
 	accounts := newTesterAccountPool()
 	signers := make([]common.Address, len(signerkeys))
-	spv.Signers = make(map[common.Address]struct{})
+	blocksigner.Signers = make(map[common.Address]struct{})
 	for j, key := range signerkeys {
 		signers[j] = accounts.address(key)
-		spv.Signers[signers[j]] = struct{}{}
+		blocksigner.Signers[signers[j]] = struct{}{}
 	}
 	for j := 0; j < len(signers); j++ {
 		for k := j + 1; k < len(signers); k++ {

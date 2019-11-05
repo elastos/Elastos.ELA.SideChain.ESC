@@ -18,13 +18,13 @@ package core
 
 import (
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"math/big"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
@@ -34,6 +34,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 )
 
@@ -400,6 +401,8 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 	}
 	defer blockchain.Stop()
 
+	blocksigner.GenRandSingersFromTest()
+
 	// Insert an easy and a difficult chain afterwards
 	easyBlocks, _ := GenerateChain(params.TestChainConfig, blockchain.CurrentBlock(), ethash.NewFaker(), db, len(first), func(i int, b *BlockGen) {
 		b.OffsetTime(first[i])
@@ -412,7 +415,7 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 			t.Fatalf("failed to insert easy chain: %v", err)
 		}
 		if _, err := blockchain.InsertChain(diffBlocks); err != nil {
-			if err.Error() != "Dangerous new chain" {
+			if err.Error() != "Dangerous new chain" && err.Error() != "too many evil signers on the chain" {
 				t.Fatalf("failed to insert difficult chain: %v", err)
 			}
 		}
@@ -798,6 +801,7 @@ func TestChainTxReorgs(t *testing.T) {
 		signer  = types.NewEIP155Signer(gspec.Config.ChainID)
 	)
 
+	blocksigner.GenRandSingersFromTest()
 	// Create two transactions shared between the chains:
 	//  - postponed: transaction included at a later block in the forked chain
 	//  - swapped: transaction included at the same block number in the forked chain
@@ -904,6 +908,8 @@ func TestLogReorgs(t *testing.T) {
 		signer  = types.NewEIP155Signer(gspec.Config.ChainID)
 	)
 
+	blocksigner.GenRandSingersFromTest()
+
 	blockchain, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil)
 	defer blockchain.Stop()
 
@@ -950,6 +956,8 @@ func TestReorgSideEvent(t *testing.T) {
 		genesis = gspec.MustCommit(db)
 		signer  = types.NewEIP155Signer(gspec.Config.ChainID)
 	)
+
+	blocksigner.GenRandSingersFromTest()
 
 	blockchain, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil)
 	defer blockchain.Stop()
@@ -1247,6 +1255,8 @@ func TestBlockchainHeaderchainReorgConsistency(t *testing.T) {
 	genesis := new(Genesis).MustCommit(db)
 	blocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 64, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
 
+	blocksigner.GenRandSingersFromTest()
+
 	// Generate a bunch of fork blocks, each side forking from the canonical chain
 	forks := make([]*types.Block, len(blocks))
 	for i := 0; i < len(forks); i++ {
@@ -1291,6 +1301,8 @@ func TestTrieForkGC(t *testing.T) {
 	db := ethdb.NewMemDatabase()
 	genesis := new(Genesis).MustCommit(db)
 	blocks, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 2*triesInMemory, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+
+	blocksigner.GenRandSingersFromTest()
 
 	// Generate a bunch of fork blocks, each side forking from the canonical chain
 	forks := make([]*types.Block, len(blocks))

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
@@ -14,7 +15,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 )
 
 var (
@@ -66,7 +66,7 @@ func TestRemoveOldEvilSigners(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		evilMaps := &EvilSignersMap{}
 		signersNum := rand.Intn(10) + 1
-		spv.Signers = make(map[common.Address]struct{})
+		blocksigner.Signers = make(map[common.Address]struct{})
 		signers := make([]common.Address, 0)
 		for {
 			if signersNum == 0 {
@@ -78,7 +78,7 @@ func TestRemoveOldEvilSigners(t *testing.T) {
 				continue
 			}
 			signers = append(signers, addr)
-			spv.Signers[addr] = struct{}{}
+			blocksigner.Signers[addr] = struct{}{}
 		}
 		signersNum = len(signers)
 		evilEventsNum := rand.Intn(10) + signersNum + 1
@@ -106,10 +106,10 @@ func TestEvilSigners(t *testing.T) {
 	signerkeys := []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "M", "N"}
 	accounts := newTesterAccountPool()
 	signers := make([]common.Address, len(signerkeys))
-	spv.Signers = make(map[common.Address]struct{})
+	blocksigner.Signers = make(map[common.Address]struct{})
 	for j, key := range signerkeys {
 		signers[j] = accounts.address(key)
-		spv.Signers[signers[j]] = struct{}{}
+		blocksigner.Signers[signers[j]] = struct{}{}
 	}
 	for j := 0; j < len(signers); j++ {
 		for k := j + 1; k < len(signers); k++ {
