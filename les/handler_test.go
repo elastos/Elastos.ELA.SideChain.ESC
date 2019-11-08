@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
@@ -404,7 +405,7 @@ func testGetCHTProofs(t *testing.T, protocol int) {
 	}
 	switch protocol {
 	case 1:
-		root := light.GetChtRoot(server.db, 0, bc.GetHeaderByNumber(frequency-1).Hash())
+		root := light.GetChtRoot(server.db, 0, bc.GetHeaderByNumber(frequency - 1).Hash())
 		trie, _ := trie.New(root, trie.NewDatabase(ethdb.NewTable(server.db, light.ChtTablePrefix)))
 
 		var proof light.NodeList
@@ -412,7 +413,7 @@ func testGetCHTProofs(t *testing.T, protocol int) {
 		proofsV1[0].Proof = proof
 
 	case 2:
-		root := light.GetChtRoot(server.db, (frequency/config.ChtSize)-1, bc.GetHeaderByNumber(frequency-1).Hash())
+		root := light.GetChtRoot(server.db, (frequency/config.ChtSize)-1, bc.GetHeaderByNumber(frequency - 1).Hash())
 		trie, _ := trie.New(root, trie.NewDatabase(ethdb.NewTable(server.db, light.ChtTablePrefix)))
 		trie.Prove(key, 0, &proofsV2.Proofs)
 	}
@@ -479,7 +480,7 @@ func TestGetBloombitsProofs(t *testing.T) {
 		}}
 		var proofs HelperTrieResps
 
-		root := light.GetBloomTrieRoot(server.db, 0, bc.GetHeaderByNumber(config.BloomTrieSize-1).Hash())
+		root := light.GetBloomTrieRoot(server.db, 0, bc.GetHeaderByNumber(config.BloomTrieSize - 1).Hash())
 		trie, _ := trie.New(root, trie.NewDatabase(ethdb.NewTable(server.db, light.BloomTrieTablePrefix)))
 		trie.Prove(key, 0, &proofs.Proofs)
 
@@ -502,6 +503,8 @@ func TestTransactionStatusLes2(t *testing.T) {
 	pm.txpool = txpool
 	peer, _ := newTestPeer(t, "peer", 2, pm, true)
 	defer peer.close()
+
+	blocksigner.GenRandSingersFromTest()
 
 	var reqID uint64
 

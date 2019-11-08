@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"golang.org/x/net/context"
 	"math/big"
 	"path/filepath"
@@ -17,10 +16,12 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
 	"github.com/elastos/Elastos.ELA.SideChain/types"
@@ -42,7 +43,6 @@ var (
 	candSend         int32     //1 can send recharge transactions, 0 can not send recharge transactions
 	candIterator     int32 = 0 //0 Iteratively send recharge transactions, 1 can't iteratively send recharge transactions
 	MinedBlockSub    *event.TypeMuxSubscription
-	Signers          map[ethCommon.Address]struct{} // Set of authorized signers at this moment
 )
 
 const (
@@ -71,6 +71,9 @@ const (
 
 	// Fixed number of extra-data suffix bytes reserved for signer seal
 	extraSeal = 65
+
+	// Fixed height of ela chain height with LitterEnd encode
+	extraElaHeight = 8
 )
 
 //type MinedBlockEvent struct{}
@@ -115,8 +118,8 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 
 	}
 	spvCfg := &spv.Config{
-		DataDir:     cfg.DataDir,
-		OnRollback:  nil, // Not implemented yet
+		DataDir:    cfg.DataDir,
+		OnRollback: nil, // Not implemented yet
 	}
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
@@ -148,15 +151,20 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 	if err != nil {
 		log.Error("IpcClient: ", "err", err)
 	}
-	singersNum := (len(genesis.Extra) - extraVanity - extraSeal) / ethCommon.AddressLength
+
+	signersSize := len(genesis.Extra) - extraVanity - extraSeal
+	if signersSize%ethCommon.AddressLength == extraElaHeight {
+		signersSize -= extraElaHeight
+	}
+	singersNum := signersSize / ethCommon.AddressLength
 	if singersNum > 0 {
 		signers := make([]ethCommon.Address, singersNum)
 		for i := 0; i < singersNum; i++ {
 			copy(signers[i][:], genesis.Extra[extraVanity+i*ethCommon.AddressLength:])
 		}
-		Signers = make(map[ethCommon.Address]struct{})
+		blocksigner.Signers = make(map[ethCommon.Address]struct{})
 		for _, signer := range signers {
-			Signers[signer] = struct{}{}
+			blocksigner.Signers[signer] = struct{}{}
 		}
 	}
 	MinedBlockSub = s.EventMux().Subscribe(events.MinedBlockEvent{})
@@ -278,7 +286,7 @@ func getDefaultSingerAddr() (ethCommon.Address, bool) {
 			addr = accounts[0].Address
 		}
 	}
-	_, ok := Signers[addr]
+	_, ok := blocksigner.Signers[addr]
 	return addr, ok
 }
 
@@ -519,4 +527,15 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	}
 	op := new(big.Int).SetInt64(o.IntValue())
 	return new(big.Int).Mul(fe, y), ethCommon.HexToAddress(addrs[0]), new(big.Int).Mul(op, y)
+}
+
+func SendEvilProof(addr ethCommon.Address, info interface{}) {
+	log.Info("Send evil Proof", "info", "signer", addr.String())
+	//ToDO connect ela chain
+
+}
+
+func GetElaHeight() uint64 {
+	//ToDO
+	return 0
 }

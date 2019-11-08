@@ -508,3 +508,7 @@ func (hc *HeaderChain) Engine() consensus.Engine { return hc.engine }
 func (hc *HeaderChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	return nil
 }
+
+func (bc *HeaderChain) IsToManyEvilSingers() bool {
+	return false
+}

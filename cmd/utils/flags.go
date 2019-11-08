@@ -1224,6 +1224,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	cfg.BlackContractAddr = ctx.GlobalString(BlackContractAddr.Name)
 	cfg.PassBalance = ctx.GlobalUint64(PassBalance.Name)
+	cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "geth")
+	if ctx.GlobalIsSet(DataDirFlag.Name) {
+		cfg.EvilSignersJournalDir = filepath.Join(ctx.GlobalString(DataDirFlag.Name), "geth")
+	}
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
@@ -1232,12 +1236,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
 		cfg.Genesis = core.DefaultTestnetGenesisBlock()
+		cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "testnet", "geth")
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 4
 		}
 		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
 		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
+		cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "rinkeby", "geth")
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337

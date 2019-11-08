@@ -19,6 +19,7 @@ package clique
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"math/big"
 	"math/rand"
@@ -39,6 +40,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -54,8 +56,9 @@ const (
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
-	extraVanity = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
-	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraVanity    = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
+	extraSeal      = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraElaHeight = 8  // Fixed height of ela chain height with LitterEnd encode
 
 	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
 	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
@@ -267,6 +270,11 @@ func (c *Clique) VerifyRecentAuthor(chain consensus.ChainReader) (error, uint64)
 	return nil, 0
 }
 
+// Used for test
+func (c *Clique) SetFakeDiff(v bool) {
+	c.fakeDiff = v
+}
+
 // Author implements consensus.Engine, returning the Ethereum address recovered
 // from the signature in the header's extra-data section.
 func (c *Clique) Author(header *types.Header) (common.Address, error) {
@@ -333,7 +341,11 @@ func (c *Clique) verifyHeader(chain consensus.ChainReader, header *types.Header,
 		return errMissingSignature
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
+
 	signersBytes := len(header.Extra) - extraVanity - extraSeal
+	if signersBytes%common.AddressLength == extraElaHeight {
+		signersBytes -= extraElaHeight
+	}
 	if !checkpoint && signersBytes != 0 {
 		return errExtraSigners
 	}
@@ -396,7 +408,11 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 		for i, signer := range snap.signers() {
 			copy(signers[i*common.AddressLength:], signer[:])
 		}
+
 		extraSuffix := len(header.Extra) - extraSeal
+		if (len(header.Extra)-extraSeal-extraVanity)%common.AddressLength == extraElaHeight {
+			extraSuffix -= extraElaHeight
+		}
 		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], signers) {
 			return errMismatchingCheckpointSigners
 		}
@@ -431,8 +447,11 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
-
-				signers := make([]common.Address, (len(checkpoint.Extra)-extraVanity-extraSeal)/common.AddressLength)
+				signersSize := len(checkpoint.Extra) - extraVanity - extraSeal
+				if signersSize %common.AddressLength == extraElaHeight {
+					signersSize -= extraElaHeight
+				}
+				signers := make([]common.Address, signersSize/common.AddressLength)
 				for i := 0; i < len(signers); i++ {
 					copy(signers[i][:], checkpoint.Extra[extraVanity+i*common.AddressLength:])
 				}
@@ -593,6 +612,7 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 			header.Extra = append(header.Extra, signer[:]...)
 		}
 	}
+	header.Extra = append(header.Extra, make([]byte, extraElaHeight)...)
 	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
 
 	// Mix digest is reserved for now, set to empty
@@ -634,6 +654,13 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+
+	if chain.IsToManyEvilSingers() {
+		err := errors.New("too many evil signers on the chain")
+		log.Error(err.Error())
+		return nil
+	}
+
 	header := block.Header()
 
 	// Sealing the genesis block is not supported
@@ -681,12 +708,21 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 
 		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
 	}
+
+	length := len(header.Extra)
+	in := new(bytes.Buffer)
+	elaHeight := spv.GetElaHeight()
+	if err := binary.Write(in, binary.BigEndian, elaHeight); err == nil {
+		copy(header.Extra[length-extraElaHeight-extraSeal:length-extraSeal], in.Bytes())
+	}
+
 	// Sign all the things!
 	sighash, err := signFn(accounts.Account{Address: signer}, sigHash(header).Bytes())
 	if err != nil {
 		return err
 	}
-	copy(header.Extra[len(header.Extra)-extraSeal:], sighash)
+	copy(header.Extra[length-extraSeal:], sighash)
+
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
