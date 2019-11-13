@@ -25,7 +25,6 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/enode"
 )
 
@@ -33,7 +32,8 @@ import (
 // The fields of Node may not be modified.
 type node struct {
 	enode.Node
-	addedAt time.Time // time when the node was added to the table
+	addedAt        time.Time // time when the node was added to the table
+	livenessChecks uint      // how often liveness was checked
 }
 
 type encPubkey [64]byte
@@ -63,7 +63,7 @@ func (e encPubkey) id() enode.ID {
 // recoverNodeKey computes the public key used to sign the
 // given hash from the signature.
 func recoverNodeKey(hash, sig []byte) (key encPubkey, err error) {
-	pubkey, err := secp256k1.RecoverPubkey(hash, sig)
+	pubkey, err := crypto.Ecrecover(hash, sig)
 	if err != nil {
 		return key, err
 	}

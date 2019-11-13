@@ -2,6 +2,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+### Fixed
+
+- Added missing runtime import for FreeBSD. #104
+
+### Changed
+
+### Deprecated
+
 ## [0.9.0]
 
 ### Added

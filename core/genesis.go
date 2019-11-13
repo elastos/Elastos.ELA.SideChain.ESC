@@ -31,6 +31,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
@@ -134,7 +135,7 @@ type GenesisMismatchError struct {
 }
 
 func (e *GenesisMismatchError) Error() string {
-	return fmt.Sprintf("database already contains an incompatible genesis block (have %x, new %x)", e.Stored[:8], e.New[:8])
+	return fmt.Sprintf("database contains incompatible genesis (have %x, new %x)", e.Stored, e.New)
 }
 
 // SetupGenesisBlock writes or updates the genesis block in db.
@@ -151,22 +152,46 @@ func (e *GenesisMismatchError) Error() string {
 //
 // The returned chain configuration is never nil.
 func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
+	return SetupGenesisBlockWithOverride(db, genesis, nil)
+}
+
+func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideIstanbul *big.Int) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && genesis.Config == nil {
 		return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
 	}
-
 	// Just commit the new block if there is no stored genesis block.
 	stored := rawdb.ReadCanonicalHash(db, 0)
 	if (stored == common.Hash{}) {
 		if genesis == nil {
-			log.Info("Writing default main net genesis block")
+			log.Info("Writing default main-net genesis block")
 			genesis = DefaultGenesisBlock()
-
 		} else {
 			log.Info("Writing custom genesis block")
 		}
 		block, err := genesis.Commit(db)
-		return genesis.Config, block.Hash(), err
+		if err != nil {
+			return genesis.Config, common.Hash{}, err
+		}
+		return genesis.Config, block.Hash(), nil
+	}
+
+	// We have the genesis block in database(perhaps in ancient database)
+	// but the corresponding state is missing.
+	header := rawdb.ReadHeader(db, stored, 0)
+	if _, err := state.New(header.Root, state.NewDatabaseWithCache(db, 0)); err != nil {
+		if genesis == nil {
+			genesis = DefaultGenesisBlock()
+		}
+		// Ensure the stored genesis matches with the given one.
+		hash := genesis.ToBlock(nil).Hash()
+		if hash != stored {
+			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
+		}
+		block, err := genesis.Commit(db)
+		if err != nil {
+			return genesis.Config, hash, err
+		}
+		return genesis.Config, block.Hash(), nil
 	}
 
 	// Check whether the genesis block is already written.
@@ -179,8 +204,13 @@ func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig
 
 	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
+	if overrideIstanbul != nil {
+		newcfg.IstanbulBlock = overrideIstanbul
+	}
+	if err := newcfg.CheckConfigForkOrder(); err != nil {
+		return newcfg, common.Hash{}, err
+	}
 	storedcfg := rawdb.ReadChainConfig(db, stored)
-
 	if storedcfg == nil {
 		log.Warn("Found genesis block without chain config")
 		rawdb.WriteChainConfig(db, stored, newcfg)
@@ -224,7 +254,7 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 // to the given database (or discards it if nil).
 func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	if db == nil {
-		db = ethdb.NewMemDatabase()
+		db = rawdb.NewMemoryDatabase()
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
 	for addr, account := range g.Alloc {
@@ -239,7 +269,7 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	head := &types.Header{
 		Number:     new(big.Int).SetUint64(g.Number),
 		Nonce:      types.EncodeNonce(g.Nonce),
-		Time:       new(big.Int).SetUint64(g.Timestamp),
+		Time:       g.Timestamp,
 		ParentHash: g.ParentHash,
 		Extra:      g.ExtraData,
 		GasLimit:   g.GasLimit,
@@ -268,17 +298,20 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	if block.Number().Sign() != 0 {
 		return nil, fmt.Errorf("can't commit genesis block with number > 0")
 	}
+	config := g.Config
+	if config == nil {
+		config = params.AllEthashProtocolChanges
+	}
+	if err := config.CheckConfigForkOrder(); err != nil {
+		return nil, err
+	}
 	rawdb.WriteTd(db, block.Hash(), block.NumberU64(), g.Difficulty)
 	rawdb.WriteBlock(db, block)
 	rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeadBlockHash(db, block.Hash())
+	rawdb.WriteHeadFastBlockHash(db, block.Hash())
 	rawdb.WriteHeadHeaderHash(db, block.Hash())
-
-	config := g.Config
-	if config == nil {
-		config = params.AllEthashProtocolChanges
-	}
 	rawdb.WriteChainConfig(db, block.Hash(), config)
 	return block, nil
 }
@@ -301,133 +334,50 @@ func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big
 
 // DefaultGenesisBlock returns the Ethereum main net genesis block.
 func DefaultGenesisBlock() *Genesis {
-	genesis := &Genesis{
+	return &Genesis{
 		Config:     params.MainnetChainConfig,
-		Timestamp:  0x1,
-		GasLimit:   0x2068F7700,
-		Difficulty: big.NewInt(1),
-		Alloc:      nil,
+		Nonce:      66,
+		ExtraData:  hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
+		GasLimit:   5000,
+		Difficulty: big.NewInt(17179869184),
+		Alloc:      decodePrealloc(mainnetAllocData),
 	}
-	extra := make([]byte, 0)
-	extra = append(extra, bytes.Repeat([]byte{0x00}, 32)...)
-	address1 := hexutil.MustDecode("0x5141f2c88e84c0f9b4c1876df59e2530fbdc42f2")
-	address2 := hexutil.MustDecode("0xf02090aec7d41b1880058cf5155fe030c3ec404e")
-	address3 := hexutil.MustDecode("0x08319622794adcf7c05d9e8f6d251c3309e0ec3c")
-	address4 := hexutil.MustDecode("0x8609fadecdc27e135343b7c8bdbf25f09a014582")
-	address5 := hexutil.MustDecode("0x77466b8b6fbb66ac1db38343af158b2263699678")
-	address6 := hexutil.MustDecode("0x8207c68a3345104698ae24c4847bf748a32c97d1")
-	address7 := hexutil.MustDecode("0x58f0d33873227887ecf514064e3a7b94754ecb68")
-	address8 := hexutil.MustDecode("0x470e2a9002b6aa3197cbec11f46971c73d79a8e8")
-	address9 := hexutil.MustDecode("0x0ddb5d59d98347dbbc60c63d09213e5fac0cbc6d")
-	address10 := hexutil.MustDecode("0x8f547cedf3b298182abf49be4a717db9a0d14509")
-	address11 := hexutil.MustDecode("0xfddb0ca03ffc56463ec0e6dda91c99f70a7bca50")
-	address12 := hexutil.MustDecode("0x5223c679c4bfdaee3463636ee4a8ff022b46e9eb")
-	extra = append(extra, address1...)
-	extra = append(extra, address2...)
-	extra = append(extra, address3...)
-	extra = append(extra, address4...)
-	extra = append(extra, address5...)
-	extra = append(extra, address6...)
-	extra = append(extra, address7...)
-	extra = append(extra, address8...)
-	extra = append(extra, address9...)
-	extra = append(extra, address10...)
-	extra = append(extra, address11...)
-	extra = append(extra, address12...)
-	extra = append(extra, bytes.Repeat([]byte{0x00}, 65)...)
-	genesis.ExtraData = extra
-	return genesis
 }
 
 // DefaultTestnetGenesisBlock returns the Ropsten network genesis block.
 func DefaultTestnetGenesisBlock() *Genesis {
-	genesis := &Genesis{
+	return &Genesis{
 		Config:     params.TestnetChainConfig,
-		Timestamp:  0x5bda9da0,
-		GasLimit:   0x2068F7700,
-		Difficulty: big.NewInt(1),
-		Alloc:      nil,
+		Nonce:      66,
+		ExtraData:  hexutil.MustDecode("0x3535353535353535353535353535353535353535353535353535353535353535"),
+		GasLimit:   16777216,
+		Difficulty: big.NewInt(1048576),
+		Alloc:      decodePrealloc(testnetAllocData),
 	}
-	extra := make([]byte, 0)
-	extra = append(extra, bytes.Repeat([]byte{0x00}, 32)...)
-	address1 := hexutil.MustDecode("0xd7b0ddec94d96d4c7870deac1a2fe3347b9b4b85")
-	address2 := hexutil.MustDecode("0x4dd0dd5e78c10842544cc1e88b5e1fcc3532abe1")
-	address3 := hexutil.MustDecode("0xbb6ef39991b88e0121689a298d16b34dfca43156")
-	address4 := hexutil.MustDecode("0x1d8b61c0300fa3b6167bd76ad82c90feab038af0")
-	address5 := hexutil.MustDecode("0xf3ca004f36ee4d3510553564bdb81ab5f1a5d4ed")
-	address6 := hexutil.MustDecode("0x412a0777ad9bed14c4d53a883f618eb86de1723d")
-	address7 := hexutil.MustDecode("0xedabf5d5fb905ef2148dcf3fdc08d53f03d534a5")
-	address8 := hexutil.MustDecode("0x143b49ff57efc134816017a5cd0b99058946781f")
-	address9 := hexutil.MustDecode("0x8c60febab3495b66047aaaac8639a2d0bd911737")
-	address10 := hexutil.MustDecode("0x473e7ea53fbf71e091703893dd9b6d5b96a83db1")
-	address11 := hexutil.MustDecode("0xb8ae7e3346330073552e1b7c8403f4e107406ff7")
-	address12 := hexutil.MustDecode("0xd168f2f37649f1a5cf1cbc173e02e2897ccd83b1")
-	extra = append(extra, address1...)
-	extra = append(extra, address2...)
-	extra = append(extra, address3...)
-	extra = append(extra, address4...)
-	extra = append(extra, address5...)
-	extra = append(extra, address6...)
-	extra = append(extra, address7...)
-	extra = append(extra, address8...)
-	extra = append(extra, address9...)
-	extra = append(extra, address10...)
-	extra = append(extra, address11...)
-	extra = append(extra, address12...)
-	extra = append(extra, bytes.Repeat([]byte{0x00}, 65)...)
-	genesis.ExtraData = extra
-	return genesis
-
 }
 
 // DefaultRinkebyGenesisBlock returns the Rinkeby network genesis block.
 func DefaultRinkebyGenesisBlock() *Genesis {
-	genesis := &Genesis{
+	return &Genesis{
 		Config:     params.RinkebyChainConfig,
-		Timestamp:  0x5bda9da8,
-		GasLimit:   0x2068F7700,
+		Timestamp:  1492009146,
+		ExtraData:  hexutil.MustDecode("0x52657370656374206d7920617574686f7269746168207e452e436172746d616e42eb768f2244c8811c63729a21a3569731535f067ffc57839b00206d1ad20c69a1981b489f772031b279182d99e65703f0076e4812653aab85fca0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   4700000,
 		Difficulty: big.NewInt(1),
-		Alloc:      nil,
+		Alloc:      decodePrealloc(rinkebyAllocData),
 	}
-	extra := make([]byte, 0)
-	extra = append(extra, bytes.Repeat([]byte{0x00}, 32)...)
-	address1 := hexutil.MustDecode("0x7117360e9165f11c51c4231be16c602a5dd250b6")
-	address2 := hexutil.MustDecode("0xaeabe3dd7b80adf0a884e572e84daf5eba0aa4ae")
-	address3 := hexutil.MustDecode("0x8bb95e8f1ec991b71789497a09fd4997c468c3c2")
-	address4 := hexutil.MustDecode("0x77cd931d4864039fa48220f817519f5a8b0715b3")
-	address5 := hexutil.MustDecode("0x34185174992c36c79f78da5e009b9c22732738d6")
-	address6 := hexutil.MustDecode("0x35ae1cbf8c5a01a40943aff7e0c8d5d3c625bf96")
-	address7 := hexutil.MustDecode("0x971037c3e90bb239b5b219b7ac14c8e301dca5f8")
-	address8 := hexutil.MustDecode("0x75ed22d90568dd99c56cb34c8d5204d610cb2b61")
-	address9 := hexutil.MustDecode("0x07ebaaee24a9d8dd625ca9863af2347656df876a")
-	address10 := hexutil.MustDecode("0x369c5f2b099abb3c050b8ba4355cf0dc29ebf429")
-	address11 := hexutil.MustDecode("0x6e32b1fff289d05e719a58e1ad1fff1a924014c8")
-	address12 := hexutil.MustDecode("0x72064cd776e12d7163d329cc003bffb1b8b9de44")
-	extra = append(extra, address1...)
-	extra = append(extra, address2...)
-	extra = append(extra, address3...)
-	extra = append(extra, address4...)
-	extra = append(extra, address5...)
-	extra = append(extra, address6...)
-	extra = append(extra, address7...)
-	extra = append(extra, address8...)
-	extra = append(extra, address9...)
-	extra = append(extra, address10...)
-	extra = append(extra, address11...)
-	extra = append(extra, address12...)
-	extra = append(extra, bytes.Repeat([]byte{0x00}, 65)...)
-	genesis.ExtraData = extra
-	return genesis
 }
 
-// Convert a string to an int
-func convertBigIntData(intNumber string) *big.Int {
-	number, err := big.NewInt(0).SetString(intNumber, 10)
-	if !err {
-		fmt.Print(err)
-		return big.NewInt(0)
+// DefaultGoerliGenesisBlock returns the Görli network genesis block.
+func DefaultGoerliGenesisBlock() *Genesis {
+	return &Genesis{
+		Config:     params.GoerliChainConfig,
+		Timestamp:  1548854791,
+		ExtraData:  hexutil.MustDecode("0x22466c6578692069732061207468696e6722202d204166726900000000000000e0a2bd4258d2768837baa26a28fe71dc079f84c70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   10485760,
+		Difficulty: big.NewInt(1),
+		Alloc:      decodePrealloc(goerliAllocData),
 	}
-	return number
 }
 
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block. Note, this must
@@ -440,7 +390,7 @@ func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
 		Config:     &config,
-		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, 65)...),
+		ExtraData:  append(append(make([]byte, 32), faucet[:]...), make([]byte, crypto.SignatureLength)...),
 		GasLimit:   6283185,
 		Difficulty: big.NewInt(1),
 		Alloc: map[common.Address]GenesisAccount{
@@ -452,7 +402,7 @@ func DeveloperGenesisBlock(period uint64, faucet common.Address) *Genesis {
 			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
 			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
 			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
-			faucet: {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
+			faucet:                           {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
 		},
 	}
 }

@@ -18,14 +18,13 @@ package core
 
 import (
 	"container/heap"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"math"
 	"math/big"
 	"sort"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 )
 
 // nonceHeap is a heap.Interface implementation over 64bit unsigned integers for
@@ -100,27 +99,15 @@ func (m *txSortedMap) Forward(threshold uint64) types.Transactions {
 
 // Filter iterates over the list of transactions and removes all of them for which
 // the specified function evaluates to true.
-func (m *txSortedMap) Filter(filter func(*types.Transaction) bool, gasLimit uint64, currentState *state.StateDB, from common.Address, blackContractAddr string) types.Transactions {
+func (m *txSortedMap) Filter(filter func(*types.Transaction) bool) types.Transactions {
 	var removed types.Transactions
-	var addr common.Address
+
 	// Collect all the transactions to filter out
 	for nonce, tx := range m.items {
-		if tx.To() != nil {
-			to := *tx.To()
-			if len(tx.Data()) == 32 && to == addr {
-				filter = func(tx *types.Transaction) bool { return tx.Gas() > gasLimit }
-			}
-		} else if currentState != nil {
-			contractAddr := crypto.CreateAddress(from, currentState.GetNonce(from))
-			if (contractAddr.String() == blackContractAddr && gasLimit > 0 && from != common.Address{}) {
-				filter = func(tx *types.Transaction) bool { return tx.Gas() > gasLimit }
-			}
-		}
 		if filter(tx) {
 			removed = append(removed, tx)
 			delete(m.items, nonce)
 		}
-
 	}
 	// If transactions were removed, the heap and cache are ruined
 	if len(removed) > 0 {
@@ -132,7 +119,6 @@ func (m *txSortedMap) Filter(filter func(*types.Transaction) bool, gasLimit uint
 
 		m.cache = nil
 	}
-
 	return removed
 }
 
@@ -301,16 +287,16 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 // the newly invalidated transactions.
-func (l *txList) Filter(costLimit *big.Int, gasLimit uint64, currentState *state.StateDB, from common.Address, blackContractAddr string) (types.Transactions, types.Transactions) {
+func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
 	// If all transactions are below the threshold, short circuit
 	if l.costcap.Cmp(costLimit) <= 0 && l.gascap <= gasLimit {
 		return nil, nil
 	}
 	l.costcap = new(big.Int).Set(costLimit) // Lower the caps to the thresholds
 	l.gascap = gasLimit
-	// Filter out all the transactions above the account's funds
 
-	removed := l.txs.Filter(func(tx *types.Transaction) bool { return tx.Cost().Cmp(costLimit) > 0 || tx.Gas() > gasLimit }, gasLimit, currentState, from, blackContractAddr)
+	// Filter out all the transactions above the account's funds
+	removed := l.txs.Filter(func(tx *types.Transaction) bool { return tx.Cost().Cmp(costLimit) > 0 || tx.Gas() > gasLimit })
 
 	// If the list was strict, filter anything above the lowest nonce
 	var invalids types.Transactions
@@ -322,7 +308,7 @@ func (l *txList) Filter(costLimit *big.Int, gasLimit uint64, currentState *state
 				lowest = nonce
 			}
 		}
-		invalids = l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > lowest }, 0, nil, common.Address{}, "")
+		invalids = l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > lowest })
 	}
 	return removed, invalids
 }
@@ -344,7 +330,7 @@ func (l *txList) Remove(tx *types.Transaction) (bool, types.Transactions) {
 	}
 	// In strict mode, filter out non-executable transactions
 	if l.strict {
-		return true, l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > nonce }, 0, nil, common.Address{}, "")
+		return true, l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > nonce })
 	}
 	return true, nil
 }
@@ -432,9 +418,9 @@ func (l *txPricedList) Put(tx *types.Transaction) {
 // Removed notifies the prices transaction list that an old transaction dropped
 // from the pool. The list will just keep a counter of stale objects and update
 // the heap if a large enough ratio of transactions go stale.
-func (l *txPricedList) Removed() {
+func (l *txPricedList) Removed(count int) {
 	// Bump the stale counter, but exit if still too low (< 25%)
-	l.stales++
+	l.stales += count
 	if l.stales <= len(*l.items)/4 {
 		return
 	}

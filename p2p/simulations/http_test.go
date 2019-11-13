@@ -18,9 +18,11 @@ package simulations
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/rand"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -28,12 +30,23 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/enode"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/simulations/adapters"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+	"github.com/mattn/go-colorable"
 )
+
+func TestMain(m *testing.M) {
+	loglevel := flag.Int("loglevel", 2, "verbosity of logs")
+
+	flag.Parse()
+	log.PrintOrigins(true)
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*loglevel), log.StreamHandler(colorable.NewColorableStderr(), log.TerminalFormat(true))))
+	os.Exit(m.Run())
+}
 
 // testService implements the node.Service interface and provides protocols
 // and APIs which are useful for testing nodes in a simulation network
@@ -280,6 +293,7 @@ var testServices = adapters.Services{
 }
 
 func testHTTPServer(t *testing.T) (*Network, *httptest.Server) {
+	t.Helper()
 	adapter := adapters.NewSimAdapter(testServices)
 	network := NewNetwork(adapter, &NetworkConfig{
 		DefaultService: "test",
@@ -406,14 +420,15 @@ type expectEvents struct {
 }
 
 func (t *expectEvents) nodeEvent(id string, up bool) *Event {
+	node := Node{
+		Config: &adapters.NodeConfig{
+			ID: enode.HexID(id),
+		},
+		up: up,
+	}
 	return &Event{
 		Type: EventTypeNode,
-		Node: &Node{
-			Config: &adapters.NodeConfig{
-				ID: enode.HexID(id),
-			},
-			Up: up,
-		},
+		Node: &node,
 	}
 }
 
@@ -465,6 +480,7 @@ loop:
 }
 
 func (t *expectEvents) expect(events ...*Event) {
+	t.Helper()
 	timeout := time.After(10 * time.Second)
 	i := 0
 	for {
@@ -486,8 +502,8 @@ func (t *expectEvents) expect(events ...*Event) {
 				if event.Node.ID() != expected.Node.ID() {
 					t.Fatalf("expected node event %d to have id %q, got %q", i, expected.Node.ID().TerminalString(), event.Node.ID().TerminalString())
 				}
-				if event.Node.Up != expected.Node.Up {
-					t.Fatalf("expected node event %d to have up=%t, got up=%t", i, expected.Node.Up, event.Node.Up)
+				if event.Node.Up() != expected.Node.Up() {
+					t.Fatalf("expected node event %d to have up=%t, got up=%t", i, expected.Node.Up(), event.Node.Up())
 				}
 
 			case EventTypeConn:
@@ -584,8 +600,25 @@ func TestHTTPNodeRPC(t *testing.T) {
 // TestHTTPSnapshot tests creating and loading network snapshots
 func TestHTTPSnapshot(t *testing.T) {
 	// start the server
-	_, s := testHTTPServer(t)
+	network, s := testHTTPServer(t)
 	defer s.Close()
+
+	var eventsDone = make(chan struct{})
+	count := 1
+	eventsDoneChan := make(chan *Event)
+	eventSub := network.Events().Subscribe(eventsDoneChan)
+	go func() {
+		defer eventSub.Unsubscribe()
+		for event := range eventsDoneChan {
+			if event.Type == EventTypeConn && !event.Control {
+				count--
+				if count == 0 {
+					eventsDone <- struct{}{}
+					return
+				}
+			}
+		}
+	}()
 
 	// create a two-node network
 	client := NewClient(s.URL)
@@ -620,7 +653,7 @@ func TestHTTPSnapshot(t *testing.T) {
 		}
 		states[i] = state
 	}
-
+	<-eventsDone
 	// create a snapshot
 	snap, err := client.CreateSnapshot()
 	if err != nil {
@@ -634,9 +667,23 @@ func TestHTTPSnapshot(t *testing.T) {
 	}
 
 	// create another network
-	_, s = testHTTPServer(t)
+	network2, s := testHTTPServer(t)
 	defer s.Close()
 	client = NewClient(s.URL)
+	count = 1
+	eventSub = network2.Events().Subscribe(eventsDoneChan)
+	go func() {
+		defer eventSub.Unsubscribe()
+		for event := range eventsDoneChan {
+			if event.Type == EventTypeConn && !event.Control {
+				count--
+				if count == 0 {
+					eventsDone <- struct{}{}
+					return
+				}
+			}
+		}
+	}()
 
 	// subscribe to events so we can check them later
 	events := make(chan *Event, 100)
@@ -651,6 +698,7 @@ func TestHTTPSnapshot(t *testing.T) {
 	if err := client.LoadSnapshot(snap); err != nil {
 		t.Fatalf("error loading snapshot: %s", err)
 	}
+	<-eventsDone
 
 	// check the nodes and connection exists
 	net, err := client.GetNetwork()
@@ -675,6 +723,9 @@ func TestHTTPSnapshot(t *testing.T) {
 	}
 	if conn.Other.String() != nodes[1].ID {
 		t.Fatalf("expected connection to have other=%q, got other=%q", nodes[1].ID, conn.Other)
+	}
+	if !conn.Up {
+		t.Fatal("should be up")
 	}
 
 	// check the node states were restored

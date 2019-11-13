@@ -25,7 +25,6 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 )
 
@@ -121,13 +120,13 @@ func testDAOForkBlockNewChain(t *testing.T, test int, genesis string, expectBloc
 	}
 	// Retrieve the DAO config flag from the database
 	path := filepath.Join(datadir, "geth", "chaindata")
-	db, err := ethdb.NewLDBDatabase(path, 0, 0)
+	db, err := rawdb.NewLevelDBDatabase(path, 0, 0, "")
 	if err != nil {
 		t.Fatalf("test %d: failed to open test database: %v", test, err)
 	}
 	defer db.Close()
 
-	genesisHash := common.HexToHash("0x6afc2eb01956dfe192dc4cd065efdf6c3c80448776ca367a7246d279e228ff0a")
+	genesisHash := common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	if genesis != "" {
 		genesisHash = daoGenesisHash
 	}

@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/enode"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/enr"
 )
 
 // Protocol represents a P2P subprotocol implementation.
@@ -52,6 +53,14 @@ type Protocol struct {
 	// about a certain peer in the network. If an info retrieval function is set,
 	// but returns nil, it is assumed that the protocol handshake is still running.
 	PeerInfo func(id enode.ID) interface{}
+
+	// DialCandidates, if non-nil, is a way to tell Server about protocol-specific nodes
+	// that should be dialed. The server continuously reads nodes from the iterator and
+	// attempts to create connections to them.
+	DialCandidates enode.Iterator
+
+	// Attributes contains protocol specific information for the node record.
+	Attributes []enr.Entry
 }
 
 func (p Protocol) cap() Cap {
@@ -62,10 +71,6 @@ func (p Protocol) cap() Cap {
 type Cap struct {
 	Name    string
 	Version uint
-}
-
-func (cap Cap) RlpData() interface{} {
-	return []interface{}{cap.Name, cap.Version}
 }
 
 func (cap Cap) String() string {

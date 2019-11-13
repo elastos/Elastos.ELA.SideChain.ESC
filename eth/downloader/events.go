@@ -16,6 +16,10 @@
 
 package downloader
 
-type DoneEvent struct{}
+import "github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+
+type DoneEvent struct {
+	Latest *types.Header
+}
 type StartEvent struct{}
 type FailedEvent struct{ Err error }

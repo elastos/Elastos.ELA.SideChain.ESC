@@ -22,7 +22,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/Azure/azure-storage-blob-go/2018-03-28/azblob"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
 // AzureBlobstoreConfig is an authentication and configuration struct containing
@@ -44,11 +44,11 @@ func AzureBlobstoreUpload(path string, name string, config AzureBlobstoreConfig)
 		fmt.Printf("would upload %q to %s/%s/%s\n", path, config.Account, config.Container, name)
 		return nil
 	}
-
 	// Create an authenticated client against the Azure cloud
-	// Resolve the problem of unnable to compilation due to Azure cloud vendor 
 	credential, err := azblob.NewSharedKeyCredential(config.Account, config.Token)
-	if err != nil { fmt.Sprintf("%s %s", "Azure Error Info :  ",err) }
+	if err != nil {
+		return err
+	}
 
 	pipeline := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 
@@ -70,13 +70,11 @@ func AzureBlobstoreUpload(path string, name string, config AzureBlobstoreConfig)
 }
 
 // AzureBlobstoreList lists all the files contained within an azure blobstore.
-
 func AzureBlobstoreList(config AzureBlobstoreConfig) ([]azblob.BlobItem, error) {
-
-	// Create an authenticated client against the Azure cloud
-	// Resolve the problem of unnable to compilation due to Azure cloud vendor 
 	credential, err := azblob.NewSharedKeyCredential(config.Account, config.Token)
-	if err != nil { fmt.Sprintf("%s %s", "Azure Error Info :  ",err) }
+	if err != nil {
+		return nil, err
+	}
 
 	pipeline := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 
@@ -104,11 +102,11 @@ func AzureBlobstoreDelete(config AzureBlobstoreConfig, blobs []azblob.BlobItem) 
 		}
 		return nil
 	}
-
 	// Create an authenticated client against the Azure cloud
-	// Resolve the problem of unnable to compilation due to Azure cloud vendor 
 	credential, err := azblob.NewSharedKeyCredential(config.Account, config.Token)
-	if err != nil { fmt.Sprintf("%s %s", "Azure Error Info :  ",err) }
+	if err != nil {
+		return err
+	}
 
 	pipeline := azblob.NewPipeline(credential, azblob.PipelineOptions{})
 

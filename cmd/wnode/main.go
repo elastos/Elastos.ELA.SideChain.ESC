@@ -97,7 +97,7 @@ var (
 	argPoW       = flag.Float64("pow", whisper.DefaultMinimumPoW, "PoW for normal messages in float format (e.g. 2.7)")
 	argServerPoW = flag.Float64("mspow", whisper.DefaultMinimumPoW, "PoW requirement for Mail Server request")
 
-	argIP      = flag.String("ip", "", "IP address and port of this node (e.g. 127.0.0.1:20638)")
+	argIP      = flag.String("ip", "", "IP address and port of this node (e.g. 127.0.0.1:30303)")
 	argPub     = flag.String("pub", "", "public key for asymmetric encryption")
 	argDBPath  = flag.String("dbpath", "", "path to the server's DB directory")
 	argIDFile  = flag.String("idfile", "", "file name with node id (private key)")
@@ -203,7 +203,7 @@ func initialize() {
 		if len(*argEnode) == 0 {
 			argEnode = scanLineA("Please enter the peer's enode: ")
 		}
-		peer := enode.MustParseV4(*argEnode)
+		peer := enode.MustParse(*argEnode)
 		peers = append(peers, peer)
 	}
 
@@ -356,7 +356,7 @@ func configureNode() {
 		if len(symPass) == 0 {
 			symPass, err = console.Stdin.PromptPassword("Please enter the password for symmetric encryption: ")
 			if err != nil {
-				utils.Fatalf("Failed to read passphrase: %v", err)
+				utils.Fatalf("Failed to read password: %v", err)
 			}
 		}
 
@@ -747,9 +747,9 @@ func requestExpiredMessagesLoop() {
 }
 
 func extractIDFromEnode(s string) []byte {
-	n, err := enode.ParseV4(s)
+	n, err := enode.Parse(enode.ValidSchemes, s)
 	if err != nil {
-		utils.Fatalf("Failed to parse enode: %s", err)
+		utils.Fatalf("Failed to parse node: %s", err)
 	}
 	return n.ID().Bytes()
 }

@@ -8,8 +8,8 @@ This package is a Go platform API for OpenTracing.
 ## Required Reading
 
 In order to understand the Go platform API, one must first be familiar with the
-[OpenTracing project](http://opentracing.io) and
-[terminology](http://opentracing.io/documentation/pages/spec.html) more specifically.
+[OpenTracing project](https://opentracing.io) and
+[terminology](https://opentracing.io/specification/) more specifically.
 
 ## API overview for those adding instrumentation
 
@@ -166,6 +166,6 @@ For the time being, "mild" backwards-incompatible changes may be made without ch
 
 A test suite is available in the [harness](https://godoc.org/github.com/opentracing/opentracing-go/harness) package that can assist Tracer implementors to assert that their Tracer is working correctly.
 
-## License
+## Licensing
 
-[MIT License](./LICENSE).
+[Apache 2.0 License](./LICENSE).

@@ -22,15 +22,14 @@ import (
 
 const (
 	VersionMajor = 1        // Major version component of the current release
-	VersionMinor = 8        // Minor version component of the current release
-	VersionPatch = 17       // Patch version component of the current release
-	VersionCross = 1        // Cross version component of the current release
+	VersionMinor = 9        // Minor version component of the current release
+	VersionPatch = 7        // Patch version component of the current release
 	VersionMeta  = "stable" // Version metadata to append to the version string
 )
 
 // Version holds the textual version string.
 var Version = func() string {
-	return fmt.Sprintf("%d.%d.%d.%d", VersionMajor, VersionMinor, VersionPatch, VersionCross)
+	return fmt.Sprintf("%d.%d.%d", VersionMajor, VersionMinor, VersionPatch)
 }()
 
 // VersionWithMeta holds the textual version string including the metadata.
@@ -56,10 +55,13 @@ func ArchiveVersion(gitCommit string) string {
 	return vsn
 }
 
-func VersionWithCommit(gitCommit string) string {
+func VersionWithCommit(gitCommit, gitDate string) string {
 	vsn := VersionWithMeta
 	if len(gitCommit) >= 8 {
 		vsn += "-" + gitCommit[:8]
+	}
+	if (VersionMeta != "stable") && (gitDate != "") {
+		vsn += "-" + gitDate
 	}
 	return vsn
 }

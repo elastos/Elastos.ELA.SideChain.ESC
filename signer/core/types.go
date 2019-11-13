@@ -1,57 +1,31 @@
 // Copyright 2018 The Elastos.ELA.SideChain.ETH Authors
-// This file is part of Elastos.ELA.SideChain.ETH.
+// This file is part of the Elastos.ELA.SideChain.ETH library.
 //
-// Elastos.ELA.SideChain.ETH is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
+// The Elastos.ELA.SideChain.ETH library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Elastos.ELA.SideChain.ETH is distributed in the hope that it will be useful,
+// The Elastos.ELA.SideChain.ETH library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
+// GNU Lesser General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
-// along with Elastos.ELA.SideChain.ETH. If not, see <http://www.gnu.org/licenses/>.
+// You should have received a copy of the GNU Lesser General Public License
+// along with the Elastos.ELA.SideChain.ETH library. If not, see <http://www.gnu.org/licenses/>.
 
 package core
 
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"strings"
 
-	"math/big"
-
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 )
-
-type Accounts []Account
-
-func (as Accounts) String() string {
-	var output []string
-	for _, a := range as {
-		output = append(output, a.String())
-	}
-	return strings.Join(output, "\n")
-}
-
-type Account struct {
-	Typ     string         `json:"type"`
-	URL     accounts.URL   `json:"url"`
-	Address common.Address `json:"address"`
-}
-
-func (a Account) String() string {
-	s, err := json.Marshal(a)
-	if err == nil {
-		return string(s)
-	}
-	return err.Error()
-}
 
 type ValidationInfo struct {
 	Typ     string `json:"type"`
@@ -67,13 +41,13 @@ const (
 	INFO = "Info"
 )
 
-func (vs *ValidationMessages) crit(msg string) {
+func (vs *ValidationMessages) Crit(msg string) {
 	vs.Messages = append(vs.Messages, ValidationInfo{CRIT, msg})
 }
-func (vs *ValidationMessages) warn(msg string) {
+func (vs *ValidationMessages) Warn(msg string) {
 	vs.Messages = append(vs.Messages, ValidationInfo{WARN, msg})
 }
-func (vs *ValidationMessages) info(msg string) {
+func (vs *ValidationMessages) Info(msg string) {
 	vs.Messages = append(vs.Messages, ValidationInfo{INFO, msg})
 }
 
@@ -101,7 +75,7 @@ type SendTxArgs struct {
 	Nonce    hexutil.Uint64           `json:"nonce"`
 	// We accept "data" and "input" for backwards-compatibility reasons.
 	Data  *hexutil.Bytes `json:"data"`
-	Input *hexutil.Bytes `json:"input"`
+	Input *hexutil.Bytes `json:"input,omitempty"`
 }
 
 func (args SendTxArgs) String() string {

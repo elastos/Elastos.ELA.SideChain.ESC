@@ -20,13 +20,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"sort"
+	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	lru "github.com/hashicorp/golang-lru"
-	//"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 )
 
 // Vote represents a single vote that an authorized signer made to modify the
@@ -198,7 +199,11 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 	// Iterate through the headers and create a new snapshot
 	snap := s.copy()
 
-	for _, header := range headers {
+	var (
+		start  = time.Now()
+		logged = time.Now()
+	)
+	for i, header := range headers {
 		// Remove any votes on checkpoint blocks
 		number := header.Number.Uint64()
 		if number%s.config.Epoch == 0 {
@@ -214,7 +219,6 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		if _, ok := snap.Signers[signer]; !ok {
 			return nil, errUnauthorizedSigner
 		}
@@ -287,24 +291,15 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			}
 			delete(snap.Tally, header.Coinbase)
 		}
+		// If we're taking too much time (ecrecover), notify the user once a while
+		if time.Since(logged) > 8*time.Second {
+			log.Info("Reconstructing voting history", "processed", i, "total", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))
+			logged = time.Now()
+		}
 	}
-
-	//look up current height of ela chain,if it is unchecked up before,withdraw the producers of current height
-	// then update snapshot of side chain.
-	//elaHeight := spv.GetCurrentElaHeight();
-	//if _,ok := snap.sigcache.Get(elaHeight); !ok {
-	//	arbiters := spv.GetCurrentProducers()
-	//	for _,arbiter := range arbiters{
-	//		arbiterAddr := common.BytesToAddress(arbiter)
-	//		if _,ok := snap.Signers[arbiterAddr]; !ok{
-	//
-	//			snap.Signers[arbiterAddr] = struct{}{}
-	//		}
-	//	}
-	//
-	//	snap.sigcache.Add(elaHeight,elaHeight);
-	//}
-
+	if time.Since(start) > 8*time.Second {
+		log.Info("Reconstructed voting history", "processed", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))
+	}
 	snap.Number += uint64(len(headers))
 	snap.Hash = headers[len(headers)-1].Hash()
 

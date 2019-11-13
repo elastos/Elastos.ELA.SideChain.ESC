@@ -1,4 +1,4 @@
-// Copyright 2017 The Elastos.ELA.SideChain.ETH Authors
+// Copyright 2018 The Elastos.ELA.SideChain.ETH Authors
 // This file is part of the Elastos.ELA.SideChain.ETH library.
 //
 // The Elastos.ELA.SideChain.ETH library is free software: you can redistribute it and/or modify
@@ -21,56 +21,56 @@ import (
 )
 
 func TestURLParsing(t *testing.T) {
-	url, err := parseURL("https://ethereum.org")
+	url, err := parseURL("https://elastos.org")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 	if url.Scheme != "https" {
 		t.Errorf("expected: %v, got: %v", "https", url.Scheme)
 	}
-	if url.Path != "ethereum.org" {
-		t.Errorf("expected: %v, got: %v", "ethereum.org", url.Path)
+	if url.Path != "elastos.org" {
+		t.Errorf("expected: %v, got: %v", "elastos.org", url.Path)
 	}
 
-	_, err = parseURL("ethereum.org")
+	_, err = parseURL("elastos.org")
 	if err == nil {
 		t.Error("expected err, got: nil")
 	}
 }
 
 func TestURLString(t *testing.T) {
-	url := URL{Scheme: "https", Path: "ethereum.org"}
-	if url.String() != "https://ethereum.org" {
-		t.Errorf("expected: %v, got: %v", "https://ethereum.org", url.String())
+	url := URL{Scheme: "https", Path: "elastos.org"}
+	if url.String() != "https://elastos.org" {
+		t.Errorf("expected: %v, got: %v", "https://elastos.org", url.String())
 	}
 
-	url = URL{Scheme: "", Path: "ethereum.org"}
-	if url.String() != "ethereum.org" {
-		t.Errorf("expected: %v, got: %v", "ethereum.org", url.String())
+	url = URL{Scheme: "", Path: "elastos.org"}
+	if url.String() != "elastos.org" {
+		t.Errorf("expected: %v, got: %v", "elastos.org", url.String())
 	}
 }
 
 func TestURLMarshalJSON(t *testing.T) {
-	url := URL{Scheme: "https", Path: "ethereum.org"}
+	url := URL{Scheme: "https", Path: "elastos.org"}
 	json, err := url.MarshalJSON()
 	if err != nil {
 		t.Errorf("unexpcted error: %v", err)
 	}
-	if string(json) != "\"https://ethereum.org\"" {
-		t.Errorf("expected: %v, got: %v", "\"https://ethereum.org\"", string(json))
+	if string(json) != "\"https://elastos.org\"" {
+		t.Errorf("expected: %v, got: %v", "\"https://elastos.org\"", string(json))
 	}
 }
 
 func TestURLUnmarshalJSON(t *testing.T) {
 	url := &URL{}
-	err := url.UnmarshalJSON([]byte("\"https://ethereum.org\""))
+	err := url.UnmarshalJSON([]byte("\"https://elastos.org\""))
 	if err != nil {
 		t.Errorf("unexpcted error: %v", err)
 	}
 	if url.Scheme != "https" {
 		t.Errorf("expected: %v, got: %v", "https", url.Scheme)
 	}
-	if url.Path != "ethereum.org" {
+	if url.Path != "elastos.org" {
 		t.Errorf("expected: %v, got: %v", "https", url.Path)
 	}
 }
@@ -81,10 +81,10 @@ func TestURLComparison(t *testing.T) {
 		urlB   URL
 		expect int
 	}{
-		{URL{"https", "ethereum.org"}, URL{"https", "ethereum.org"}, 0},
-		{URL{"http", "ethereum.org"}, URL{"https", "ethereum.org"}, -1},
-		{URL{"https", "ethereum.org/a"}, URL{"https", "ethereum.org"}, 1},
-		{URL{"https", "abc.org"}, URL{"https", "ethereum.org"}, -1},
+		{URL{"https", "elastos.org"}, URL{"https", "elastos.org"}, 0},
+		{URL{"http", "elastos.org"}, URL{"https", "elastos.org"}, -1},
+		{URL{"https", "elastos.org/a"}, URL{"https", "elastos.org"}, 1},
+		{URL{"https", "abc.org"}, URL{"https", "elastos.org"}, -1},
 	}
 
 	for i, tt := range tests {

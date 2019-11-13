@@ -1,4 +1,4 @@
-// Copyright 2017 The Elastos.ELA.SideChain.ETH Authors
+// Copyright 2018 The Elastos.ELA.SideChain.ETH Authors
 // This file is part of the Elastos.ELA.SideChain.ETH library.
 //
 // The Elastos.ELA.SideChain.ETH library is free software: you can redistribute it and/or modify
