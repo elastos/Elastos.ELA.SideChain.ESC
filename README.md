@@ -1,22 +1,15 @@
-## Go Ethereum
+## Elastos.ELA.SideChain.ETH
 
-Official Golang implementation of the Ethereum protocol.
+Elastos Sidechain implementation based on Go Ethereum.
 
-[![API Reference](
-https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/68747470733a2f2f676f646f632e6f72672f6769746875622e636f6d2f676f6c616e672f6764646f3f7374617475732e737667
-)](https://godoc.org/github.com/elastos/Elastos.ELA.SideChain.ETH)
-[![Go Report Card](https://goreportcard.com/badge/github.com/elastos/Elastos.ELA.SideChain.ETH)](https://goreportcard.com/report/github.com/elastos/Elastos.ELA.SideChain.ETH)
-[![Travis](https://travis-ci.org/elastos/Elastos.ELA.SideChain.ETH.svg?branch=master)](https://travis-ci.org/elastos/Elastos.ELA.SideChain.ETH)
-[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/nthXNEv)
-
-Automated builds are available for stable releases and the unstable master branch. Binary
-archives are published at https://geth.ethereum.org/downloads/.
 
 ## Building the source
 
-For prerequisites and detailed build instructions please read the [Installation Instructions](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Building-Ethereum) on the wiki.
+For prerequisites and detailed build instructions please read the
+[Installation Instructions](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Building-Ethereum)
+on the wiki.
 
-Building `geth` requires both a Go (version 1.10 or later) and a C compiler. You can install
+Building `geth` requires both a Go (version 1.7 or later) and a C compiler. You can install
 them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
@@ -34,15 +27,15 @@ make all
 The Elastos.ELA.SideChain.ETH project comes with several wrappers/executables found in the `cmd`
 directory.
 
-|    Command    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| :-----------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  **`geth`**   | Our main Ethereum CLI client. It is the entry point into the Ethereum network (main-, test- or private net), capable of running as a full node (default), archive node (retaining all historical state) or a light node (retrieving data live). It can be used by other processes as a gateway into the Ethereum network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [CLI Wiki page](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Command-Line-Options) for command line options.          |
-|   `abigen`    | Source code generator to convert Ethereum contract definitions into easy to use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://github.com/elastos/wiki/wiki/elastos-Contract-ABI) with expanded functionality if the contract bytecode is also available. However, it also accepts Solidity source files, making development much more streamlined. Please see our [Native DApps](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts) wiki page for details. |
-|  `bootnode`   | Stripped down version of our Ethereum client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks.                                                                                                                                                                                                                                                                 |
-|     `evm`     | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug`).                                                                                                                                                                                                                                                                     |
-| `gethrpctest` | Developer utility tool to support our [ethereum/rpc-test](https://github.com/elastos/rpc-tests) test suite which validates baseline conformity to the [Ethereum JSON RPC](https://github.com/elastos/wiki/wiki/JSON-RPC) specs. Please see the [test suite's readme](https://github.com/elastos/rpc-tests/blob/master/README.md) for details.                                                                                                                                                                                                     |
-|   `rlpdump`   | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://github.com/elastos/wiki/wiki/RLP)) dumps (data encoding used by the Ethereum protocol both network as well as consensus wise) to user-friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`).                                                                                                                                                                                                                                 |
-|   `puppeth`   | a CLI wizard that aids in creating a new Ethereum network.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Command    | Description |
+|:----------:|-------------|
+| **`geth`** | Our main ELA-Ethereum CLI client. It is the entry point into the ELA-Ethereum  network (main-, test- or private net), capable of running as a full node (default), archive node (retaining all historical state) or a light node (retrieving data live). It can be used by other processes as a gateway into the Ethereum network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [CLI Wiki page](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Command-Line-Options) for command line options. |
+| `abigen` | Source code generator to convert Ethereum contract definitions into easy to use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI) with expanded functionality if the contract bytecode is also available. However it also accepts Solidity source files, making development much more streamlined. Please see our [Native DApps](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts) wiki page for details. |
+| `bootnode` | Stripped down version of our Ethereum client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks. |
+| `evm` | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug`). |
+| `gethrpctest` | Developer utility tool to support our [ethereum/rpc-test](https://github.com/ethereum/rpc-tests) test suite which validates baseline conformity to the [Ethereum JSON RPC](https://github.com/ethereum/wiki/wiki/JSON-RPC) specs. Please see the [test suite's readme](https://github.com/ethereum/rpc-tests/blob/master/README.md) for details. |
+| `rlpdump` | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://github.com/ethereum/wiki/wiki/RLP)) dumps (data encoding used by the Ethereum protocol both network as well as consensus wise) to user friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`). |
+| `puppeth`    | a CLI wizard that aids in creating a new Ethereum network. |
 
 ## Running `geth`
 
@@ -89,8 +82,8 @@ useful on the testnet too. Please see above for their explanations if you've ski
 
 Specifying the `--testnet` flag, however, will reconfigure your `geth` instance a bit:
 
- * Instead of using the default data directory (`~/.ethereum` on Linux for example), `geth`
-   will nest itself one level deeper into a `testnet` subfolder (`~/.ethereum/testnet` on
+ * Instead of using the default data directory (`~/.ela_ethereum` on Linux for example), `geth`
+   will nest itself one level deeper into a `testnet` subfolder (`~/.ela_ethereum/testnet` on
    Linux). Note, on OSX and Linux this also means that attaching to a running testnet node
    requires the use of a custom endpoint since `geth attach` will try to attach to a
    production node endpoint by default. E.g.
@@ -118,6 +111,41 @@ supported by Elastos.ELA.SideChain.ETH.
 $ geth --rinkeby console
 ```
 
+### How to topup ELA to ETH
+* use compile [ELA-Client](https://github.com/elastos/Elastos.ELA.Client)
+* create topup transaction: `./ela-cli wallet -t create --deposit eth_address(ETH address) --amount recharge_value(amount ela units) --fee recharge_fee(fee ela units)`
+* sign transaction: `./ela-cli wallet -t sign --file to_be_signed.txn -p yourpassword(your keystore password)`
+* send transaction: `./ela-cli wallet -t send --file ready_to_send.txn`
+
+### How to withdraw ETH to ELA
+* use node console: `node`
+* use contract code:
+
+```
+Web3 = require("web3");
+// set web3 uri
+web3 = new Web3("http://127.0.0.1:20636");
+// set withdraw contract
+contract = new web3.eth.Contract([{"constant":false,"inputs":[{"name":"_addr","type":"string"},{"name":"_amount","type":"uint256"},{"name":"_fee","type":"uint256"}],"name":"receivePayload","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"payable":true,"stateMutability":"payable","type":"fallback"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_addr","type":"string"},{"indexed":false,"name":"_amount","type":"uint256"},{"indexed":false,"name":"_crosschainamount","type":"uint256"},{"indexed":true,"name":"_sender","type":"address"}],"name":"PayloadReceived","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_sender","type":"address"},{"indexed":false,"name":"_amount","type":"uint256"},{"indexed":true,"name":"_black","type":"address"}],"name":"EtherDeposited","type":"event"}]);
+// set eth account address
+contract.options.address = deploy_contract_address;
+// set account contract keystore info
+acc = web3.eth.accounts.decrypt(keystore_content, ketstore_password);   
+// call receivePayload function，params：(ELA main chain address，amount(In ela up to convert wei 10000000000)，fee)
+cdata  = contract.methods.receivePayload(ELA_address, withdraw_amount, fee).encodeABI();
+// gas minimum is 3000000，gasPrice is any value
+tx = {data: cdata, to: contract.options.address, from: acc.address, gas: "3000000", gasPrice: "20000000000"};
+// send transaction amount(use receivePayload function amount)
+tx.value = withdraw_amount;
+acc.signTransaction(tx).then((res)=>{
+   console.log("coming");
+   stx = res;
+   console.log(stx.rawTransaction);
+   web3.eth.sendSignedTransaction(stx.rawTransaction).then(console)});
+```
+*Note: ELA testnet server Deploy Contract Address: `0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A`
+ELA mainnet server Deploy Contract Address: `0xC445f9487bF570fF508eA9Ac320b59730e81e503`*
+
 ### Configuration
 
 As an alternative to passing the numerous flags to the `geth` binary, you can also pass a
@@ -136,60 +164,37 @@ $ geth --your-favourite-flags dumpconfig
 
 *Note: This works only with `geth` v1.6.0 and above.*
 
-#### Docker quick start
-
-One of the quickest ways to get Ethereum up and running on your machine is by using
-Docker:
-
-```shell
-docker run -d --name ethereum-node -v /Users/alice/elastos:/root \
-           -p 8545:8545 -p 30303:30303 \
-           ethereum/client-go
-```
-
-This will start `geth` in fast-sync mode with a DB memory allowance of 1GB just as the
-above command does.  It will also create a persistent volume in your home directory for
-saving your blockchain as well as map the default ports. There is also an `alpine` tag
-available for a slim version of the image.
-
-Do not forget `--rpcaddr 0.0.0.0`, if you want to access RPC from other containers
-and/or hosts. By default, `geth` binds to the local interface and RPC endpoints is not
-accessible from the outside.
-
 ### Programmatically interfacing `geth` nodes
 
-As a developer, sooner rather than later you'll want to start interacting with `geth` and the
-Ethereum network via your own programs and not manually through the console. To aid
-this, `geth` has built-in support for a JSON-RPC based APIs ([standard APIs](https://github.com/elastos/wiki/wiki/JSON-RPC)
-and [`geth` specific APIs](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Management-APIs)).
-These can be exposed via HTTP, WebSockets and IPC (UNIX sockets on UNIX based
-platforms, and named pipes on Windows).
+As a developer, sooner rather than later you'll want to start interacting with Geth and the Ethereum
+network via your own programs and not manually through the console. To aid this, Geth has built-in
+support for a JSON-RPC based APIs ([standard APIs](https://github.com/ethereum/wiki/wiki/JSON-RPC) and
+[Geth specific APIs](https://github.com/elastos/Elastos.ELA.SideChain.ETH/wiki/Management-APIs)). These can be
+exposed via HTTP, WebSockets and IPC (unix sockets on unix based platforms, and named pipes on Windows).
 
-The IPC interface is enabled by default and exposes all the APIs supported by `geth`,
-whereas the HTTP and WS interfaces need to manually be enabled and only expose a
-subset of APIs due to security reasons. These can be turned on/off and configured as
-you'd expect.
+The IPC interface is enabled by default and exposes all the APIs supported by Geth, whereas the HTTP
+and WS interfaces need to manually be enabled and only expose a subset of APIs due to security reasons.
+These can be turned on/off and configured as you'd expect.
 
 HTTP based JSON-RPC API options:
 
   * `--rpc` Enable the HTTP-RPC server
-  * `--rpcaddr` HTTP-RPC server listening interface (default: `localhost`)
-  * `--rpcport` HTTP-RPC server listening port (default: `8545`)
-  * `--rpcapi` API's offered over the HTTP-RPC interface (default: `eth,net,web3`)
+  * `--rpcaddr` HTTP-RPC server listening interface (default: "localhost")
+  * `--rpcport` HTTP-RPC server listening port (default: 20636)
+  * `--rpcapi` API's offered over the HTTP-RPC interface (default: "eth,net,web3")
   * `--rpccorsdomain` Comma separated list of domains from which to accept cross origin requests (browser enforced)
   * `--ws` Enable the WS-RPC server
-  * `--wsaddr` WS-RPC server listening interface (default: `localhost`)
-  * `--wsport` WS-RPC server listening port (default: `8546`)
-  * `--wsapi` API's offered over the WS-RPC interface (default: `eth,net,web3`)
+  * `--wsaddr` WS-RPC server listening interface (default: "localhost")
+  * `--wsport` WS-RPC server listening port (default: 20635)
+  * `--wsapi` API's offered over the WS-RPC interface (default: "eth,net,web3")
   * `--wsorigins` Origins from which to accept websockets requests
   * `--ipcdisable` Disable the IPC-RPC server
-  * `--ipcapi` API's offered over the IPC-RPC interface (default: `admin,debug,eth,miner,net,personal,shh,txpool,web3`)
+  * `--ipcapi` API's offered over the IPC-RPC interface (default: "admin,debug,eth,miner,net,personal,shh,txpool,web3")
   * `--ipcpath` Filename for IPC socket/pipe within the datadir (explicit paths escape it)
 
-You'll need to use your own programming environments' capabilities (libraries, tools, etc) to
-connect via HTTP, WS or IPC to a `geth` node configured with the above flags and you'll
-need to speak [JSON-RPC](https://www.jsonrpc.org/specification) on all transports. You
-can reuse the same connection for multiple requests!
+You'll need to use your own programming environments' capabilities (libraries, tools, etc) to connect
+via HTTP, WS or IPC to a Geth node configured with the above flags and you'll need to speak [JSON-RPC](http://www.jsonrpc.org/specification)
+on all transports. You can reuse the same connection for multiple requests!
 
 **Note: Please understand the security implications of opening up an HTTP/WS based
 transport before doing so! Hackers on the internet are actively trying to subvert
@@ -266,13 +271,12 @@ $ bootnode --genkey=boot.key
 $ bootnode --nodekey=boot.key
 ```
 
-With the bootnode online, it will display an [`enode` URL](https://github.com/elastos/wiki/wiki/enode-url-format)
-that other nodes can use to connect to it and exchange peer information. Make sure to
-replace the displayed IP address information (most probably `[::]`) with your externally
-accessible IP to get the actual `enode` URL.
+With the bootnode online, it will display an [`enode` URL](https://github.com/ethereum/wiki/wiki/enode-url-format)
+that other nodes can use to connect to it and exchange peer information. Make sure to replace the
+displayed IP address information (most probably `[::]`) with your externally accessible IP to get the
+actual `enode` URL.
 
-*Note: You could also use a full-fledged `geth` node as a bootnode, but it's the less
-recommended way.*
+*Note: You could also use a full fledged Geth node as a bootnode, but it's the less recommended way.*
 
 #### Starting up your member nodes
 

@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var pyRecord, _ = hex.DecodeString("f884b8407098ad865b00a582051940cb9cf36836572411a47278783077011599ed5cd16b76f2635f4e234738f30813a89eb9137e3e3df5266e3a1f11df72ecf1145ccb9c01826964827634826970847f00000189736563703235366b31a103ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd31388375647082765f")
+var pyRecord, _ = hex.DecodeString("f884b8400cd575149f3408040adb3a49e5a04f6ee8dbf9568656dbd206765f847a7660192cd2f2bd5afd92311c089951796398f263055b0c0b384f96c0a84292eb458b5a01826964827634826970847f00000189736563703235366b31a102a6ca5ae8757db4f1aec92b13e1d1db25ea2877bac079f03903c65b328a3877ab8375647082509e")
 
 // TestPythonInterop checks that we can decode and verify a record produced by the Python
 // implementation.
@@ -44,10 +44,10 @@ func TestPythonInterop(t *testing.T) {
 	}
 
 	var (
-		wantID  = HexID("a448f24c6d18e575453db13171562b71999873db5b286df957af199ec94617f7")
+		wantID  = HexID("61a08836ecbf6ce38f847c85b05221c4e6514eb36e1cf8956d7f01e59327f4b5")
 		wantSeq = uint64(1)
 		wantIP  = enr.IPv4{127, 0, 0, 1}
-		wantUDP = enr.UDP(30303)
+		wantUDP = enr.UDP(20638)
 	)
 	if n.Seq() != wantSeq {
 		t.Errorf("wrong seq: got %d, want %d", n.Seq(), wantSeq)
