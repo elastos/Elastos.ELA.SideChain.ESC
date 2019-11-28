@@ -10,7 +10,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/peer"
 	"github.com/elastos/Elastos.ELA.SPV/sdk"
 	"github.com/elastos/Elastos.ELA.SPV/sync"
-	"github.com/elastos/Elastos.ELA.SPV/wallet"
 	"github.com/elastos/Elastos.ELA.SPV/wallet/store"
 	"github.com/elastos/Elastos.ELA/p2p/addrmgr"
 	"github.com/elastos/Elastos.ELA/p2p/connmgr"
@@ -29,10 +28,10 @@ func initLog(dataDir string) {
 	var (
 		fileWriter = elalog.NewFileWriter(
 			filepath.Join(dataDir, LogPath),
-			Parameters.MaxPerLogSize,
-			Parameters.MaxLogsSize,
+			PreferConfig.Config.MaxPerLogSize,
+			PreferConfig.Config.MaxLogsSize,
 		)
-		level   = elalog.Level(Parameters.SpvPrintLevel)
+		level   = elalog.Level(PreferConfig.Config.SpvPrintLevel)
 		backend = elalog.NewBackend(io.MultiWriter(os.Stdout, fileWriter),
 			elalog.Llongfile)
 
@@ -43,7 +42,6 @@ func initLog(dataDir string) {
 		peerlog = backend.Logger("PEER", level)
 		spvslog = backend.Logger("SPVS", level)
 		srvrlog = backend.Logger("SRVR", elalog.LevelOff)
-		waltlog = backend.Logger("WALT", level)
 	)
 
 	addrmgr.UseLogger(admrlog)
@@ -54,7 +52,6 @@ func initLog(dataDir string) {
 	server.UseLogger(srvrlog)
 	store.UseLogger(bcdblog)
 	sync.UseLogger(synclog)
-	wallet.UseLogger(waltlog)
 
 	log.Info("SPV Logs initialized at: ", "dir", filepath.Join(dataDir, LogPath))
 }
