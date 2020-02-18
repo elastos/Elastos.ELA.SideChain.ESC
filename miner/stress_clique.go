@@ -210,7 +210,7 @@ func makeSealer(genesis *core.Genesis, nodes []string) (*node.Node, error) {
 			MinerGasCeil:    genesis.GasLimit * 11 / 10,
 			MinerGasPrice:   big.NewInt(1),
 			MinerRecommit:   time.Second,
-		})
+		}, stack)
 	}); err != nil {
 		return nil, err
 	}

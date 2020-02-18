@@ -214,6 +214,7 @@ type Clique struct {
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
+	signersCount int // record signersCount
 }
 
 // New creates a Clique proof-of-authority consensus engine with the initial
@@ -360,6 +361,9 @@ func (c *Clique) verifyCascadingFields(chain consensus.ChainReader, header *type
 	if err != nil {
 		return err
 	}
+
+	c.signersCount = len(snap.Signers)
+
 	// If the block is a checkpoint block, verify the signer list
 	if number%c.config.Epoch == 0 {
 		signers := make([]byte, len(snap.Signers)*common.AddressLength)
@@ -485,6 +489,8 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 		return err
 	}
 
+	c.signersCount = len(snap.Signers)
+
 	// Resolve the authorization key and check against signers
 	signer, err := ecrecover(header, c.signatures)
 	if err != nil {
@@ -528,6 +534,9 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 	if err != nil {
 		return err
 	}
+
+	c.signersCount = len(snap.Signers)
+
 	if number%c.config.Epoch != 0 {
 		c.lock.RLock()
 
@@ -628,6 +637,8 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 		return err
 	}
 
+	c.signersCount = len(snap.Signers)
+
 	if _, authorized := snap.Signers[signer]; !authorized {
 		return errUnauthorizedSigner
 	}
@@ -684,6 +695,9 @@ func (c *Clique) CalcDifficulty(chain consensus.ChainReader, time uint64, parent
 	if err != nil {
 		return nil
 	}
+
+	c.signersCount = len(snap.Signers)
+
 	return CalcDifficulty(snap, c.signer)
 }
 
@@ -705,6 +719,10 @@ func (c *Clique) SealHash(header *types.Header) common.Hash {
 // Close implements consensus.Engine. It's a noop for clique as there is are no background threads.
 func (c *Clique) Close() error {
 	return nil
+}
+
+func (c *Clique) SignersCount() int {
+	return c.signersCount
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC API to allow

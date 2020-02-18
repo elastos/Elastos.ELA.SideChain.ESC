@@ -19,7 +19,9 @@ package downloader
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -96,10 +98,53 @@ func newTester() *downloadTester {
 	tester.stateDb = ethdb.NewMemDatabase()
 	tester.stateDb.Put(genesis.Root().Bytes(), []byte{0x00})
 
-	tester.downloader = New(FullSync, tester.stateDb, new(event.TypeMux), tester, nil, tester.dropPeer)
+	tester.downloader = New(FullSync, tester.stateDb, new(event.TypeMux), tester, nil, tester.dropPeer, stop, signersCount)
 
 	return tester
 }
+
+func stop() error {
+	println("node stop: The number of synchronized blocks is more than half of the signersCount()")
+	os.Exit(1)
+	return nil
+}
+
+func signersCount() int {
+	println("get signers count")
+	return math.MaxInt64
+}
+
+func TestFixForkSyncProgress64Full(t *testing.T)  { testFixForkSyncProgressfunc(t, 64, FullSync) }
+
+func testFixForkSyncProgressfunc(t *testing.T, protocol int, mode SyncMode) {
+	t.Parallel()
+
+	tester := newTester()
+	tester.downloader.engineSingersCountFunc = func() int {
+		return 10
+	}
+	defer tester.terminate()
+
+	// Create a long enough forked chain
+	common, fork := MaxHashFetch, 2*MaxHashFetch
+	hashesA, hashesB, headersA, headersB, blocksA, blocksB, receiptsA, receiptsB := tester.makeChainFork(common+fork, fork, tester.genesis, nil, true)
+
+	tester.newPeer("fork A", protocol, hashesA, headersA, blocksA, receiptsA)
+	tester.newPeer("fork B", protocol, hashesB, headersB, blocksB, receiptsB)
+
+	// Synchronise with the peer and make sure all blocks were retrieved
+	if err := tester.sync("fork A", nil, mode); err != nil {
+		t.Fatalf("failed to synchronise blocks: %v", err)
+	}
+	assertOwnChain(t, tester, common+fork+1)
+
+	// Synchronise with the second peer and make sure that fork is pulled too
+	if err := tester.sync("fork B", nil, mode); err != nil {
+		t.Fatalf("failed to synchronise blocks: %v", err)
+	}
+	assertOwnForkedChain(t, tester, common+1, []int{common + fork + 1, common + fork + 1})
+}
+
 
 // makeChain creates a chain of n blocks starting at and including parent.
 // the returned hash chain is ordered head->parent. In addition, every 3rd block
