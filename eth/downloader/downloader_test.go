@@ -145,7 +145,6 @@ func testFixForkSyncProgressfunc(t *testing.T, protocol int, mode SyncMode) {
 	assertOwnForkedChain(t, tester, common+1, []int{common + fork + 1, common + fork + 1})
 }
 
-
 // makeChain creates a chain of n blocks starting at and including parent.
 // the returned hash chain is ordered head->parent. In addition, every 3rd block
 // contains a transaction and every 5th an uncle to allow testing correct block

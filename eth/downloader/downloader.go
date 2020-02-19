@@ -152,7 +152,6 @@ type Downloader struct {
 	receiptFetchHook func([]*types.Header) // Method to call upon starting a receipt fetch
 	chainInsertHook  func([]*fetchResult)  // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
 
-
 	nodeStopFunc func() error              // Method to call stop node
 	engineSingersCountFunc func() int      // Method to get engine singers count
 }
@@ -454,7 +453,6 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 			d.nodeStopFunc()
 		}
 	}
-
 
 	d.syncStatsLock.Lock()
 	if d.syncStatsChainHeight <= origin || d.syncStatsChainOrigin > origin {
