@@ -83,22 +83,8 @@ func authorizerTrampoline(handle uintptr, op int, arg1 *C.char, arg2 *C.char, ar
 	return callback(op, C.GoString(arg1), C.GoString(arg2), C.GoString(arg3))
 }
 
-//export preUpdateHookTrampoline
-func preUpdateHookTrampoline(handle uintptr, dbHandle uintptr, op int, db *C.char, table *C.char, oldrowid int64, newrowid int64) {
-	hval := lookupHandleVal(handle)
-	data := SQLitePreUpdateData{
-		Conn:         hval.db,
-		Op:           op,
-		DatabaseName: C.GoString(db),
-		TableName:    C.GoString(table),
-		OldRowID:     oldrowid,
-		NewRowID:     newrowid,
-	}
-	callback := hval.val.(func(SQLitePreUpdateData))
-	callback(data)
-}
-
 // Use handles to avoid passing Go pointers to C.
+
 type handleVal struct {
 	db  *SQLiteConn
 	val interface{}
@@ -117,7 +103,7 @@ func newHandle(db *SQLiteConn, v interface{}) uintptr {
 	return i
 }
 
-func lookupHandleVal(handle uintptr) handleVal {
+func lookupHandle(handle uintptr) interface{} {
 	handleLock.Lock()
 	defer handleLock.Unlock()
 	r, ok := handleVals[handle]
@@ -128,11 +114,7 @@ func lookupHandleVal(handle uintptr) handleVal {
 			panic("invalid handle")
 		}
 	}
-	return r
-}
-
-func lookupHandle(handle uintptr) interface{} {
-	return lookupHandleVal(handle).val
+	return r.val
 }
 
 func deleteHandles(db *SQLiteConn) {

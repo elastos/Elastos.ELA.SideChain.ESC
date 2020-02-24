@@ -33,6 +33,9 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 )
 
 const (
@@ -537,11 +540,26 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
-	// Transactor should have enough funds to cover the costs
-	// cost == V + GP * GL
-	if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		return ErrInsufficientFunds
+
+	if tx.To() != nil {
+		to := *tx.To()
+		var addr common.Address
+		if len(tx.Data()) != 32 || to != addr {
+			// Transactor should have enough funds to cover the costs
+			// cost == V + GP * GL
+			if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+				return ErrInsufficientFunds
+			}
+		}
+	} else {
+		contractAddr := crypto.CreateAddress(from, pool.currentState.GetNonce(from))
+		if contractAddr.String() != pool.chainconfig.BlackContractAddr {
+			if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+				return ErrInsufficientFunds
+			}
+		}
 	}
+
 	// Ensure the transaction has more gas than the basic tx fee.
 	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
 	if err != nil {
@@ -813,6 +831,34 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) ([]error,
 	dirty := newAccountSet(pool.signer)
 	errs := make([]error, len(txs))
 	for i, tx := range txs {
+		if tx.To() != nil {
+			to := *tx.To()
+			var blackAddr common.Address
+			if len(tx.Data()) == 32 && to == blackAddr {
+				txhash :=  hexutil.Encode(tx.Data())
+				fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
+				if addr != blackAddr {
+					if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 {
+						ethFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
+						completeTxHash := pool.currentState.GetState(blackAddr, common.HexToHash(txhash))
+						if fee.Cmp(ethFee) < 0 {
+							errs[i] = ErrGasLimitReached
+						} else if (completeTxHash != common.Hash{}) {
+							errs[i] = ErrMainTxHashPresence
+						}
+					} else {
+						errs[i] = ErrGasLimitReached
+					}
+				} else {
+					errs[i] = ErrElaToEthAddress
+				}
+			}
+		}
+
+		if errs[i] != nil {
+			continue
+		}
+
 		replaced, err := pool.add(tx, local)
 		errs[i] = err
 		if err == nil && !replaced {
@@ -849,6 +895,82 @@ func (pool *TxPool) Status(hashes []common.Hash) []TxStatus {
 // Get returns a transaction if it is contained in the pool and nil otherwise.
 func (pool *TxPool) Get(hash common.Hash) *types.Transaction {
 	return pool.all.Get(hash)
+}
+
+// removeLocalTx removes a single transaction from the queue, moving all subsequent
+// transactions back to the future queue.
+func RemoveLocalTx(pool *TxPool, hash common.Hash, outofbound bool, removetx bool) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	tx := pool.all.Get(hash)
+	if tx == nil {
+		return
+	}
+	addr, _ := types.Sender(pool.signer, tx) // already validated during insertion
+
+	// Remove it from the list of known transactions
+	pool.all.Remove(hash)
+	if outofbound {
+		pool.priced.Removed(1)
+	}
+	// Remove the transaction from the pending lists and reset the account nonce
+	if pending := pool.pending[addr]; pending != nil {
+		if removed, invalids := pending.Remove(tx); removed {
+			if !removetx {
+				UptxhashIndex(pool, tx)
+			}
+			// If no more pending transactions are left, remove the list
+			if pending.Empty() {
+				delete(pool.pending, addr)
+				delete(pool.beats, addr)
+			}
+			// Postpone any invalidated transactions
+			for _, tx := range invalids {
+				pool.enqueueTx(tx.Hash(), tx)
+			}
+			// Update the account nonce if needed
+			if nonce := tx.Nonce(); pool.pendingNonces.get(addr) > nonce {
+				pool.pendingNonces.set(addr, nonce)
+			}
+		}
+	}
+	// Transaction is in the future queue
+	if future := pool.queue[addr]; future != nil {
+		queuetxs := future.Flatten()
+		for _, tx := range queuetxs {
+			if UptxhashIndex(pool, tx) {
+				future.Remove(tx)
+			}
+
+		}
+
+		if future.Empty() {
+			delete(pool.queue, addr)
+		}
+	}
+}
+
+func UptxhashIndex(pool *TxPool, tx *types.Transaction) bool {
+	if tx.To() != nil {
+		to := *tx.To()
+		var blackaddr common.Address
+		if len(tx.Data()) == 32 && to == blackaddr {
+			txhash := hexutil.Encode(tx.Data())
+			completetxhash := pool.currentState.GetState(blackaddr, common.HexToHash(txhash))
+			if (completetxhash != common.Hash{}) {
+				spv.UpTransactionIndex(string(txhash))
+				return true
+			} else {
+				return false
+			}
+
+		} else {
+			return false
+		}
+	} else {
+		return false
+	}
+
 }
 
 // removeTx removes a single transaction from the queue, moving all subsequent
@@ -1173,7 +1295,7 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 			log.Trace("Removed old queued transaction", "hash", hash)
 		}
 		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas, pool.currentState, addr, pool.chainconfig.BlackContractAddr)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
@@ -1365,7 +1487,7 @@ func (pool *TxPool) demoteUnexecutables() {
 			log.Trace("Removed old pending transaction", "hash", hash)
 		}
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas, pool.currentState, addr, pool.chainconfig.BlackContractAddr)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable pending transaction", "hash", hash)

@@ -25,6 +25,9 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"math/big"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -99,6 +102,19 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
 	if err != nil {
 		return nil, err
+	}
+
+	if tx.To() != nil {
+		to := *tx.To()
+		var blackAddr common.Address
+		if len(tx.Data()) == 32 && to == blackAddr {
+			txHash := hexutil.Encode(tx.Data())
+			fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txHash)
+			if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 && addr != blackAddr {
+				statedb.SetState(blackAddr, common.HexToHash(txHash),tx.Hash())
+				statedb.SetNonce(blackAddr, statedb.GetNonce(blackAddr) + 1)
+			}
+		}
 	}
 	// Update the state with pending changes
 	var root []byte

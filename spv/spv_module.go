@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"golang.org/x/net/context"
 	"math/big"
 	"path/filepath"
@@ -16,14 +15,18 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ETH"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethclient"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb/leveldb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+
 	"github.com/elastos/Elastos.ELA.SideChain/types"
+
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	core "github.com/elastos/Elastos.ELA/core/types"
@@ -33,16 +36,16 @@ import (
 var (
 	dataDir          = "./"
 	ipcClient        *ethclient.Client
-	stack            *node.Node
 	SpvService       *Service
 	spvTxhash        string //Spv notification main chain hash
-	spvTransactiondb *ethdb.LDBDatabase
+	spvTransactiondb *leveldb.Database
 	muiterator       sync.RWMutex
 	muupti           sync.RWMutex
 	candSend         int32     //1 can send recharge transactions, 0 can not send recharge transactions
 	candIterator     int32 = 0 //0 Iteratively send recharge transactions, 1 can't iteratively send recharge transactions
 	MinedBlockSub    *event.TypeMuxSubscription
-	Signers          map[ethCommon.Address]struct{} // Set of authorized signers at this moment
+
+	GetDefaultSingerAddr func() ethCommon.Address
 )
 
 const (
@@ -71,6 +74,9 @@ const (
 
 	// Fixed number of extra-data suffix bytes reserved for signer seal
 	extraSeal = 65
+
+	// Fixed height of ela chain height with LitterEnd encode
+	extraElaHeight = 8
 )
 
 //type MinedBlockEvent struct{}
@@ -92,18 +98,16 @@ type Service struct {
 
 //Spv database initialization
 func SpvDbInit(spvdataDir string) {
-	db, err := ethdb.NewLDBDatabase(filepath.Join(spvdataDir, "spv_transaction_info.db"), databaseCache, handles)
+	db, err := leveldb.New(filepath.Join(spvdataDir, "spv_transaction_info.db"), databaseCache, handles, "eth/db/ela/")
 	if err != nil {
 		log.Error("spv Open db", "err", err)
 		return
 	}
-	db.Meter("eth/db/ela/")
 	spvTransactiondb = db
 }
 
 //Spv service initialization
-func NewService(cfg *Config, s *node.Node) (*Service, error) {
-	stack = s
+func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 	var chainParams *config.Params
 	switch strings.ToLower(cfg.ActiveNet) {
 	case "testnet", "test", "t":
@@ -115,8 +119,8 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 
 	}
 	spvCfg := &spv.Config{
-		DataDir:     cfg.DataDir,
-		OnRollback:  nil, // Not implemented yet
+		DataDir:    cfg.DataDir,
+		OnRollback: nil, // Not implemented yet
 	}
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
@@ -139,33 +143,34 @@ func NewService(cfg *Config, s *node.Node) (*Service, error) {
 		log.Error("Spv Register Transaction Listener: ", "err", err)
 		return nil, err
 	}
-	client, err := stack.Attach()
-	if err != nil {
-		log.Error("Attach client: ", "err", err)
-	}
+
 	ipcClient = ethclient.NewClient(client)
 	genesis, err := ipcClient.HeaderByNumber(context.Background(), new(big.Int).SetInt64(0))
 	if err != nil {
 		log.Error("IpcClient: ", "err", err)
 	}
-	singersNum := (len(genesis.Extra) - extraVanity - extraSeal) / ethCommon.AddressLength
+
+	signersSize := len(genesis.Extra) - extraVanity - extraSeal
+	if signersSize % ethCommon.AddressLength == extraElaHeight {
+		signersSize -= extraElaHeight
+	}
+	singersNum := signersSize / ethCommon.AddressLength
 	if singersNum > 0 {
 		signers := make([]ethCommon.Address, singersNum)
 		for i := 0; i < singersNum; i++ {
-			copy(signers[i][:], genesis.Extra[extraVanity+i*ethCommon.AddressLength:])
+			copy(signers[i][:], genesis.Extra[extraVanity + i * ethCommon.AddressLength:])
 		}
-		Signers = make(map[ethCommon.Address]struct{})
+		blocksigner.Signers = make(map[ethCommon.Address]struct{})
 		for _, signer := range signers {
-			Signers[signer] = struct{}{}
+			blocksigner.Signers[signer] = struct{}{}
 		}
 	}
-	MinedBlockSub = s.EventMux().Subscribe(events.MinedBlockEvent{})
-	go minedBroadcastLoop(MinedBlockSub)
+
 	return SpvService, nil
 }
 
 //minedBroadcastLoop Mining awareness, eth can initiate a recharge transaction after the block
-func minedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription) {
+func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription) {
 	var i = 0
 
 	for {
@@ -174,22 +179,18 @@ func minedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription) {
 			i++
 			if i >= 2 {
 				atomic.StoreInt32(&candSend, 1)
-				from, ok := getDefaultSingerAddr()
-				if ok {
-					IteratorUnTransaction(from)
-				}
+				IteratorUnTransaction(GetDefaultSingerAddr())
 			}
 
 		case <-time.After(3 * time.Minute):
 			i = 0
 			atomic.StoreInt32(&candSend, 0)
-
 		}
 	}
 
 }
 
-func (s *Service) GetDatabase() *ethdb.LDBDatabase {
+func (s *Service) GetDatabase() *leveldb.Database {
 	return spvTransactiondb
 }
 
@@ -266,24 +267,12 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	log.Info("----------------------------------------------------------------------------------------")
 	log.Info(string(tx.String()))
 	log.Info("----------------------------------------------------------------------------------------")
-	savePayloadInfo(tx)
+	savePayloadInfo(tx, l)
 	l.service.SubmitTransactionReceipt(id, tx.Hash())
 }
 
-// get default singer address
-func getDefaultSingerAddr() (ethCommon.Address, bool) {
-	var addr ethCommon.Address
-	if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
-		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-			addr = accounts[0].Address
-		}
-	}
-	_, ok := Signers[addr]
-	return addr, ok
-}
-
 //savePayloadInfo save and send spv perception
-func savePayloadInfo(elaTx core.Transaction) {
+func savePayloadInfo(elaTx core.Transaction, l *listener) {
 	nr := bytes.NewReader(elaTx.Payload.Data(elaTx.PayloadVersion))
 	p := new(payload.TransferCrossChainAsset)
 	p.Deserialize(nr, elaTx.PayloadVersion)
@@ -319,20 +308,19 @@ func savePayloadInfo(elaTx core.Transaction) {
 		log.Error("SpvServicedb Put Output: ", "err", err, "elaHash", elaTx.Hash().String())
 	}
 	if atomic.LoadInt32(&candSend) == 1 {
-		from, ok := getDefaultSingerAddr()
-		if ok {
-			IteratorUnTransaction(from)
-			f, err := common.StringToFixed64(fees[0])
-			if err != nil {
-				log.Error("SpvSendTransaction Fee StringToFixed64: ", "err", err, "elaHash", elaTx)
-				return
+		from := GetDefaultSingerAddr()
+		IteratorUnTransaction(from)
+		f, err := common.StringToFixed64(fees[0])
+		if err != nil {
+			log.Error("SpvSendTransaction Fee StringToFixed64: ", "err", err, "elaHash", elaTx)
+			return
 
-			}
-			fe := new(big.Int).SetInt64(f.IntValue())
-			y := new(big.Int).SetInt64(rate)
-			fee := new(big.Int).Mul(fe, y)
-			SendTransaction(from, elaTx.Hash().String(), fee)
 		}
+		fe := new(big.Int).SetInt64(f.IntValue())
+		y := new(big.Int).SetInt64(rate)
+		fee := new(big.Int).Mul(fe, y)
+		SendTransaction(from, elaTx.Hash().String(), fee)
+
 	} else {
 		UpTransactionIndex(elaTx.Hash().String())
 	}
@@ -368,6 +356,13 @@ func UpTransactionIndex(elaTx string) {
 func IteratorUnTransaction(from ethCommon.Address) {
 	muiterator.Lock()
 	defer muiterator.Unlock()
+
+	_, ok := blocksigner.Signers[from]
+	if !ok {
+		log.Error("error signers", from.String())
+		return
+	}
+
 	if atomic.LoadInt32(&candIterator) == 1 {
 		return
 	}
@@ -519,4 +514,15 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	}
 	op := new(big.Int).SetInt64(o.IntValue())
 	return new(big.Int).Mul(fe, y), ethCommon.HexToAddress(addrs[0]), new(big.Int).Mul(op, y)
+}
+
+func SendEvilProof(addr ethCommon.Address, info interface{}) {
+	log.Info("Send evil Proof", "info", "signer", addr.String())
+	//ToDO connect ela chain
+
+}
+
+func GetElaHeight() uint64 {
+	//ToDO
+	return 0
 }

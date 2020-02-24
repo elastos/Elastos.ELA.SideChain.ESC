@@ -11,8 +11,7 @@ type Encoding struct {
 	decodeMap [256]int64
 }
 
-// New creates a new base58 encoding.
-func New(alphabet []byte) *Encoding {
+func encoding(alphabet []byte) *Encoding {
 	enc := &Encoding{}
 	copy(enc.alphabet[:], alphabet[:])
 	for i := range enc.decodeMap {
@@ -25,13 +24,13 @@ func New(alphabet []byte) *Encoding {
 }
 
 // FlickrEncoding is the encoding scheme used for Flickr's short URLs.
-var FlickrEncoding = New([]byte("123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"))
+var FlickrEncoding = encoding([]byte("123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"))
 
 // RippleEncoding is the encoding scheme used for Ripple addresses.
-var RippleEncoding = New([]byte("rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz"))
+var RippleEncoding = encoding([]byte("rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz"))
 
 // BitcoinEncoding is the encoding scheme used for Bitcoin addresses.
-var BitcoinEncoding = New([]byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"))
+var BitcoinEncoding = encoding([]byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"))
 
 var radix = big.NewInt(58)
 
@@ -42,7 +41,7 @@ func reverse(data []byte) {
 }
 
 // Encode encodes the number represented in the byte array base 10.
-func (enc *Encoding) Encode(src []byte) ([]byte, error) {
+func (encoding *Encoding) Encode(src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return []byte{}, nil
 	}
@@ -53,7 +52,7 @@ func (enc *Encoding) Encode(src []byte) ([]byte, error) {
 	bytes := make([]byte, 0, len(src))
 	for _, c := range src {
 		if c == '0' {
-			bytes = append(bytes, enc.alphabet[0])
+			bytes = append(bytes, encoding.alphabet[0])
 		} else {
 			break
 		}
@@ -65,24 +64,24 @@ func (enc *Encoding) Encode(src []byte) ([]byte, error) {
 		switch n.Cmp(zero) {
 		case 1:
 			n.DivMod(n, radix, mod)
-			bytes = append(bytes, enc.alphabet[mod.Int64()])
+			bytes = append(bytes, encoding.alphabet[mod.Int64()])
 		case 0:
 			reverse(bytes[zerocnt:])
 			return bytes, nil
 		default:
-			return nil, fmt.Errorf("expecting a non-negative number in base58 encoding but got %s", n)
+			return nil, fmt.Errorf("expecting a positive number in base58 encoding but got %q", n)
 		}
 	}
 }
 
 // Decode decodes the base58 encoded bytes.
-func (enc *Encoding) Decode(src []byte) ([]byte, error) {
+func (encoding *Encoding) Decode(src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return []byte{}, nil
 	}
 	var zeros []byte
 	for i, c := range src {
-		if c == enc.alphabet[0] && i < len(src)-1 {
+		if c == encoding.alphabet[0] && i < len(src)-1 {
 			zeros = append(zeros, '0')
 		} else {
 			break
@@ -91,25 +90,10 @@ func (enc *Encoding) Decode(src []byte) ([]byte, error) {
 	n := new(big.Int)
 	var i int64
 	for _, c := range src {
-		if i = enc.decodeMap[c]; i < 0 {
+		if i = encoding.decodeMap[c]; i < 0 {
 			return nil, fmt.Errorf("invalid character '%c' in decoding a base58 string \"%s\"", c, src)
 		}
 		n.Add(n.Mul(n, radix), big.NewInt(i))
 	}
 	return n.Append(zeros, 10), nil
-}
-
-// UnmarshalFlag implements flags.Unmarshaler
-func (enc *Encoding) UnmarshalFlag(value string) error {
-	switch value {
-	case "flickr":
-		*enc = *FlickrEncoding
-	case "ripple":
-		*enc = *RippleEncoding
-	case "bitcoin":
-		*enc = *BitcoinEncoding
-	default:
-		return fmt.Errorf("unknown encoding: %s", value)
-	}
-	return nil
 }

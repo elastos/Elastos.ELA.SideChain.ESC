@@ -157,4 +157,11 @@ type Config struct {
 
 	// Istanbul block override (TODO: remove after the fork)
 	OverrideIstanbul *big.Int
+
+	BlackContractAddr string
+
+	PassBalance uint64
+
+	// evil signer events jouranl local path
+	EvilSignersJournalDir  string
 }

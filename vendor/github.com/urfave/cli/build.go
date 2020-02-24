@@ -6,13 +6,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/urfave/cli"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
-
-	"github.com/urfave/cli"
 )
 
 var packages = []string{"cli", "altsrc"}
@@ -52,18 +51,8 @@ func main() {
 	}
 }
 
-func runCmd(arg string, args ...string) error {
-	cmd := exec.Command(arg, args...)
-
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
-}
-
 func VetActionFunc(_ *cli.Context) error {
-	return runCmd("go", "vet")
+	return exec.Command("go", "vet").Run()
 }
 
 func TestActionFunc(c *cli.Context) error {
@@ -78,7 +67,10 @@ func TestActionFunc(c *cli.Context) error {
 
 		coverProfile := fmt.Sprintf("--coverprofile=%s.coverprofile", pkg)
 
-		err := runCmd("go", "test", "-v", coverProfile, packageName)
+		err := exec.Command(
+			"go", "test", "-v", coverProfile, packageName,
+		).Run()
+
 		if err != nil {
 			return err
 		}
@@ -150,16 +142,16 @@ func GfmrunActionFunc(_ *cli.Context) error {
 		return err
 	}
 
-	return runCmd("gfmrun", "-c", fmt.Sprint(counter), "-s", "README.md")
+	return exec.Command("gfmrun", "-c", fmt.Sprint(counter), "-s", "README.md").Run()
 }
 
 func TocActionFunc(_ *cli.Context) error {
-	err := runCmd("node_modules/.bin/markdown-toc", "-i", "README.md")
+	err := exec.Command("node_modules/.bin/markdown-toc", "-i", "README.md").Run()
 	if err != nil {
 		return err
 	}
 
-	err = runCmd("git", "diff", "--exit-code")
+	err = exec.Command("git", "diff", "--exit-code").Run()
 	if err != nil {
 		return err
 	}
@@ -168,17 +160,17 @@ func TocActionFunc(_ *cli.Context) error {
 }
 
 func GenActionFunc(_ *cli.Context) error {
-	err := runCmd("go", "generate", "flag-gen/main.go")
+	err := exec.Command("go", "generate", "flag-gen/main.go").Run()
 	if err != nil {
 		return err
 	}
 
-	err = runCmd("go", "generate", "cli.go")
+	err = exec.Command("go", "generate", "cli.go").Run()
 	if err != nil {
 		return err
 	}
 
-	err = runCmd("git", "diff", "--exit-code")
+	err = exec.Command("git", "diff", "--exit-code").Run()
 	if err != nil {
 		return err
 	}

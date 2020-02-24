@@ -26,6 +26,7 @@ import (
 	"unicode"
 
 	cli "gopkg.in/urfave/cli.v1"
+	"path/filepath"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/cmd/utils"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dashboard"
@@ -33,6 +34,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	whisper "github.com/elastos/Elastos.ELA.SideChain.ETH/whisper/whisperv6"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"github.com/naoina/toml"
 )
 
@@ -151,6 +153,22 @@ func enableWhisper(ctx *cli.Context) bool {
 
 func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
+
+	var SpvDbDir string
+	switch {
+	case ctx.GlobalIsSet(utils.DataDirFlag.Name):
+		SpvDbDir = ctx.GlobalString(utils.DataDirFlag.Name)
+	case ctx.GlobalBool(utils.DeveloperFlag.Name):
+		SpvDbDir = "" // unless explicitly requested, use memory databases
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		SpvDbDir = filepath.Join(node.DefaultDataDir(), "testnet")
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		SpvDbDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+	default:
+		SpvDbDir = node.DefaultDataDir()
+	}
+	spv.SpvDbInit(SpvDbDir)
+
 	if ctx.GlobalIsSet(utils.OverrideIstanbulFlag.Name) {
 		cfg.Eth.OverrideIstanbul = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideIstanbulFlag.Name))
 	}

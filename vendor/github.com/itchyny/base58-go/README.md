@@ -41,18 +41,8 @@ func main() {
 ```
 
 ## base58 command
-### Homebrew
 ```sh
-brew install itchyny/tap/base58
-```
-
-### Build from source
-```bash
-go get -u github.com/itchyny/base58-go/cmd/base58
-```
-
-### Basic usage
-```sh
+ $ go get -u github.com/itchyny/base58-go/cmd/base58
  $ base58
 100
 2J
