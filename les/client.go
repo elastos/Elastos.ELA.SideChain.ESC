@@ -76,6 +76,10 @@ func New(ctx *node.ServiceContext, config *eth.Config) (*LightEthereum, error) {
 	if _, isCompat := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !isCompat {
 		return nil, genesisErr
 	}
+	chainConfig.PassBalance = config.PassBalance
+	chainConfig.BlackContractAddr = config.BlackContractAddr
+	chainConfig.EvilSignersJournalDir = config.EvilSignersJournalDir
+
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	peers := newPeerSet()
