@@ -755,6 +755,22 @@ var (
 		Usage: "External EVM configuration (default = built-in interpreter)",
 		Value: "",
 	}
+
+	SpvMonitoringAddrFlag = cli.StringFlag{
+		Name:  "spvmoniaddr",
+		Usage: "configue SPV module monitoring ela chain address",
+		Value: "",
+	}
+	BlackContractAddr = cli.StringFlag{
+		Name:  "black.contract.address",
+		Usage: "configue Black Contract address",
+		Value: "0xC445f9487bF570fF508eA9Ac320b59730e81e503",
+	}
+	PassBalance = cli.Int64Flag{
+		Name:  "pass.balance",
+		Usage: "configue Oracle Contract account balance",
+		Value: 1000000000000000000,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1484,6 +1500,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.RPCGasCap = new(big.Int).SetUint64(ctx.GlobalUint64(RPCGlobalGasCap.Name))
 	}
 
+	cfg.BlackContractAddr = ctx.GlobalString(BlackContractAddr.Name)
+	cfg.PassBalance = ctx.GlobalUint64(PassBalance.Name)
+	cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "geth")
+	if ctx.GlobalIsSet(DataDirFlag.Name) {
+		cfg.EvilSignersJournalDir = filepath.Join(ctx.GlobalString(DataDirFlag.Name), "geth")
+	}
+
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
@@ -1491,11 +1514,15 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.NetworkId = 3
 		}
 		cfg.Genesis = core.DefaultTestnetGenesisBlock()
+		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
+		cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "testnet", "geth")
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 4
 		}
 		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
+		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
+		cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "rinkeby", "geth")
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 5

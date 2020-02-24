@@ -51,6 +51,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 )
 
 type LesServer interface {
@@ -139,6 +140,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
+	chainConfig.PassBalance = config.PassBalance
+	chainConfig.BlackContractAddr = config.BlackContractAddr
+	chainConfig.EvilSignersJournalDir = config.EvilSignersJournalDir
+	
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{
@@ -227,7 +232,7 @@ func makeExtraData(extra []byte) []byte {
 	if len(extra) == 0 {
 		// create default extradata
 		extra, _ = rlp.EncodeToBytes([]interface{}{
-			uint(params.VersionMajor<<16 | params.VersionMinor<<8 | params.VersionPatch),
+			uint(params.VersionMajor<<32 | params.VersionMinor<<16 | params.VersionPatch<<8 | params.VersionCross),
 			"geth",
 			runtime.Version(),
 			runtime.GOOS,
@@ -559,6 +564,15 @@ func (s *Ethereum) Stop() error {
 	s.eventMux.Stop()
 
 	s.chainDb.Close()
+
+	if nil != spv.MinedBlockSub {
+		spv.MinedBlockSub.Unsubscribe()
+	}
+	spvdb := spv.SpvService.GetDatabase()
+	if spvdb != nil {
+		spvdb.Close()
+	}
+
 	close(s.shutdownChan)
 	return nil
 }

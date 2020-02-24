@@ -27,9 +27,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
 
 	"github.com/elastic/gosigar"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/cmd/utils"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -42,7 +42,19 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
-	cli "gopkg.in/urfave/cli.v1"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
+	elacom "github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/core/contract"
+
+	"gopkg.in/urfave/cli.v1"
+	"path/filepath"
+	"encoding/hex"
+	"bytes"
+	"crypto/sha256"
+	"golang.org/x/crypto/ripemd160"
 )
 
 const (
@@ -149,6 +161,9 @@ var (
 		utils.EWASMInterpreterFlag,
 		utils.EVMInterpreterFlag,
 		configFileFlag,
+		utils.SpvMonitoringAddrFlag,
+		utils.PassBalance,
+		utils.BlackContractAddr,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -319,6 +334,143 @@ func geth(ctx *cli.Context) error {
 	return nil
 }
 
+// calculate the ELA mainchain address from the sidechain (ie. this chain)
+// genesis block hash for corresponding crosschain transactions
+// refer to https://github.com/elastos/Elastos.ELA.Client/blob/dev/cli/wallet/wallet.go
+// for the original ELA-CLI implementation
+func calculateGenesisAddress(genesisBlockHash string) (string, error) {
+	// unlike Ethereum, the ELA hash values do not contain 0x prefix
+	if strings.HasPrefix(genesisBlockHash, "0x") {
+		genesisBlockHash = genesisBlockHash[2:]
+	}
+	genesisBlockBytes, err := hex.DecodeString(genesisBlockHash)
+	if err != nil {
+		return "", errors.New("genesis block hash to bytes failed")
+	}
+	reversedGenesisBlockBytes := elacom.BytesReverse(genesisBlockBytes)
+	reversedGenesisBlockStr := elacom.BytesToHexString(reversedGenesisBlockBytes)
+
+	log.Info(fmt.Sprintf("genesis program hash: %v", reversedGenesisBlockStr))
+
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(len(reversedGenesisBlockBytes)))
+	buf.Write(reversedGenesisBlockBytes)
+	buf.WriteByte(byte(elacom.CROSSCHAIN))
+
+	sum168 := func(prefix byte, code []byte) []byte {
+		hash := sha256.Sum256(code)
+		md160 := ripemd160.New()
+		md160.Write(hash[:])
+		return md160.Sum([]byte{prefix})
+	}
+	genesisProgramHash, err := elacom.Uint168FromBytes(sum168(byte(contract.PrefixCrossChain), buf.Bytes()))
+	if err != nil {
+		return "", errors.New("genesis block bytes to program hash failed")
+	}
+
+	genesisAddress, err := genesisProgramHash.ToAddress()
+	if err != nil {
+		return "", errors.New("genesis block hash to genesis address failed")
+	}
+	log.Info(fmt.Sprintf("genesis address: %v ", genesisAddress))
+
+	return genesisAddress, nil
+}
+
+func startSpv(ctx *cli.Context, stack *node.Node) {
+
+	var SpvDataDir string
+	switch {
+	case ctx.GlobalIsSet(utils.DataDirFlag.Name):
+		SpvDataDir = ctx.GlobalString(utils.DataDirFlag.Name)
+	case ctx.GlobalBool(utils.DeveloperFlag.Name):
+		SpvDataDir = "" // unless explicitly requested, use memory databases
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		SpvDataDir = filepath.Join(node.DefaultDataDir(), "testnet")
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		SpvDataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+	default:
+		SpvDataDir = node.DefaultDataDir()
+	}
+
+	var spvCfg = &spv.Config{
+		DataDir: SpvDataDir,
+	}
+	// prepare the SPV service config parameters
+	switch {
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		spvCfg.ActiveNet = "t"
+
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		spvCfg.ActiveNet = "r"
+
+	}
+
+	// prepare to start the SPV module
+	// if --spvmoniaddr commandline parameter is present, use the parameter value
+	// as the ELA mainchain address for the SPV module to monitor on
+	// if no --spvmoniaddr commandline parameter is provided, use the sidechain genesis block hash
+	// to generate the corresponding ELA mainchain address for the SPV module to monitor on
+	if ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name) != "" {
+		// --spvmoniaddr parameter is provided, set the SPV monitor address accordingly
+		log.Info("SPV Start Monitoring... ", "SpvMonitoringAddr", ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name))
+		spvCfg.GenesisAddress = ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name)
+	} else {
+		// --spvmoniaddr parameter is not provided
+		// get the Ethereum node service to get the genesis block hash
+		var fullnode *eth.Ethereum
+		var lightnode *les.LightEthereum
+		var ghash common.Hash
+
+		// light node and full node are different types of node services
+		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
+			if err := stack.Service(&lightnode); err != nil {
+				utils.Fatalf("Blockchain not running: %v", err)
+			}
+			ghash = lightnode.BlockChain().Genesis().Hash()
+		} else {
+			if err := stack.Service(&fullnode); err != nil {
+				utils.Fatalf("Blockchain not running: %v", err)
+			}
+			ghash = fullnode.BlockChain().Genesis().Hash()
+		}
+
+		// calculate ELA mainchain address from the genesis block hash and set the SPV monitor address accordingly
+		log.Info(fmt.Sprintf("Genesis block hash: %v", ghash.String()))
+		if gaddr, err := calculateGenesisAddress(ghash.String()); err != nil {
+			utils.Fatalf("Cannot calculate: %v", err)
+		} else {
+			log.Info(fmt.Sprintf("SPV Start Monitoring... : %v", gaddr))
+			spvCfg.GenesisAddress = gaddr
+		}
+	}
+
+	spv.GetDefaultSingerAddr = func() (common.Address) {
+		var addr common.Address
+		if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
+			if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+				addr = accounts[0].Address
+			}
+		}
+
+		return addr
+	}
+
+	client, err := stack.Attach()
+	if err != nil {
+		log.Error("Attach client: ", "err", err)
+	}
+
+	if spvService, err := spv.NewService(spvCfg,client); err != nil {
+		utils.Fatalf("SPV service init error: %v", err)
+	} else {
+		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})
+		go spv.MinedBroadcastLoop(MinedBlockSub)
+		spvService.Start()
+		log.Info("Mainchain SPV module started successfully!")
+	}
+}
+
 // startNode boots up the system node and all registered protocols, after which
 // it unlocks any requested accounts, and starts the RPC/IPC interfaces and the
 // miner.
@@ -327,6 +479,10 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 
 	// Start up the node itself
 	utils.StartNode(stack)
+
+	//start the SPV service
+	//log.Info(fmt.Sprintf("Starting SPV service with config: %+v \n", *spvCfg))
+	startSpv(ctx, stack)
 
 	// Unlock any account specifically requested
 	unlockAccounts(ctx, stack)

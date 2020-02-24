@@ -31,6 +31,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
@@ -599,7 +600,7 @@ func (w *worker) resultLoop() {
 
 			// Broadcast the block and announce chain insertion event
 			w.mux.Post(core.NewMinedBlockEvent{Block: block})
-
+			w.mux.Post(events.MinedBlockEvent{})
 			var events []interface{}
 			switch stat {
 			case core.CanonStatTy:
@@ -780,7 +781,23 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			// Pop the current out-of-gas transaction without shifting in the next from the account
 			log.Trace("Gas limit exceeded for current block", "sender", from)
 			txs.Pop()
-
+			var addr common.Address
+			if tx.To() != nil {
+				to := *tx.To()
+				if len(tx.Data()) == 32 && to == addr {
+					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
+				}
+			}
+		case core.ErrMainTxHashPresence:
+			log.Trace("ErrTxHashTooHigh  is returned if Main chain transaction has been processed", "sender", from)
+			txs.Pop()
+			var addr common.Address
+			if tx.To() != nil {
+				to := *tx.To()
+				if len(tx.Data()) == 32 && to == addr {
+					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
+				}
+			}
 		case core.ErrNonceTooLow:
 			// New head notification data race between the transaction pool and miner, shift
 			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
