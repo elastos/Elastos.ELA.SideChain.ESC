@@ -45,7 +45,7 @@ type clientHandler struct {
 	syncDone func()         // Test hooks when syncing is done.
 }
 
-func newClientHandler(ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum) *clientHandler {
+func newClientHandler(ulcServers []string, ulcFraction int, checkpoint *params.TrustedCheckpoint, backend *LightEthereum, nodeStopFunc func() error) *clientHandler {
 	handler := &clientHandler{
 		checkpoint: checkpoint,
 		backend:    backend,
@@ -64,7 +64,7 @@ func newClientHandler(ulcServers []string, ulcFraction int, checkpoint *params.T
 		height = (checkpoint.SectionIndex+1)*params.CHTFrequency - 1
 	}
 	handler.fetcher = newLightFetcher(handler)
-	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer)
+	handler.downloader = downloader.New(height, backend.chainDb, nil, backend.eventMux, nil, backend.blockchain, handler.removePeer, nodeStopFunc, backend.engine.SignersCount)
 	handler.backend.peers.notify((*downloaderPeerNotify)(handler))
 	return handler
 }

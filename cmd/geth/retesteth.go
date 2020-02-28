@@ -220,6 +220,10 @@ func (e *NoRewardEngine) Prepare(chain consensus.ChainReader, header *types.Head
 	return e.inner.Prepare(chain, header)
 }
 
+func (e *NoRewardEngine) SignersCount() int {
+	return 0
+}
+
 func (e *NoRewardEngine) accumulateRewards(config *params.ChainConfig, state *state.StateDB, header *types.Header, uncles []*types.Header) {
 	// Simply touch miner and uncle coinbase accounts
 	reward := big.NewInt(0)

@@ -584,6 +584,10 @@ func (ethash *Ethash) Close() error {
 	return err
 }
 
+func (ethash *Ethash) SignersCount() int {
+	return 0
+}
+
 // cache tries to retrieve a verification cache for the specified block number
 // by first checking against a list of in-memory caches, then against caches
 // stored on disk, and finally generating one if none can be found.
