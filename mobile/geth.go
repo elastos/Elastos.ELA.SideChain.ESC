@@ -162,7 +162,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		ethConf.NetworkId = uint64(config.EthereumNetworkID)
 		ethConf.DatabaseCache = config.EthereumDatabaseCache
 		if err := rawStack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-			return les.New(ctx, &ethConf)
+			return les.New(ctx, &ethConf, rawStack)
 		}); err != nil {
 			return nil, fmt.Errorf("ethereum init: %v", err)
 		}

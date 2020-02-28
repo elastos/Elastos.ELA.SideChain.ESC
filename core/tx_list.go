@@ -106,13 +106,13 @@ func (m *txSortedMap) Filter(filter func(*types.Transaction) bool, gasLimit uint
 	var addr common.Address
 	// Collect all the transactions to filter out
 	for nonce, tx := range m.items {
-		if tx.To() != nil {
+		if tx.To() != nil {//recharge tx
 			if len(tx.Data())==  32  && *tx.To() == addr {
 				filter = func(transaction *types.Transaction) bool {
 					return tx.Gas() > gasLimit
 				}
 			}
-		} else if currentState != nil {
+		} else if currentState != nil {//deploy contract
 			contractAddr := crypto.CreateAddress(from, currentState.GetNonce(from))
 			if (contractAddr.String() == blackContractAddr && gasLimit > 0 && from != common.Address{}) {
 				filter = func(tx *types.Transaction) bool { return tx.Gas() > gasLimit }

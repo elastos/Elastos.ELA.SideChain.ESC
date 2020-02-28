@@ -157,6 +157,9 @@ type Downloader struct {
 	bodyFetchHook    func([]*types.Header) // Method to call upon starting a block body fetch
 	receiptFetchHook func([]*types.Header) // Method to call upon starting a receipt fetch
 	chainInsertHook  func([]*fetchResult)  // Method to call upon inserting a chain of blocks (possibly in multiple invocations)
+
+	nodeStopFunc func() error              // Method to call stop node
+	engineSingersCountFunc func() int      // Method to get engine singers count
 }
 
 // LightChain encapsulates functions required to synchronise a light chain.
@@ -210,7 +213,7 @@ type BlockChain interface {
 }
 
 // New creates a new downloader to fetch hashes and blocks from remote peers.
-func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, mux *event.TypeMux, chain BlockChain, lightchain LightChain, dropPeer peerDropFn) *Downloader {
+func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, mux *event.TypeMux, chain BlockChain, lightchain LightChain, dropPeer peerDropFn, nodeStopFun func() error, signerCountFun func () int) *Downloader {
 	if lightchain == nil {
 		lightchain = chain
 	}
@@ -239,6 +242,8 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 			processed: rawdb.ReadFastTrieProgress(stateDb),
 		},
 		trackStateReq: make(chan *stateReq),
+		nodeStopFunc: nodeStopFun,
+		engineSingersCountFunc: signerCountFun,
 	}
 	go dl.qosTuner()
 	go dl.stateFetcher()
@@ -444,6 +449,21 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	if err != nil {
 		return err
 	}
+
+	// If the number of blocks rolled back is greater than n over 2 of the number of signatures, stop node
+	currentBlockNumber := d.blockchain.CurrentBlock().NumberU64()
+	if currentBlockNumber >= height {
+		if height - origin > uint64(d.engineSingersCountFunc()/2) {
+			log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
+			d.nodeStopFunc()
+		}
+	} else if (height > currentBlockNumber) {
+		if currentBlockNumber - origin > uint64(d.engineSingersCountFunc()/2) {
+			log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
+			d.nodeStopFunc()
+		}
+	}
+
 	d.syncStatsLock.Lock()
 	if d.syncStatsChainHeight <= origin || d.syncStatsChainOrigin > origin {
 		d.syncStatsChainOrigin = origin

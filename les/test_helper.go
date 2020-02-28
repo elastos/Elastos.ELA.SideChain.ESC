@@ -215,7 +215,7 @@ func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, index
 		blockchain: chain,
 		eventMux:   evmux,
 	}
-	client.handler = newClientHandler(ulcServers, ulcFraction, nil, client)
+	client.handler = newClientHandler(ulcServers, ulcFraction, nil, client, nil)
 
 	if client.oracle != nil {
 		client.oracle.start(backend)
