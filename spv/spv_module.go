@@ -268,7 +268,7 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	log.Info(string(tx.String()))
 	log.Info("----------------------------------------------------------------------------------------")
 	savePayloadInfo(tx, l)
-	l.service.SubmitTransactionReceipt(id, tx.Hash())
+	l.service.SubmitTransactionReceipt(id, tx.Hash())// give spv service a receipt, Indicates receipt of notice
 }
 
 //savePayloadInfo save and send spv perception

@@ -241,7 +241,7 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*discv5.Node, network u
 		cfg.SyncMode = downloader.LightSync
 		cfg.NetworkId = network
 		cfg.Genesis = genesis
-		return les.New(ctx, &cfg)
+		return les.New(ctx, &cfg, stack)
 	}); err != nil {
 		return nil, err
 	}
