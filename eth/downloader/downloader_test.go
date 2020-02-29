@@ -25,7 +25,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-	"math"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -90,18 +89,6 @@ func newTester() *downloadTester {
 
 	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer, stop, signersCount)
 	return tester
-}
-
-func stop() error {
-	println("node stop: The number of synchronized blocks is more than half of the signersCount()")
-	stopChain <- true
-	return nil
-}
-
-func signersCount() int {
-	println("get signers count")
-	//Set to the number of nodes only when testing a forked rollback
-	return math.MaxInt64
 }
 
 // terminate aborts any operations on the embedded downloader and releases all
@@ -492,35 +479,6 @@ func assertOwnForkedChain(t *testing.T, tester *downloadTester, common int, leng
 	}
 }
 
-func TestFixForkSync64Full(t *testing.T)  { testFixForkSyncfunc(t, 64, FullSync) }
-
-func testFixForkSyncfunc(t *testing.T, protocol int, mode SyncMode) {
-	t.Parallel()
-
-	tester := newTester()
-	tester.downloader.engineSingersCountFunc = func() int {
-		return 10
-	}
-	defer tester.terminate()
-
-	chainA := testChainForkLightA.shorten(testChainBase.len() + 80)
-	chainB := testChainForkLightB.shorten(testChainBase.len() + 80)
-	tester.newPeer("fork A", protocol, chainA)
-	tester.newPeer("fork B", protocol, chainB)
-
-	// Synchronise with the peer and make sure all blocks were retrieved
-	if err := tester.sync("fork A", nil, mode); err != nil {
-		t.Fatalf("failed to synchronise blocks: %v", err)
-	}
-	assertOwnChain(t, tester, chainA.len())
-
-	// Synchronise with the second peer and make sure that fork is pulled too
-	if err := tester.sync("fork B", nil, mode); err != nil {
-		t.Fatalf("failed to synchronise blocks: %v", err)
-	}
-	assertOwnForkedChain(t, tester, testChainBase.len(), []int{chainA.len(), chainB.len()})
-}
-
 // Tests that simple synchronization against a canonical chain works correctly.
 // In this test common ancestor lookup should be short circuited and not require
 // binary searching.
@@ -638,7 +596,16 @@ func TestForkedSync63Fast(t *testing.T)  { testForkedSync(t, 63, FastSync) }
 func TestForkedSync64Full(t *testing.T)  { testForkedSync(t, 64, FullSync) }
 func TestForkedSync64Fast(t *testing.T)  { testForkedSync(t, 64, FastSync) }
 func TestForkedSync64Light(t *testing.T) { testForkedSync(t, 64, LightSync) }
+func stop() error {
+	println("node stop: The number of synchronized blocks is more than half of the signersCount()")
+	stopChain <- true
+	return nil
+}
 
+func signersCount() int {
+	println("get signers count")
+	return 10000
+}
 
 func testForkedSync(t *testing.T, protocol int, mode SyncMode) {
 	t.Parallel()
