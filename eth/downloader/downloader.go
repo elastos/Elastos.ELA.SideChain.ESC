@@ -452,15 +452,18 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 
 	// If the number of blocks rolled back is greater than n over 2 of the number of signatures, stop node
 	currentBlockNumber := d.blockchain.CurrentBlock().NumberU64()
-	if currentBlockNumber >= height {
-		if height - origin > uint64(d.engineSingersCountFunc()/2) {
-			log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
-			d.nodeStopFunc()
-		}
-	} else if (height > currentBlockNumber) {
-		if currentBlockNumber - origin > uint64(d.engineSingersCountFunc()/2) {
-			log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
-			d.nodeStopFunc()
+	localTD := d.blockchain.GetTd(d.blockchain.CurrentBlock().Hash(), currentBlockNumber)
+	if localTD.Cmp(td) < 0 {
+		if currentBlockNumber >= height {
+			if height - origin > uint64(d.engineSingersCountFunc()/2) {
+				log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
+				d.nodeStopFunc()
+			}
+		} else if (height > currentBlockNumber && currentBlockNumber > 0) {
+			if currentBlockNumber - origin > uint64(d.engineSingersCountFunc()/2) {
+				log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
+				d.nodeStopFunc()
+			}
 		}
 	}
 
