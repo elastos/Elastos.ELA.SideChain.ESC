@@ -457,7 +457,6 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	if err != nil {
 		return err
 	}
-	c.signersCount = len(snap.Signers)
 
 	// Resolve the authorization key and check against signers
 	signer, err := ecrecover(header, c.signatures)
@@ -501,8 +500,6 @@ func (c *Clique) Prepare(chain consensus.ChainReader, header *types.Header) erro
 	if err != nil {
 		return err
 	}
-
-	c.signersCount = len(snap.Signers)
 
 	if number%c.config.Epoch != 0 {
 		c.lock.RLock()
