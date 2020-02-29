@@ -1955,12 +1955,15 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
-	//
- 	if len(oldChain) > bc.Engine().SignersCount() * 2/3 && bc.Engine().SignersCount() > 1 {
-		msg := "Chain reorg detected, more than 2/3 :"
-		log.Error(msg, bc.Engine().SignersCount() * 2/3, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
+	//elatos is clique
+ 	if len(oldChain) > bc.Engine().SignersCount() /2 && bc.Engine().SignersCount() > 1 {
+		msg := "danger chain detected, more than n/2 :"
+		log.Error(msg, bc.Engine().SignersCount() /2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
- 		defer bc.engine.Close()
+		defer func() {
+			bc.engine.Close()
+			bc.Stop()
+		}()
 	}
 	
 	// Insert the new chain(except the head block(reverse order)),
