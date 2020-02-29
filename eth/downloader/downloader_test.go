@@ -35,6 +35,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
 )
 
+var stopChain chan bool
 // Reduce some of the parameters to make the tester faster.
 func init() {
 	maxForkAncestry = 10000
@@ -86,7 +87,7 @@ func newTester() *downloadTester {
 	tester.stateDb = rawdb.NewMemoryDatabase()
 	tester.stateDb.Put(testGenesis.Root().Bytes(), []byte{0x00})
 
-	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer)
+	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer, stop, signersCount)
 	return tester
 }
 
@@ -595,6 +596,16 @@ func TestForkedSync63Fast(t *testing.T)  { testForkedSync(t, 63, FastSync) }
 func TestForkedSync64Full(t *testing.T)  { testForkedSync(t, 64, FullSync) }
 func TestForkedSync64Fast(t *testing.T)  { testForkedSync(t, 64, FastSync) }
 func TestForkedSync64Light(t *testing.T) { testForkedSync(t, 64, LightSync) }
+func stop() error {
+	println("node stop: The number of synchronized blocks is more than half of the signersCount()")
+	stopChain <- true
+	return nil
+}
+
+func signersCount() int {
+	println("get signers count")
+	return 10000
+}
 
 func testForkedSync(t *testing.T, protocol int, mode SyncMode) {
 	t.Parallel()
@@ -1234,6 +1245,67 @@ func TestForkedSyncProgress64Full(t *testing.T)  { testForkedSyncProgress(t, 64,
 func TestForkedSyncProgress64Fast(t *testing.T)  { testForkedSyncProgress(t, 64, FastSync) }
 func TestForkedSyncProgress64Light(t *testing.T) { testForkedSyncProgress(t, 64, LightSync) }
 
+
+func testLongForkedSyncProgress(t *testing.T, protocol int, mode SyncMode) {
+	t.Parallel()
+
+	tester := newTester()
+	defer tester.terminate()
+
+	chainA := testChainBase.makeFork(signersCount() / 2 + 1, false, 1)
+	chainB := testChainBase.makeFork(signersCount() / 2 + 1, true, 2)
+
+	// Set a sync init hook to catch progress changes
+	starting := make(chan struct{})
+	progress := make(chan struct{})
+
+	tester.downloader.syncInitHook = func(origin, latest uint64) {
+		starting <- struct{}{}
+		<-progress
+	}
+	checkProgress(t, tester.downloader, "pristine", ethereum.SyncProgress{})
+
+	// Synchronise with one of the forks and check progress
+	tester.newPeer("fork A", protocol, chainA)
+	pending := new(sync.WaitGroup)
+	pending.Add(1)
+	go func() {
+		defer pending.Done()
+		if err := tester.sync("fork A", chainA.td(chainA.chain[len(chainA.chain)-1]), mode); err != nil {
+			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
+		}
+	}()
+	<-starting
+
+	checkProgress(t, tester.downloader, "initial", ethereum.SyncProgress{
+		HighestBlock: uint64(chainA.len() - 1),
+	})
+	progress <- struct{}{}
+	pending.Wait()
+
+	// Simulate a successful sync above the fork
+	tester.downloader.syncStatsChainOrigin = tester.downloader.syncStatsChainHeight
+
+	// Synchronise with the second fork and check progress resets
+	tester.newPeer("fork B", protocol, chainB)
+	pending.Add(1)
+	stopChain = make(chan bool)
+	go func() {
+		defer pending.Done()
+		td := new(big.Int).Add(chainB.td(chainB.chain[len(chainB.chain)-1]), big.NewInt(1))
+		if err := tester.sync("fork B", td, mode); err != nil {
+			panic(fmt.Sprintf("failed to synchronise blocks: %v", err))
+		}
+	}()
+
+	select {
+	case <-starting:
+		t.Error("stop Chain failed")
+	case <-stopChain:
+		t.Log("stop Chain suc")
+	}
+}
+
 func testForkedSyncProgress(t *testing.T, protocol int, mode SyncMode) {
 	t.Parallel()
 
@@ -1655,4 +1727,8 @@ func testCheckpointEnforcement(t *testing.T, protocol int, mode SyncMode) {
 	} else {
 		assertOwnChain(t, tester, chain.len())
 	}
+}
+
+func TestLongForkedSyncProgress64Fast(t *testing.T)  {
+	testLongForkedSyncProgress(t, 64, FastSync)
 }
