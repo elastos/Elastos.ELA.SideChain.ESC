@@ -467,7 +467,6 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})
 		go spv.MinedBroadcastLoop(MinedBlockSub)
 		spvService.Start()
-		log.Info("Mainchain SPV module started successfully!")
 	}
 }
 
@@ -480,12 +479,12 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	// Start up the node itself
 	utils.StartNode(stack)
 
+	// Unlock any account specifically requested
+	unlockAccounts(ctx, stack)
+
 	//start the SPV service
 	//log.Info(fmt.Sprintf("Starting SPV service with config: %+v \n", *spvCfg))
 	startSpv(ctx, stack)
-
-	// Unlock any account specifically requested
-	unlockAccounts(ctx, stack)
 
 	// Register wallet event handlers to open and auto-derive wallets
 	events := make(chan accounts.WalletEvent, 16)

@@ -495,7 +495,7 @@ func newLesClientService(ctx *adapters.ServiceContext) (node.Service, error) {
 	config := eth.DefaultConfig
 	config.SyncMode = downloader.LightSync
 	config.Ethash.PowMode = ethash.ModeFake
-	return New(ctx.NodeContext, &config)
+	return New(ctx.NodeContext, &config, nil)
 }
 
 func newLesServerService(ctx *adapters.ServiceContext) (node.Service, error) {
@@ -503,7 +503,7 @@ func newLesServerService(ctx *adapters.ServiceContext) (node.Service, error) {
 	config.SyncMode = downloader.FullSync
 	config.LightServ = testServerCapacity
 	config.LightPeers = testMaxClients
-	ethereum, err := eth.New(ctx.NodeContext, &config)
+	ethereum, err := eth.New(ctx.NodeContext, &config, nil)
 	if err != nil {
 		return nil, err
 	}
