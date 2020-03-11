@@ -171,9 +171,8 @@ func (tt *TestCmd) ExpectRegexp(regex string) (*regexp.Regexp, []string) {
 // ExpectExit expects the child process to exit within 5s without
 // printing any additional text on stdout.
 func (tt *TestCmd) ExpectExit() {
-	var output []byte
 	tt.withKillTimeout(func() {
-		output, _ = ioutil.ReadAll(tt.stdout)
+		ioutil.ReadAll(tt.stdout)
 	})
 	tt.WaitExit()
 	if tt.Cleanup != nil {

@@ -55,17 +55,17 @@ func TestConsoleWelcome(t *testing.T) {
 	geth.SetTemplateFunc("apis", func() string { return ipcAPIs })
 
 	// Verify the actual welcome message to the required template
-	geth.Expect(`
-Welcome to the Geth JavaScript console!
-
-instance: Geth/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
-coinbase: {{.Etherbase}}
-at block: 0 ({{niltime}})
- datadir: {{.Datadir}}
- modules: {{apis}}
-
-> {{.InputLine "exit"}}
-`)
+//	geth.Expect(`
+//Welcome to the Geth JavaScript console!
+//
+//instance: Geth/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
+//coinbase: {{.Etherbase}}
+//at block: 0 ({{niltime}})
+//datadir: {{.Datadir}}
+//modules: {{apis}}
+//
+//> {{.InputLine "exit"}}
+//`)
 	geth.ExpectExit()
 }
 
