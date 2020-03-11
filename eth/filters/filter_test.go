@@ -38,7 +38,7 @@ func makeReceipt(addr common.Address) *types.Receipt {
 	receipt.Logs = []*types.Log{
 		{Address: addr},
 	}
-	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+	receipt.Bloom = types.CreateBloomWithTxList(types.Receipts{receipt}, types.Transactions{})
 	return receipt
 }
 

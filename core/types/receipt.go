@@ -231,7 +231,7 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	for i, log := range stored.Logs {
 		r.Logs[i] = (*Log)(log)
 	}
-	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
+	r.Bloom = CreateBloomWithTxList(Receipts{(*Receipt)(r)}, Transactions{})
 
 	return nil
 }
@@ -252,7 +252,7 @@ func decodeV4StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	for i, log := range stored.Logs {
 		r.Logs[i] = (*Log)(log)
 	}
-	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
+	r.Bloom = CreateBloomWithTxList(Receipts{(*Receipt)(r)}, Transactions{})
 
 	return nil
 }
@@ -331,6 +331,7 @@ func (r Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, num
 			r[i].Logs[j].Index = logIndex
 			logIndex++
 		}
+		r[i].Bloom = CreateBloomWithTxList(Receipts{r[i]}, txs)
 	}
 	return nil
 }

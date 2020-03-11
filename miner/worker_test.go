@@ -352,7 +352,7 @@ func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consens
 	}
 
 	w.start()
-	for i := 0; i < 2; i += 1 {
+	for i := 0; i < 1; i += 1 {
 		select {
 		case <-taskCh:
 		case <-time.NewTimer(2 * time.Second).C:

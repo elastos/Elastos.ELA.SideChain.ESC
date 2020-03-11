@@ -68,7 +68,7 @@ func TestLegacyReceiptDecoding(t *testing.T) {
 		ContractAddress: common.BytesToAddress([]byte{0x01, 0x11, 0x11}),
 		GasUsed:         111111,
 	}
-	receipt.Bloom = CreateBloom(Receipts{receipt})
+	receipt.Bloom = CreateBloomWithTxList(Receipts{receipt}, Transactions{})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
