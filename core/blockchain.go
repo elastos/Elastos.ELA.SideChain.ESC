@@ -176,6 +176,10 @@ type BlockChain struct {
 	badBlocks       *lru.Cache                     // Bad block cache
 	shouldPreserve  func(*types.Block) bool        // Function used to determine whether should preserve the given block.
 	terminateInsert func(common.Hash, uint64) bool // Testing hook used to terminate ancient receipt chain insertion.
+
+	evilSigners *EvilSignersMap // EvilSigners contains evil signers
+	evilmu      sync.RWMutex    // evil signers lock
+	journal     *EvilJournal    // Journal of local  evilSingeerEvents to back up to disk
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -214,6 +218,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		engine:         engine,
 		vmConfig:       vmConfig,
 		badBlocks:      badBlocks,
+		journal:        NewEvilJournal(chainConfig.EvilSignersJournalDir),
+		evilSigners:    &EvilSignersMap{},
 	}
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
@@ -292,6 +298,19 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 			}
 		}
 	}
+
+	//if bc.journal != nil {
+	//	if err := bc.journal.Load(bc.addEvilSingerEvents); err != nil {
+	//		log.Warn("Failed to load evil singer events journal", "err", err)
+	//	}
+	//	if err := bc.removeOldEvilSigners(bc.CurrentBlock().Number(), 0); err != nil {
+	//		log.Warn("Failed to remove old evil signers", "err", err)
+	//	}
+	//	if err := bc.journal.Rotate(bc.getEvilSignerEvents()); err != nil {
+	//		log.Warn("Failed to rotate evil singer events ournal", "err", err)
+	//	}
+	//}
+
 	// Take ownership of this particular state
 	go bc.update()
 	return bc, nil
@@ -1350,6 +1369,18 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	batch := bc.db.NewBatch()
 	rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts)
 
+	isToMany := bc.isToManyEvilSigners(block.Header())
+	if isToMany {
+		err = errors.New("too many evil signers on the chain")
+		log.Error(err.Error())
+
+		//go func() {
+		//	bc.dangerousChainSideFeed.Send(DangerousChainSideEvent{})
+		//}()
+
+		return SideStatTy, err
+	}
+
 	// If the total difficulty is higher than our known, add it to the canonical chain
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
 	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
@@ -2234,4 +2265,18 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 // block processing has started while false means it has stopped.
 func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscription {
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
+}
+
+// whether the block was created by evil signer.
+func (bc *BlockChain) isToManyEvilSigners(header *types.Header) bool {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &EvilSignersMap{}
+	}
+	headerOld := bc.GetHeaderByNumber(header.Number.Uint64())
+	if headerOld == nil {
+		return false
+	}
+	return IsNeedStopChain(header, headerOld, bc.engine, bc.evilSigners, bc.journal)
 }
