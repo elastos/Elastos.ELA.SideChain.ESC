@@ -70,13 +70,13 @@ const (
 	UnTransactionSeek = "UnTS"
 
 	// Fixed number of extra-data prefix bytes reserved for signer vanity
-	extraVanity = 32
+	ExtraVanity = 32
 
 	// Fixed number of extra-data suffix bytes reserved for signer seal
-	extraSeal = 65
+	ExtraSeal = 65
 
 	// Fixed height of ela chain height with LitterEnd encode
-	extraElaHeight = 8
+	ExtraElaHeight = 8
 )
 
 //type MinedBlockEvent struct{}
@@ -150,15 +150,15 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 		log.Error("IpcClient: ", "err", err)
 	}
 
-	signersSize := len(genesis.Extra) - extraVanity - extraSeal
-	if signersSize % ethCommon.AddressLength == extraElaHeight {
-		signersSize -= extraElaHeight
+	signersSize := len(genesis.Extra) - ExtraVanity - ExtraSeal
+	if signersSize % ethCommon.AddressLength == ExtraElaHeight {
+		signersSize -= ExtraElaHeight
 	}
 	singersNum := signersSize / ethCommon.AddressLength
 	if singersNum > 0 {
 		signers := make([]ethCommon.Address, singersNum)
 		for i := 0; i < singersNum; i++ {
-			copy(signers[i][:], genesis.Extra[extraVanity + i * ethCommon.AddressLength:])
+			copy(signers[i][:], genesis.Extra[ExtraVanity + i * ethCommon.AddressLength:])
 		}
 		blocksigner.Signers = make(map[ethCommon.Address]struct{})
 		for _, signer := range signers {
