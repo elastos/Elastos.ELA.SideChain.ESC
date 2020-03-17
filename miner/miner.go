@@ -87,7 +87,9 @@ func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *even
 func (self *Miner) update() {
 	events := self.mux.Subscribe(downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
 	defer events.Unsubscribe()
-
+	dangerChain := make(chan core.DangerousChainSideEvent, 1)
+	dangerSub := self.eth.BlockChain().SubscribeDangerousChainEvent(dangerChain)
+	defer dangerSub.Unsubscribe()
 	for {
 		select {
 		case ev := <-events.Chan():
@@ -115,6 +117,8 @@ func (self *Miner) update() {
 			}
 		case <-self.exitCh:
 			return
+		case <-dangerChain:
+			self.Close()
 		}
 	}
 }
