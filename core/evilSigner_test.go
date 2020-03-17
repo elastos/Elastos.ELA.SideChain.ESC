@@ -171,10 +171,26 @@ func TestEvilSigners(t *testing.T)  {
 		accounts.sign(header, signerKeys[index], engine.SealHash)
 		blocksevil[i] = block.WithSeal(header)
 	}
+
+	dangerouChainSideCh := make(chan DangerousChainSideEvent , 1)
 	chain, err := NewBlockChain(db, nil, &config, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Error("create chain fail", err)
 	}
+
+	dangerouChainSideSub := chain.SubscribeDangerousChainEvent(dangerouChainSideCh)
+	timer := time.NewTimer(2 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-dangerouChainSideCh:
+				timer.Stop()
+				return
+			case <-timer.C:
+				t.Fatalf("danger chain judge failed")
+			}
+		}
+	}()
 
 	for _, block := range blocks {
 		chain.InsertChain(types.Blocks{block})
@@ -187,4 +203,7 @@ func TestEvilSigners(t *testing.T)  {
 	if !chain.evilSigners.IsDanger(big.NewInt(int64(len(signerKeys)*3)), len(signerKeys)*2/3) {
 		t.Error("Count evil signers wrong")
 	}
+
+	dangerouChainSideSub.Unsubscribe()
+	time.Sleep(3 * time.Second)
 }
