@@ -603,7 +603,6 @@ func stop() error {
 }
 
 func signersCount() int {
-	println("get signers count")
 	return 10000
 }
 

@@ -144,6 +144,7 @@ type BlockChain struct {
 	chainSideFeed event.Feed
 	chainHeadFeed event.Feed
 	logsFeed      event.Feed
+	dangerousFeed event.Feed
 	blockProcFeed event.Feed
 	scope         event.SubscriptionScope
 	genesisBlock  *types.Block
@@ -1373,11 +1374,9 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	if isToMany {
 		err = errors.New("too many evil signers on the chain")
 		log.Error(err.Error())
-
-		//go func() {
-		//	bc.dangerousChainSideFeed.Send(DangerousChainSideEvent{})
-		//}()
-
+		go func() {
+			bc.dangerousFeed.Send(DangerousChainSideEvent{})
+		}()
 		return SideStatTy, err
 	}
 
@@ -1986,14 +1985,13 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	} else {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
-	//elatos is clique
+	//elastos is clique
  	if len(oldChain) > bc.Engine().SignersCount() /2 && bc.Engine().SignersCount() > 1 {
 		msg := "danger chain detected, more than n/2 :"
 		log.Error(msg, bc.Engine().SignersCount() /2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
 		defer func() {
-			bc.engine.Close()
-			bc.Stop()
+			bc.dangerousFeed.Send(DangerousChainSideEvent{})
 		}()
 	}
 	
@@ -2259,6 +2257,11 @@ func (bc *BlockChain) SubscribeChainSideEvent(ch chan<- ChainSideEvent) event.Su
 // SubscribeLogsEvent registers a subscription of []*types.Log.
 func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription {
 	return bc.scope.Track(bc.logsFeed.Subscribe(ch))
+}
+
+//SubscribeDangerousChainEvent registers a subscription of DangerousChainSideEvent
+func (bc *BlockChain) SubscribeDangerousChainEvent(ch chan<- DangerousChainSideEvent) event.Subscription {
+	return bc.scope.Track(bc.dangerousFeed.Subscribe(ch))
 }
 
 // SubscribeBlockProcessingEvent registers a subscription of bool where true means
