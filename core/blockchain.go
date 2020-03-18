@@ -42,6 +42,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/hashicorp/golang-lru"
 )
 
@@ -1989,13 +1990,14 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
 	//elastos is clique
- 	if len(oldChain) > bc.Engine().SignersCount() /2 && bc.Engine().SignersCount() > 1 {
+ 	if blocksigner.GetBlockSignersCount() > 1 && len(oldChain) > blocksigner.GetBlockSignersCount() /2 {
 		msg := "danger chain detected, more than n/2 :"
-		log.Error(msg, bc.Engine().SignersCount() /2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
+		log.Error(msg, blocksigner.GetBlockSignersCount() /2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
 		defer func() {
 			bc.dangerousFeed.Send(DangerousChainSideEvent{})
 		}()
+		return fmt.Errorf("Dangerous new chain")
 	}
 	
 	// Insert the new chain(except the head block(reverse order)),

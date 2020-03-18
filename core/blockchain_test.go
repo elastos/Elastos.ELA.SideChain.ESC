@@ -36,6 +36,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 )
 
 // So we can deterministically seed different blockchains
@@ -2362,4 +2363,132 @@ func TestDeleteCreateRevert(t *testing.T) {
 	if n, err := chain.InsertChain(blocks); err != nil {
 		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
 	}
+}
+
+func TestToManySigners(t *testing.T)  {
+	easy := make([]int64, 96)
+	for i := 0; i < len(easy); i++ {
+		easy[i] = 60
+	}
+	diff := make([]int64, len(easy)-1)
+	for i := 0; i < len(diff); i++ {
+		diff[i] = -9
+	}
+	blocksigner.GenRandSingersFromTest()
+	testToManySigners(t, easy, diff)
+	blocksigner.Signers = nil
+}
+
+func testToManySigners(t *testing.T, first, second []int64) {
+	// Create a pristine chain and database
+	db, blockchain, err := newCanonical(ethash.NewFaker(), 0, true)
+	if err != nil {
+		t.Fatalf("failed to create pristine chain: %v", err)
+	}
+	defer blockchain.Stop()
+	dangerouChainSideCh := make(chan DangerousChainSideEvent, 1)
+	dangerouChainSideSub := blockchain.SubscribeDangerousChainEvent(dangerouChainSideCh)
+	defer dangerouChainSideSub.Unsubscribe()
+	timer := time.NewTimer(3 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-dangerouChainSideCh:
+				t.Log("Stop blockchain success")
+				timer.Stop()
+				return
+			case <-timer.C:
+				t.Fatalf("Stop blockchain failed")
+			}
+		}
+
+	}()
+	// Insert an easy and a difficult chain afterwards
+	easyBlocks, _ := GenerateChain(params.TestChainConfig, blockchain.CurrentBlock(), ethash.NewFaker(), db, len(first), func(i int, b *BlockGen) {
+		b.OffsetTime(first[i])
+	})
+	diffBlocks, _ := GenerateChain(params.TestChainConfig, blockchain.CurrentBlock(), ethash.NewFaker(), db, len(second), func(i int, b *BlockGen) {
+		b.OffsetTime(second[i])
+	})
+	if _, err := blockchain.InsertChain(easyBlocks); err != nil {
+		t.Fatalf("failed to insert easy chain: %v", err)
+	}
+	if _, err := blockchain.InsertChain(diffBlocks); err != nil {
+		if err.Error() != "too many evil signers on the chain" {
+			t.Fatalf("failed to testToManySigners: %v", err)
+		}
+	} else {
+		t.Fatalf("failed to testToManySigners: %v", err)
+	}
+	time.Sleep(3 * time.Second)
+}
+
+func TestReorgToMany(t *testing.T) {
+	// Generate the original common chain segment and the two competing forks
+	engine := ethash.NewFaker()
+	blocksigner.GenRandSingersFromTest()
+	db := rawdb.NewMemoryDatabase()
+	genesis := new(Genesis).MustCommit(db)
+
+	shared, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 64, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{1}) })
+	original, _ := GenerateChain(params.TestChainConfig, shared[len(shared)-1], engine, db, 2*TriesInMemory, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{2}) })
+	competitor, _ := GenerateChain(params.TestChainConfig, shared[len(shared)-1], engine, db, 2*TriesInMemory+1, func(i int, b *BlockGen) { b.SetCoinbase(common.Address{3}) })
+
+	// Import the shared chain and the original canonical one
+	diskdb := rawdb.NewMemoryDatabase()
+	new(Genesis).MustCommit(diskdb)
+
+	dangerouChainSideCh := make(chan DangerousChainSideEvent, 10)
+	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{}, nil)
+	if err != nil {
+		t.Fatalf("failed to create tester chain: %v", err)
+	}
+	defer chain.Stop()
+	dangerouChainSideSub := chain.SubscribeDangerousChainEvent(dangerouChainSideCh)
+	timer := time.NewTimer(3 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-dangerouChainSideCh:
+				t.Log("Stop chain success")
+				timer.Stop()
+				return
+			case <-timer.C:
+				t.Fatalf("Stop chain failed")
+			}
+		}
+
+	}()
+	if _, err := chain.InsertChain(shared); err != nil {
+		t.Fatalf("failed to insert shared chain: %v", err)
+	}
+	if _, err := chain.InsertChain(original); err != nil {
+		t.Fatalf("failed to insert original chain: %v", err)
+	}
+	// Ensure that the state associated with the forking point is pruned away
+	if node, _ := chain.stateCache.TrieDB().Node(shared[len(shared)-1].Root()); node != nil {
+		t.Fatalf("common-but-old ancestor still cache")
+	}
+	// Import the competitor chain without exceeding the canonical's TD and ensure
+	// we have not processed any of the blocks (protection against malicious blocks)
+	if _, err := chain.InsertChain(competitor[:len(competitor)-2]); err != nil {
+		t.Fatalf("failed to insert competitor chain: %v", err)
+	}
+	for i, block := range competitor[:len(competitor)-2] {
+		if node, _ := chain.stateCache.TrieDB().Node(block.Root()); node != nil {
+			t.Fatalf("competitor %d: low TD chain became processed", i)
+		}
+	}
+	// Import the head of the competitor chain, triggering the reorg and ensure we
+	// successfully reprocess all the stashed away blocks.
+	if _, err := chain.InsertChain(competitor[len(competitor)-2:]); err != nil {
+		if err.Error() != "Dangerous new chain" {
+			t.Fatalf("failed TestReorgToMany chain: %v", err)
+		}
+	} else {
+		t.Fatalf("failed to TestReorgToMany")
+	}
+	blocksigner.Signers = nil
+	dangerouChainSideSub.Unsubscribe()
+	time.Sleep(3 * time.Second)
 }
