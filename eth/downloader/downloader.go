@@ -454,7 +454,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	if d.blockchain != nil && d.blockchain.CurrentBlock() != nil {
 		currentBlockNumber := d.blockchain.CurrentBlock().NumberU64()
 		localTD := d.blockchain.GetTd(d.blockchain.CurrentBlock().Hash(), currentBlockNumber)
-		if localTD.Cmp(td) < 0 {
+		if localTD.Cmp(td) < 0 && d.engineSingersCountFunc() > 1 {
 			if currentBlockNumber >= height {
 				if height - origin > uint64(d.engineSingersCountFunc()/2) {
 					log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
