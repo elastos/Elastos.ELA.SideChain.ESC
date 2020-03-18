@@ -300,17 +300,17 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		}
 	}
 
-	//if bc.journal != nil {
-	//	if err := bc.journal.Load(bc.addEvilSingerEvents); err != nil {
-	//		log.Warn("Failed to load evil singer events journal", "err", err)
-	//	}
-	//	if err := bc.removeOldEvilSigners(bc.CurrentBlock().Number(), 0); err != nil {
-	//		log.Warn("Failed to remove old evil signers", "err", err)
-	//	}
-	//	if err := bc.journal.Rotate(bc.getEvilSignerEvents()); err != nil {
-	//		log.Warn("Failed to rotate evil singer events ournal", "err", err)
-	//	}
-	//}
+	if bc.journal != nil {
+		if err := bc.journal.Load(bc.addEvilSingerEvents); err != nil {
+			log.Warn("Failed to load evil singer events journal", "err", err)
+		}
+		if err := bc.removeOldEvilSigners(bc.CurrentBlock().Number(), 0); err != nil {
+			log.Warn("Failed to remove old evil signers", "err", err)
+		}
+		if err := bc.journal.Rotate(bc.getEvilSignerEvents()); err != nil {
+			log.Warn("Failed to rotate evil singer events ournal", "err", err)
+		}
+	}
 
 	// Take ownership of this particular state
 	go bc.update()
@@ -863,6 +863,9 @@ func (bc *BlockChain) Stop() {
 		if size, _ := triedb.Size(); size != 0 {
 			log.Error("Dangling trie nodes after full cleanup")
 		}
+	}
+	if bc.journal != nil {
+		bc.journal.Close()
 	}
 	log.Info("Blockchain manager stopped")
 }
@@ -2282,4 +2285,36 @@ func (bc *BlockChain) isToManyEvilSigners(header *types.Header) bool {
 		return false
 	}
 	return IsNeedStopChain(header, headerOld, bc.engine, bc.evilSigners, bc.journal)
+}
+
+// remove old evilSigners who have created  different blocks, and difference between  the blocks height
+// and currentHeight should biger then rangeValue.
+func (bc *BlockChain) removeOldEvilSigners(currentHeight *big.Int, rangeValue int64) error {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		return nil
+	}
+	bc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
+	return nil
+}
+
+// getEvilSignerEvents return evilSignerEvents by now
+func (bc *BlockChain) getEvilSignerEvents() (res []*EvilSingerEvent) {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &EvilSignersMap{}
+	}
+	return bc.evilSigners.GetEvilSignerEvents()
+}
+
+// addEvilSignerEvents add evilSignerEvents of []*EvilSingerEvent.
+func (bc *BlockChain) addEvilSingerEvents(evilEvents []*EvilSingerEvent) []error {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	if bc.evilSigners == nil {
+		bc.evilSigners = &EvilSignersMap{}
+	}
+	return bc.evilSigners.AddEvilSingerEvents(evilEvents)
 }
