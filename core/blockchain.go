@@ -2303,7 +2303,7 @@ func (bc *BlockChain) removeOldEvilSigners(currentHeight *big.Int, rangeValue in
 	if bc.evilSigners == nil {
 		return nil
 	}
-	bc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
+	//bc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
 	return nil
 }
 
