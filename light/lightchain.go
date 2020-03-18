@@ -72,6 +72,10 @@ type LightChain struct {
 	running          int32 // whether LightChain is running or stopped
 	procInterrupt    int32 // interrupts chain insert
 	disableCheckFreq int32 // disables header verification
+
+	evilSigners *core.EvilSignersMap // EvilSigners contains evil signers
+	evilmu      sync.RWMutex         // evil signers lock
+	journal     *core.EvilJournal    // Journal of local  evilSingeerEvents to back up to disk
 }
 
 // NewLightChain returns a fully initialised light chain using information
@@ -91,6 +95,7 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 		bodyRLPCache:  bodyRLPCache,
 		blockCache:    blockCache,
 		engine:        engine,
+		journal:       core.NewEvilJournal(config.EvilSignersJournalDir),
 	}
 	var err error
 	bc.hc, err = core.NewHeaderChain(odr.Database(), config, bc.engine, bc.getProcInterrupt)
@@ -113,6 +118,18 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 			log.Error("Found bad hash, rewinding chain", "number", header.Number, "hash", header.ParentHash)
 			bc.SetHead(header.Number.Uint64() - 1)
 			log.Error("Chain rewind was successful, resuming normal operation")
+		}
+	}
+
+	if bc.journal != nil {
+		if err := bc.journal.Load(bc.addEvilSingerEvents); err != nil {
+			log.Warn("Failed to load evil singer events journal", "err", err)
+		}
+		if err := bc.removeOldEvilSigners(bc.CurrentHeader().Number, 0); err != nil {
+			log.Warn("Failed to remove old evil signers", "err", err)
+		}
+		if err := bc.journal.Rotate(bc.getEvilSignerEvents()); err != nil {
+			log.Warn("Failed to rotate evil singer events ournal", "err", err)
 		}
 	}
 	return bc, nil
@@ -309,6 +326,9 @@ func (lc *LightChain) Stop() {
 	atomic.StoreInt32(&lc.procInterrupt, 1)
 
 	lc.wg.Wait()
+	if lc.journal != nil {
+		lc.journal.Close()
+	}
 	log.Info("Blockchain manager stopped")
 }
 
@@ -372,8 +392,15 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 
 	var events []interface{}
 	whFunc := func(header *types.Header) error {
-		status, err := lc.hc.WriteHeader(header)
-
+		status := core.SideStatTy
+		var err error
+		isToMany := lc.isToManyEvilSigners(header)
+		if isToMany {
+			err = errors.New("too many evil signers on the chain")
+			log.Error(err.Error())
+		} else {
+			status, err = lc.hc.WriteHeader(header)
+		}
 		switch status {
 		case core.CanonStatTy:
 			log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
@@ -541,4 +568,49 @@ func (lc *LightChain) DisableCheckFreq() {
 // EnableCheckFreq enables header validation.
 func (lc *LightChain) EnableCheckFreq() {
 	atomic.StoreInt32(&lc.disableCheckFreq, 0)
+}
+
+func (lc *LightChain) isToManyEvilSigners(header *types.Header) bool {
+	lc.evilmu.Lock()
+	defer lc.evilmu.Unlock()
+	if lc.evilSigners == nil {
+		lc.evilSigners = &core.EvilSignersMap{}
+	}
+	headerOld := lc.GetHeaderByNumber(header.Number.Uint64())
+	if headerOld == nil {
+		return false
+	}
+	return core.IsNeedStopChain(header, headerOld, lc.engine, lc.evilSigners, lc.journal)
+}
+
+// remove old evilSigners who have created  different blocks, and difference between  the blocks height
+// and currentHeight should biger then rangeValue.
+func (lc *LightChain) removeOldEvilSigners(currentHeight *big.Int, rangeValue int64) error {
+	lc.evilmu.Lock()
+	defer lc.evilmu.Unlock()
+	if lc.evilSigners == nil {
+		return nil
+	}
+	lc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
+	return nil
+}
+
+// getEvilSignerEvents return evilSignerEvents by now
+func (lc *LightChain) getEvilSignerEvents() (res []*core.EvilSingerEvent) {
+	lc.evilmu.Lock()
+	defer lc.evilmu.Unlock()
+	if lc.evilSigners == nil {
+		lc.evilSigners = &core.EvilSignersMap{}
+	}
+	return lc.evilSigners.GetEvilSignerEvents()
+}
+
+// addEvilSignerEvents add evilSignerEvents of []*EvilSingerEvent.
+func (lc *LightChain) addEvilSingerEvents(evilEvents []*core.EvilSingerEvent) []error {
+	lc.evilmu.Lock()
+	defer lc.evilmu.Unlock()
+	if lc.evilSigners == nil {
+		lc.evilSigners = &core.EvilSignersMap{}
+	}
+	return lc.evilSigners.AddEvilSingerEvents(evilEvents)
 }

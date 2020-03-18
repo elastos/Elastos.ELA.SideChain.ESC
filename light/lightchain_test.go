@@ -20,6 +20,8 @@ import (
 	"context"
 	"math/big"
 	"testing"
+	"bytes"
+	"crypto/ecdsa"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
@@ -28,6 +30,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 )
 
 // So we can deterministically seed different blockchains
@@ -350,5 +356,125 @@ func TestReorgBadHeaderHashes(t *testing.T) {
 	}
 	if ncm.CurrentHeader().Hash() != headers[2].Hash() {
 		t.Errorf("last header hash mismatch: have: %x, want %x", ncm.CurrentHeader().Hash(), headers[2].Hash())
+	}
+}
+
+type testerAccountPool struct {
+	accounts map[string]*ecdsa.PrivateKey
+}
+
+func newTesterAccountPool() *testerAccountPool {
+	return &testerAccountPool{
+		accounts: make(map[string]*ecdsa.PrivateKey),
+	}
+}
+
+func (ap *testerAccountPool) address(account string) common.Address {
+	// Return the zero account for non-addresses
+	if account == "" {
+		return common.Address{}
+	}
+	// Ensure we have a persistent key for the account
+	if ap.accounts[account] == nil {
+		ap.accounts[account], _ = crypto.GenerateKey()
+	}
+	// Resolve and return the Ethereum address
+	return crypto.PubkeyToAddress(ap.accounts[account].PublicKey)
+}
+
+// sign calculates a Clique digital signature for the given block and embeds it
+// back into the header.
+func (ap *testerAccountPool) sign(header *types.Header, signer string, sigHash func(header *types.Header) common.Hash) {
+	// Ensure we have a persistent key for the signer
+	if ap.accounts[signer] == nil {
+		ap.accounts[signer], _ = crypto.GenerateKey()
+	}
+	// Sign the header and embed the signature in extra data
+	sig, _ := crypto.Sign(sigHash(header).Bytes(), ap.accounts[signer])
+	copy(header.Extra[len(header.Extra)-65:], sig)
+}
+
+func TestEvilSigners(t *testing.T)  {
+	signerKeys := []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "M", "N"}
+	accounts := newTesterAccountPool()
+	signers := make([]common.Address, len(signerKeys))
+	blocksigner.Signers = make(map[common.Address]struct{})
+	for j, key := range signerKeys {
+		signers[j] = accounts.address(key)
+		blocksigner.Signers[signers[j]] = struct{}{}
+	}
+	for i := 0; i < len(signers); i++ {
+		for j := i + 1; j < len(signers); j++ {
+			if bytes.Compare(signers[i][:], signers[j][:]) > 0 {
+				signers[i], signers[j] = signers[j], signers[i]
+			}
+		}
+	}
+	// Create the genesis block with the initial set of signers
+	genesis := &core.Genesis{
+		ExtraData: make([]byte, spv.ExtraVanity+common.AddressLength*len(signers)+spv.ExtraSeal+spv.ExtraElaHeight),
+	}
+	for j, signer := range signers {
+		copy(genesis.ExtraData[spv.ExtraVanity+j*common.AddressLength:], signer[:])
+	}
+	db := rawdb.NewMemoryDatabase()
+	genesis.Commit(db)
+	config := *params.TestChainConfig
+	config.Clique = &params.CliqueConfig{
+		Period: 1,
+		Epoch:  30000,
+	}
+	engine := clique.New(config.Clique, db)
+	engine.SetFakeDiff(true)
+	blocks, _ := core.GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerKeys)*3, nil)
+	blocksevil, _ := core.GenerateChain(&config, genesis.ToBlock(db), engine, db, len(signerKeys), nil)
+	diffInTurn := big.NewInt(2)
+
+	for i, block := range blocks {
+		// Get the header and prepare it for signing
+		header := block.Header()
+		if i > 0 {
+			header.ParentHash = blocks[i - 1].Hash()
+		}
+		header.Extra = make([]byte, spv.ExtraVanity + spv.ExtraSeal + spv.ExtraElaHeight)
+		header.Difficulty = diffInTurn  // Ignored, we just need a valid number
+		// Generate the signature, embed it into the header and the block
+		index := i % len(signerKeys)
+		accounts.sign(header, signerKeys[index], engine.SealHash)
+		blocks[i] = block.WithSeal(header)
+	}
+	for i, block := range blocksevil {
+		// Geth the header and prepare it for signing
+		header := block.Header()
+
+		header.GasLimit = header.GasLimit + uint64(i*12)
+		if i > 0 {
+			header.ParentHash = blocks[2*len(signerKeys)+i-1].Hash()
+		}
+		header.Number = new(big.Int).SetUint64(blocks[2*len(signerKeys) + i].NumberU64())
+		header.Time = blocks[2*len(signerKeys) + i].Time() + 1
+		header.Extra = make([]byte, spv.ExtraVanity + spv.ExtraSeal + spv.ExtraElaHeight)
+		header.Difficulty = diffInTurn // Ignored, we just need a valid number
+		// Generate the signature, embed it into the header and the block
+		index := i % len(signerKeys)
+
+		accounts.sign(header, signerKeys[index], engine.SealHash)
+		blocksevil[i] = block.WithSeal(header)
+	}
+
+	chain, err := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, &config, engine, nil)
+	if err != nil {
+		t.Error("create chain fail", err)
+	}
+	for _, block := range blocks {
+		chain.InsertHeaderChain([]*types.Header{block.Header()}, 1)
+	}
+
+	for _, block := range blocksevil[1:] {
+		chain.InsertHeaderChain([]*types.Header{block.Header()}, 1)
+	}
+
+	if !chain.evilSigners.IsDanger(big.NewInt(int64(len(signerKeys)*3)), len(signerKeys)*2/3) {
+		t.Error("Count evil signers wrong")
 	}
 }
