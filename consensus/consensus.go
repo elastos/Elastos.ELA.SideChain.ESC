@@ -47,6 +47,9 @@ type ChainReader interface {
 
 	// GetBlock retrieves a block from the database by hash and number.
 	GetBlock(hash common.Hash, number uint64) *types.Block
+
+	// IsDangerChain return whether to many evil singers.
+	IsDangerChain() bool
 }
 
 // Engine is an algorithm agnostic consensus engine.
