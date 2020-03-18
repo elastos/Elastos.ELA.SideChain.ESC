@@ -17,23 +17,23 @@
 package light
 
 import (
+	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"math/big"
 	"testing"
-	"bytes"
-	"crypto/ecdsa"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 )
 
 // So we can deterministically seed different blockchains
