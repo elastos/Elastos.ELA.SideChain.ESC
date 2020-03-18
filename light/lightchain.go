@@ -591,7 +591,7 @@ func (lc *LightChain) removeOldEvilSigners(currentHeight *big.Int, rangeValue in
 	if lc.evilSigners == nil {
 		return nil
 	}
-	lc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
+	//lc.evilSigners.RemoveOldEvilSigners(currentHeight, rangeValue)
 	return nil
 }
 
