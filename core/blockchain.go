@@ -2275,6 +2275,12 @@ func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscr
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
 }
 
+func (bc *BlockChain) IsDangerChain() bool {
+	bc.evilmu.Lock()
+	defer bc.evilmu.Unlock()
+	return bc.evilSigners.IsDanger(bc.CurrentBlock().Number(), blocksigner.GetBlockSignersCount()*2/3)
+}
+
 // whether the block was created by evil signer.
 func (bc *BlockChain) isToManyEvilSigners(header *types.Header) bool {
 	bc.evilmu.Lock()

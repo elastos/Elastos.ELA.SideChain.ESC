@@ -81,7 +81,7 @@ func (ap *testerAccountPool) sign(header *types.Header, signer string) {
 	}
 	// Sign the header and embed the signature in extra data
 	sig, _ := crypto.Sign(SealHash(header).Bytes(), ap.accounts[signer])
-	copy(header.Extra[len(header.Extra)-ExtraSeal:], sig)
+	copy(header.Extra[len(header.Extra)-extraSeal:], sig)
 }
 
 // testerVote represents a single block signed by a parcitular account, where
@@ -394,7 +394,7 @@ func TestClique(t *testing.T) {
 		}
 		// Create the genesis block with the initial set of signers
 		genesis := &core.Genesis{
-			ExtraData: make([]byte, extraVanity+common.AddressLength*len(signers)+ExtraSeal),
+			ExtraData: make([]byte, extraVanity+common.AddressLength*len(signers)+extraSeal),
 		}
 		for j, signer := range signers {
 			copy(genesis.ExtraData[extraVanity+j*common.AddressLength:], signer[:])
@@ -428,9 +428,9 @@ func TestClique(t *testing.T) {
 			if j > 0 {
 				header.ParentHash = blocks[j-1].Hash()
 			}
-			header.Extra = make([]byte, extraVanity+ExtraSeal)
+			header.Extra = make([]byte, extraVanity+extraSeal)
 			if auths := tt.votes[j].checkpoint; auths != nil {
-				header.Extra = make([]byte, extraVanity+len(auths)*common.AddressLength+ExtraSeal)
+				header.Extra = make([]byte, extraVanity+len(auths)*common.AddressLength+extraSeal)
 				accounts.checkpoint(header, auths)
 			}
 			header.Difficulty = diffInTurn // Ignored, we just need a valid number
