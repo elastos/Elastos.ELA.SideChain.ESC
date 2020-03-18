@@ -93,6 +93,16 @@ func TestRemoveOldEvilSigners(t *testing.T) {
 				signersNum, evilEventsNum, len(*evilMaps))
 		}
 
+		evilMaps2 := evilMaps.GetEvilSignerEvents()
+		if len(evilMaps2) != len(*evilMaps) {
+			t.Errorf("GetEvilSignerEvents error")
+		}
+		for _, v := range evilMaps2 {
+			if (*evilMaps)[*v.Singer] == nil {
+				t.Errorf("GetEvilSignerEvents error")
+			}
+		}
+
 		for index = 0; index < evilEventsNum; index++ {
 			evilMaps.RemoveOldEvilSigners(big.NewInt(int64(signersNum + index + 1)), int64(signersNum))
 		}
