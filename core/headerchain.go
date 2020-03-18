@@ -543,3 +543,7 @@ func (hc *HeaderChain) Engine() consensus.Engine { return hc.engine }
 func (hc *HeaderChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	return nil
 }
+
+func (hc *HeaderChain) IsDangerChain() bool {
+	return false
+}

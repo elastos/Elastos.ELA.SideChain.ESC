@@ -594,6 +594,12 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+	if chain.IsDangerChain() {
+		err := errors.New("too many evil signers on the chain")
+		log.Error(err.Error())
+		return nil
+	}
+
 	header := block.Header()
 
 	// Sealing the genesis block is not supported
