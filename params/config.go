@@ -76,10 +76,10 @@ var (
 
 	// MainnetTrustedCheckpoint contains the light client trusted checkpoint for the main network.
 	MainnetTrustedCheckpoint = &TrustedCheckpoint{
-		SectionIndex: 270,
-		SectionHead:  common.HexToHash("0xb67c33d838a60c282c2fb49b188fbbac1ef8565ffb4a1c4909b0a05885e72e40"),
-		CHTRoot:      common.HexToHash("0x781daa4607782300da85d440df3813ba38a1262585231e35e9480726de81dbfc"),
-		BloomRoot:    common.HexToHash("0xfd8951fa6d779cbc981df40dc31056ed1a549db529349d7dfae016f9d96cae72"),
+		SectionIndex: 30,
+		SectionHead:  common.HexToHash("0xe1f3f93a9e4a4155abaefefb268c9d3f28a12c87d3d62f668b6d7b528199ba7a"),
+		CHTRoot:      common.HexToHash("0x4faf71e39a25604bff04af3265a416ced4659be338675209d3323356668fef8e"),
+		BloomRoot:    common.HexToHash("0xad831af452d3ce534e8ed3ce271826c1310c786ee135fae5acbacc41b03142a6"),
 	}
 
 	// MainnetCheckpointOracle contains a set of configs for the main network oracle.
