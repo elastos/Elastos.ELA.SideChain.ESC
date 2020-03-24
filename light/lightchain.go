@@ -106,9 +106,9 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	if bc.genesisBlock == nil {
 		return nil, core.ErrNoGenesis
 	}
-	//if checkpoint != nil {
-	//	bc.AddTrustedCheckpoint(checkpoint)
-	//}
+	if checkpoint != nil {
+		bc.AddTrustedCheckpoint(checkpoint)
+	}
 	if err := bc.loadLastState(); err != nil {
 		return nil, err
 	}

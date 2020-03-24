@@ -118,10 +118,10 @@ var (
 
 	// TestnetTrustedCheckpoint contains the light client trusted checkpoint for the Ropsten test network.
 	TestnetTrustedCheckpoint = &TrustedCheckpoint{
-		SectionIndex: 204,
-		SectionHead:  common.HexToHash("0xa39168b51c3205456f30ce6a91f3590a43295b15a1c8c2ab86bb8c06b8ad1808"),
-		CHTRoot:      common.HexToHash("0x9a3654147b79882bfc4e16fbd3421512aa7e4dfadc6c511923980e0877bdf3b4"),
-		BloomRoot:    common.HexToHash("0xe72b979522d94fa45c1331639316da234a9bb85062d64d72e13afe1d3f5c17d5"),
+		SectionIndex: 36,
+		SectionHead:  common.HexToHash("0xfeddddc5cf093ad3454b58eeeeaa37df6e45d94a5c5908926422fc289d33f397"),
+		CHTRoot:      common.HexToHash("0x959e4184054ce06490be80115554cdf72e4fd0ffe5c6dcd382976dfa0ef2d9e0"),
+		BloomRoot:    common.HexToHash("0x15abe2948f02d44b77d6b34f8c9e451cdc8f4e302fd448a384b6483997ee38a2"),
 	}
 
 	// TestnetCheckpointOracle contains a set of configs for the Ropsten test network oracle.
