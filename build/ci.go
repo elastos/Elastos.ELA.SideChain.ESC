@@ -338,7 +338,6 @@ func doTest(cmdline []string) {
 
 // runs gometalinter on requested packages
 func doLint(cmdline []string) {
-	return
 	flag.CommandLine.Parse(cmdline)
 
 	packages := []string{"./..."}
