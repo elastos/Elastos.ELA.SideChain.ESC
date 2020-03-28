@@ -93,11 +93,11 @@ func TestRemoveOldEvilSigners(t *testing.T) {
 				signersNum, evilEventsNum, len(*evilMaps))
 		}
 
-		evilMaps2 := evilMaps.GetEvilSignerEvents()
-		if len(evilMaps2) != len(*evilMaps) {
+		events := evilMaps.GetEvilSignerEvents()
+		if len(events) != evilEventsNum - 1 {
 			t.Errorf("GetEvilSignerEvents error")
 		}
-		for _, v := range evilMaps2 {
+		for _, v := range events {
 			if (*evilMaps)[*v.Singer] == nil {
 				t.Errorf("GetEvilSignerEvents error")
 			}
@@ -189,7 +189,7 @@ func TestEvilSigners(t *testing.T)  {
 	}
 
 	dangerouChainSideSub := chain.SubscribeDangerousChainEvent(dangerouChainSideCh)
-	timer := time.NewTimer(2 * time.Second)
+	timer := time.NewTimer(10 * time.Second)
 	go func() {
 		for {
 			select {

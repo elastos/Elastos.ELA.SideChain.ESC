@@ -1728,6 +1728,6 @@ func testCheckpointEnforcement(t *testing.T, protocol int, mode SyncMode) {
 	}
 }
 
-func TestLongForkedSyncProgress64Fast(t *testing.T)  {
-	testLongForkedSyncProgress(t, 64, FastSync)
-}
+//func TestLongForkedSyncProgress64Fast(t *testing.T)  {
+//	testLongForkedSyncProgress(t, 64, FastSync)
+//}
