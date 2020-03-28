@@ -198,6 +198,8 @@ func TestEvilSigners(t *testing.T)  {
 				return
 			case <-timer.C:
 				t.Fatalf("danger chain judge failed")
+				timer.Stop()
+				return
 			}
 		}
 	}()
@@ -215,5 +217,5 @@ func TestEvilSigners(t *testing.T)  {
 	}
 
 	dangerouChainSideSub.Unsubscribe()
-	time.Sleep(3 * time.Second)
+	time.Sleep(20 * time.Second)
 }
