@@ -70,7 +70,7 @@ func (api *PublicEthereumAPI) Hashrate() hexutil.Uint64 {
 func (api *PublicEthereumAPI) ChainId() hexutil.Uint64 {
 	chainID := new(big.Int)
 	if config := api.e.blockchain.Config(); config.IsEIP155(api.e.blockchain.CurrentBlock().Number()) {
-		chainID = config.ChainID
+		chainID = config.GetChainIDByHeight(api.e.blockchain.CurrentBlock().Number())
 	}
 	return (hexutil.Uint64)(chainID.Uint64())
 }

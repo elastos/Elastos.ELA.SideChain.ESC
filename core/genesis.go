@@ -220,6 +220,10 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// config is supplied. These chains would get AllProtocolChanges (and a compat error)
 	// if we just continued here.
 	if genesis == nil && stored != params.MainnetGenesisHash {
+		if storedcfg.ChainID2 == nil && newcfg.ChainID2 != nil {
+			storedcfg.ChainID2 = newcfg.ChainID2
+			storedcfg.ChainID2Block = newcfg.ChainID2Block
+		}
 		return storedcfg, stored, nil
 	}
 
