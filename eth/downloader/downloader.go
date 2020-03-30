@@ -457,12 +457,12 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		if localTD.Cmp(td) < 0 && d.engineSingersCountFunc() > 1 {
 			if currentBlockNumber >= height {
 				if height - origin > uint64(d.engineSingersCountFunc()/2) {
-					log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
+					log.Error("Soft bifurcation causes n/2 blocks to be rolled back->", height, origin)
 					d.nodeStopFunc()
 				}
 			} else if (height > currentBlockNumber && currentBlockNumber > 0) {
 				if currentBlockNumber - origin > uint64(d.engineSingersCountFunc()/2) {
-					log.Error("Soft bifurcation causes n/2 blocks to be rolled back")
+					log.Error("Soft bifurcation causes n/2 blocks to be rolled back-->", currentBlockNumber, origin)
 					d.nodeStopFunc()
 				}
 			}

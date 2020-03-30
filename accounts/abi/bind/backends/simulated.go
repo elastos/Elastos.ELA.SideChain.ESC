@@ -329,7 +329,7 @@ func (b *SimulatedBackend) SendTransaction(ctx context.Context, tx *types.Transa
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	sender, err := types.Sender(types.NewEIP155Signer(b.config.ChainID), tx)
+	sender, err := types.Sender(types.NewEIP155Signer(b.config.GetChainIDByHeight(b.blockchain.CurrentHeader().Number)), tx)
 	if err != nil {
 		panic(fmt.Errorf("invalid transaction: %v", err))
 	}
