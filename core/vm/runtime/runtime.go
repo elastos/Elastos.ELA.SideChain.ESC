@@ -53,6 +53,7 @@ func setDefaults(cfg *Config) {
 	if cfg.ChainConfig == nil {
 		cfg.ChainConfig = &params.ChainConfig{
 			ChainID:        big.NewInt(1),
+			ChainID2:       big.NewInt(20),
 			HomesteadBlock: new(big.Int),
 			DAOForkBlock:   new(big.Int),
 			DAOForkSupport: false,

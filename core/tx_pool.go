@@ -226,7 +226,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		config:      config,
 		chainconfig: chainconfig,
 		chain:       chain,
-		signer:      types.NewEIP155Signer(chainconfig.ChainID),
+		signer:      types.NewEIP155Signer(chainconfig.GetChainIDByHeight(chain.CurrentBlock().Number())),
 		pending:     make(map[common.Address]*txList),
 		queue:       make(map[common.Address]*txList),
 		beats:       make(map[common.Address]time.Time),
@@ -296,7 +296,12 @@ func (pool *TxPool) loop() {
 				}
 				pool.reset(head.Header(), ev.Block.Header())
 				head = ev.Block
-
+				//To dynamically update signer
+				signer := types.NewEIP155Signer(pool.chainconfig.GetChainIDByHeight(pool.chain.CurrentBlock().Number()))
+				if !pool.signer.Equal(signer) {
+					pool.signer = signer
+					pool.locals.signer = signer
+				}
 				pool.mu.Unlock()
 			}
 		// Be unsubscribed due to system stopped
