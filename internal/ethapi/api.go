@@ -355,7 +355,7 @@ func (s *PrivateAccountAPI) signTransaction(ctx context.Context, args SendTxArgs
 
 	var chainID *big.Int
 	if config := s.b.ChainConfig(); config.IsEIP155(s.b.CurrentBlock().Number()) {
-		chainID = config.ChainID
+		chainID = config.GetChainIDByHeight(s.b.CurrentBlock().Number())
 	}
 	return wallet.SignTxWithPassphrase(account, passwd, tx, chainID)
 }
@@ -1102,7 +1102,7 @@ func (s *PublicTransactionPoolAPI) sign(addr common.Address, tx *types.Transacti
 	// Request the wallet to sign the transaction
 	var chainID *big.Int
 	if config := s.b.ChainConfig(); config.IsEIP155(s.b.CurrentBlock().Number()) {
-		chainID = config.ChainID
+		chainID = config.GetChainIDByHeight(s.b.CurrentBlock().Number())
 	}
 	return wallet.SignTx(account, tx, chainID)
 }
@@ -1223,7 +1223,7 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 
 	var chainID *big.Int
 	if config := s.b.ChainConfig(); config.IsEIP155(s.b.CurrentBlock().Number()) {
-		chainID = config.ChainID
+		chainID = config.GetChainIDByHeight(s.b.CurrentBlock().Number())
 	}
 	signed, err := wallet.SignTx(account, tx, chainID)
 	if err != nil {

@@ -38,9 +38,11 @@ type cppEthereumGenesisSpec struct {
 		EIP150ForkBlock         hexutil.Uint64 `json:"EIP150ForkBlock"`
 		EIP158ForkBlock         hexutil.Uint64 `json:"EIP158ForkBlock"`
 		ByzantiumForkBlock      hexutil.Uint64 `json:"byzantiumForkBlock"`
+		ChainID2Block           hexutil.Uint64 `json:"chainId2Block,omitempty"`
 		ConstantinopleForkBlock hexutil.Uint64 `json:"constantinopleForkBlock"`
 		NetworkID               hexutil.Uint64 `json:"networkID"`
 		ChainID                 hexutil.Uint64 `json:"chainID"`
+		ChainID2                hexutil.Uint64 `json:"chainID2"`
 		MaximumExtraDataSize    hexutil.Uint64 `json:"maximumExtraDataSize"`
 		MinGasLimit             hexutil.Uint64 `json:"minGasLimit"`
 		MaxGasLimit             hexutil.Uint64 `json:"maxGasLimit"`
@@ -102,11 +104,11 @@ func newCppEthereumGenesisSpec(network string, genesis *core.Genesis) (*cppEther
 	spec.Params.EIP158ForkBlock = (hexutil.Uint64)(genesis.Config.EIP158Block.Uint64())
 	spec.Params.ByzantiumForkBlock = (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64())
 	spec.Params.ConstantinopleForkBlock = (hexutil.Uint64)(math.MaxUint64)
+	spec.Params.ChainID2Block = (hexutil.Uint64)(genesis.Config.ChainID2Block.Uint64())
 
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
-
-	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
+	spec.Params.ChainID2 = (hexutil.Uint64)(genesis.Config.ChainID2.Uint64())
 	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
 	spec.Params.MaxGasLimit = (hexutil.Uint64)(math.MaxUint64)
 	spec.Params.MinimumDifficulty = (*hexutil.Big)(params.MinimumDifficulty)
@@ -197,6 +199,7 @@ type parityChainSpec struct {
 		EIP211Transition     uint64         `json:"eip211Transition"`
 		EIP214Transition     uint64         `json:"eip214Transition"`
 		EIP658Transition     uint64         `json:"eip658Transition"`
+		ChainID2Block        uint64 		`json:"chainId2Block"`
 	} `json:"params"`
 
 	Genesis struct {
@@ -293,6 +296,7 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 	spec.Params.EIP211Transition = genesis.Config.ByzantiumBlock.Uint64()
 	spec.Params.EIP214Transition = genesis.Config.ByzantiumBlock.Uint64()
 	spec.Params.EIP658Transition = genesis.Config.ByzantiumBlock.Uint64()
+	spec.Params.ChainID2Block = genesis.Config.ChainID2Block.Uint64()
 
 	spec.Genesis.Seal.Ethereum.Nonce = (hexutil.Bytes)(make([]byte, 8))
 	binary.LittleEndian.PutUint64(spec.Genesis.Seal.Ethereum.Nonce[:], genesis.Nonce)
