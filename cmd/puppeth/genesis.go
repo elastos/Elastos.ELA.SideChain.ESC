@@ -46,7 +46,7 @@ type alethGenesisSpec struct {
 		ConstantinopleForkBlock    *hexutil.Big           `json:"constantinopleForkBlock,omitempty"`
 		ConstantinopleFixForkBlock *hexutil.Big           `json:"constantinopleFixForkBlock,omitempty"`
 		IstanbulForkBlock          *hexutil.Big           `json:"istanbulForkBlock,omitempty"`
-		IsChainID2Block            *hexutil.Big           `json:"isChainId2Block,omitempty"`
+		IsChainIDBlock             *hexutil.Big           `json:"isChainIdBlock,omitempty"`
 		MinGasLimit                hexutil.Uint64         `json:"minGasLimit"`
 		MaxGasLimit                hexutil.Uint64         `json:"maxGasLimit"`
 		TieBreakingGas             bool                   `json:"tieBreakingGas"`
@@ -57,7 +57,7 @@ type alethGenesisSpec struct {
 		BlockReward                *hexutil.Big           `json:"blockReward"`
 		NetworkID                  hexutil.Uint64         `json:"networkID"`
 		ChainID                    hexutil.Uint64         `json:"chainID"`
-		ChainID2                   hexutil.Uint64         `json:"chainID2"`
+		OldChainID                 hexutil.Uint64
 		AllowFutureBlocks          bool                   `json:"allowFutureBlocks"`
 	} `json:"params"`
 
@@ -137,12 +137,12 @@ func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSp
 	if num := genesis.Config.IstanbulBlock; num != nil {
 		spec.Params.IstanbulForkBlock = (*hexutil.Big)(num)
 	}
-	if num := genesis.Config.ChainID2Block; num != nil {
-		spec.Params.IsChainID2Block = (*hexutil.Big)(num)
+	if num := genesis.Config.ChainIDBlock; num != nil {
+		spec.Params.IsChainIDBlock = (*hexutil.Big)(num)
 	}
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
-	spec.Params.ChainID2 = (hexutil.Uint64)(genesis.Config.ChainID2.Uint64())
+	spec.Params.OldChainID = (hexutil.Uint64)(genesis.Config.OldChainID.Uint64())
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
 	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
 	spec.Params.MaxGasLimit = (hexutil.Uint64)(math.MaxInt64)
@@ -258,7 +258,7 @@ type parityChainSpec struct {
 		GasLimitBoundDivisor      math2.HexOrDecimal64 `json:"gasLimitBoundDivisor"`
 		NetworkID                 hexutil.Uint64       `json:"networkID"`
 		ChainID                   hexutil.Uint64       `json:"chainID"`
-		ChainID2                  hexutil.Uint64       `json:"chainID2"`
+		OldChainID                hexutil.Uint64       `json:"oldChainID"`
 		MaxCodeSize               hexutil.Uint64       `json:"maxCodeSize"`
 		MaxCodeSizeTransition     hexutil.Uint64       `json:"maxCodeSizeTransition"`
 		EIP98Transition           hexutil.Uint64       `json:"eip98Transition"`
@@ -280,7 +280,7 @@ type parityChainSpec struct {
 		EIP1344Transition         hexutil.Uint64       `json:"eip1344Transition"`
 		EIP1884Transition         hexutil.Uint64       `json:"eip1884Transition"`
 		EIP2028Transition         hexutil.Uint64       `json:"eip2028Transition"`
-		ChainID2Block             hexutil.Uint64       `json:"chainId2Block"`
+		ChainIDBlock             hexutil.Uint64        `json:"chainIdBlock"`
 	} `json:"params"`
 
 	Genesis struct {
@@ -407,16 +407,16 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 	if num := genesis.Config.IstanbulBlock; num != nil {
 		spec.setIstanbul(num)
 	}
-	//ChainID2
-	if num := genesis.Config.ChainID2Block; num != nil {
-		spec.setChainID2(num)
+	//ChainIDBlock
+	if num := genesis.Config.ChainIDBlock; num != nil {
+		spec.setChainIDBlock(num)
 	}
 	spec.Params.MaximumExtraDataSize = (hexutil.Uint64)(params.MaximumExtraDataSize)
 	spec.Params.MinGasLimit = (hexutil.Uint64)(params.MinGasLimit)
 	spec.Params.GasLimitBoundDivisor = (math2.HexOrDecimal64)(params.GasLimitBoundDivisor)
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
-	spec.Params.ChainID2 = (hexutil.Uint64)(genesis.Config.ChainID2.Uint64())
+	spec.Params.OldChainID = (hexutil.Uint64)(genesis.Config.OldChainID.Uint64())
 	spec.Params.MaxCodeSize = params.MaxCodeSize
 	// geth has it set from zero
 	spec.Params.MaxCodeSizeTransition = 0
@@ -535,8 +535,8 @@ func (spec *parityChainSpec) setIstanbul(num *big.Int) {
 	spec.Params.EIP1283ReenableTransition = hexutil.Uint64(num.Uint64())
 }
 
-func (spec *parityChainSpec) setChainID2(num *big.Int) {
-	spec.Params.ChainID2Block = hexutil.Uint64(num.Uint64())
+func (spec *parityChainSpec) setChainIDBlock(num *big.Int) {
+	spec.Params.ChainIDBlock = hexutil.Uint64(num.Uint64())
 }
 // pyEthereumGenesisSpec represents the genesis specification format used by the
 // Python Ethereum implementation.

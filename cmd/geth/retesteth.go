@@ -133,9 +133,9 @@ type CParamsParams struct {
 	ConstantinopleForkBlock    *math.HexOrDecimal64  `json:"constantinopleForkBlock"`
 	ConstantinopleFixForkBlock *math.HexOrDecimal64  `json:"constantinopleFixForkBlock"`
 	IstanbulBlock              *math.HexOrDecimal64  `json:"istanbulForkBlock"`
-	IsChainID2Block            *math.HexOrDecimal64  `json:"isChainID2block"`
+	IsChainIDBlock             *math.HexOrDecimal64  `json:"isChainIDblock"`
+	OldChainID                 *math.HexOrDecimal256 `json:"oldChainID"`
 	ChainID                    *math.HexOrDecimal256 `json:"chainID"`
-	ChainID2                   *math.HexOrDecimal256 `json:"chainID2"`
 	MaximumExtraDataSize       math.HexOrDecimal64   `json:"maximumExtraDataSize"`
 	TieBreakingGas             bool                  `json:"tieBreakingGas"`
 	MinGasLimit                math.HexOrDecimal64   `json:"minGasLimit"`
@@ -313,13 +313,13 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 			}
 		}
 	}
-	chainId := big.NewInt(1)
+	oldChainID := big.NewInt(1)
+	if chainParams.Params.OldChainID != nil {
+		oldChainID.Set((*big.Int)(chainParams.Params.OldChainID))
+	}
+	chainId := big.NewInt(20)
 	if chainParams.Params.ChainID != nil {
 		chainId.Set((*big.Int)(chainParams.Params.ChainID))
-	}
-	chainId2 := big.NewInt(20)
-	if chainParams.Params.ChainID2 != nil {
-		chainId2.Set((*big.Int)(chainParams.Params.ChainID2))
 	}
 	var (
 		homesteadBlock      *big.Int
@@ -331,7 +331,7 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 		constantinopleBlock *big.Int
 		petersburgBlock     *big.Int
 		istanbulBlock       *big.Int
-		chainID2Block       *big.Int
+		chainIDBlock        *big.Int
 	)
 	if chainParams.Params.HomesteadForkBlock != nil {
 		homesteadBlock = big.NewInt(int64(*chainParams.Params.HomesteadForkBlock))
@@ -361,14 +361,14 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 	if chainParams.Params.IstanbulBlock != nil {
 		istanbulBlock = big.NewInt(int64(*chainParams.Params.IstanbulBlock))
 	}
-	if chainParams.Params.IsChainID2Block != nil {
-		chainID2Block = big.NewInt(int64(*chainParams.Params.IsChainID2Block))
+	if chainParams.Params.IsChainIDBlock != nil {
+		chainIDBlock = big.NewInt(int64(*chainParams.Params.IsChainIDBlock))
 	}
 
 	genesis := &core.Genesis{
 		Config: &params.ChainConfig{
 			ChainID:             chainId,
-			ChainID2:			 chainId2,
+			OldChainID:			 oldChainID,
 			HomesteadBlock:      homesteadBlock,
 			DAOForkBlock:        daoForkBlock,
 			DAOForkSupport:      false,
@@ -379,7 +379,7 @@ func (api *RetestethAPI) SetChainParams(ctx context.Context, chainParams ChainPa
 			ConstantinopleBlock: constantinopleBlock,
 			PetersburgBlock:     petersburgBlock,
 			IstanbulBlock:       istanbulBlock,
-			ChainID2Block:       chainID2Block,
+			ChainIDBlock:        chainIDBlock,
 		},
 		Nonce:      uint64(chainParams.Genesis.Nonce),
 		Timestamp:  uint64(chainParams.Genesis.Timestamp),
