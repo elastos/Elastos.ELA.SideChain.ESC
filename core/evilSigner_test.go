@@ -3,14 +3,14 @@ package core
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"math/big"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
