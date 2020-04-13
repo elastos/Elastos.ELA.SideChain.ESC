@@ -23,12 +23,23 @@ type Proposal struct {
 }
 
 // EncodeRLP serializes p into the Ethereum RLP proposal format.
-func (p *Proposal) RlpEncode(w io.Writer) error {
+func (p *Proposal) RlpEncodeUnsigned(w io.Writer) error {
 	return rlp.Encode(w, Proposal{
 		Sponsor:    p.Sponsor,
 		BlockHash:  p.BlockHash,
 		ViewOffset: p.ViewOffset,
 		Sign:       nil,
+		hash:       nil,
+	})
+}
+
+// EncodeRLP serializes p into the Ethereum RLP proposal format.
+func (p *Proposal) RlpEncode(w io.Writer) error {
+	return rlp.Encode(w, Proposal{
+		Sponsor:    p.Sponsor,
+		BlockHash:  p.BlockHash,
+		ViewOffset: p.ViewOffset,
+		Sign:       p.Sign,
 		hash:       nil,
 	})
 }
@@ -89,11 +100,10 @@ func CheckProposal(proposal *Proposal) error {
 	return nil
 }
 
-
 func ecrecover(proposal *Proposal) (common.Address, error) {
 	// Recover the public key and the Ethereum address
 	buf := new(bytes.Buffer)
-	err := proposal.RlpEncode(buf)
+	err := proposal.RlpEncodeUnsigned(buf)
 	if err != nil {
 		log.Error("SignProposal error:", err)
 	}

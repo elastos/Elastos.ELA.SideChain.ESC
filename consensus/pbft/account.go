@@ -21,7 +21,17 @@ func NewAccount(wallet accounts.Wallet, account *accounts.Account) *AccountWalle
 
 func (a *AccountWallet) SignProposal(proposal *Proposal)  ([]byte, error) {
 	buf := new(bytes.Buffer)
-	err := proposal.RlpEncode(buf)
+	err := proposal.RlpEncodeUnsigned(buf)
+	if err != nil {
+		log.Error("SignProposal error:", err)
+	}
+
+	return a.SignData(*a.account, accounts.MimetypeDataWithValidator, buf.Bytes())
+}
+
+func (a *AccountWallet) SignVote(vote *ProposalVote) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := vote.RlpEncodeUnsigned(buf)
 	if err != nil {
 		log.Error("SignProposal error:", err)
 	}
