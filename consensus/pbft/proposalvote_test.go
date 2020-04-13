@@ -61,21 +61,19 @@ func TestStartVote(t *testing.T) {
 	keystore := keystore.NewKeyStore("temp",keystore.StandardScryptN, keystore.StandardScryptP)
 	defer os.RemoveAll("temp")
 	account, err := keystore.NewAccount("123")
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	wallet := keystore.Wallets()[0]
 	accountWallet := NewAccount(wallet, &account)
 	err = keystore.Unlock(account, "123")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	hash := make([]byte, 32)
 	rand.Read(hash)
 	proposalHash := common.BytesToHash(hash)
 
 	vote, err := StartVote(&proposalHash, mrand.Intn(2) == 1, accountWallet)
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 	err = CheckVote(vote)
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 }
 
