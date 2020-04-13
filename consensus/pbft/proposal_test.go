@@ -44,10 +44,10 @@ func TestProposalEncodeRLP(t *testing.T) {
 	if err != nil {
 		t.Error("RlpDecode err:", err.Error())
 	}
-	assert.True(t, bytes.Equal(proposal1.Sponsor.Bytes(), proposal2.Sponsor.Bytes()))
-	assert.True(t, proposal1.BlockHash == proposal2.BlockHash)
-	assert.True(t, 	proposal1.ViewOffset == proposal2.ViewOffset)
-	assert.True(t, bytes.Equal(proposal1.Hash().Bytes(), proposal2.Hash().Bytes()))
+	assert.Equal(t, proposal1.Sponsor.Bytes(), proposal2.Sponsor.Bytes())
+	assert.Equal(t, proposal1.BlockHash, proposal2.BlockHash)
+	assert.Equal(t, proposal1.ViewOffset, proposal2.ViewOffset)
+	assert.Equal(t, proposal1.Hash().Bytes(), proposal2.Hash().Bytes())
 }
 
 func TestStartAndCheckProposal(t *testing.T) {
@@ -60,14 +60,14 @@ func TestStartAndCheckProposal(t *testing.T) {
 	wallet := keystore.Wallets()[0]
 	accountWallet := NewAccount(wallet, &account)
 	err = keystore.Unlock(account, "123")
-	assert.True(t, err == nil)
+	assert.Equal(t, nil, err)
 
 	data := make([]byte, 32)
 	rand.Read(data)
 	blockHash := common.BytesToHash(data)
 	proposal, err := StartProposal(accountWallet, &blockHash)
-	assert.True(t, err == nil)
+	assert.Equal(t, nil, err)
 
 	err = CheckProposal(proposal)
-	assert.True(t, err == nil)
+	assert.Equal(t, nil, err)
 }
