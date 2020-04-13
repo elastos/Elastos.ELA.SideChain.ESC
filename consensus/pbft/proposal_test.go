@@ -54,20 +54,18 @@ func TestStartAndCheckProposal(t *testing.T) {
 	keystore := keystore.NewKeyStore("keystore",keystore.StandardScryptN, keystore.StandardScryptP)
 	defer os.RemoveAll("keystore")
 	account, err := keystore.NewAccount("123")
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	wallet := keystore.Wallets()[0]
 	accountWallet := NewAccount(wallet, &account)
 	err = keystore.Unlock(account, "123")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	data := make([]byte, 32)
 	rand.Read(data)
 	blockHash := common.BytesToHash(data)
 	proposal, err := StartProposal(accountWallet, &blockHash)
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	err = CheckProposal(proposal)
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 }
