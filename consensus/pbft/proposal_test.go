@@ -2,6 +2,8 @@ package pbft
 
 import (
 	"crypto/rand"
+	"testing"
+
 	"github.com/elastos/Elastos.ELA/account"
 	"github.com/elastos/Elastos.ELA/common"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
@@ -9,7 +11,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft/log"
 
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func init()  {
