@@ -10,8 +10,8 @@ import (
 )
 
 func StartVote(ProposalHash *common.Uint256, isAcceipt bool, ac account.Account) (*payload.DPOSProposalVote, error) {
-	log.Info("[StartProposal] start")
-	defer log.Info("[StartProposal] end")
+	log.Info("[StartVote] start")
+	defer log.Info("[StartVote] end")
 
 	vote := &payload.DPOSProposalVote{
 		ProposalHash: *ProposalHash,
@@ -29,8 +29,6 @@ func StartVote(ProposalHash *common.Uint256, isAcceipt bool, ac account.Account)
 }
 
 func CheckVote(vote *payload.DPOSProposalVote) error {
-	//todo check account is producer
-
 	pk, err := crypto.DecodePoint(vote.Signer)
 	if err != nil {
 		log.Error("[CheckProposal] decode signer " + "error, details: ", err)

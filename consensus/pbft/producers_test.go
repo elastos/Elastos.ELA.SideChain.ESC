@@ -40,7 +40,7 @@ func TestProducers_IsOnduty(t *testing.T) {
 
 	changeCount := rand.Intn(200)
 	for i := 0; i < changeCount; i++ {
-		p.ChangeHeight()
+		p.ChangeView()
 		signer := signers[(i + 1) %len(signers)]
 		assert.True(t, p.IsOnduty(signer))
 	}

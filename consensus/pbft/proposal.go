@@ -26,8 +26,6 @@ func StartProposal(ac account.Account, blockHash common.Uint256) (*payload.DPOSP
 }
 
 func CheckProposal(proposal *payload.DPOSProposal) error {
-	//todo check account is producer
-
 	pk, err := crypto.DecodePoint(proposal.Sponsor)
 	if err != nil {
 		log.Error("[CheckProposal] decode signer " + "error, details: ", err)
