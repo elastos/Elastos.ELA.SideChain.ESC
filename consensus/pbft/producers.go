@@ -1,15 +1,15 @@
 package pbft
 
 import (
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"bytes"
 )
 
 type Producers struct {
-	producers []common.Address
+	producers [][]byte
 	dutyIndex int
 }
 
-func NewProducers(producers []common.Address) *Producers {
+func NewProducers(producers [][]byte) *Producers {
 	producer := &Producers{
 		dutyIndex: 		  0,
 	}
@@ -17,32 +17,32 @@ func NewProducers(producers []common.Address) *Producers {
 	return producer
 }
 
-func (p *Producers) UpdateProducers(producers []common.Address) error {
-	p.producers = make([]common.Address, len(producers))
+func (p *Producers) UpdateProducers(producers [][]byte) error {
+	p.producers = make([][]byte, len(producers))
 	copy(p.producers, producers)
 	p.dutyIndex = 0
 	return nil
 }
 
-func (p *Producers) GetProducers() []common.Address {
-	list := make([]common.Address, len(p.producers))
+func (p *Producers) GetProducers() [][]byte {
+	list := make([][]byte, len(p.producers))
 	copy(list, p.producers)
 	return list
 }
 
-func (p *Producers) IsProducers(signer *common.Address) bool {
+func (p *Producers) IsProducers(signer []byte) bool {
 	for _, producer := range p.producers {
-		if signer.String() == producer.String() {
+		if bytes.Equal(producer, signer) {
 			return true
 		}
 	}
 	return false
 }
 
-func (p *Producers) IsOnduty(signer *common.Address) bool {
+func (p *Producers) IsOnduty(signer []byte) bool {
 	index := p.dutyIndex % len(p.producers)
 	dutySigner := p.producers[index]
-	return dutySigner.String() == signer.String()
+	return bytes.Equal(dutySigner, signer)
 }
 
 func (p *Producers) ChangeHeight() {

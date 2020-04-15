@@ -1,15 +1,16 @@
 package pbft
 
 import (
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
 type Dispatcher struct {
-	acceptVotes         map[common.Hash]*ProposalVote
-	rejectedVotes       map[common.Hash]*ProposalVote
+	acceptVotes         map[common.Uint256]*payload.DPOSProposalVote
+	rejectedVotes       map[common.Uint256]*payload.DPOSProposalVote
 }
 
-func (d *Dispatcher) ProcessVote(vote *ProposalVote) error {
+func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) error {
 	if err := CheckVote(vote); err != nil {
 		return err
 	}
@@ -25,7 +26,7 @@ func (d *Dispatcher) ProcessVote(vote *ProposalVote) error {
 
 func NewDispatcher() *Dispatcher {
 	return &Dispatcher{
-		acceptVotes: make(map[common.Hash]*ProposalVote),
-		rejectedVotes: make(map[common.Hash]*ProposalVote),
+		acceptVotes: make(map[common.Uint256]*payload.DPOSProposalVote),
+		rejectedVotes: make(map[common.Uint256]*payload.DPOSProposalVote),
 	}
 }
