@@ -1,55 +1,54 @@
 package pbft
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
 	"fmt"
-	"os"
+	"math/rand"
 	"testing"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/keystore"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA/account"
+	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
+	daccount "github.com/elastos/Elastos.ELA/dpos/account"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft/log"
 
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-	key0, _ = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
-	key1, _ = crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
-	blockHash = common.HexToHash("0x6e66b9b3732e8755d5230a4f4c06ff40cdc82758ef7598739e656f4ffb159558")
+	key, _ = common.HexStringToBytes("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	key0, _ = common.HexStringToBytes("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
+	key1, _ = common.HexStringToBytes("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
+	blockHash,_ = common.Uint256FromHexString("6e66b9b3732e8755d5230a4f4c06ff40cdc82758ef7598739e656f4ffb159558")
 )
 
-func getTestWallet(key *ecdsa.PrivateKey, passphrase string) (*AccountWallet, error) {
-	newKeyStore := keystore.NewKeyStore("temp",keystore.StandardScryptN, keystore.StandardScryptP)
-	defer os.RemoveAll("temp")
-
-	account, err := newKeyStore.ImportECDSA(key, passphrase)
-	if err != nil {
-		return nil, err
-	}
-	wallet := newKeyStore.Wallets()[0]
-	accountWallet := NewAccount(wallet, &account)
-	err = newKeyStore.Unlock(account, passphrase)
-	if err != nil {
-		return nil, err
-	}
-	return accountWallet, nil
+func init()  {
+	log.Init(0, 0, 0)
 }
 
-func newProposalVote(accept bool) (*ProposalVote, error) {
+func getTestWallet(prvkey []byte, passphrase string) (daccount.Account, error) {
+	ac, err := account.NewAccountWithPrivateKey(prvkey)
+	if err != nil {
+		return nil, err
+	}
+	return daccount.New(ac), nil
+}
+
+func newProposalVote(accept bool) (*payload.DPOSProposalVote, error) {
 	accountWallet, err := getTestWallet(key, "key")
 	if err != nil {
 		return nil, err
 	}
 	hash := make([]byte, 32)
 	rand.Read(hash)
-	proposalHash := common.BytesToHash(hash)
-	vote := &ProposalVote{
-		ProposalHash: proposalHash,
+	proposalHash, err := common.Uint256FromBytes(hash)
+	if err != nil {
+		return nil, err
+	}
+	vote := &payload.DPOSProposalVote{
+		ProposalHash: *proposalHash,
 		Accept: accept,
-		Signer: accountWallet.Address(),
+		Signer: accountWallet.PublicKeyBytes(),
 		Sign: nil,
 	}
 	sign, err := accountWallet.SignVote(vote)
@@ -92,7 +91,7 @@ func ExampleNormalVote() {
 	}
 
 	// Node0 create a proposal.
-	proposal, err := StartProposal(node0Wallet, &blockHash)
+	proposal, err := StartProposal(node0Wallet, *blockHash)
 	if err != nil {
 		fmt.Println("StartProposal err, ", err)
 	}
@@ -131,7 +130,7 @@ func ExampleNormalVote() {
 	// Build seal
 
 	// Output:
-	// Node0 Broadcast proposal: 0xfd75648a8c92652aad6ea419368dc4b929254a13e0801f698efe2d6e3d7bde14
-	// Node1 vote the proposal: 0x24a57439411dbea9609bccb21aa46042f78cc4c09f55e88756bc7395017094ad
-	// Node0 process the vote: 0xfd75648a8c92652aad6ea419368dc4b929254a13e0801f698efe2d6e3d7bde14
+	// Node0 Broadcast proposal: 1242d8421338d84fd442840a07ff6e750800c33d754dd49f2b39b4e4d1d90c67
+	// Node1 vote the proposal: e767b0adbfcd2cd368a9c07c51af13b032458670ceba788bdcb676dcd9b59da3
+	// Node0 process the vote: 1242d8421338d84fd442840a07ff6e750800c33d754dd49f2b39b4e4d1d90c67
 }

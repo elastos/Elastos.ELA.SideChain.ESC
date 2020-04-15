@@ -4,18 +4,16 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-
 	"github.com/stretchr/testify/assert"
 )
 
-func getRandProducers() []common.Address {
+func getRandProducers() [][]byte {
 	size := rand.Intn(20) + 5
-	signers := make([]common.Address, size)
+	signers := make([][]byte, size)
 	for i := 0; i < size; i++ {
-		data := make([]byte, len(common.Address{}))
+		data := make([]byte, 32)
 		rand.Read(data)
-		signers[i] = common.BytesToAddress(data)
+		signers[i] = data
 	}
 	return signers
 }
@@ -29,12 +27,11 @@ func TestNewProducers(t *testing.T) {
 	}
 
 	index := rand.Intn(len(signers))
-	assert.True(t,  p.IsProducers(&signers[index]))
+	assert.True(t,  p.IsProducers(signers[index]))
 
-	data := make([]byte, len(common.Address{}))
+	data := make([]byte, 32)
 	rand.Read(data)
-	wrongSigner := common.BytesToAddress(data)
-	assert.False(t,  p.IsProducers(&wrongSigner))
+	assert.False(t,  p.IsProducers(data))
 }
 
 func TestProducers_IsOnduty(t *testing.T) {
@@ -45,7 +42,7 @@ func TestProducers_IsOnduty(t *testing.T) {
 	for i := 0; i < changeCount; i++ {
 		p.ChangeHeight()
 		signer := signers[(i + 1) %len(signers)]
-		assert.True(t, p.IsOnduty(&signer))
+		assert.True(t, p.IsOnduty(signer))
 	}
 
 	assert.Equal(t, p.GetDutyIndex(), changeCount)
