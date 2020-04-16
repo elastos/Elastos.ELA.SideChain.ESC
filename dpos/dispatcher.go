@@ -7,12 +7,18 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
-type Dispatcher struct {
-	acceptVotes         map[common.Uint256]*payload.DPOSProposalVote
-	rejectedVotes       map[common.Uint256]*payload.DPOSProposalVote
+type ProposalListener interface {
+	ProposalConfirmed(confirm *payload.Confirm) error
+}
 
-	processingProposal  *payload.DPOSProposal
-	producers           *Producers
+type Dispatcher struct {
+	acceptVotes   map[common.Uint256]*payload.DPOSProposalVote
+	rejectedVotes map[common.Uint256]*payload.DPOSProposalVote
+
+	processingProposal *payload.DPOSProposal
+	producers          *Producers
+
+	proposalListener ProposalListener
 }
 
 func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
@@ -20,7 +26,7 @@ func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
 	defer Info("[ProcessProposal] end")
 
 	if d.processingProposal != nil {
-		return  errors.New("processingProposal is not nil")
+		return errors.New("processingProposal is not nil")
 	}
 
 	if d.processingProposal != nil && d.processingProposal.Hash().IsEqual(proposal.Hash()) {
@@ -44,8 +50,7 @@ func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
 	return nil
 }
 
-
-func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, finished bool, err error)  {
+func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, finished bool, err error) {
 	Info("[ProcessVote] start")
 	defer Info("[ProcessVote] end")
 
@@ -76,8 +81,12 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	if vote.Accept {
 		d.acceptVotes[vote.Hash()] = vote
 		if d.producers.IsMajorityAgree(len(d.acceptVotes)) {
-			Info("Collect majority signs, finish proposal.")
-			//todo finished this proposal
+			Info("Collect majority signs. Proposal confirmed.")
+			confirm := d.createConfirm()
+			if err := d.proposalListener.ProposalConfirmed(confirm); err != nil {
+				return false, false, err
+			}
+			Info("Block confirmed.")
 			return true, true, nil
 		}
 	} else {
@@ -106,10 +115,23 @@ func (d *Dispatcher) alreadyExistVote(v *payload.DPOSProposalVote) bool {
 	return false
 }
 
-func NewDispatcher(producers [][]byte) *Dispatcher {
+func (d *Dispatcher) createConfirm() *payload.Confirm {
+	confirm := &payload.Confirm{
+		Proposal: *d.processingProposal,
+		Votes:    make([]payload.DPOSProposalVote, 0),
+	}
+	for _, vote := range d.acceptVotes {
+		confirm.Votes = append(confirm.Votes, *vote)
+	}
+
+	return confirm
+}
+
+func NewDispatcher(producers [][]byte, proposalListener ProposalListener) *Dispatcher {
 	return &Dispatcher{
-		acceptVotes:   make(map[common.Uint256]*payload.DPOSProposalVote),
-		rejectedVotes: make(map[common.Uint256]*payload.DPOSProposalVote),
-		producers:     NewProducers(producers),
+		acceptVotes:      make(map[common.Uint256]*payload.DPOSProposalVote),
+		rejectedVotes:    make(map[common.Uint256]*payload.DPOSProposalVote),
+		producers:        NewProducers(producers),
+		proposalListener: proposalListener,
 	}
 }
