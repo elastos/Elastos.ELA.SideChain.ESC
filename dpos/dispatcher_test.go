@@ -6,8 +6,10 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 var (
@@ -40,31 +42,32 @@ func getProducerList() [][]byte {
 	return producers
 }
 
-
+var proposalch chan *msg.Proposal
+var votech chan *msg.Vote
 
 func TestExampleNormalVote(t *testing.T) {
-	proposalch := make(chan *payload.DPOSProposal, 1)
+	proposalch = make(chan *msg.Proposal, 1)
+	votech = make(chan *msg.Vote, 1)
+
+	dispatcher := NewDispatcher(getProducerList())
+
 	// Assume that there are Node0 and Node1 in the p2p network.
+	go node0Loop(dispatcher)
+	go node1Loop()
+
 	// Node0 is sponsor, Node1 is normal producer.
 
 	// Create wallet for Node0.
 	node0Wallet, err := getTestWallet(key0, "node0")
 	assert.NoError(t, err)
-
 	// Node0 create a proposal.
 	proposal, err := StartProposal(node0Wallet, *blockHash)
 	assert.NoError(t, err)
 
+	dispatcher.ProcessProposal(proposal)
 	// Node0 broadcast the proposal to p2p network.
 	fmt.Println("Node0 Broadcast proposal:", proposal.Hash().String())
-	proposalch <- proposal
-
-	// Node1 vote the proposal.
-	select {
-	case receivedProposal := <- proposalch:
-		Node1ProcessProposal(t, receivedProposal)
-		break
-	}
+	proposalch <- &msg.Proposal{*proposal}
 
 	// Build seal
 
@@ -72,15 +75,60 @@ func TestExampleNormalVote(t *testing.T) {
 	// Node0 Broadcast proposal: 1242d8421338d84fd442840a07ff6e750800c33d754dd49f2b39b4e4d1d90c67
 	// Node1 vote the proposal: e767b0adbfcd2cd368a9c07c51af13b032458670ceba788bdcb676dcd9b59da3
 	// Node0 process the vote: 1242d8421338d84fd442840a07ff6e750800c33d754dd49f2b39b4e4d1d90c67
+	time.Sleep(2 * time.Second)
 }
 
-func Node1ProcessProposal(t *testing.T, proposal *payload.DPOSProposal)  {
+func node0Loop(dispatcher *Dispatcher) {
+	for {
+		select {
+		case voteMsg := <- votech:
+			node0ProcessVotes(&voteMsg.Vote, dispatcher)
+			break
+		}
+	}
+}
+
+func node0ProcessVotes(vote *payload.DPOSProposalVote, dispatcher *Dispatcher) bool {
+	// Node0 process the vote of proposal
+	suc, finished, err := dispatcher.ProcessVote(vote)
+	if err != nil {
+		fmt.Println("Process vote error, ", err)
+		return false
+	}
+	if suc == false {
+		fmt.Println("process vote failed ")
+		return false
+	}
+	if finished == false {
+		fmt.Println("process is not finished ")
+		return false
+	}
+	fmt.Println("Node0 process the vote:", dispatcher.acceptVotes[vote.Hash()].ProposalHash.String())
+	return true
+}
+
+func node1Loop() {
+	for {
+		select {
+		case proposalMsg := <- proposalch:
+			// Node1 vote the proposal.
+			Node1ProcessProposal(&proposalMsg.Proposal)
+			break
+		}
+	}
+}
+
+func Node1ProcessProposal(proposal *payload.DPOSProposal)  {
 	dispatcher := NewDispatcher(getProducerList())
 	node1Wallet, err := getTestWallet(key1, "node1")
-	assert.NoError(t, err)
+	if err != nil {
+		fmt.Println("node1 create account error:", err)
+	}
 
 	err = dispatcher.ProcessProposal(proposal)
-	assert.NoError(t, err)
+	if err != nil {
+		fmt.Println("node2 process proposal failed:", err)
+	}
 
 	// Node1 vote the proposal.
 	proposalHash := proposal.Hash()
@@ -89,16 +137,6 @@ func Node1ProcessProposal(t *testing.T, proposal *payload.DPOSProposal)  {
 		fmt.Println("Vote proposal error, ", err)
 	}
 	fmt.Println("Node1 vote the proposal:", vote.Hash().String())
+	votech <- &msg.Vote{"voteMsg", *vote}
 
-	// Node0 process the vote of proposal
-
-	suc, finished, err := dispatcher.ProcessVote(vote)
-	if err != nil {
-		fmt.Println("Process vote error, ", err)
-	}
-	assert.NoError(t, err)
-	assert.True(t, suc)
-	assert.True(t, finished)
-
-	fmt.Println("Node0 process the vote:", dispatcher.acceptVotes[vote.Hash()].ProposalHash.String())
 }
