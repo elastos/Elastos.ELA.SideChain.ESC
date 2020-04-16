@@ -1,4 +1,4 @@
-package pbft
+package dpos
 
 import (
 	"math/rand"

@@ -1,17 +1,13 @@
-package pbft
+package dpos
 
 import (
 	"fmt"
-	"testing"
-	"time"
-
 	"github.com/elastos/Elastos.ELA/account"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft/log"
+	"testing"
 )
 
 var (
@@ -22,7 +18,7 @@ var (
 )
 
 func init()  {
-	log.Init(0, 0, 0)
+	InitLog(0, 0, 0, "")
 }
 
 func getTestWallet(prvkey []byte, passphrase string) (daccount.Account, error) {
@@ -44,7 +40,10 @@ func getProducerList() [][]byte {
 	return producers
 }
 
+
+
 func TestExampleNormalVote(t *testing.T) {
+	proposalch := make(chan *payload.DPOSProposal, 1)
 	// Assume that there are Node0 and Node1 in the p2p network.
 	// Node0 is sponsor, Node1 is normal producer.
 
@@ -58,13 +57,14 @@ func TestExampleNormalVote(t *testing.T) {
 
 	// Node0 broadcast the proposal to p2p network.
 	fmt.Println("Node0 Broadcast proposal:", proposal.Hash().String())
-	// Node1 receive the proposal from network and then check it.
-	dispatcher := NewDispatcher(getProducerList())
-	err = dispatcher.ProcessProposal(proposal)
-	assert.NoError(t, err)
+	proposalch <- proposal
 
 	// Node1 vote the proposal.
-	 go Node1ProcessProposal(t, proposal)
+	select {
+	case receivedProposal := <- proposalch:
+		Node1ProcessProposal(t, receivedProposal)
+		break
+	}
 
 	// Build seal
 
@@ -72,7 +72,6 @@ func TestExampleNormalVote(t *testing.T) {
 	// Node0 Broadcast proposal: 1242d8421338d84fd442840a07ff6e750800c33d754dd49f2b39b4e4d1d90c67
 	// Node1 vote the proposal: e767b0adbfcd2cd368a9c07c51af13b032458670ceba788bdcb676dcd9b59da3
 	// Node0 process the vote: 1242d8421338d84fd442840a07ff6e750800c33d754dd49f2b39b4e4d1d90c67
-	time.Sleep(1 * time.Second)
 }
 
 func Node1ProcessProposal(t *testing.T, proposal *payload.DPOSProposal)  {

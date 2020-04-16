@@ -3,22 +3,19 @@
 // license that can be found in the LICENSE file.
 // 
 
-package log
+package dpos
 
 import (
 	elaLog "github.com/elastos/Elastos.ELA/common/log"
-	"github.com/elastos/Elastos.ELA/dpos/p2p"
-)
-
-const (
-	dposLogDir = "logs/dpos/"
 )
 
 var logger *elaLog.Logger
 
-func Init(level uint8, maxPerLogSizeMb, maxLogsSizeMb int64) {
-	logger = elaLog.NewLogger(dposLogDir, level, maxPerLogSizeMb, maxLogsSizeMb)
-	p2p.UseLogger(logger)
+func InitLog(level uint8, maxPerLogSizeMb, maxLogsSizeMb int64, path string) {
+	if path == "" {
+		path = "logs/dpos/"
+	}
+	logger = elaLog.NewLogger(path, level, maxPerLogSizeMb, maxLogsSizeMb)
 }
 
 func Debug(a ...interface{}) {
