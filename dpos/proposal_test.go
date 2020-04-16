@@ -1,4 +1,4 @@
-package pbft
+package dpos
 
 import (
 	"crypto/rand"
@@ -8,13 +8,11 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft/log"
-
 	"github.com/stretchr/testify/assert"
 )
 
 func init()  {
-	log.Init(0, 0, 0)
+	InitLog(0, 0, 0, "")
 }
 
 func TestStartAndCheckProposal(t *testing.T) {

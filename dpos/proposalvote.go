@@ -1,17 +1,15 @@
-package pbft
+package dpos
 
 import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/dpos/account"
-
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft/log"
 )
 
 func StartVote(ProposalHash *common.Uint256, isAcceipt bool, ac account.Account) (*payload.DPOSProposalVote, error) {
-	log.Info("[StartVote] start")
-	defer log.Info("[StartVote] end")
+	Info("[StartVote] start")
+	defer Info("[StartVote] end")
 
 	vote := &payload.DPOSProposalVote{
 		ProposalHash: *ProposalHash,
@@ -31,12 +29,12 @@ func StartVote(ProposalHash *common.Uint256, isAcceipt bool, ac account.Account)
 func CheckVote(vote *payload.DPOSProposalVote) error {
 	pk, err := crypto.DecodePoint(vote.Signer)
 	if err != nil {
-		log.Error("[CheckProposal] decode signer " + "error, details: ", err)
+		Error("[CheckProposal] decode signer " + "error, details: ", err)
 		return err
 	}
 
 	if err := crypto.Verify(*pk, vote.Data(), vote.Sign); err != nil {
-		log.Error("[CheckProposal] sign verify " + "error, details: ", err)
+		Error("[CheckProposal] sign verify " + "error, details: ", err)
 		return err
 	}
 	return nil

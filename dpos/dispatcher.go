@@ -1,9 +1,7 @@
-package pbft
+package dpos
 
 import (
 	"errors"
-
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft/log"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -18,8 +16,8 @@ type Dispatcher struct {
 }
 
 func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
-	log.Info("[ProcessProposal] start")
-	defer log.Info("[ProcessProposal] end")
+	Info("[ProcessProposal] start")
+	defer Info("[ProcessProposal] end")
 
 	if d.processingProposal != nil {
 		return  errors.New("processingProposal is not nil")
@@ -48,8 +46,8 @@ func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
 
 
 func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, finished bool, err error)  {
-	log.Info("[ProcessVote] start")
-	defer log.Info("[ProcessVote] end")
+	Info("[ProcessVote] start")
+	defer Info("[ProcessVote] end")
 
 	if d.processingProposal == nil {
 		err = errors.New("not proposal to process vote")
@@ -78,14 +76,14 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	if vote.Accept {
 		d.acceptVotes[vote.Hash()] = vote
 		if d.producers.IsMajorityAgree(len(d.acceptVotes)) {
-			log.Info("Collect majority signs, finish proposal.")
+			Info("Collect majority signs, finish proposal.")
 			//todo finished this proposal
 			return true, true, nil
 		}
 	} else {
 		d.rejectedVotes[vote.Hash()] = vote
 		if d.producers.IsMajorityRejected(len(d.rejectedVotes)) {
-			log.Info("Collect majority signs, reject proposal")
+			Info("Collect majority signs, reject proposal")
 			//todo change view to reconsensus
 			return true, false, nil
 		}
@@ -110,8 +108,8 @@ func (d *Dispatcher) alreadyExistVote(v *payload.DPOSProposalVote) bool {
 
 func NewDispatcher(producers [][]byte) *Dispatcher {
 	return &Dispatcher{
-		acceptVotes: make(map[common.Uint256]*payload.DPOSProposalVote),
+		acceptVotes:   make(map[common.Uint256]*payload.DPOSProposalVote),
 		rejectedVotes: make(map[common.Uint256]*payload.DPOSProposalVote),
-		producers: NewProducers(producers),
+		producers:     NewProducers(producers),
 	}
 }
