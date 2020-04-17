@@ -250,7 +250,7 @@ func makeExtraData(extra []byte) []byte {
 func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
 	// If delegated-proof-of-stake is requested, set it up
 	if chainConfig.Pbft != nil {
-		return pbft.New()
+		return pbft.New(chainConfig.Pbft, ctx.ResolvePath("logs/dpos/"))
 	}
 
 	// If proof-of-authority is requested, set it up

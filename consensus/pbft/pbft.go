@@ -4,23 +4,40 @@ import (
 	"io"
 	"math/big"
 
-	"golang.org/x/crypto/sha3"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+
+	"github.com/elastos/Elastos.ELA/core/types/payload"
+
+	"golang.org/x/crypto/sha3"
 )
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
 type Pbft struct {
+	dispatcher *dpos.Dispatcher
+	confirmCh chan *payload.Confirm
 }
 
-func New() *Pbft {
-	return &Pbft{}
+func New(cfg *params.PbftConfig, logPath string) *Pbft {
+	//todo init log by pbftConfig
+	dpos.InitLog(0, 0, 0, logPath)
+	producers := make([][]byte, len(cfg.Producers))
+	for i, v := range cfg.Producers {
+		producers[i] = common.Hex2Bytes(v)
+	}
+	confirmCh := make(chan *payload.Confirm)
+	dispatcher := dpos.NewDispatcher(producers, confirmCh)
+	pbft := &Pbft{
+		dispatcher,
+		confirmCh,
+	}
+	return pbft
 }
 
 func (p *Pbft) Author(header *types.Header) (common.Address, error) {
@@ -68,6 +85,8 @@ func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state
 	uncles []*types.Header) {
 	dpos.Info("Pbft Finalize")
 	// TODO panic("implement me")
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	header.UncleHash = types.CalcUncleHash(nil)
 }
 
 func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
@@ -83,6 +102,15 @@ func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.He
 
 func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	dpos.Info("Pbft Seal")
+	select {
+	case confirm := <-p.confirmCh:
+		//todo completed this
+		dpos.Info("received confirm", confirm.Proposal.Hash().String())
+		break
+	case <-stop:
+		return nil
+	}
+
 	header := block.Header()
 	go func() {
 		select {
@@ -122,6 +150,10 @@ func (p *Pbft) Close() error {
 func (p *Pbft) SignersCount() int {
 	dpos.Info("Pbft SignersCount")
 	panic("implement me")
+}
+
+func (p *Pbft) ProposalConfirmed(confirm *payload.Confirm) {
+	dpos.Info("")
 }
 
 // SealHash returns the hash of a block prior to it being sealed.

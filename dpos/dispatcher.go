@@ -7,10 +7,6 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
-type ProposalListener interface {
-	ProposalConfirmed(confirm *payload.Confirm) error
-}
-
 type Dispatcher struct {
 	acceptVotes   map[common.Uint256]*payload.DPOSProposalVote
 	rejectedVotes map[common.Uint256]*payload.DPOSProposalVote
@@ -18,7 +14,7 @@ type Dispatcher struct {
 	processingProposal *payload.DPOSProposal
 	producers          *Producers
 
-	proposalListener ProposalListener
+	proposalConfirmCh chan *payload.Confirm
 }
 
 func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
@@ -83,9 +79,7 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 		if d.producers.IsMajorityAgree(len(d.acceptVotes)) {
 			Info("Collect majority signs. Proposal confirmed.")
 			confirm := d.createConfirm()
-			if err := d.proposalListener.ProposalConfirmed(confirm); err != nil {
-				return false, false, err
-			}
+			d.proposalConfirmCh <- confirm
 			Info("Block confirmed.")
 			return true, true, nil
 		}
@@ -127,11 +121,11 @@ func (d *Dispatcher) createConfirm() *payload.Confirm {
 	return confirm
 }
 
-func NewDispatcher(producers [][]byte, proposalListener ProposalListener) *Dispatcher {
+func NewDispatcher(producers [][]byte, confirmCh chan *payload.Confirm) *Dispatcher {
 	return &Dispatcher{
-		acceptVotes:      make(map[common.Uint256]*payload.DPOSProposalVote),
-		rejectedVotes:    make(map[common.Uint256]*payload.DPOSProposalVote),
-		producers:        NewProducers(producers),
-		proposalListener: proposalListener,
+		acceptVotes:       make(map[common.Uint256]*payload.DPOSProposalVote),
+		rejectedVotes:     make(map[common.Uint256]*payload.DPOSProposalVote),
+		producers:         NewProducers(producers),
+		proposalConfirmCh: confirmCh,
 	}
 }

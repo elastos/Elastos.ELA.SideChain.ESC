@@ -1725,7 +1725,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	}
 	var engine consensus.Engine
 	if config.Pbft != nil {
-		engine = pbft.New()
+		engine = pbft.New(config.Pbft, stack.ResolvePath("logs/dpos/"))
 	} else if config.Clique != nil {
 		engine = clique.New(config.Clique, chainDb)
 	} else {

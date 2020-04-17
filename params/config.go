@@ -340,7 +340,7 @@ func (c *CliqueConfig) String() string {
 }
 
 type PbftConfig struct {
-	Producers uint64 `json:"producers"` // Number of producers participating the pbft consensus.
+	Producers []string `json:"producers"` // list of producers participating the pbft consensus.
 }
 
 func (p *PbftConfig) String() string {

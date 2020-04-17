@@ -51,8 +51,8 @@ func TestExampleNormalVote(t *testing.T) {
 	proposalch = make(chan *msg.Proposal, 1)
 	votech = make(chan *msg.Vote, 1)
 	wg := &sync.WaitGroup{}
-	listener := &TestListener{}
-	dispatcher := NewDispatcher(getProducerList(), listener)
+	confirmCh := make(chan *payload.Confirm)
+	dispatcher := NewDispatcher(getProducerList(), confirmCh)
 
 	// Assume that there are Node0 and Node1 in the p2p network.
 	// Node0 is sponsor, Node1 is normal producer.
@@ -84,6 +84,13 @@ func node0Loop(wg *sync.WaitGroup, dispatcher *Dispatcher) {
 	wg.Add(1)
 	defer wg.Done()
 
+	go func() {
+		select {
+		case c := <-dispatcher.proposalConfirmCh:
+			fmt.Println("node0 reveived confirm:", c.Proposal.Hash().String())
+		}
+	}()
+
 	for {
 		select {
 		case voteMsg := <-votech:
@@ -92,6 +99,8 @@ func node0Loop(wg *sync.WaitGroup, dispatcher *Dispatcher) {
 		}
 		wg.Done()
 	}
+
+	fmt.Println("sss")
 }
 
 func node0ProcessVotes(vote *payload.DPOSProposalVote, dispatcher *Dispatcher) bool {
@@ -129,8 +138,8 @@ func node1Loop(wg *sync.WaitGroup) {
 }
 
 func Node1ProcessProposal(proposal *payload.DPOSProposal) {
-	listener := &TestListener{}
-	dispatcher := NewDispatcher(getProducerList(), listener)
+	confirmCh := make(chan *payload.Confirm)
+	dispatcher := NewDispatcher(getProducerList(), confirmCh)
 	node1Wallet, err := getTestWallet(key1, "node1")
 	if err != nil {
 		fmt.Println("node1 create account error:", err)
@@ -150,12 +159,4 @@ func Node1ProcessProposal(proposal *payload.DPOSProposal) {
 	fmt.Println("Node1 vote the proposal:", vote.Hash().String())
 	votech <- &msg.Vote{"voteMsg", *vote}
 
-}
-
-type TestListener struct {
-}
-
-func (pl *TestListener) ProposalConfirmed(confirm *payload.Confirm) error {
-	Info("Confirming block by chain ...")
-	return nil
 }
