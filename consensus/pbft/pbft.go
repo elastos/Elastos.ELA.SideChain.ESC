@@ -9,11 +9,14 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 
+	ecom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 
 	"golang.org/x/crypto/sha3"
 )
@@ -22,6 +25,7 @@ import (
 type Pbft struct {
 	dispatcher *dpos.Dispatcher
 	confirmCh chan *payload.Confirm
+	account daccount.Account
 }
 
 func New(cfg *params.PbftConfig, logPath string) *Pbft {
@@ -33,10 +37,20 @@ func New(cfg *params.PbftConfig, logPath string) *Pbft {
 	}
 	confirmCh := make(chan *payload.Confirm)
 	dispatcher := dpos.NewDispatcher(producers, confirmCh)
+
+	//todo the password should be used to enter by user
+	account, err := dpos.GetDposAccount(cfg.Keystore, []byte("123"))
+	if err != nil {
+		dpos.Error("create dpos account error:", err.Error())
+		return nil
+	}
+
 	pbft := &Pbft{
 		dispatcher,
 		confirmCh,
+		account,
 	}
+
 	return pbft
 }
 
@@ -102,13 +116,40 @@ func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.He
 
 func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	dpos.Info("Pbft Seal")
+	hash, err := ecom.Uint256FromBytes(block.Hash().Bytes())
+	if err != nil {
+		return err
+	}
+	proposal, err := dpos.StartProposal(p.account, *hash)
+	if err != nil {
+		log.Error("Start proposal error:", err)
+		return err
+	}
+	//fixme The following code is used to test out the block, should used p2p network
+	err = p.dispatcher.ProcessProposal(proposal)
+	if err != nil {
+		log.Error("ProcessProposal error:", err)
+		return err
+	}
+	phash := proposal.Hash()
+	vote, err := dpos.StartVote(&phash,  true, p.account)
+	if err != nil {
+		log.Error("StartVote error:", err)
+		return err
+	}
+	go func() {
+		_, _, err = p.dispatcher.ProcessVote(vote)
+		if err != nil {
+			log.Error("ProcessVote error:", err)
+		}
+	}()
+
 	select {
-	case confirm := <-p.confirmCh:
-		//todo completed this
-		dpos.Info("received confirm", confirm.Proposal.Hash().String())
-		break
-	case <-stop:
-		return nil
+		case confirm := <-p.confirmCh:
+			log.Info("Received confirm :",confirm.Proposal.Hash().String())
+			break
+		case <-stop:
+			return nil
 	}
 
 	header := block.Header()

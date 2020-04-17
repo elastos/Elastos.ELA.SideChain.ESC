@@ -3,6 +3,8 @@ package dpos
 import (
 	"bytes"
 	"sync"
+
+	"github.com/elastos/Elastos.ELA/common"
 )
 
 type Producers struct {
@@ -57,8 +59,18 @@ func (p *Producers) IsOnduty(signer []byte) bool {
 
 func (p *Producers) ChangeView() {
 	p.mtx.Lock()
-	defer p.mtx.Unlock()
 	p.dutyIndex ++
+	p.mtx.Unlock()
+	str := "ChangeView-------------------\n"
+	for _, signer := range p.producers {
+		if p.IsOnduty(signer) {
+			str = str + common.BytesToHexString(signer) + " onDuty \n"
+		} else {
+			str = str + common.BytesToHexString(signer) + " not onDuty \n"
+		}
+
+	}
+	Info(str)
 }
 
 func (p *Producers) GetDutyIndex() int {
@@ -77,8 +89,7 @@ func (p *Producers) GetMajorityCount() int {
 }
 
 func (p *Producers) IsMajorityAgree(count int) bool {
-	num := len(p.producers)
-	return num > p.GetMajorityCount()
+	return count > p.GetMajorityCount()
 }
 
 func (p *Producers) IsMajorityRejected(count int) bool {
