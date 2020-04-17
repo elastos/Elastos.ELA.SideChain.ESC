@@ -341,6 +341,7 @@ func (c *CliqueConfig) String() string {
 
 type PbftConfig struct {
 	Producers []string `json:"producers"` // list of producers participating the pbft consensus.
+	Keystore string `json:"keystore"` //ela account path to sign dpos proposal
 }
 
 func (p *PbftConfig) String() string {

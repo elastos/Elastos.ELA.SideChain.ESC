@@ -87,7 +87,7 @@ func node0Loop(wg *sync.WaitGroup, dispatcher *Dispatcher) {
 	go func() {
 		select {
 		case c := <-dispatcher.proposalConfirmCh:
-			fmt.Println("node0 reveived confirm:", c.Proposal.Hash().String())
+			fmt.Println("Node0 reveived confirm:", c.Proposal.Hash().String())
 		}
 	}()
 
@@ -99,8 +99,6 @@ func node0Loop(wg *sync.WaitGroup, dispatcher *Dispatcher) {
 		}
 		wg.Done()
 	}
-
-	fmt.Println("sss")
 }
 
 func node0ProcessVotes(vote *payload.DPOSProposalVote, dispatcher *Dispatcher) bool {
