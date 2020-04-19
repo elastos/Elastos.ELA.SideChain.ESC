@@ -81,7 +81,7 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 			confirm := d.createConfirm()
 			d.proposalConfirmCh <- confirm
 			Info("Block confirmed.")
-			d.finishedProposal()
+			d.FinishedProposal()
 			return true, true, nil
 		}
 	} else {
@@ -89,7 +89,7 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 		if d.producers.IsMajorityRejected(len(d.rejectedVotes)) {
 			Info("Collect majority signs, reject proposal")
 			//todo change view to reconsensus
-			d.finishedProposal()
+			d.FinishedProposal()
 			return true, false, nil
 		}
 	}
@@ -97,7 +97,7 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	return true, false, nil
 }
 
-func (d *Dispatcher) finishedProposal() {
+func (d *Dispatcher) FinishedProposal() {
 	d.processingProposal = nil
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.rejectedVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
@@ -128,6 +128,10 @@ func (d *Dispatcher) createConfirm() *payload.Confirm {
 	}
 
 	return confirm
+}
+
+func (d *Dispatcher) GetProducers() *Producers {
+	return d.producers
 }
 
 func NewDispatcher(producers [][]byte, confirmCh chan *payload.Confirm) *Dispatcher {

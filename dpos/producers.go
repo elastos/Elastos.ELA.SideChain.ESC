@@ -88,6 +88,13 @@ func (p *Producers) GetMajorityCount() int {
 
 }
 
+func (p *Producers) GetProducersCount() int {
+	p.mtx.Lock()
+	result := len(p.producers)
+	p.mtx.Unlock()
+	return result
+}
+
 func (p *Producers) IsMajorityAgree(count int) bool {
 	return count > p.GetMajorityCount()
 }

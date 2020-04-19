@@ -1,11 +1,16 @@
 package pbft
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
@@ -16,9 +21,30 @@ import (
 
 	ecom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 
 	"golang.org/x/crypto/sha3"
+)
+
+var (
+	extraVanity = 32                     // Fixed number of extra-data prefix bytes
+	extraSeal   = 64 // Fixed number of extra-data suffix bytes reserved for signer seal
+)
+
+var (
+	// errUnknownBlock is returned when the list of signers is requested for a block
+	// that is not part of the local blockchain.
+	errUnknownBlock = errors.New("unknown block")
+
+	// errInvalidMixDigest is returned if a block's mix digest is non-zero.
+	errInvalidMixDigest = errors.New("non-zero mix digest")
+	// errInvalidUncleHash is returned if a block contains an non-empty uncle list.
+	errInvalidUncleHash = errors.New("non empty uncle hash")
+	// to contain a 64 byte secp256k1 signature.
+	errMissingSignature = errors.New("extra-data 64 byte signature suffix missing")
+	// errUnauthorizedSigner is returned if a header is signed by a non-authorized entity.
+	errUnauthorizedSigner = errors.New("unauthorized signer")
 )
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
@@ -41,8 +67,7 @@ func New(cfg *params.PbftConfig, logPath string) *Pbft {
 	//todo the password should be used to enter by user
 	account, err := dpos.GetDposAccount(cfg.Keystore, []byte("123"))
 	if err != nil {
-		dpos.Error("create dpos account error:", err.Error())
-		return nil
+		dpos.Warn("create dpos account error:", err.Error())
 	}
 
 	pbft := &Pbft{
@@ -62,14 +87,67 @@ func (p *Pbft) Author(header *types.Header) (common.Address, error) {
 
 func (p *Pbft) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
 	dpos.Info("Pbft VerifyHeader")
-	// TODO panic("implement me")
-	return nil
+	return p.verifyHeader(chain, header, nil)
 }
 
 func (p *Pbft) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	dpos.Info("Pbft VerifyHeaders")
-	// TODO panic("implement me")
-	return nil, nil
+	abort := make(chan struct{})
+	results := make(chan error, len(headers))
+
+	go func() {
+		for i, header := range headers {
+			err := p.verifyHeader(chain, header, headers[:i])
+
+			select {
+			case <-abort:
+				return
+			case results <- err:
+			}
+		}
+	}()
+	return abort, results
+}
+
+func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+
+	if header.Number == nil ||  header.Number.Uint64() == 0 {
+		return errUnknownBlock
+	}
+	// Don't waste time checking blocks from the future
+	if header.Time > uint64(time.Now().Unix()) {
+		return consensus.ErrFutureBlock
+	}
+
+	// Verify that the gas limit is <= 2^63-1
+	cap := uint64(0x7fffffffffffffff)
+	if header.GasLimit > cap {
+		return fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit, cap)
+	}
+	// Verify that the gasUsed is <= gasLimit
+	if header.GasUsed > header.GasLimit {
+		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
+	}
+	// Ensure that the mix digest is zero as we don't have fork protection currently
+	if header.MixDigest != (common.Hash{}) {
+		return errInvalidMixDigest
+	}
+	// Ensure that the block doesn't contain any uncles which are meaningless in Pbft
+	if header.UncleHash != types.CalcUncleHash(nil) {
+		return errInvalidUncleHash
+	}
+
+	number := header.Number.Uint64()
+	var parent *types.Header
+	if len(parents) > 0 {
+		parent = parents[len(parents)-1]
+	} else {
+		parent = chain.GetHeader(header.ParentHash, number-1)
+	}
+	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+		return consensus.ErrUnknownAncestor
+	}
+	return p.verifySeal(chain, header, parents)
 }
 
 func (p *Pbft) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
@@ -80,18 +158,57 @@ func (p *Pbft) VerifyUncles(chain consensus.ChainReader, block *types.Block) err
 
 func (p *Pbft) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
 	dpos.Info("Pbft VerifySeal")
-	// TODO panic("implement me")
-	return nil
+	return p.verifySeal(chain, header, nil)
+}
+
+func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+	// Verifying the genesis block is not supported
+	number := header.Number.Uint64()
+	if number == 0 {
+		return errUnknownBlock
+	}
+
+	// Retrieve the signature from the header extra-data
+	if len(header.Extra) < extraSeal + extraVanity {
+		return  errMissingSignature
+	}
+
+	publicKey := header.Extra[extraVanity: len(header.Extra) - extraSeal]
+	pubkey, err := crypto.DecodePoint(publicKey)
+	if err != nil {
+		return err
+	}
+
+	if !p.dispatcher.GetProducers().IsProducers(publicKey) {
+		return errUnauthorizedSigner
+	}
+	//TODO check header by confirm msg
+
+	signature := header.Extra[len(header.Extra) - extraSeal:]
+	err = crypto.Verify(*pubkey, clique.CliqueRLP(header), signature)
+
+	return err
 }
 
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	dpos.Info("Pbft Prepare")
-	// TODO panic("implement me")
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
 	header.Difficulty = parent.Difficulty
+	header.Time = uint64(time.Now().Unix())
+
+	// Ensure the extra data has all its components 32 + 65
+	if len(header.Extra) < extraVanity {
+		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
+	}
+	if p.account != nil {
+		signer := p.account.PublicKeyBytes()
+		header.Extra = append(header.Extra, signer[:]...)
+		header.Extra = append(header.Extra, make([]byte, extraSeal)...)
+	}
+
 	return nil
 }
 
@@ -116,6 +233,14 @@ func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.He
 
 func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	dpos.Info("Pbft Seal")
+	time.Sleep(2 * time.Second)//todo delete me, 2-second one block to test
+	if p.account == nil {
+		return errors.New("no signer inited")
+	}
+	if !p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes()) {
+		return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
+	}
+
 	hash, err := ecom.Uint256FromBytes(block.Hash().Bytes())
 	if err != nil {
 		return err
@@ -148,11 +273,20 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		case confirm := <-p.confirmCh:
 			log.Info("Received confirm :",confirm.Proposal.Hash().String())
 			break
+		case <-time.After(5 * time.Second):
+			log.Warn("Seal block is Timeout, to change view")
+			p.dispatcher.FinishedProposal()
+			results <- nil
+			return errors.New("seal block timeout")
 		case <-stop:
 			return nil
 	}
 
 	header := block.Header()
+	// Sign all the things!
+	length := len(header.Extra)
+	signature := p.account.Sign(clique.CliqueRLP(header))
+	copy(header.Extra[length - extraSeal:], signature)
 	go func() {
 		select {
 		case results <- block.WithSeal(header):
@@ -171,7 +305,7 @@ func (p *Pbft) SealHash(header *types.Header) common.Hash {
 
 func (p *Pbft) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
 	dpos.Info("Pbft CalcDifficulty")
-	panic("implement me")
+	return big.NewInt(1)
 }
 
 func (p *Pbft) APIs(chain consensus.ChainReader) []rpc.API {
@@ -190,11 +324,7 @@ func (p *Pbft) Close() error {
 
 func (p *Pbft) SignersCount() int {
 	dpos.Info("Pbft SignersCount")
-	panic("implement me")
-}
-
-func (p *Pbft) ProposalConfirmed(confirm *payload.Confirm) {
-	dpos.Info("")
+	return p.dispatcher.GetProducers().GetProducersCount()
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
