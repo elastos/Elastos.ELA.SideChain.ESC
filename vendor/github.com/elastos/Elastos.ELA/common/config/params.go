@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package config
 
 import (
@@ -5,6 +10,7 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/core/checkpoint"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
 	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -138,26 +144,39 @@ var DefaultParams = Params{
 		"02b95b000f087a97e988c24331bf6769b4a75e4b7d5d2a38105092a3aa841be33b",
 		"02a0aa9eac0e168f3474c2a0d04e50130833905740a5270e8a44d6c6e85cf6d98c",
 	},
-	PowLimit:                 powLimit,
-	PowLimitBits:             0x1f0008ff,
-	TargetTimespan:           24 * time.Hour,  // 24 hours
-	TargetTimePerBlock:       2 * time.Minute, // 2 minute
-	AdjustmentFactor:         4,               // 25% less, 400% more
-	RewardPerBlock:           rewardPerBlock(2 * time.Minute),
-	CoinbaseMaturity:         100,
-	MinTransactionFee:        100,
-	MinCrossChainTxFee:       10000,
-	CheckAddressHeight:       88812,
-	VoteStartHeight:          290000,
-	CRCOnlyDPOSHeight:        343400,
-	PublicDPOSHeight:         402680,
-	ToleranceDuration:        5 * time.Second,
-	MaxInactiveRounds:        720 * 2,
-	InactivePenalty:          0, //there will be no penalty in this version
-	EmergencyInactivePenalty: 0, //there will be no penalty in this version
-	GeneralArbiters:          24,
-	CandidateArbiters:        72,
-	PreConnectOffset:         360,
+	PowLimit:                    powLimit,
+	PowLimitBits:                0x1f0008ff,
+	TargetTimespan:              24 * time.Hour,  // 24 hours
+	TargetTimePerBlock:          2 * time.Minute, // 2 minute
+	AdjustmentFactor:            4,               // 25% less, 400% more
+	RewardPerBlock:              rewardPerBlock(2 * time.Minute),
+	CoinbaseMaturity:            100,
+	MinTransactionFee:           100,
+	MinCrossChainTxFee:          10000,
+	CheckAddressHeight:          88812,
+	VoteStartHeight:             290000,
+	CRCOnlyDPOSHeight:           343400,
+	PublicDPOSHeight:            402680,
+	EnableActivateIllegalHeight: 439000,
+	CRVotingStartHeight:         537670,
+	CRCommitteeStartHeight:      2000000, // todo correct me when height has been confirmed
+	CheckRewardHeight:           436812,
+	VoteStatisticsHeight:        512881,
+	ToleranceDuration:           5 * time.Second,
+	MaxInactiveRounds:           720 * 2,
+	InactivePenalty:             0, //there will be no penalty in this version
+	EmergencyInactivePenalty:    0, //there will be no penalty in this version
+	GeneralArbiters:             24,
+	CandidateArbiters:           72,
+	PreConnectOffset:            360,
+	CRMemberCount:               12,
+	CRVotingPeriod:              30 * 720,
+	CRDutyPeriod:                365 * 720,
+	EnableUtxoDB:                true,
+	CkpManager: checkpoint.NewManager(&checkpoint.Config{
+		EnableHistory:      false,
+		HistoryStartHeight: uint32(0),
+	}),
 }
 
 // TestNet returns the network parameters for the test network.
@@ -202,6 +221,12 @@ func (p *Params) TestNet() *Params {
 	copy.VoteStartHeight = 200000
 	copy.CRCOnlyDPOSHeight = 246700
 	copy.PublicDPOSHeight = 300000
+	copy.CRVotingStartHeight = 436900
+	copy.CRCommitteeStartHeight = 1000000      // todo correct me when height has been confirmed
+	copy.EnableActivateIllegalHeight = 1000000 //todo correct me later
+	copy.CheckRewardHeight = 100
+	copy.VoteStatisticsHeight = 0
+	copy.EnableUtxoDB = true
 	return &copy
 }
 
@@ -248,6 +273,12 @@ func (p *Params) RegNet() *Params {
 	copy.VoteStartHeight = 170000
 	copy.CRCOnlyDPOSHeight = 211000
 	copy.PublicDPOSHeight = 234000
+	copy.CRVotingStartHeight = 292000
+	copy.CRCommitteeStartHeight = 1000000 // todo correct me when height has been confirmed
+	copy.EnableActivateIllegalHeight = 256000
+	copy.CheckRewardHeight = 280000
+	copy.VoteStatisticsHeight = 0
+	copy.EnableUtxoDB = true
 	return &copy
 }
 
@@ -272,6 +303,9 @@ type Params struct {
 
 	// The interface/port to listen for connections.
 	ListenAddrs []string
+
+	// PermanentPeers defines peers seeds for node to initialize p2p connection.
+	PermanentPeers []string
 
 	// Foundation defines the foundation address which receiving mining
 	// rewards.
@@ -341,11 +375,32 @@ type Params struct {
 	// elected producers participate in DPOS consensus.
 	PublicDPOSHeight uint32
 
+	// CRVotingStartHeight defines the height of CR voting started.
+	CRVotingStartHeight uint32
+
+	// CRCommitteeStartHeight defines the height of CR Committee started.
+	CRCommitteeStartHeight uint32
+
+	// PublicDPOSHeight defines the start height to enable activate illegal
+	// producer though activate tx.
+	EnableActivateIllegalHeight uint32
+
+	// CheckRewardHeight defines the height to check reward in coin base
+	// with new check function.
+	CheckRewardHeight uint32
+
+	// VoteStatisticsHeight defines the height to deal with block with vote
+	// statistics error.
+	VoteStatisticsHeight uint32
+
 	// CRCArbiters defines the fixed CRC arbiters producing the block.
 	CRCArbiters []string
 
 	// DPoSMagic defines the magic number used in the DPoS network.
 	DPoSMagic uint32
+
+	// DPoSIPAddress defines the IP address for the DPoS network.
+	DPoSIPAddress string
 
 	// DPoSDefaultPort defines the default port for the DPoS network.
 	DPoSDefaultPort uint16
@@ -373,6 +428,23 @@ type Params struct {
 	// EmergencyInactivePenalty defines the penalty amount the emergency
 	// producer takes.
 	EmergencyInactivePenalty common.Fixed64
+
+	// CRMemberCount defines the number of CR committee members
+	CRMemberCount uint32
+
+	// CRVotingPeriod defines the duration of voting period which measured by
+	// block height
+	CRVotingPeriod uint32
+
+	// CRDutyPeriod defines the duration of a normal duty period which
+	// measured by block height
+	CRDutyPeriod uint32
+
+	// CkpManager holds checkpoints save automatically.
+	CkpManager *checkpoint.Manager
+
+	// EnableUtxoDB indicate whether to enable utxo database.
+	EnableUtxoDB bool
 }
 
 // rewardPerBlock calculates the reward for each block by a specified time

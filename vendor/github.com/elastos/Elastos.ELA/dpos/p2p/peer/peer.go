@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 package peer
 
 import (
@@ -15,9 +20,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/p2p"
+	pmsg "github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
 const (
@@ -405,7 +412,15 @@ func (p *Peer) writeMessage(msg p2p.Message) error {
 	}))
 
 	// Write the message to the peer.
-	return p2p.WriteMessage(p.conn, p.cfg.Magic, msg)
+	return p2p.WriteMessage(p.conn, p.cfg.Magic, msg,
+		func(m p2p.Message) (*types.DposBlock, bool) {
+			msgBlock, ok := m.(*pmsg.Block)
+			if !ok {
+				return nil, false
+			}
+			dposBlock, ok := msgBlock.Serializable.(*types.DposBlock)
+			return dposBlock, ok
+		})
 }
 
 // shouldHandleIOError returns whether or not the passed error, which is

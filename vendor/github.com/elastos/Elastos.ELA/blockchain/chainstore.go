@@ -1,9 +1,15 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package blockchain
 
 import (
 	"bytes"
 	"errors"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -11,10 +17,12 @@ import (
 	"github.com/elastos/Elastos.ELA/common/log"
 	. "github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	_ "github.com/elastos/Elastos.ELA/database/ffldb"
 )
 
 const (
-	TaskChanCap = 4
+	TaskChanCap     = 4
+	BlocksCacheSize = 2
 )
 
 type ProducerState byte
@@ -29,22 +37,27 @@ type persistTask interface{}
 
 type rollbackBlockTask struct {
 	blockHash Uint256
-	reply     chan bool
+	reply     chan error
 }
 
 type persistBlockTask struct {
 	block   *Block
 	confirm *payload.Confirm
-	reply   chan bool
+	reply   chan error
 }
 
 type ChainStore struct {
 	IStore
 
-	taskCh chan persistTask
-	quit   chan chan bool
+	fflDB IFFLDBChainStore
 
 	currentBlockHeight uint32
+
+	mtx              sync.RWMutex
+	blockHashesCache []Uint256
+	blocksCache      map[Uint256]*Block
+
+	persistMutex sync.Mutex
 }
 
 func NewChainStore(dataDir string, genesisBlock *Block) (IChainStore, error) {
@@ -53,48 +66,33 @@ func NewChainStore(dataDir string, genesisBlock *Block) (IChainStore, error) {
 		return nil, err
 	}
 
-	s := &ChainStore{
-		IStore: db,
-		taskCh: make(chan persistTask, TaskChanCap),
-		quit:   make(chan chan bool, 1),
+	fdb, err := NewChainStoreFFLDB(dataDir)
+	if err != nil {
+		return nil, err
 	}
 
-	go s.taskHandler()
+	s := &ChainStore{
+		IStore:           db,
+		fflDB:            fdb,
+		blockHashesCache: make([]Uint256, 0, BlocksCacheSize),
+		blocksCache:      make(map[Uint256]*Block),
+	}
 
-	s.init(genesisBlock)
+	if err := s.init(genesisBlock); err != nil {
+		log.Debug("chain store not contain genesis block")
+	}
 
 	return s, nil
 }
 
 func (c *ChainStore) Close() {
-	closed := make(chan bool)
-	c.quit <- closed
-	<-closed
-	c.IStore.Close()
-}
-
-func (c *ChainStore) taskHandler() {
-	for {
-		select {
-		case t := <-c.taskCh:
-			now := time.Now()
-			switch task := t.(type) {
-			case *persistBlockTask:
-				c.handlePersistBlockTask(task.block, task.confirm)
-				task.reply <- true
-				tcall := float64(time.Now().Sub(now)) / float64(time.Second)
-				log.Debugf("handle block exetime: %g num transactions:%d", tcall, len(task.block.Transactions))
-			case *rollbackBlockTask:
-				c.handleRollbackBlockTask(task.blockHash)
-				task.reply <- true
-				tcall := float64(time.Now().Sub(now)) / float64(time.Second)
-				log.Debugf("handle block rollback exetime: %g", tcall)
-			}
-
-		case closed := <-c.quit:
-			closed <- true
-			return
-		}
+	c.persistMutex.Lock()
+	defer c.persistMutex.Unlock()
+	if err := c.fflDB.Close(); err != nil {
+		log.Error("fflDB close failed:", err)
+	}
+	if err := c.IStore.Close(); err != nil {
+		log.Error("IStore close failed:", err)
 	}
 }
 
@@ -120,7 +118,10 @@ func (c *ChainStore) init(genesisBlock *Block) error {
 		}
 
 		// persist genesis block
-		err = c.persist(genesisBlock, nil)
+		hash := genesisBlock.Hash()
+		genesisBlockNode := NewBlockNode(&genesisBlock.Header, &hash)
+		err = c.persist(genesisBlock, genesisBlockNode, nil,
+			CalcPastMedianTime(genesisBlockNode))
 		if err != nil {
 			return err
 		}
@@ -209,16 +210,16 @@ func (c *ChainStore) GetBlockHash(height uint32) (Uint256, error) {
 	err := WriteUint32(queryKey, height)
 
 	if err != nil {
-		return Uint256{}, err
+		return EmptyHash, err
 	}
 	blockHash, err := c.Get(queryKey.Bytes())
 	if err != nil {
 		//TODO: implement error process
-		return Uint256{}, err
+		return EmptyHash, err
 	}
 	blockHash256, err := Uint256FromBytes(blockHash)
 	if err != nil {
-		return Uint256{}, err
+		return EmptyHash, err
 	}
 
 	return *blockHash256, nil
@@ -227,19 +228,19 @@ func (c *ChainStore) GetBlockHash(height uint32) (Uint256, error) {
 func (c *ChainStore) GetCurrentBlockHash() Uint256 {
 	hash, err := c.GetBlockHash(c.currentBlockHeight)
 	if err != nil {
-		return Uint256{}
+		return EmptyHash
 	}
 
 	return hash
 }
 
-func (c *ChainStore) RollbackBlock(blockHash Uint256) error {
-
-	reply := make(chan bool)
-	c.taskCh <- &rollbackBlockTask{blockHash: blockHash, reply: reply}
-	<-reply
-
-	return nil
+func (c *ChainStore) RollbackBlock(b *Block, node *BlockNode,
+	confirm *payload.Confirm, medianTimePast time.Time) error {
+	now := time.Now()
+	err := c.handleRollbackBlockTask(b, node, confirm, medianTimePast)
+	tcall := float64(time.Now().Sub(now)) / float64(time.Second)
+	log.Debugf("handle block rollback exetime: %g", tcall)
+	return err
 }
 
 func (c *ChainStore) GetHeader(hash Uint256) (*Header, error) {
@@ -399,6 +400,12 @@ func (c *ChainStore) persistTransaction(tx *Transaction, height uint32) error {
 }
 
 func (c *ChainStore) GetBlock(hash Uint256) (*Block, error) {
+	c.mtx.RLock()
+	if block, exist := c.blocksCache[hash]; exist {
+		c.mtx.RUnlock()
+		return block, nil
+	}
+	c.mtx.RUnlock()
 	var b = new(Block)
 	prefix := []byte{byte(DATAHeader)}
 	data, err := c.Get(append(prefix, hash.Bytes()...))
@@ -437,6 +444,17 @@ func (c *ChainStore) GetBlock(hash Uint256) (*Block, error) {
 		b.Transactions[i] = tx
 	}
 
+	if c.blocksCache != nil {
+		c.mtx.Lock()
+		if len(c.blockHashesCache) >= BlocksCacheSize {
+			delete(c.blocksCache, c.blockHashesCache[0])
+			c.blockHashesCache = c.blockHashesCache[1:BlocksCacheSize]
+		}
+		c.blockHashesCache = append(c.blockHashesCache, hash)
+		c.blocksCache[hash] = b
+		c.mtx.Unlock()
+	}
+
 	return b, nil
 }
 
@@ -464,30 +482,41 @@ func (c *ChainStore) getBlockHeader(hash Uint256) (*Header, error) {
 	return header, nil
 }
 
-func (c *ChainStore) rollback(b *Block) error {
+func (c *ChainStore) rollback(b *Block, node *BlockNode,
+	confirm *payload.Confirm, medianTimePast time.Time) error {
 	c.NewBatch()
-	c.RollbackTrimmedBlock(b)
-	c.RollbackBlockHash(b)
-	c.RollbackTransactions(b)
-	c.RollbackUnspendUTXOs(b)
-	c.RollbackUnspend(b)
-	c.RollbackCurrentBlock(b)
-	c.RollbackConfirm(b)
-	c.BatchCommit()
+	if err := c.RollbackTransactions(b); err != nil {
+		return err
+	}
+	if err := c.RollbackUnspendUTXOs(b); err != nil {
+		return err
+	}
+	if err := c.RollbackUnspend(b); err != nil {
+		return err
+	}
+	if err := c.RollbackConfirm(b); err != nil {
+		return err
+	}
+
+	if err := c.fflDB.RollbackBlock(b, node, confirm, medianTimePast); err != nil {
+		return err
+	}
+
+	if err := c.BatchCommit(); err != nil {
+		return err
+	}
 
 	atomic.StoreUint32(&c.currentBlockHeight, b.Height-1)
 
 	return nil
 }
 
-func (c *ChainStore) persist(b *Block, confirm *payload.Confirm) error {
+func (c *ChainStore) persist(b *Block, node *BlockNode,
+	confirm *payload.Confirm, medianTimePast time.Time) error {
+	c.persistMutex.Lock()
+	defer c.persistMutex.Unlock()
+
 	c.NewBatch()
-	if err := c.persistTrimmedBlock(b); err != nil {
-		return err
-	}
-	if err := c.persistBlockHash(b); err != nil {
-		return err
-	}
 	if err := c.PersistTransactions(b); err != nil {
 		return err
 	}
@@ -497,50 +526,64 @@ func (c *ChainStore) persist(b *Block, confirm *payload.Confirm) error {
 	if err := c.persistUnspend(b); err != nil {
 		return err
 	}
-	if err := c.persistCurrentBlock(b); err != nil {
-		return err
-	}
 	if err := c.persistConfirm(confirm); err != nil {
 		return err
+	}
+	// todo save genesis block at same time
+	if b.Height != 0 {
+		if err := c.fflDB.SaveBlock(b, node, confirm, medianTimePast); err != nil {
+			return err
+		}
 	}
 	return c.BatchCommit()
 }
 
-func (c *ChainStore) SaveBlock(b *Block, confirm *payload.Confirm) error {
+func (c *ChainStore) GetFFLDB() IFFLDBChainStore {
+	return c.fflDB
+}
+
+func (c *ChainStore) SaveBlock(b *Block, node *BlockNode,
+	confirm *payload.Confirm, medianTimePast time.Time) error {
 	log.Debug("SaveBlock()")
 
-	reply := make(chan bool)
-	c.taskCh <- &persistBlockTask{block: b, confirm: confirm, reply: reply}
-	<-reply
+	now := time.Now()
+	err := c.handlePersistBlockTask(b, node, confirm, medianTimePast)
 
-	return nil
+	tcall := float64(time.Now().Sub(now)) / float64(time.Second)
+	log.Debugf("handle block exetime: %g num transactions:%d",
+		tcall, len(b.Transactions))
+	return err
 }
 
-func (c *ChainStore) handleRollbackBlockTask(blockHash Uint256) {
-	block, err := c.GetBlock(blockHash)
+func (c *ChainStore) handleRollbackBlockTask(b *Block, node *BlockNode,
+	confirm *payload.Confirm, medianTimePast time.Time) error {
+	_, err := c.fflDB.GetBlock(b.Hash())
 	if err != nil {
-		log.Errorf("block %x can't be found", BytesToHexString(blockHash.Bytes()))
-		return
+		log.Errorf("block %x can't be found", BytesToHexString(b.Hash().Bytes()))
+		return err
 	}
-	c.rollback(block)
+	return c.rollback(b, node, confirm, medianTimePast)
 }
 
-func (c *ChainStore) handlePersistBlockTask(b *Block, confirm *payload.Confirm) {
+func (c *ChainStore) handlePersistBlockTask(b *Block, node *BlockNode,
+	confirm *payload.Confirm, medianTimePast time.Time) error {
 	if b.Header.Height <= c.currentBlockHeight {
-		return
+		return errors.New("block height less than current block height")
 	}
 
-	c.persistBlock(b, confirm)
+	return c.persistBlock(b, node, confirm, medianTimePast)
 }
 
-func (c *ChainStore) persistBlock(block *Block, confirm *payload.Confirm) {
-	err := c.persist(block, confirm)
+func (c *ChainStore) persistBlock(b *Block, node *BlockNode,
+	confirm *payload.Confirm, medianTimePast time.Time) error {
+	err := c.persist(b, node, confirm, medianTimePast)
 	if err != nil {
 		log.Fatal("[persistBlocks]: error to persist block:", err.Error())
-		return
+		return err
 	}
 
-	atomic.StoreUint32(&c.currentBlockHeight, block.Height)
+	atomic.StoreUint32(&c.currentBlockHeight, b.Height)
+	return nil
 }
 
 func (c *ChainStore) persistConfirm(confirm *payload.Confirm) error {
@@ -608,6 +651,10 @@ func (c *ChainStore) GetHeight() uint32 {
 	return atomic.LoadUint32(&c.currentBlockHeight)
 }
 
+func (c *ChainStore) SetHeight(height uint32) {
+	atomic.StoreUint32(&c.currentBlockHeight, height)
+}
+
 func (c *ChainStore) IsBlockInStore(hash *Uint256) bool {
 	h, err := c.getBlockHeader(*hash)
 	if err != nil {
@@ -641,15 +688,15 @@ func (c *ChainStore) GetUnspentElementFromProgramHash(programHash Uint168, asset
 	}
 
 	// read unspent list in store
-	unspents := make([]*UTXO, listNum)
+	unspents := make([]*UTXO, 0, listNum)
 	for i := 0; i < int(listNum); i++ {
 		uu := new(UTXO)
 		err := uu.Deserialize(r)
 		if err != nil {
-			return nil, err
+			break
 		}
 
-		unspents[i] = uu
+		unspents = append(unspents, uu)
 	}
 
 	return unspents, nil
@@ -674,7 +721,7 @@ func (c *ChainStore) GetUnspentFromProgramHash(programHash Uint168, assetid Uint
 			uu := new(UTXO)
 			err := uu.Deserialize(r)
 			if err != nil {
-				return nil, err
+				break
 			}
 
 			unspents = append(unspents, uu)
@@ -709,15 +756,15 @@ func (c *ChainStore) GetUnspentsFromProgramHash(programHash Uint168) (map[Uint25
 		}
 
 		// read unspent list in store
-		unspents := make([]*UTXO, listNum)
+		unspents := make([]*UTXO, 0, listNum)
 		for i := 0; i < int(listNum); i++ {
 			uu := new(UTXO)
 			err := uu.Deserialize(r)
 			if err != nil {
-				return nil, err
+				break
 			}
 
-			unspents[i] = uu
+			unspents = append(unspents, uu)
 		}
 		uxtoUnspents[assetid] = append(uxtoUnspents[assetid], unspents[:]...)
 	}
@@ -737,16 +784,20 @@ func (c *ChainStore) PersistUnspentWithProgramHash(programHash Uint168, assetid 
 	storeCount := 0
 	listnum := len(unspents)
 	w := new(bytes.Buffer)
-	WriteVarUint(w, uint64(listnum))
 	for i := 0; i < listnum; i++ {
 		if unspents[i].Value > 0 {
 			storeCount++
-			unspents[i].Serialize(w)
 		}
 	}
 	if storeCount == 0 {
 		c.BatchDelete(key.Bytes())
 		return nil
+	}
+	WriteVarUint(w, uint64(storeCount))
+	for i := 0; i < listnum; i++ {
+		if unspents[i].Value > 0 {
+			unspents[i].Serialize(w)
+		}
 	}
 
 	// BATCH PUT VALUE

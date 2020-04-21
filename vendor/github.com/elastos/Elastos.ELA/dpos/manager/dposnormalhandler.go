@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 package manager
 
 import (
@@ -54,7 +59,7 @@ func (h *DPOSNormalHandler) tryGetCurrentProposal(id peer.PID, p *payload.DPOSPr
 	currentProposal := h.proposalDispatcher.GetProcessingProposal()
 	if currentProposal == nil {
 		requestProposal := &msg.RequestProposal{ProposalHash: p.ProposalHash}
-		h.cfg.Network.SendMessageToPeer(id, requestProposal)
+		go h.cfg.Network.SendMessageToPeer(id, requestProposal)
 		return common.Uint256{}, false
 	}
 	return currentProposal.Hash(), true

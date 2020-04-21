@@ -1,6 +1,12 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package blockchain
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"math/big"
@@ -10,6 +16,8 @@ import (
 	. "github.com/elastos/Elastos.ELA/auxpow"
 	. "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
+	"github.com/elastos/Elastos.ELA/common/log"
+	"github.com/elastos/Elastos.ELA/core/contract"
 	. "github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
@@ -73,13 +81,10 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 		}
 	}
 
-	txIDs := make([]Uint256, 0, len(transactions))
+	txIDs := make([]Uint256, 0, len(block.Transactions))
 	existingTxIDs := make(map[Uint256]struct{})
 	existingTxInputs := make(map[string]struct{})
-	existingSideTxs := make(map[Uint256]struct{})
-	existingProducer := make(map[string]struct{})
-	existingProducerNode := make(map[string]struct{})
-	for _, txn := range transactions {
+	for _, txn := range block.Transactions {
 		txID := txn.Hash()
 		// Check for duplicate transactions.
 		if _, exists := existingTxIDs[txID]; exists {
@@ -101,7 +106,39 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 			existingTxInputs[referKey] = struct{}{}
 		}
 
-		if txn.IsWithdrawFromSideChainTx() {
+		// Append transaction to list
+		txIDs = append(txIDs, txID)
+	}
+	if err := checkDuplicateTx(block); err != nil {
+		return err
+	}
+	calcTransactionsRoot, err := crypto.ComputeRoot(txIDs)
+	if err != nil {
+		return errors.New("[PowCheckBlockSanity] merkleTree compute failed")
+	}
+	if !header.MerkleRoot.IsEqual(calcTransactionsRoot) {
+		return errors.New("[PowCheckBlockSanity] block merkle root is invalid")
+	}
+
+	return nil
+}
+
+func getDIDByCode(code []byte) (*Uint168, error) {
+	ct1, error := contract.CreateCRDIDContractByCode(code)
+	if error != nil {
+		return nil, error
+	}
+	return ct1.ToProgramHash(), error
+}
+
+func checkDuplicateTx(block *Block) error {
+	existingSideTxs := make(map[Uint256]struct{})
+	existingProducer := make(map[string]struct{})
+	existingProducerNode := make(map[string]struct{})
+	existingCR := make(map[Uint168]struct{})
+	for _, txn := range block.Transactions {
+		switch txn.TxType {
+		case WithdrawFromSideChain:
 			witPayload := txn.Payload.(*payload.WithdrawFromSideChain)
 
 			// Check for duplicate sidechain tx in a block
@@ -111,9 +148,7 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 				}
 				existingSideTxs[hash] = struct{}{}
 			}
-		}
-
-		if txn.IsRegisterProducerTx() {
+		case RegisterProducer:
 			producerPayload, ok := txn.Payload.(*payload.ProducerInfo)
 			if !ok {
 				return errors.New("[PowCheckBlockSanity] invalid register producer payload")
@@ -132,9 +167,7 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 				return errors.New("[PowCheckBlockSanity] block contains duplicate producer node")
 			}
 			existingProducerNode[producerNode] = struct{}{}
-		}
-
-		if txn.IsUpdateProducerTx() {
+		case UpdateProducer:
 			producerPayload, ok := txn.Payload.(*payload.ProducerInfo)
 			if !ok {
 				return errors.New("[PowCheckBlockSanity] invalid update producer payload")
@@ -153,19 +186,52 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 				return errors.New("[PowCheckBlockSanity] block contains duplicate producer node")
 			}
 			existingProducerNode[producerNode] = struct{}{}
+		case CancelProducer:
+			processProducerPayload, ok := txn.Payload.(*payload.ProcessProducer)
+			if !ok {
+				return errors.New("[PowCheckBlockSanity] invalid cancel producer payload")
+			}
+
+			producer := BytesToHexString(processProducerPayload.OwnerPublicKey)
+			// Check for duplicate producer in a block
+			if _, exists := existingProducer[producer]; exists {
+				return errors.New("[PowCheckBlockSanity] block contains duplicate producer")
+			}
+			existingProducer[producer] = struct{}{}
+		case RegisterCR:
+			crPayload, ok := txn.Payload.(*payload.CRInfo)
+			if !ok {
+				return errors.New("[PowCheckBlockSanity] invalid register CR payload")
+			}
+
+			// Check for duplicate CR in a block
+			if _, exists := existingCR[crPayload.DID]; exists {
+				return errors.New("[PowCheckBlockSanity] block contains duplicate CR")
+			}
+			existingCR[crPayload.DID] = struct{}{}
+		case UpdateCR:
+			crPayload, ok := txn.Payload.(*payload.CRInfo)
+			if !ok {
+				return errors.New("[PowCheckBlockSanity] invalid update CR payload")
+			}
+
+			// Check for duplicate  CR in a block
+			if _, exists := existingCR[crPayload.DID]; exists {
+				return errors.New("[PowCheckBlockSanity] block contains duplicate CR")
+			}
+			existingCR[crPayload.DID] = struct{}{}
+		case UnregisterCR:
+			unregisterCR, ok := txn.Payload.(*payload.UnregisterCR)
+			if !ok {
+				return errors.New("[PowCheckBlockSanity] invalid unregister CR payload")
+			}
+			// Check for duplicate  CR in a block
+			if _, exists := existingCR[unregisterCR.DID]; exists {
+				return errors.New("[PowCheckBlockSanity] block contains duplicate CR")
+			}
+			existingCR[unregisterCR.DID] = struct{}{}
 		}
-
-		// Append transaction to list
-		txIDs = append(txIDs, txID)
 	}
-	calcTransactionsRoot, err := crypto.ComputeRoot(txIDs)
-	if err != nil {
-		return errors.New("[PowCheckBlockSanity] merkleTree compute failed")
-	}
-	if !header.MerkleRoot.IsEqual(calcTransactionsRoot) {
-		return errors.New("[PowCheckBlockSanity] block merkle root is invalid")
-	}
-
 	return nil
 }
 
@@ -173,18 +239,45 @@ func (b *BlockChain) checkTxsContext(block *Block) error {
 	var totalTxFee = Fixed64(0)
 
 	for i := 1; i < len(block.Transactions); i++ {
-		if errCode := b.CheckTransactionContext(block.Height, block.Transactions[i]); errCode != Success {
+		references, err := b.UTXOCache.GetTxReference(block.Transactions[i])
+		if err != nil {
+			log.Warn("CheckTransactionContext get transaction reference failed")
+			return ErrUnknownReferredTx
+		}
+
+		if errCode := b.CheckTransactionContext(block.Height,
+			block.Transactions[i], references); errCode != Success {
 			return errors.New("CheckTransactionContext failed when verify block")
 		}
 
 		// Calculate transaction fee
-		totalTxFee += GetTxFee(block.Transactions[i], config.ELAAssetID)
+		totalTxFee += GetTxFee(block.Transactions[i], config.ELAAssetID, references)
 	}
 
-	return b.checkCoinbaseTransactionContext(block.Height, block.Transactions[0], totalTxFee)
+	err := b.checkCoinbaseTransactionContext(block.Height,
+		block.Transactions[0], totalTxFee)
+	if err != nil {
+		buf := new(bytes.Buffer)
+		if block.Height < b.chainParams.CheckRewardHeight {
+			if err = block.Serialize(buf); err != nil {
+				return err
+			}
+		} else {
+			if e := block.Serialize(buf); e != nil {
+				return e
+			}
+		}
+		log.Errorf("checkCoinbaseTransactionContext failed,"+
+			"block:%s", BytesToHexString(buf.Bytes()))
+		log.Error("checkCoinbaseTransactionContext failed,round reward:",
+			DefaultLedger.Arbitrators.GetArbitersRoundReward())
+		log.Error("checkCoinbaseTransactionContext failed,final round change:",
+			DefaultLedger.Arbitrators.GetFinalRoundChange())
+	}
+	return err
 }
 
-func (b *BlockChain) checkBlockContext(block *Block, prevNode *BlockNode) error {
+func (b *BlockChain) CheckBlockContext(block *Block, prevNode *BlockNode) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
 		return nil
@@ -269,8 +362,8 @@ func IsFinalizedTransaction(msgTx *Transaction, blockHeight uint32) bool {
 	return true
 }
 
-func GetTxFee(tx *Transaction, assetId Uint256) Fixed64 {
-	feeMap, err := GetTxFeeMap(tx)
+func GetTxFee(tx *Transaction, assetId Uint256, references map[*Input]*Output) Fixed64 {
+	feeMap, err := GetTxFeeMap(tx, references)
 	if err != nil {
 		return 0
 	}
@@ -278,28 +371,23 @@ func GetTxFee(tx *Transaction, assetId Uint256) Fixed64 {
 	return feeMap[assetId]
 }
 
-func GetTxFeeMap(tx *Transaction) (map[Uint256]Fixed64, error) {
+func GetTxFeeMap(tx *Transaction, references map[*Input]*Output) (map[Uint256]Fixed64, error) {
 	feeMap := make(map[Uint256]Fixed64)
-	reference, err := DefaultLedger.Store.GetTxReference(tx)
-	if err != nil {
-		return nil, err
-	}
-
 	var inputs = make(map[Uint256]Fixed64)
 	var outputs = make(map[Uint256]Fixed64)
-	for _, v := range reference {
-		amout, ok := inputs[v.AssetID]
+
+	for _, output := range references {
+		amount, ok := inputs[output.AssetID]
 		if ok {
-			inputs[v.AssetID] = amout + v.Value
+			inputs[output.AssetID] = amount + output.Value
 		} else {
-			inputs[v.AssetID] = v.Value
+			inputs[output.AssetID] = output.Value
 		}
 	}
-
 	for _, v := range tx.Outputs {
-		amout, ok := outputs[v.AssetID]
+		amount, ok := outputs[v.AssetID]
 		if ok {
-			outputs[v.AssetID] = amout + v.Value
+			outputs[v.AssetID] = amount + v.Value
 		} else {
 			outputs[v.AssetID] = v.Value
 		}
@@ -313,11 +401,12 @@ func GetTxFeeMap(tx *Transaction) (map[Uint256]Fixed64, error) {
 			feeMap[outputAssetid] -= outputValue
 		}
 	}
-	for inputAssetid, inputValue := range inputs {
-		if _, exist := feeMap[inputAssetid]; !exist {
-			feeMap[inputAssetid] += inputValue
+	for inputAssetId, inputValue := range inputs {
+		if _, exist := feeMap[inputAssetId]; !exist {
+			feeMap[inputAssetId] += inputValue
 		}
 	}
+
 	return feeMap, nil
 }
 

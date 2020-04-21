@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 package hub
 
 import (
@@ -7,9 +12,11 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/addrmgr"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/p2p"
+	pmsg "github.com/elastos/Elastos.ELA/p2p/msg"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,7 +51,15 @@ func mockService(port int) (chan net.Conn, error) {
 // sendVersion write a version message to the connection.
 func sendVersion(conn net.Conn, magic int, pid, target [33]byte, port int) error {
 	v := msg.Version{PID: pid, Target: PIDTo16(target), Port: uint16(port)}
-	return p2p.WriteMessage(conn, uint32(magic), &v)
+	return p2p.WriteMessage(conn, uint32(magic), &v,
+		func(m p2p.Message) (*types.DposBlock, bool) {
+			msgBlock, ok := m.(*pmsg.Block)
+			if !ok {
+				return nil, false
+			}
+			dposBlock, ok := msgBlock.Serializable.(*types.DposBlock)
+			return dposBlock, ok
+		})
 }
 
 func readVersion(conn net.Conn, magic int, pid, target [33]byte, port int) error {

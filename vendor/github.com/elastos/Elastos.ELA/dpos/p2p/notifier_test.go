@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 package p2p
 
 import (
@@ -7,6 +12,7 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA/crypto"
+	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/utils/test"
 	"github.com/stretchr/testify/assert"
@@ -30,9 +36,10 @@ func TestNotifier(t *testing.T) {
 	ePubKey, _ := pubKey.EncodePoint(true)
 	copy(pid[:], ePubKey)
 	server, err := NewServer(&Config{
-		PID:             pid,
-		MagicNumber:     123123,
-		DefaultPort:     20338,
+		PID:         pid,
+		MagicNumber: 123123,
+		DefaultPort: 20338,
+		TimeSource:  dtime.NewMedianTime(),
 		Sign: func(nonce []byte) []byte {
 			sign, _ := crypto.Sign(priKey, nonce)
 			return sign
