@@ -1,6 +1,8 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Use of this source code is governed by an ISC
+// Copyright (c) 2017-2019 Elastos Foundation
+// Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
+//
 
 package peer_test
 
@@ -13,10 +15,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/p2p"
+	pmsg "github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
 func makeEmptyMessage(cmd string) (message p2p.Message, err error) {
@@ -330,9 +334,17 @@ func TestUnsupportedVersionPeer(t *testing.T) {
 	invalidVersionMsg := msg.NewVersion(peerCfg.PID, target, nonce, 8333)
 
 	err = p2p.WriteMessage(
-		remoteConn.Writer,
+		remoteConn,
 		peerCfg.Magic,
 		invalidVersionMsg,
+		func(m p2p.Message) (*types.DposBlock, bool) {
+			msgBlock, ok := m.(*pmsg.Block)
+			if !ok {
+				return nil, false
+			}
+			dposBlock, ok := msgBlock.Serializable.(*types.DposBlock)
+			return dposBlock, ok
+		},
 	)
 	if err != nil {
 		t.Fatalf("p2p.WriteMessageN: unexpected err - %v\n", err)

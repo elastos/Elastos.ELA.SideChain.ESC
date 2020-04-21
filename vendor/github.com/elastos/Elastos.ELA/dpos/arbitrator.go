@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package dpos
 
 import (
@@ -30,7 +35,6 @@ type Config struct {
 	Server            elanet.Server
 	TxMemPool         *mempool.TxPool
 	BlockMemPool      *mempool.BlockPool
-	Localhost         string
 	ChainParams       *config.Params
 	Broadcast         func(msg p2p.Message)
 	AnnounceAddr      func()
@@ -121,11 +125,17 @@ func (a *Arbitrator) OnSidechainIllegalEvidenceReceived(
 }
 
 func (a *Arbitrator) OnBlockReceived(b *types.Block, confirmed bool) {
+	if !a.cfg.Server.IsCurrent() {
+		return
+	}
 	log.Info("[OnBlockReceived] listener received block")
 	a.network.PostBlockReceivedTask(b, confirmed)
 }
 
-func (a *Arbitrator) OnConfirmReceived(p *payload.Confirm) {
+func (a *Arbitrator) OnConfirmReceived(p *mempool.ConfirmInfo) {
+	if !a.cfg.Server.IsCurrent() {
+		return
+	}
 	log.Info("[OnConfirmReceived] listener received confirm")
 	a.network.PostConfirmReceivedTask(p)
 }
@@ -162,8 +172,12 @@ func NewArbitrator(account account.Account, cfg Config) (*Arbitrator, error) {
 		Server:      cfg.Server,
 	})
 
-	network, err := NewDposNetwork(account, medianTime, cfg.Localhost,
-		dposManager)
+	network, err := NewDposNetwork(NetworkConfig{
+		ChainParams: cfg.ChainParams,
+		Account:     account,
+		MedianTime:  medianTime,
+		Listener:    dposManager,
+	})
 	if err != nil {
 		log.Error("Init p2p network error")
 		return nil, err
@@ -230,10 +244,10 @@ func NewArbitrator(account account.Account, cfg Config) (*Arbitrator, error) {
 		switch e.Type {
 		case events.ETNewBlockReceived:
 			block := e.Data.(*types.DposBlock)
-			a.OnBlockReceived(block.Block, block.HaveConfirm)
+			go a.OnBlockReceived(block.Block, block.HaveConfirm)
 
 		case events.ETConfirmAccepted:
-			a.OnConfirmReceived(e.Data.(*payload.Confirm))
+			go a.OnConfirmReceived(e.Data.(*mempool.ConfirmInfo))
 
 		case events.ETDirectPeersChanged:
 			a.OnPeersChanged(e.Data.([]peer.PID))

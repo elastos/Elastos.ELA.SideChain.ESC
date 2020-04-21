@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package dpos
 
 import (
@@ -17,11 +22,19 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/dpos/store"
+	"github.com/elastos/Elastos.ELA/mempool"
 	elap2p "github.com/elastos/Elastos.ELA/p2p"
 	elamsg "github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
 const dataPathDPoS = "elastos/data/dpos"
+
+type NetworkConfig struct {
+	ChainParams *config.Params
+	Account     account.Account
+	MedianTime  dtime.MedianTimeSource
+	Listener    manager.NetworkEventListener
+}
 
 type blockItem struct {
 	Block     *types.Block
@@ -50,7 +63,7 @@ type network struct {
 	recoverChan              chan bool
 	recoverTimeoutChan       chan bool
 	blockReceivedChan        chan blockItem
-	confirmReceivedChan      chan *payload.Confirm
+	confirmReceivedChan      chan *mempool.ConfirmInfo
 	illegalBlocksEvidence    chan *payload.DPOSIllegalBlocks
 	sidechainIllegalEvidence chan *payload.SidechainIllegalData
 	inactiveArbiters         chan *payload.InactiveArbitrators
@@ -82,8 +95,8 @@ func (n *network) Start() {
 				n.recoverTimeout()
 			case blockItem := <-n.blockReceivedChan:
 				n.blockReceived(blockItem.Block, blockItem.Confirmed)
-			case confirm := <-n.confirmReceivedChan:
-				n.confirmReceived(confirm)
+			case confirmInfo := <-n.confirmReceivedChan:
+				n.confirmReceived(confirmInfo.Confirm, confirmInfo.Height)
 			case evidence := <-n.illegalBlocksEvidence:
 				n.illegalBlocksReceived(evidence)
 			case evidence := <-n.inactiveArbiters:
@@ -152,7 +165,7 @@ func (n *network) PostInactiveArbitersTask(p *payload.InactiveArbitrators) {
 	n.inactiveArbiters <- p
 }
 
-func (n *network) PostConfirmReceivedTask(p *payload.Confirm) {
+func (n *network) PostConfirmReceivedTask(p *mempool.ConfirmInfo) {
 	n.confirmReceivedChan <- p
 }
 
@@ -290,8 +303,8 @@ func (n *network) blockReceived(b *types.Block, confirmed bool) {
 	n.listener.OnBlockReceived(b, confirmed)
 }
 
-func (n *network) confirmReceived(p *payload.Confirm) {
-	n.listener.OnConfirmReceived(p)
+func (n *network) confirmReceived(p *payload.Confirm, height uint32) {
+	n.listener.OnConfirmReceived(p, height)
 }
 
 func (n *network) illegalBlocksReceived(i *payload.DPOSIllegalBlocks) {
@@ -312,18 +325,17 @@ func (n *network) getCurrentHeight(pid peer.PID) uint64 {
 	return uint64(blockchain.DefaultLedger.Blockchain.GetHeight())
 }
 
-func NewDposNetwork(account account.Account, medianTime dtime.MedianTimeSource,
-	localhost string, listener manager.NetworkEventListener) (*network, error) {
+func NewDposNetwork(cfg NetworkConfig) (*network, error) {
 	network := &network{
-		listener:                 listener,
+		listener:                 cfg.Listener,
 		messageQueue:             make(chan *messageItem, 10000), //todo config handle capacity though config file
 		quit:                     make(chan bool),
 		badNetworkChan:           make(chan bool),
 		changeViewChan:           make(chan bool),
 		recoverChan:              make(chan bool),
 		recoverTimeoutChan:       make(chan bool),
-		blockReceivedChan:        make(chan blockItem, 10),        //todo config handle capacity though config file
-		confirmReceivedChan:      make(chan *payload.Confirm, 10), //todo config handle capacity though config file
+		blockReceivedChan:        make(chan blockItem, 10),            //todo config handle capacity though config file
+		confirmReceivedChan:      make(chan *mempool.ConfirmInfo, 10), //todo config handle capacity though config file
 		illegalBlocksEvidence:    make(chan *payload.DPOSIllegalBlocks),
 		sidechainIllegalEvidence: make(chan *payload.SidechainIllegalData),
 		inactiveArbiters:         make(chan *payload.InactiveArbitrators),
@@ -332,20 +344,20 @@ func NewDposNetwork(account account.Account, medianTime dtime.MedianTimeSource,
 	notifier := p2p.NewNotifier(p2p.NFNetStabled|p2p.NFBadNetwork, network.notifyFlag)
 
 	var pid peer.PID
-	copy(pid[:], account.PublicKeyBytes())
+	copy(pid[:], cfg.Account.PublicKeyBytes())
 	server, err := p2p.NewServer(&p2p.Config{
 		DataDir:          dataPathDPoS,
 		PID:              pid,
 		EnableHub:        true,
-		Localhost:        localhost,
-		MagicNumber:      config.Parameters.DPoSConfiguration.Magic,
-		DefaultPort:      config.Parameters.DPoSConfiguration.DPoSPort,
-		TimeSource:       medianTime,
+		Localhost:        cfg.ChainParams.DPoSIPAddress,
+		MagicNumber:      cfg.ChainParams.DPoSMagic,
+		DefaultPort:      cfg.ChainParams.DPoSDefaultPort,
+		TimeSource:       cfg.MedianTime,
 		MakeEmptyMessage: makeEmptyMessage,
 		HandleMessage:    network.handleMessage,
 		PingNonce:        network.getCurrentHeight,
 		PongNonce:        network.getCurrentHeight,
-		Sign:             account.Sign,
+		Sign:             cfg.Account.Sign,
 		StateNotifier:    notifier,
 	})
 	if err != nil {

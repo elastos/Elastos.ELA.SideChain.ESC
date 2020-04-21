@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 package mock
 
 import (
@@ -193,7 +198,7 @@ func (n *network) FireBlockReceived(b *types.Block, confirmed bool) {
 }
 
 func (n *network) FireConfirmReceived(p *payload.Confirm) {
-	n.listener.OnConfirmReceived(p)
+	n.listener.OnConfirmReceived(p, 0)
 }
 
 func (n *network) FireIllegalBlocksReceived(i *payload.DPOSIllegalBlocks) {

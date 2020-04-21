@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 package blockchain
 
 import (
@@ -131,6 +136,9 @@ func (c *ChainStore) persistUTXOs(b *Block) error {
 
 		// Store UTXOs according to the transaction outputs.
 		for index, output := range txn.Outputs {
+			if output.Value == 0 {
+				continue
+			}
 			programHash := output.ProgramHash
 			assetID := output.AssetID
 			value := output.Value
@@ -170,6 +178,9 @@ func (c *ChainStore) persistUTXOs(b *Block) error {
 			programHash := output.ProgramHash
 			assetID := output.AssetID
 
+			if output.Value == 0 {
+				continue
+			}
 			if _, ok := utxos[programHash]; !ok {
 				utxos[programHash] = make(map[Uint256]map[uint32][]*UTXO)
 			}
@@ -179,7 +190,11 @@ func (c *ChainStore) persistUTXOs(b *Block) error {
 
 			elements, ok := utxos[programHash][assetID][height]
 			if !ok {
-				elements, _ = c.GetUnspentElementFromProgramHash(programHash, assetID, height)
+				elements, err = c.GetUnspentElementFromProgramHash(programHash, assetID, height)
+				if err != nil {
+					return errors.New(fmt.Sprintf("[persist] UTXOs programHash:%v, "+
+						"assetID:%v height:%v has no unspent UTXO.", programHash, assetID, height))
+				}
 			}
 
 			// Find the spent UTXO and remove it.
@@ -239,7 +254,7 @@ func (c *ChainStore) RollbackUnspendUTXOs(b *Block) error {
 				var err error
 				unspendUTXOs[programHash][assetID][height], err = c.GetUnspentElementFromProgramHash(programHash, assetID, height)
 				if err != nil {
-					return errors.New(fmt.Sprintf("[persist] UTXOs programHash:%v, assetID:%v has no unspent UTXO.", programHash, assetID))
+					fmt.Println(fmt.Sprintf("[persist] UTXOs programHash:%v, assetID:%v has no unspent UTXO.", programHash, assetID))
 				}
 			}
 			u := UTXO{
@@ -248,11 +263,16 @@ func (c *ChainStore) RollbackUnspendUTXOs(b *Block) error {
 				Value: value,
 			}
 			var position int
+			var exist bool
 			for i, unspend := range unspendUTXOs[programHash][assetID][height] {
 				if unspend.TxID == u.TxID && unspend.Index == u.Index {
 					position = i
+					exist = true
 					break
 				}
+			}
+			if !exist {
+				continue
 			}
 			unspendUTXOs[programHash][assetID][height] = append(unspendUTXOs[programHash][assetID][height][:position], unspendUTXOs[programHash][assetID][height][position+1:]...)
 		}

@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 package p2p
 
 import (
@@ -90,27 +95,15 @@ func (n *Notifier) notifyHandler() {
 	var connected = make(map[peer.PID]int)
 
 	// The timeout timer used to trigger peers connection timeout.
-	var timer *time.Timer
-	var timeout = make(chan struct{})
+	var timer = time.NewTimer(ConnectionTimeout)
+	timer.Stop()
 
 	// stable mark if server have connected to enough peers.
 	var stable bool
 
 	startTimer := func() {
 		stable = false
-
-		if timer == nil {
-			timer = time.NewTimer(ConnectionTimeout)
-		} else {
-			timer.Reset(ConnectionTimeout)
-		}
-
-		go func() {
-			select {
-			case <-timer.C:
-				timeout <- struct{}{}
-			}
-		}()
+		timer.Reset(ConnectionTimeout)
 	}
 
 	for {
@@ -146,19 +139,19 @@ func (n *Notifier) notifyHandler() {
 
 			// Stabled server turn to unstable.
 			if stable && len(connected)/2 < len(peers)/3 {
-				startTimer()
 				if n.flags&NFBadNetwork == NFBadNetwork {
 					go n.notify(NFBadNetwork)
 				}
+				startTimer()
 			}
 
-		case <-timeout:
-
-			startTimer()
-			if n.flags&NFBadNetwork == NFBadNetwork {
-				go n.notify(NFBadNetwork)
+		case <-timer.C:
+			if len(connected)/2 < len(peers)/3 {
+				if n.flags&NFBadNetwork == NFBadNetwork {
+					go n.notify(NFBadNetwork)
+				}
+				startTimer()
 			}
-
 		}
 	}
 }

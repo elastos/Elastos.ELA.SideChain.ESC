@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package mempool
 
 import (
@@ -14,6 +19,11 @@ import (
 )
 
 const cachedCount = 6
+
+type ConfirmInfo struct {
+	Confirm *payload.Confirm
+	Height  uint32
+}
 
 type BlockPool struct {
 	Chain     *blockchain.BlockChain
@@ -62,8 +72,21 @@ func (bm *BlockPool) appendBlock(dposBlock *types.DposBlock) (bool, bool, error)
 	}
 	// verify block
 	if err := bm.Chain.CheckBlockSanity(block); err != nil {
+		log.Info("[AppendBlock] check block sanity failed, ", err)
 		return false, false, err
 	}
+	if block.Height == bm.Chain.GetHeight()+1 {
+		prevNode, exist := bm.Chain.LookupNodeInIndex(&block.Header.Previous)
+		if !exist {
+			log.Info("[AppendBlock] check block context failed, there is no previous block on the chain")
+			return false, false, errors.New("there is no previous block on the chain")
+		}
+		if err := bm.Chain.CheckBlockContext(block, prevNode); err != nil {
+			log.Info("[AppendBlock] check block context failed, ", err)
+			return false, false, err
+		}
+	}
+
 	bm.blocks[block.Hash()] = block
 
 	// confirm block
@@ -128,9 +151,13 @@ func (bm *BlockPool) appendConfirm(confirm *payload.Confirm) (
 	if err != nil {
 		return inMainChain, isOrphan, err
 	}
+	block := bm.blocks[confirm.Proposal.BlockHash]
 
 	// notify new confirm accepted.
-	events.Notify(events.ETConfirmAccepted, confirm)
+	events.Notify(events.ETConfirmAccepted, &ConfirmInfo{
+		Confirm: confirm,
+		Height:  block.Height,
+	})
 
 	return inMainChain, isOrphan, nil
 }
@@ -149,13 +176,13 @@ func (bm *BlockPool) confirmBlock(hash common.Uint256) (bool, bool, error) {
 	if !ok {
 		return false, false, errors.New("there is no block in pool when confirming block")
 	}
+	log.Info("[ConfirmBlock] block height:", block.Height)
 
 	confirm, ok := bm.confirms[hash]
 	if !ok {
 		return false, false, errors.New("there is no block confirmation in pool when confirming block")
 	}
 
-	log.Info("[ConfirmBlock] block height:", block.Height)
 	if !bm.Chain.BlockExists(&hash) {
 		inMainChain, isOrphan, err := bm.Chain.ProcessBlock(block, confirm)
 		if err != nil {
@@ -163,7 +190,7 @@ func (bm *BlockPool) confirmBlock(hash common.Uint256) (bool, bool, error) {
 		}
 
 		if !inMainChain && !isOrphan {
-			if err := bm.CheckConfirmedBlockOnFork(bm.Store.GetHeight(), block); err != nil {
+			if err := bm.CheckConfirmedBlockOnFork(bm.Chain.GetHeight(), block); err != nil {
 				return inMainChain, isOrphan, err
 			}
 		}

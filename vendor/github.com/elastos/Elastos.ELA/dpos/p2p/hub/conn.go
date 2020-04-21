@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+// 
+
 /*
 Conn is a wrapper of the origin network connection.  It resolves the handshake
 information from the first version message including magic number, PID, network
@@ -7,6 +12,7 @@ package hub
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 
@@ -74,6 +80,8 @@ func WrapConn(c net.Conn) (conn *Conn, err error) {
 	}
 
 	if hdr.GetCMD() != p2p.CmdVersion {
+		err = fmt.Errorf("invalid message %s, expecting version",
+			hdr.GetCMD())
 		return
 	}
 
