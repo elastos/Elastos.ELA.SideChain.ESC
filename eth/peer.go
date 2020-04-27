@@ -29,6 +29,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
+
+	ep2p "github.com/elastos/Elastos.ELA/p2p"
 )
 
 var (
@@ -142,6 +144,10 @@ func (p *peer) broadcast() {
 // close signals the broadcast goroutine to terminate.
 func (p *peer) close() {
 	close(p.term)
+}
+
+func (p *peer) SendElaMessage(msg ep2p.Message) {
+	p2p.Send(p.rw, ELAMSG, msg)
 }
 
 // Info gathers and returns a collection of metadata known about a peer.

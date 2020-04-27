@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
 	"io"
 	"math/big"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -23,7 +26,6 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
-
 	"golang.org/x/crypto/sha3"
 )
 
@@ -49,14 +51,19 @@ var (
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
 type Pbft struct {
+	datadir    string
+	cfg        params.PbftConfig
 	dispatcher *dpos.Dispatcher
-	confirmCh chan *payload.Confirm
-	account daccount.Account
+	confirmCh  chan *payload.Confirm
+	account    daccount.Account
 }
 
-func New(cfg *params.PbftConfig, logPath string) *Pbft {
-	//todo init log by pbftConfig
-	dpos.InitLog(0, 0, 0, logPath)
+func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
+	logpath := filepath.Join(dataDir, "/logs/dpos")
+	if strings.LastIndex(dataDir, "/") == len(dataDir) - 1 {
+		logpath = filepath.Join(dataDir, "logs/dpos")
+	}
+	dpos.InitLog(cfg.PrintLevel, cfg.MaxPerLogSize, cfg.MaxLogsSize, logpath)
 	producers := make([][]byte, len(cfg.Producers))
 	for i, v := range cfg.Producers {
 		producers[i] = common.Hex2Bytes(v)
@@ -64,19 +71,28 @@ func New(cfg *params.PbftConfig, logPath string) *Pbft {
 	confirmCh := make(chan *payload.Confirm)
 	dispatcher := dpos.NewDispatcher(producers, confirmCh)
 
-	//todo the password should be used to enter by user
-	account, err := dpos.GetDposAccount(cfg.Keystore, []byte("123"))
+	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
 		dpos.Warn("create dpos account error:", err.Error())
 	}
 
 	pbft := &Pbft{
+		dataDir,
+		*cfg,
 		dispatcher,
 		confirmCh,
 		account,
 	}
 
 	return pbft
+}
+
+func (p *Pbft) GetDataDir() string {
+	return p.datadir
+}
+
+func (p *Pbft) GetPbftConfig() params.PbftConfig  {
+	return p.cfg
 }
 
 func (p *Pbft) Author(header *types.Header) (common.Address, error) {

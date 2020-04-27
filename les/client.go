@@ -79,6 +79,23 @@ func New(ctx *node.ServiceContext, config *eth.Config, node *node.Node) (*LightE
 	chainConfig.PassBalance = config.PassBalance
 	chainConfig.BlackContractAddr = config.BlackContractAddr
 	chainConfig.EvilSignersJournalDir = config.EvilSignersJournalDir
+	if len(chainConfig.PbftKeyStore) > 0 {
+		config.PbftKeyStore = chainConfig.PbftKeyStore
+	} else {
+		chainConfig.PbftKeyStore = config.PbftKeyStore
+	}
+
+	if chainConfig.PreConnectOffset > 0 {
+		config.PreConnectOffset = chainConfig.PreConnectOffset
+	} else {
+		chainConfig.PreConnectOffset = config.PreConnectOffset
+	}
+
+	if len(chainConfig.PbftKeyStorePassWord) > 0 {
+		config.PbftKeyStorePassWord = chainConfig.PbftKeyStorePassWord
+	} else {
+		chainConfig.PbftKeyStorePassWord = config.PbftKeyStorePassWord
+	}
 
 	log.Info("Initialised chain configuration", "config", chainConfig)
 

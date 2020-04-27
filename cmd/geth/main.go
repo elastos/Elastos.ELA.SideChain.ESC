@@ -18,6 +18,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -27,13 +28,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"errors"
 
-	"github.com/elastic/gosigar"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/cmd/utils"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/console"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/downloader"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethclient"
@@ -43,18 +44,17 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/contract"
 
-	"gopkg.in/urfave/cli.v1"
-	"path/filepath"
-	"encoding/hex"
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
+	"github.com/elastic/gosigar"
 	"golang.org/x/crypto/ripemd160"
+	"gopkg.in/urfave/cli.v1"
+	"path/filepath"
 )
 
 const (
@@ -164,6 +164,9 @@ var (
 		utils.SpvMonitoringAddrFlag,
 		utils.PassBalance,
 		utils.BlackContractAddr,
+		utils.PreConnectOffset,
+		utils.PbftKeyStore,
+		utils.PbftKeystorePassWord,
 	}
 
 	rpcFlags = []cli.Flag{

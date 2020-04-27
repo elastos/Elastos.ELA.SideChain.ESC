@@ -227,16 +227,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, new(EthashConfig), nil, nil, "", 0, ""}
+	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0),new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil, "", 0, ""}
+	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0), nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil, "", 0, "",0, "", ""}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, new(EthashConfig), nil, nil, "", 0, ""}
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0), new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -309,6 +309,7 @@ type ChainConfig struct {
 	PetersburgBlock     *big.Int `json:"petersburgBlock,omitempty"`     // Petersburg switch block (nil = same as Constantinople)
 	IstanbulBlock       *big.Int `json:"istanbulBlock,omitempty"`       // Istanbul switch block (nil = no fork, 0 = already on istanbul)
 	EWASMBlock          *big.Int `json:"ewasmBlock,omitempty"`          // EWASM switch block (nil = no fork, 0 = already activated)
+	PBFTBlock           *big.Int `json:"pbftBlock,omitempty"`           // PBFT switch block (nil = no fork, 0 = already activated)
 
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
@@ -317,7 +318,10 @@ type ChainConfig struct {
 
 	BlackContractAddr     string `json:"blackcontractaddr,omitempty"`
 	PassBalance           uint64 `json:"passbalance,omitempty"`
-	EvilSignersJournalDir string `json:"EvilSignerJournalDir,omitempty"`
+	EvilSignersJournalDir string `json:"evilSignersJournalDir,omitempty"`
+	PreConnectOffset      uint64 `json:"preConnectOffset,omitempty"`
+	PbftKeyStore          string `json:"pbftKeyStore,omitempty"`
+	PbftKeyStorePassWord  string
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -338,10 +342,17 @@ type CliqueConfig struct {
 func (c *CliqueConfig) String() string {
 	return "clique"
 }
-
+//Localhost:        cfg.ChainParams.DPoSIPAddress,
+//MagicNumber:      cfg.ChainParams.DPoSMagic,
+//DefaultPort:      cfg.ChainParams.DPoSDefaultPort,
 type PbftConfig struct {
-	Producers []string `json:"producers"` // list of producers participating the pbft consensus.
-	Keystore string `json:"keystore"` //ela account path to sign dpos proposal
+	Producers     []string `json:"producers"` // list of producers participating the pbft consensus.
+	Magic 	      uint32 `json:"magic"`// Magic defines the magic number used in the DPoS network.
+	IPAddress     string `json:"ip"`// IPAddress defines the IP address for the DPoS network.
+	DPoSPort      uint16 `json:"dposport"`// DPoSPort defines the default port for the DPoS network.
+	PrintLevel    uint8  `json:"printlevel"`
+	MaxLogsSize   int64  `json:"maxlogssize"`
+	MaxPerLogSize int64  `json:"maxperlogsize"`
 }
 
 func (p *PbftConfig) String() string {
@@ -432,6 +443,10 @@ func (c *ChainConfig) IsEWASM(num *big.Int) bool {
 // IsChainIDFork returns whether num represents a block number after the ChainID fork
 func (c *ChainConfig) IsChainIDFork(num *big.Int) bool {
 	return isForked(c.ChainIDBlock, num)
+}
+
+func (c *ChainConfig) IsPBFTFork(num *big.Int) bool {
+	return isForked(c.PBFTBlock, num)
 }
 
 // GetChainIDByHeight returns ChainID by current blockNumber
