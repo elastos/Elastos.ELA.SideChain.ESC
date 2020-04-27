@@ -164,4 +164,8 @@ type Config struct {
 
 	// evil signer events jouranl local path
 	EvilSignersJournalDir  string
+
+	PreConnectOffset uint64
+	PbftKeyStore string
+	PbftKeyStorePassWord string
 }

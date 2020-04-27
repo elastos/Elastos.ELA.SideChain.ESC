@@ -772,6 +772,22 @@ var (
 		Usage: "configue Oracle Contract account balance",
 		Value: 1000000000000000000,
 	}
+
+	PbftKeyStore = cli.StringFlag{
+		Name:  "pbft.keystore",
+		Usage: "configue pbft consensus account",
+		Value: "keystore.dat",
+	}
+	PreConnectOffset = cli.Int64Flag{
+		Name:  "preconnectoffset",
+		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
+		Value: 100,
+	}
+	PbftKeystorePassWord = cli.StringFlag{
+		Name:  "pbft.keystore.password",
+		Usage: "pbft keystore password",
+		Value: "123",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1507,7 +1523,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	if ctx.GlobalIsSet(DataDirFlag.Name) {
 		cfg.EvilSignersJournalDir = filepath.Join(ctx.GlobalString(DataDirFlag.Name), "geth")
 	}
-
+	cfg.PreConnectOffset = ctx.GlobalUint64(PreConnectOffset.Name)
+	cfg.PbftKeyStore = ctx.GlobalString(PbftKeyStore.Name)
+	cfg.PbftKeyStorePassWord = ctx.GlobalString(PbftKeystorePassWord.Name)
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
@@ -1725,7 +1743,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	}
 	var engine consensus.Engine
 	if config.Pbft != nil {
-		engine = pbft.New(config.Pbft, stack.ResolvePath("logs/dpos/"))
+		engine = pbft.New(config.Pbft, config.PbftKeyStore, []byte(config.PbftKeyStorePassWord), stack.ResolvePath(""))
 	} else if config.Clique != nil {
 		engine = clique.New(config.Clique, chainDb)
 	} else {

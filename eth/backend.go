@@ -26,13 +26,13 @@ import (
 	"sync/atomic"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi/bind"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/bloombits"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
@@ -144,7 +144,23 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	chainConfig.PassBalance = config.PassBalance
 	chainConfig.BlackContractAddr = config.BlackContractAddr
 	chainConfig.EvilSignersJournalDir = config.EvilSignersJournalDir
-	
+	if len(chainConfig.PbftKeyStore) > 0 {
+		config.PbftKeyStore = chainConfig.PbftKeyStore
+	} else {
+		chainConfig.PbftKeyStore = config.PbftKeyStore
+	}
+
+	if chainConfig.PreConnectOffset > 0 {
+		config.PreConnectOffset = chainConfig.PreConnectOffset
+	} else {
+		chainConfig.PreConnectOffset = config.PreConnectOffset
+	}
+
+	if len(chainConfig.PbftKeyStorePassWord) > 0 {
+	 	config.PbftKeyStorePassWord = chainConfig.PbftKeyStorePassWord
+	} else {
+		chainConfig.PbftKeyStorePassWord = config.PbftKeyStorePassWord
+	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{
@@ -250,7 +266,7 @@ func makeExtraData(extra []byte) []byte {
 func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
 	// If delegated-proof-of-stake is requested, set it up
 	if chainConfig.Pbft != nil {
-		return pbft.New(chainConfig.Pbft, ctx.ResolvePath("logs/dpos/"))
+		return pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""))
 	}
 
 	// If proof-of-authority is requested, set it up
