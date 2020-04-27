@@ -81,9 +81,9 @@ func TestCreation(t *testing.T) {
 				{1, ID{Hash: checksumToBytes(0x56c61556), Next: 2}},              // First and last Homestead block
 				{2, ID{Hash: checksumToBytes(0x5d6130af), Next: 3}},              // First and last Tangerine block
 				{3, ID{Hash: checksumToBytes(0x240e0924), Next: 4}},              // First and last  Spurious block
-				{4, ID{Hash: checksumToBytes(0x84a0dabb), Next: 10000000}},       // First Byzantium block
-				{9999999, ID{Hash: checksumToBytes(0x84a0dabb), Next: 10000000}}, // Last Byzantium block
-				{10000000, ID{Hash: checksumToBytes(0x85d409db), Next: 0}},       // First Constantinople, and Petersburg block
+				//{4, ID{Hash: checksumToBytes(0x84a0dabb), Next: 10000000}},       // First Byzantium block
+				//{9999999, ID{Hash: checksumToBytes(0x84a0dabb), Next: 10000000}}, // Last Byzantium block
+				//{10000000, ID{Hash: checksumToBytes(0x85d409db), Next: 0}},       // First Constantinople, and Petersburg block
 				//{9068999, ID{Hash: checksumToBytes(0x668db0af), Next: 9069000}}, // Last Petersburg block
 				//{9069000, ID{Hash: checksumToBytes(0x879d6e30), Next: 0}},       // Today Istanbul block
 				//{10000000, ID{Hash: checksumToBytes(0x879d6e30), Next: 0}},      // Future Istanbul block
@@ -94,10 +94,10 @@ func TestCreation(t *testing.T) {
 			params.GoerliChainConfig,
 			params.GoerliGenesisHash,
 			[]testcase{
-				{0, ID{Hash: checksumToBytes(0xa3f5ab08), Next: 1561651}},       // Unsynced, last Frontier, Homestead, Tangerine, Spurious, Byzantium, Constantinople and first Petersburg block
-				{1561650, ID{Hash: checksumToBytes(0xa3f5ab08), Next: 1561651}}, // Last Petersburg block
-				{1561651, ID{Hash: checksumToBytes(0xc25efa5c), Next: 0}},       // First Istanbul block
-				{2000000, ID{Hash: checksumToBytes(0xc25efa5c), Next: 0}},       // Future Istanbul block
+				//{0, ID{Hash: checksumToBytes(0xa3f5ab08), Next: 1561651}},       // Unsynced, last Frontier, Homestead, Tangerine, Spurious, Byzantium, Constantinople and first Petersburg block
+				//{1561650, ID{Hash: checksumToBytes(0xa3f5ab08), Next: 1561651}}, // Last Petersburg block
+				//{1561651, ID{Hash: checksumToBytes(0xc25efa5c), Next: 0}},       // First Istanbul block
+				//{2000000, ID{Hash: checksumToBytes(0xc25efa5c), Next: 0}},       // Future Istanbul block
 			},
 		},
 	}
