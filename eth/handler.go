@@ -31,6 +31,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/forkid"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/downloader"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/fetcher"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
@@ -41,6 +42,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
+
+	"github.com/elastos/Elastos.ELA/events"
 )
 
 const (
@@ -240,6 +243,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 	// Hard disconnect at the networking layer
 	if peer != nil {
+		events.Notify(dpos.ETDonePeer, peer)
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
 	}
 }
@@ -320,7 +324,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		return err
 	}
 	defer pm.removePeer(p.id)
-
+	events.Notify(dpos.ETNewPeer, p)
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
 		return err
