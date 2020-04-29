@@ -2,6 +2,15 @@ language: go
 go_import_path: github.com/elastos/Elastos.ELA.SideChain.ETH
 sudo: false
 jobs:
+  allow_failures:
+    - stage: build
+      os: osx
+      go: 1.13.x
+      env:
+        - osx
+        - azure-osx
+        - azure-ios
+        - cocoapods-ios
   include:
         # This builder only tests code linters on latest version of Go
     - stage: lint
@@ -43,6 +52,8 @@ jobs:
     - stage: build
       os: osx
       go: 1.13.x
+      env:
+        - GO111MODULE=auto
       script:
         - echo "Increase the maximum number of open file descriptors on macOS"
         - NOFILE=20480
