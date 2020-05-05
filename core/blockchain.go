@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/mclock"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/prque"
@@ -42,7 +43,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
+
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/events"
+
 	"github.com/hashicorp/golang-lru"
 )
 
@@ -147,6 +151,7 @@ type BlockChain struct {
 	logsFeed      event.Feed
 	dangerousFeed event.Feed
 	blockProcFeed event.Feed
+	engineChange  event.Feed
 	scope         event.SubscriptionScope
 	genesisBlock  *types.Block
 
@@ -1702,6 +1707,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 			atomic.StoreUint32(&followupInterrupt, 1)
 			return it.index, events, coalescedLogs, err
 		}
+		OnSyncHeader(block.Header(), bc)
 		atomic.StoreUint32(&followupInterrupt, 1)
 
 		// Update the metrics touched during block commit
@@ -1767,6 +1773,23 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		events = append(events, ChainHeadEvent{lastCanon})
 	}
 	return it.index, events, coalescedLogs, err
+}
+
+func OnSyncHeader(header *types.Header, bc *BlockChain) {
+	height := header.Number.Uint64() + 1
+	cfg := bc.chainConfig
+	nowHeight := bc.CurrentBlock().Number().Uint64()
+	if nowHeight < cfg.PBFTBlock.Uint64() && height >=  cfg.PBFTBlock.Uint64() - cfg.PreConnectOffset {
+		producers := make([]peer.PID, len(cfg.Pbft.Producers))
+		for i, v := range cfg.Pbft.Producers {
+			producer := common.Hex2Bytes(v)
+			copy(producers[i][:], producer[:])
+		}
+		go events.Notify(events.ETDirectPeersChanged, producers)
+	}
+	if height == cfg.PBFTBlock.Uint64() {
+		bc.engineChange.Send(EngineChangeEvent{})
+	}
 }
 
 // insertSideChain is called when an import batch hits upon a pruned ancestor
@@ -2150,6 +2173,9 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 
 	whFunc := func(header *types.Header) error {
 		_, err := bc.hc.WriteHeader(header)
+		if err == nil {
+			OnSyncHeader(header, bc)
+		}
 		return err
 	}
 	return bc.hc.InsertHeaderChain(chain, whFunc, start)
@@ -2267,6 +2293,11 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 //SubscribeDangerousChainEvent registers a subscription of DangerousChainSideEvent
 func (bc *BlockChain) SubscribeDangerousChainEvent(ch chan<- DangerousChainSideEvent) event.Subscription {
 	return bc.scope.Track(bc.dangerousFeed.Subscribe(ch))
+}
+
+//SubscribeDangerousChainEvent registers a subscription of DangerousChainSideEvent
+func (bc *BlockChain) SubscribeChangeEnginesEvent(ch chan<- EngineChangeEvent) event.Subscription {
+	return bc.scope.Track(bc.engineChange.Subscribe(ch))
 }
 
 // SubscribeBlockProcessingEvent registers a subscription of bool where true means
