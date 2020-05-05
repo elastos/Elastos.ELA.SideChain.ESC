@@ -242,6 +242,23 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
 
+	//dynamic switch dpos engine
+	if !eth.blockchain.Config().IsPBFTFork(eth.blockchain.CurrentHeader().Number) {
+		var engineChan = make(chan core.EngineChangeEvent)
+		engineSub := eth.blockchain.SubscribeChangeEnginesEvent(engineChan)
+		go func() {
+			defer engineSub.Unsubscribe()
+			for  {
+				select {
+				case <-engineChan:
+					eth.engine = CreateConsensusEngine(ctx, chainConfig, &config.Ethash, config.Miner.Notify, config.Miner.Noverify, chainDb)
+					return
+				case <-engineSub.Err():
+					return
+				}
+			}
+		}()
+	}
 	return eth, nil
 }
 
