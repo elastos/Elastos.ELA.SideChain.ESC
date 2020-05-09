@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +44,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
 
+	"github.com/elastos/Elastos.ELA/p2p/msg"
+	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/events"
 )
 
@@ -328,6 +331,17 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	defer pm.removePeer(p.id)
 	events.Notify(dpos.ETNewPeer, p)
+
+	inv := msg.NewInv()
+	inv.AddInvVect(msg.NewInvVect(msg.InvTypeAddress, &elacom.Uint256{}))
+
+	invBuf := new(bytes.Buffer)
+	inv.Serialize(invBuf)
+	p.SendELAMessage(&dpos.ElaMsg{
+		Type: dpos.Inv,
+		Msg:  invBuf.Bytes(),
+	})
+
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
 		return err
@@ -742,7 +756,17 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txpool.AddRemotes(txs)
 	case msg.Code == ELAMSG:
-		log.Info("m----------------------- elastosMsg:", msg.String())
+		fmt.Println("m-------", msg.Code)
+		elaMsg := new(dpos.ElaMsg)
+		if err := msg.Decode(&elaMsg); err != nil {
+			return errResp(ErrDecode, "%v: %v", msg, err)
+		}
+
+		fmt.Println("m-------", elaMsg)
+		events.Notify(dpos.ETElaMsg, &dpos.MsgEvent{
+			ElaMsg: elaMsg,
+			Peer:  	p,
+		})
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

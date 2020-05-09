@@ -19,6 +19,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"math/big"
 	"sync"
 	"time"
@@ -29,8 +30,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
-
-	ep2p "github.com/elastos/Elastos.ELA/p2p"
 )
 
 var (
@@ -146,8 +145,14 @@ func (p *peer) close() {
 	close(p.term)
 }
 
-func (p *peer) SendElaMessage(msg ep2p.Message) {
-	p2p.Send(p.rw, ELAMSG, msg)
+func (p *peer) Disconnect() {
+	p.Peer.Disconnect(p2p.DiscQuitting)
+}
+
+func (p *peer) SendELAMessage(msg *dpos.ElaMsg) {
+	if err := p2p.Send(p.rw, ELAMSG, msg); err != nil {
+		p.Log().Warn("Send ELA message failed, ", err)
+	}
 }
 
 // Info gathers and returns a collection of metadata known about a peer.
@@ -608,7 +613,7 @@ func (ps *peerSet) Close() {
 	defer ps.lock.Unlock()
 
 	for _, p := range ps.peers {
-		p.Disconnect(p2p.DiscQuitting)
+		p.Peer.Disconnect(p2p.DiscQuitting)
 	}
 	ps.closed = true
 }

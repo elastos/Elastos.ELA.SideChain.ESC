@@ -1,6 +1,7 @@
 package dpos
 
 import (
+	"bytes"
 	"container/list"
 	"fmt"
 	"sync"
@@ -11,13 +12,12 @@ import (
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
-	"github.com/elastos/Elastos.ELA/p2p"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
 type IPeer interface {
 	Disconnect()
-    QueueMessage(msg p2p.Message, doneChan chan<- struct{})
+    SendELAMessage(msg *ElaMsg)
 }
 
 const (
@@ -132,14 +132,12 @@ func New(cfg *Config) *Routes {
 		quit:      make(chan struct{}),
 	}
 
-	queuePeers := func(peers []peer.PID) {
-		r.queue <- peersMsg{peers: peers}
-	}
-
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
-			go queuePeers(e.Data.([]peer.PID))
+			go r.PeersChanged(e.Data.([]peer.PID))
+		case ETElaMsg:
+			go r.ElaMsg(e.Data.(*MsgEvent))
 		case ETNewPeer:
 			go r.NewPeer(e.Data.(IPeer))
 		case ETDonePeer:
@@ -151,6 +149,10 @@ func New(cfg *Config) *Routes {
 	return &r
 }
 
+func (r *Routes) PeersChanged(peers []peer.PID) {
+	r.queue <- peersMsg{peers: peers}
+}
+
 // NewPeer notifies the new connected peer.
 func (r *Routes) NewPeer(peer IPeer) {
 	r.queue <- newPeerMsg(peer)
@@ -159,6 +161,33 @@ func (r *Routes) NewPeer(peer IPeer) {
 // DonePeer notifies the disconnected peer.
 func (r *Routes) DonePeer(peer IPeer) {
 	r.donequeue <- peer
+}
+
+func (r *Routes) ElaMsg(msgEvent *MsgEvent) {
+	fmt.Println("OnElaMsg ------------- ", msgEvent.ElaMsg.Type)
+	switch msgEvent.ElaMsg.Type {
+	case DAddr:
+		var dAddr msg.DAddr
+		if err := dAddr.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
+			fmt.Println("ElaMsg error,", err)
+		}
+		r.queue <- dAddrMsg{peer: msgEvent.Peer, msg: &dAddr}
+	case Inv:
+		var inv msg.Inv
+		if err := inv.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
+			fmt.Println("ElaMsg error,", err)
+		}
+		r.queue <- invMsg{peer: msgEvent.Peer, msg: &inv}
+	case GetData:
+		var getData msg.GetData
+		if err := getData.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
+			fmt.Println("ElaMsg error,", err)
+		}
+		r.OnGetData(msgEvent.Peer, &getData)
+	default:
+		fmt.Println("Invalid ElaMsg type")
+	}
+	fmt.Println(msgEvent.ElaMsg)
 }
 
 // Start starts the Routes instance to sync DPOS addresses.
@@ -499,7 +528,12 @@ func (r *Routes) handleInv(s *state, p IPeer, m *msg.Inv) {
 	}
 
 	if len(getData.InvList) > 0 {
-		p.QueueMessage(getData, nil)
+		getDataBuf := new(bytes.Buffer)
+		getData.Serialize(getDataBuf)
+		p.SendELAMessage(&ElaMsg{
+			Type: GetData,
+			Msg:  getDataBuf.Bytes(),
+		})
 	}
 }
 
@@ -557,7 +591,6 @@ func (r *Routes) verifyDAddr(s *state, m *msg.DAddr) error {
 
 // OnGetData handles the passed GetData message of the peer.
 func (r *Routes) OnGetData(p IPeer, m *msg.GetData) {
-	done := make(chan struct{}, 1)
 	for _, iv := range m.InvList {
 		switch iv.Type {
 		case msg.InvTypeAddress:
@@ -569,8 +602,12 @@ func (r *Routes) OnGetData(p IPeer, m *msg.GetData) {
 				Warnf("%s for DAddr not found", iv.Hash)
 				continue
 			}
-			p.QueueMessage(addr, done)
-			<-done
+			addrBuf := new(bytes.Buffer)
+			addr.Serialize(addrBuf)
+			p.SendELAMessage(&ElaMsg{
+				Type: DAddr,
+				Msg:  addrBuf.Bytes(),
+			})
 
 		default:
 			continue
