@@ -33,6 +33,10 @@ type mockPeer struct {
 	inbound      bool
 }
 
+func (p *mockPeer) SendELAMessage(msg *ElaMsg) {
+	panic("implement me")
+}
+
 func (p *mockPeer) Disconnect() {
 	Info("Disconnect", p)
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-
 	"io"
 	"math/big"
 	"path/filepath"
@@ -26,11 +25,12 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
+	"github.com/elastos/Elastos.ELA/p2p/msg"
 	"golang.org/x/crypto/sha3"
 )
 
 var (
-	extraVanity = 32                     // Fixed number of extra-data prefix bytes
+	extraVanity = 32 // Fixed number of extra-data prefix bytes
 	extraSeal   = 64 // Fixed number of extra-data suffix bytes reserved for signer seal
 )
 
@@ -60,7 +60,7 @@ type Pbft struct {
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
 	logpath := filepath.Join(dataDir, "/logs/dpos")
-	if strings.LastIndex(dataDir, "/") == len(dataDir) - 1 {
+	if strings.LastIndex(dataDir, "/") == len(dataDir)-1 {
 		logpath = filepath.Join(dataDir, "logs/dpos")
 	}
 	dpos.InitLog(cfg.PrintLevel, cfg.MaxPerLogSize, cfg.MaxLogsSize, logpath)
@@ -84,6 +84,20 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		account,
 	}
 
+	routeCfg := dpos.Config{
+		PID:  account.PublicKeyBytes(),
+		Addr: fmt.Sprintf("%s:%d", cfg.IPAddress, cfg.DPoSPort),
+		Sign: account.Sign,
+		IsCurrent: func() bool {
+			return true
+		},
+		RelayAddr: func(iv *msg.InvVect, data interface{}) {
+
+		},
+	}
+	routes := dpos.New(&routeCfg)
+	go routes.Start()
+
 	return pbft
 }
 
@@ -91,7 +105,7 @@ func (p *Pbft) GetDataDir() string {
 	return p.datadir
 }
 
-func (p *Pbft) GetPbftConfig() params.PbftConfig  {
+func (p *Pbft) GetPbftConfig() params.PbftConfig {
 	return p.cfg
 }
 
@@ -127,7 +141,7 @@ func (p *Pbft) VerifyHeaders(chain consensus.ChainReader, headers []*types.Heade
 
 func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
 
-	if header.Number == nil ||  header.Number.Uint64() == 0 {
+	if header.Number == nil || header.Number.Uint64() == 0 {
 		return errUnknownBlock
 	}
 	// Don't waste time checking blocks from the future
@@ -185,11 +199,11 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 	}
 
 	// Retrieve the signature from the header extra-data
-	if len(header.Extra) < extraSeal + extraVanity {
-		return  errMissingSignature
+	if len(header.Extra) < extraSeal+extraVanity {
+		return errMissingSignature
 	}
 
-	publicKey := header.Extra[extraVanity: len(header.Extra) - extraSeal]
+	publicKey := header.Extra[extraVanity : len(header.Extra)-extraSeal]
 	pubkey, err := crypto.DecodePoint(publicKey)
 	if err != nil {
 		return err
@@ -200,7 +214,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 	}
 	//TODO check header by confirm msg
 
-	signature := header.Extra[len(header.Extra) - extraSeal:]
+	signature := header.Extra[len(header.Extra)-extraSeal:]
 	err = crypto.Verify(*pubkey, clique.CliqueRLP(header), signature)
 
 	return err
@@ -249,7 +263,7 @@ func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.He
 
 func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	dpos.Info("Pbft Seal")
-	time.Sleep(2 * time.Second)//todo delete me, 2-second one block to test
+	time.Sleep(2 * time.Second) //todo delete me, 2-second one block to test
 	if p.account == nil {
 		return errors.New("no signer inited")
 	}
@@ -273,7 +287,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		return err
 	}
 	phash := proposal.Hash()
-	vote, err := dpos.StartVote(&phash,  true, p.account)
+	vote, err := dpos.StartVote(&phash, true, p.account)
 	if err != nil {
 		log.Error("StartVote error:", err)
 		return err
@@ -286,23 +300,23 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	}()
 
 	select {
-		case confirm := <-p.confirmCh:
-			log.Info("Received confirm :",confirm.Proposal.Hash().String())
-			break
-		case <-time.After(5 * time.Second):
-			log.Warn("Seal block is Timeout, to change view")
-			p.dispatcher.FinishedProposal()
-			results <- nil
-			return errors.New("seal block timeout")
-		case <-stop:
-			return nil
+	case confirm := <-p.confirmCh:
+		log.Info("Received confirm :", confirm.Proposal.Hash().String())
+		break
+	case <-time.After(5 * time.Second):
+		log.Warn("Seal block is Timeout, to change view")
+		p.dispatcher.FinishedProposal()
+		results <- nil
+		return errors.New("seal block timeout")
+	case <-stop:
+		return nil
 	}
 
 	header := block.Header()
 	// Sign all the things!
 	length := len(header.Extra)
 	signature := p.account.Sign(clique.CliqueRLP(header))
-	copy(header.Extra[length - extraSeal:], signature)
+	copy(header.Extra[length-extraSeal:], signature)
 	go func() {
 		select {
 		case results <- block.WithSeal(header):
