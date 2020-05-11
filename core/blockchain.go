@@ -175,6 +175,7 @@ type BlockChain struct {
 	wg            sync.WaitGroup // chain processing wait group for shutting down
 
 	engine     consensus.Engine
+	pbftEngine consensus.Engine
 	validator  Validator  // Block and state validator interface
 	prefetcher Prefetcher // Block state prefetcher interface
 	processor  Processor  // Block transaction processor interface
@@ -192,7 +193,7 @@ type BlockChain struct {
 // NewBlockChain returns a fully initialised block chain using information
 // available in the database. It initialises the default Ethereum Validator and
 // Processor.
-func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *params.ChainConfig, engine consensus.Engine, vmConfig vm.Config, shouldPreserve func(block *types.Block) bool) (*BlockChain, error) {
+func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *params.ChainConfig, engine consensus.Engine, pbftEngine consensus.Engine, vmConfig vm.Config, shouldPreserve func(block *types.Block) bool) (*BlockChain, error) {
 	if cacheConfig == nil {
 		cacheConfig = &CacheConfig{
 			TrieCleanLimit: 256,
@@ -253,6 +254,11 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 
 	if err := bc.loadLastState(); err != nil {
 		return nil, err
+	}
+
+	bc.SetDposEngine(pbftEngine)
+	if chainConfig.IsPBFTFork(bc.CurrentHeader().Number) {
+		bc.SetEngine(pbftEngine)
 	}
 	// The first thing the node will do is reconstruct the verification data for
 	// the head block (ethash cache or clique voting snapshot). Might as well do
@@ -321,6 +327,15 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	// Take ownership of this particular state
 	go bc.update()
 	return bc, nil
+}
+
+func (bc *BlockChain) SetDposEngine(engine consensus.Engine) {
+	bc.pbftEngine = engine
+	bc.hc.pbftEngine = engine
+}
+
+func (bc *BlockChain) GetDposEngine() consensus.Engine {
+	return bc.pbftEngine
 }
 
 func (bc *BlockChain) getProcInterrupt() bool {
@@ -1431,6 +1446,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		bc.insert(block)
 	}
 	bc.futureBlocks.Remove(block.Hash())
+	bc.OnSyncHeader(block.Header())
 	return status, nil
 }
 
@@ -1489,6 +1505,24 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 	return n, err
 }
 
+func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []interface{}, []*types.Log, error) {
+	if bc.chainConfig.IsPBFTFork(chain[0].Number()) || bc.chainConfig.PBFTBlock == nil {
+		return bc.insertBlockChain(chain, verifySeals, bc.pbftEngine)
+	}
+	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].NumberU64()
+	cliqueChain := chain[:limit]
+	n, events, logs, err := bc.insertBlockChain(cliqueChain, verifySeals, bc.engine)
+	if err != nil {
+		return n, events, logs, err
+	}
+	events = events[:len(events) - 1]
+	pbftChain := chain[limit:]
+	n, events1, logs1, err := bc.insertBlockChain(pbftChain, verifySeals, bc.pbftEngine)
+	events = append(events, events1...)
+	logs = append(logs, logs1...)
+	return n, events, logs, err
+}
+
 // insertChain is the internal implementation of InsertChain, which assumes that
 // 1) chains are contiguous, and 2) The chain mutex is held.
 //
@@ -1497,7 +1531,7 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 // racey behaviour. If a sidechain import is in progress, and the historic state
 // is imported, but then new canon-head is added before the actual sidechain
 // completes, then the historic state could be pruned again
-func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []interface{}, []*types.Log, error) {
+func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, engine consensus.Engine) (int, []interface{}, []*types.Log, error) {
 	// If the chain is terminating, don't even bother starting up
 	if atomic.LoadInt32(&bc.procInterrupt) == 1 {
 		return 0, nil, nil, nil
@@ -1522,7 +1556,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		headers[i] = block.Header()
 		seals[i] = verifySeals
 	}
-	abort, results := bc.engine.VerifyHeaders(bc, headers, seals)
+	abort, results := engine.VerifyHeaders(bc, headers, seals)
 	defer close(abort)
 
 	// Peek the error for the first block to decide the directing import logic
@@ -1707,7 +1741,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 			atomic.StoreUint32(&followupInterrupt, 1)
 			return it.index, events, coalescedLogs, err
 		}
-		OnSyncHeader(block.Header(), bc)
 		atomic.StoreUint32(&followupInterrupt, 1)
 
 		// Update the metrics touched during block commit
@@ -1775,9 +1808,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 	return it.index, events, coalescedLogs, err
 }
 
-func OnSyncHeader(header *types.Header, bc *BlockChain) {
+func (bc *BlockChain) OnSyncHeader(header *types.Header) {
 	height := header.Number.Uint64() + 1
 	cfg := bc.chainConfig
+	if cfg.PBFTBlock == nil {
+		return
+	}
 	nowHeight := bc.CurrentBlock().Number().Uint64()
 	if nowHeight < cfg.PBFTBlock.Uint64() && height >=  cfg.PBFTBlock.Uint64() - cfg.PreConnectOffset {
 		producers := make([]peer.PID, len(cfg.Pbft.Producers))
@@ -1787,7 +1823,7 @@ func OnSyncHeader(header *types.Header, bc *BlockChain) {
 		}
 		go events.Notify(events.ETDirectPeersChanged, producers)
 	}
-	if height == cfg.PBFTBlock.Uint64() {
+	if height >= cfg.PBFTBlock.Uint64() && bc.engine != bc.pbftEngine {
 		bc.engineChange.Send(EngineChangeEvent{})
 	}
 }
@@ -2160,6 +2196,25 @@ Error: %v
 // because nonces can be verified sparsely, not needing to check each.
 func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
 	start := time.Now()
+	if bc.chainConfig.IsPBFTFork(chain[0].Number) || bc.chainConfig.PBFTBlock != nil {
+		return bc.InsertBlockHeaders(chain, checkFreq, start)
+	}
+	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].Number.Uint64()
+	cliqueChain := chain[:limit]
+	n, err := bc.InsertBlockHeaders(cliqueChain, checkFreq, start)
+	if err != nil {
+		return n, err
+	}
+
+	pbftChain := chain[limit:]
+	n, err = bc.InsertBlockHeaders(pbftChain, checkFreq, start)
+	if err != nil {
+		return n, err
+	}
+	return 0, nil
+}
+
+func (bc *BlockChain) InsertBlockHeaders(chain []*types.Header, checkFreq int, start time.Time) (int, error) {
 	if i, err := bc.hc.ValidateHeaderChain(chain, checkFreq); err != nil {
 		return i, err
 	}
@@ -2173,9 +2228,6 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 
 	whFunc := func(header *types.Header) error {
 		_, err := bc.hc.WriteHeader(header)
-		if err == nil {
-			OnSyncHeader(header, bc)
-		}
 		return err
 	}
 	return bc.hc.InsertHeaderChain(chain, whFunc, start)
@@ -2264,6 +2316,18 @@ func (bc *BlockChain) Config() *params.ChainConfig { return bc.chainConfig }
 
 // Engine retrieves the blockchain's consensus engine.
 func (bc *BlockChain) Engine() consensus.Engine { return bc.engine }
+
+func (bc *BlockChain) SetEngine(engine consensus.Engine) {
+	if engine == nil {
+		log.Warn("---------[BlockChain SetEngine] is nil")
+		return
+	}
+	bc.engine = engine
+	bc.validator = NewBlockValidator(bc.chainConfig, bc, engine)
+	bc.prefetcher = newStatePrefetcher(bc.chainConfig, bc, engine)
+	bc.processor = NewStateProcessor(bc.chainConfig, bc, engine)
+	bc.hc.SetEngine(engine)
+}
 
 // SubscribeRemovedLogsEvent registers a subscription of RemovedLogsEvent.
 func (bc *BlockChain) SubscribeRemovedLogsEvent(ch chan<- RemovedLogsEvent) event.Subscription {

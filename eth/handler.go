@@ -159,6 +159,9 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 
 	// Construct the fetcher (short sync)
 	validator := func(header *types.Header) error {
+		if blockchain.Config().IsPBFTFork(header.Number) {
+			return blockchain.Engine().VerifyHeader(blockchain, header, true)
+		}
 		return engine.VerifyHeader(blockchain, header, true)
 	}
 	heighter := func() uint64 {

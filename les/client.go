@@ -19,13 +19,13 @@ package les
 
 import (
 	"fmt"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi/bind"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/mclock"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/bloombits"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
@@ -168,8 +168,19 @@ func New(ctx *node.ServiceContext, config *eth.Config, node *node.Node) (*LightE
 		gpoParams.Default = config.Miner.GasPrice
 	}
 	leth.ApiBackend.gpo = gasprice.NewOracle(leth.ApiBackend, gpoParams)
-
+	engine := pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""))
+	if leth.blockchain.Config().IsPBFTFork(leth.blockchain.CurrentHeader().Number) {
+		leth.SetEngine(engine)
+	}
+	leth.blockchain.SetDposEngine(engine)
 	return leth, nil
+}
+
+
+func (s *LightEthereum) SetEngine(engine consensus.Engine) {
+	log.Info("-----------------[LIGHT CHAIN SWITCH ENGINE TO DPOS!]-----------------")
+	s.engine = engine
+	s.blockchain.SetEngine(engine)
 }
 
 type LightDummyAPI struct{}

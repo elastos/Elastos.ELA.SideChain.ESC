@@ -183,7 +183,7 @@ func TestEvilSigners(t *testing.T)  {
 	}
 
 	dangerouChainSideCh := make(chan DangerousChainSideEvent , 1)
-	chain, err := NewBlockChain(db, nil, &config, engine, vm.Config{}, nil)
+	chain, err := NewBlockChain(db, nil, &config, engine, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Error("create chain fail", err)
 	}

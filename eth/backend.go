@@ -99,6 +99,20 @@ type Ethereum struct {
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 }
 
+func (s *Ethereum) SetEngine(engine consensus.Engine) {
+	log.Info("-----------------[SWITCH ENGINE TO DPOS!]-----------------")
+	if s.miner != nil {
+		s.StopMining()
+	}
+	s.engine.Close()
+	s.engine = engine
+	s.blockchain.SetEngine(engine)
+	if s.miner != nil {
+		s.miner.SetEngine(engine)
+		s.miner.Start(s.etherbase)
+	}
+}
+
 func (s *Ethereum) AddLesServer(ls LesServer) {
 	s.lesServer = ls
 	ls.SetBloomBitsIndexer(s.bloomIndexer)
@@ -206,10 +220,12 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			TrieTimeLimit:       config.TrieTimeout,
 		}
 	)
-	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve)
+	engine := pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""))
+	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, engine, vmConfig, eth.shouldPreserve)
 	if err != nil {
 		return nil, err
 	}
+	eth.SetEngine(eth.blockchain.Engine())
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -229,10 +245,10 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	if checkpoint == nil {
 		checkpoint = params.TrustedCheckpoints[genesisHash]
 	}
-	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.engine, eth.blockchain, chainDb, cacheLimit, config.Whitelist, node.Stop); err != nil {
+	if eth.protocolManager, err = NewProtocolManager(chainConfig, checkpoint, config.SyncMode, config.NetworkId, eth.eventMux, eth.txPool, eth.blockchain.Engine(), eth.blockchain, chainDb, cacheLimit, config.Whitelist, node.Stop); err != nil {
 		return nil, err
 	}
-	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
+	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.blockchain.Engine(), eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
 	eth.APIBackend = &EthAPIBackend{ctx.ExtRPCEnabled(), eth, nil}
@@ -251,7 +267,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			for  {
 				select {
 				case <-engineChan:
-					eth.engine = CreateConsensusEngine(ctx, chainConfig, &config.Ethash, config.Miner.Notify, config.Miner.Noverify, chainDb)
+					eth.SetEngine(engine)
 					return
 				case <-engineSub.Err():
 					return
@@ -281,11 +297,6 @@ func makeExtraData(extra []byte) []byte {
 
 // CreateConsensusEngine creates the required type of consensus engine instance for an Ethereum service
 func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
-	// If delegated-proof-of-stake is requested, set it up
-	if chainConfig.Pbft != nil {
-		return pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""))
-	}
-
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
 		return clique.New(chainConfig.Clique, db)
