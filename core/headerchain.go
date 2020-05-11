@@ -64,6 +64,7 @@ type HeaderChain struct {
 
 	rand   *mrand.Rand
 	engine consensus.Engine
+	pbftEngine consensus.Engine
 }
 
 // NewHeaderChain creates a new HeaderChain structure.
@@ -107,6 +108,14 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	headHeaderGauge.Update(hc.CurrentHeader().Number.Int64())
 
 	return hc, nil
+}
+
+func (hc *HeaderChain) SetEngine(engine consensus.Engine) {
+	hc.engine = engine
+}
+
+func (hc *HeaderChain) SetDposChain(engine consensus.Engine) {
+	hc.pbftEngine = engine
 }
 
 // GetBlockNumber retrieves the block number belonging to the given hash
@@ -232,8 +241,15 @@ func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int)
 		// Last should always be verified to avoid junk.
 		seals[len(seals)-1] = true
 	}
-
-	abort, results := hc.engine.VerifyHeaders(hc, chain, seals)
+	var (
+		abort chan<- struct{}
+		results <-chan error
+	)
+	if hc.config.IsPBFTFork(chain[0].Number) {
+		abort, results = hc.pbftEngine.VerifyHeaders(hc, chain, seals)
+	} else {
+		abort, results = hc.engine.VerifyHeaders(hc, chain, seals)
+	}
 	defer close(abort)
 
 	// Iterate over the headers and ensure they all check out

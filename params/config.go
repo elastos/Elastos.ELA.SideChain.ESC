@@ -365,12 +365,14 @@ func (c *ChainConfig) String() string {
 	switch {
 	case c.Ethash != nil:
 		engine = c.Ethash
+	case c.Pbft != nil:
+		engine = c.Pbft
 	case c.Clique != nil:
 		engine = c.Clique
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v PBFTBlock:%v Engine: %v}",
 		c.ChainID,
 		c.OldChainID,
 		c.HomesteadBlock,
@@ -384,6 +386,7 @@ func (c *ChainConfig) String() string {
 		c.PetersburgBlock,
 		c.IstanbulBlock,
 		c.ChainIDBlock,
+		c.PBFTBlock,
 		engine,
 	)
 }

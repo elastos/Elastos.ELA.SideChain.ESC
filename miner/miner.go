@@ -186,3 +186,8 @@ func (self *Miner) SetEtherbase(addr common.Address) {
 	self.coinbase = addr
 	self.worker.setEtherbase(addr)
 }
+
+func (self *Miner) SetEngine(engine consensus.Engine) {
+	self.engine = engine
+	self.worker.engine = engine
+}

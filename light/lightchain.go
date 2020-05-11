@@ -135,6 +135,15 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	return bc, nil
 }
 
+func (lc *LightChain) SetEngine(engine consensus.Engine) {
+	lc.engine = engine
+	lc.hc.SetEngine(engine)
+}
+
+func (lc *LightChain) SetDposEngine(engine consensus.Engine) {
+	lc.hc.SetDposChain(engine)
+}
+
 // AddTrustedCheckpoint adds a trusted checkpoint to the blockchain
 func (lc *LightChain) AddTrustedCheckpoint(cp *params.TrustedCheckpoint) {
 	if lc.odr.ChtIndexer() != nil {
@@ -375,6 +384,25 @@ func (lc *LightChain) postChainEvents(events []interface{}) {
 // In the case of a light chain, InsertHeaderChain also creates and posts light
 // chain events when necessary.
 func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
+	if lc.hc.Config().IsPBFTFork(chain[0].Number) {
+		return lc.InsertBlockHeaders(chain, checkFreq)
+	}
+	limit := lc.hc.Config().PBFTBlock.Uint64() - chain[0].Number.Uint64()
+	cliqueChain := chain[:limit]
+	n, err := lc.InsertBlockHeaders(cliqueChain, checkFreq)
+	if err != nil {
+		return n, err
+	}
+
+	pbftChain := chain[limit:]
+	n, err = lc.InsertBlockHeaders(pbftChain, checkFreq)
+	if err != nil {
+		return n, err
+	}
+	return 0, nil
+}
+
+func (lc *LightChain) InsertBlockHeaders(chain []*types.Header, checkFreq int) (int, error) {
 	if atomic.LoadInt32(&lc.disableCheckFreq) == 1 {
 		checkFreq = 0
 	}
