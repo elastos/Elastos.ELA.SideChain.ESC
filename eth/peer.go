@@ -19,7 +19,6 @@ package eth
 import (
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"math/big"
 	"sync"
 	"time"
@@ -28,6 +27,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/forkid"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 )
