@@ -2196,7 +2196,7 @@ Error: %v
 // because nonces can be verified sparsely, not needing to check each.
 func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
 	start := time.Now()
-	if bc.chainConfig.IsPBFTFork(chain[0].Number) || bc.chainConfig.PBFTBlock != nil {
+	if bc.chainConfig.IsPBFTFork(chain[0].Number) || bc.chainConfig.PBFTBlock == nil {
 		return bc.InsertBlockHeaders(chain, checkFreq, start)
 	}
 	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].Number.Uint64()
