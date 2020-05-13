@@ -9,9 +9,9 @@ import (
 type ElaMsgType byte
 
 const (
-	DAddr ElaMsgType = iota
-	Inv
+	Inv ElaMsgType = iota
 	GetData
+	DAddr
 )
 
 type MsgEvent struct {

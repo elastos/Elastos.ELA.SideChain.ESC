@@ -22,6 +22,7 @@ var Modules = map[string]string{
 	"admin":      AdminJs,
 	"chequebook": ChequebookJs,
 	"clique":     CliqueJs,
+	"pbft":       PbftJs,
 	"ethash":     EthashJs,
 	"debug":      DebugJs,
 	"eth":        EthJs,
@@ -107,6 +108,19 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'proposals',
 			getter: 'clique_proposals'
+		}),
+	]
+});
+`
+
+const PbftJs = `
+web3._extend({
+	property: 'pbft',
+	methods: [
+		new web3._extend.Method({
+			name: 'announceDAddr',
+			call: 'pbft_announceDAddr',
+			params: 1,
 		}),
 	]
 });

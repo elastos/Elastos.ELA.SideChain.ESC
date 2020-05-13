@@ -59,7 +59,7 @@ type Config struct {
 	RelayAddr func(iv *msg.InvVect, data interface{})
 
 	// OnCipherAddr will be invoked when an address cipher received.
-	OnCipherAddr func(pid peer.PID, addr []byte)
+	OnCipherAddr func(pid peer.PID, cipher []byte)
 }
 
 // cache stores the requested DAddrs from a peer.
@@ -164,14 +164,8 @@ func (r *Routes) DonePeer(peer IPeer) {
 }
 
 func (r *Routes) ElaMsg(msgEvent *MsgEvent) {
-	fmt.Println("OnElaMsg ------------- ", msgEvent.ElaMsg.Type)
+	fmt.Println("OnElaMsg ------------- ", msgEvent.ElaMsg)
 	switch msgEvent.ElaMsg.Type {
-	case DAddr:
-		var dAddr msg.DAddr
-		if err := dAddr.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
-			fmt.Println("ElaMsg error,", err)
-		}
-		r.queue <- dAddrMsg{peer: msgEvent.Peer, msg: &dAddr}
 	case Inv:
 		var inv msg.Inv
 		if err := inv.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
@@ -184,10 +178,15 @@ func (r *Routes) ElaMsg(msgEvent *MsgEvent) {
 			fmt.Println("ElaMsg error,", err)
 		}
 		r.OnGetData(msgEvent.Peer, &getData)
+	case DAddr:
+		var dAddr msg.DAddr
+		if err := dAddr.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
+			fmt.Println("ElaMsg error,", err)
+		}
+		r.queue <- dAddrMsg{peer: msgEvent.Peer, msg: &dAddr}
 	default:
 		fmt.Println("Invalid ElaMsg type")
 	}
-	fmt.Println(msgEvent.ElaMsg)
 }
 
 // Start starts the Routes instance to sync DPOS addresses.
@@ -218,11 +217,11 @@ func (r *Routes) addrHandler() {
 	var lastAnnounce time.Time
 
 	// scheduleAnnounce schedules an announce according to the delay time.
-	var scheduleAnnounce = func(delay time.Duration) {
-		time.AfterFunc(delay, func() {
-			r.announce <- struct{}{}
-		})
-	}
+	//var scheduleAnnounce = func(delay time.Duration) {
+	//	time.AfterFunc(delay, func() {
+	//		r.announce <- struct{}{}
+	//	})
+	//}
 
 out:
 	for {
@@ -252,23 +251,23 @@ out:
 				// Waiting status must reset here or the announce will never
 				// work again.
 				atomic.StoreInt32(&r.waiting, 0)
-				continue
+				//continue
 			}
 
 			// Do not announce address if connected peers not enough.
 			if len(state.peerCache) < minPeersToAnnounce {
 				// Retry announce after the retry duration.
-				scheduleAnnounce(retryAnnounceDuration)
-				continue
+				//scheduleAnnounce(retryAnnounceDuration)
+				//continue
 			}
 
 			// Do not announce address too frequent.
 			now := time.Now()
 			if lastAnnounce.Add(minAnnounceDuration).After(now) {
 				// Calculate next announce time and schedule an announce.
-				nextAnnounce := minAnnounceDuration - now.Sub(lastAnnounce)
-				scheduleAnnounce(nextAnnounce)
-				continue
+				//nextAnnounce := minAnnounceDuration - now.Sub(lastAnnounce)
+				//scheduleAnnounce(nextAnnounce)
+				//continue
 			}
 
 			// Update last announce time.
@@ -450,7 +449,7 @@ func (r *Routes) appendAddr(m *msg.DAddr) {
 
 	// Append received addr into known addr index.
 	r.addrMtx.Lock()
-	r.addrIndex[m.PID][m.Encode] = hash
+	//r.addrIndex[m.PID][m.Encode] = hash
 	r.knownAddr[hash] = m
 	if len(r.knownAddr) > maxKnownAddrs {
 		node := r.knownList.Back()

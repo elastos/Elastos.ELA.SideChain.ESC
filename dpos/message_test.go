@@ -2,11 +2,12 @@ package dpos
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMessage_SerializeDeserialize(t *testing.T) {

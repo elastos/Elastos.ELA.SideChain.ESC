@@ -18,6 +18,7 @@
 package eth
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
@@ -38,6 +39,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/downloader"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/filters"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/gasprice"
@@ -53,6 +55,9 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+
+	elapeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
 type LesServer interface {
@@ -275,6 +280,45 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			}
 		}()
 	}
+
+	// fixme: dpos route place here temporary
+	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
+	if err != nil {
+		dpos.Warn("create dpos account error:", err.Error())
+	}
+	routeCfg := dpos.Config{
+		PID:  dposAccount.PublicKeyBytes(),
+		Addr: fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
+		Sign: dposAccount.Sign,
+		IsCurrent: func() bool {
+			return true
+		},
+		RelayAddr: func(iv *msg.InvVect, data interface{}) {
+			fmt.Println("RelayAddr ----")
+			inv := msg.NewInv()
+			inv.AddInvVect(iv)
+
+			invBuf := new(bytes.Buffer)
+			inv.Serialize(invBuf)
+			eth.protocolManager.BroadcastDAddr(&dpos.ElaMsg{
+				Type: dpos.Inv,
+				Msg:  invBuf.Bytes(),
+			})
+		},
+		OnCipherAddr: func(pid elapeer.PID, cipher []byte) {
+			fmt.Println("OnCipherAddr ----")
+			addr, err := dposAccount.DecryptAddr(cipher)
+			if err != nil {
+				fmt.Println("decrypt address cipher error", err)
+				return
+			}
+			fmt.Println("Daddr: ", addr)
+			//a.network.p2pServer.AddAddr(pid, addr)
+		},
+	}
+	routes := dpos.New(&routeCfg)
+	go routes.Start()
+
 	return eth, nil
 }
 
