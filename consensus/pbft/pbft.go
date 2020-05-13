@@ -21,11 +21,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 
-	ecom "github.com/elastos/Elastos.ELA/common"
+	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
-	"github.com/elastos/Elastos.ELA/p2p/msg"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -83,20 +82,6 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		confirmCh,
 		account,
 	}
-
-	routeCfg := dpos.Config{
-		PID:  account.PublicKeyBytes(),
-		Addr: fmt.Sprintf("%s:%d", cfg.IPAddress, cfg.DPoSPort),
-		Sign: account.Sign,
-		IsCurrent: func() bool {
-			return true
-		},
-		RelayAddr: func(iv *msg.InvVect, data interface{}) {
-
-		},
-	}
-	routes := dpos.New(&routeCfg)
-	go routes.Start()
 
 	return pbft
 }
@@ -271,7 +256,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
 	}
 
-	hash, err := ecom.Uint256FromBytes(block.Hash().Bytes())
+	hash, err := elacom.Uint256FromBytes(block.Hash().Bytes())
 	if err != nil {
 		return err
 	}

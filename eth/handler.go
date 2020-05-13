@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,8 +43,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
 
-	"github.com/elastos/Elastos.ELA/p2p/msg"
-	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/events"
 )
 
@@ -330,17 +327,8 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		return err
 	}
 	defer pm.removePeer(p.id)
+
 	events.Notify(dpos.ETNewPeer, p)
-
-	inv := msg.NewInv()
-	inv.AddInvVect(msg.NewInvVect(msg.InvTypeAddress, &elacom.Uint256{}))
-
-	invBuf := new(bytes.Buffer)
-	inv.Serialize(invBuf)
-	p.SendELAMessage(&dpos.ElaMsg{
-		Type: dpos.Inv,
-		Msg:  invBuf.Bytes(),
-	})
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
@@ -832,6 +820,13 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 	// FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
 	for peer, txs := range txset {
 		peer.AsyncSendTransactions(txs)
+	}
+}
+
+// BroadcastDAddr will propagate a ip address of dpos node to all peers.
+func (pm *ProtocolManager) BroadcastDAddr(elaMsg *dpos.ElaMsg) {
+	for _, peer := range pm.peers.peers {
+		peer.SendELAMessage(elaMsg)
 	}
 }
 
