@@ -819,15 +819,17 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 	var txset = make(map[*peer]types.Transactions)
 
 	// Broadcast transactions to a batch of peers not knowing about it
+	blackAddr := common.Address{}
 	for _, tx := range txs {
-		if tx.To() == nil || (*tx.To() != common.Address{}) && len(tx.Data()) != 32 {
-			//Because the recharge transaction is the packaging of the current node on duty, there is no need to broadcast
-			peers := pm.peers.PeersWithoutTx(tx.Hash())
-			for _, peer := range peers {
-				txset[peer] = append(txset[peer], tx)
-			}
-			log.Trace("Broadcast transaction", "hash", tx.Hash(), "recipients", len(peers))
+		if *tx.To() == blackAddr && len(tx.Data()) == 32 {
+			continue
 		}
+		//Because the recharge transaction is the packaging of the current node on duty, there is no need to broadcast
+		peers := pm.peers.PeersWithoutTx(tx.Hash())
+		for _, peer := range peers {
+			txset[peer] = append(txset[peer], tx)
+		}
+		log.Trace("Broadcast transaction", "hash", tx.Hash(), "recipients", len(peers))
 	}
 	// FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
 	for peer, txs := range txset {
