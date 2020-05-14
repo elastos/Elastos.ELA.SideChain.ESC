@@ -102,6 +102,7 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	if err != nil {
 		return nil, err
 	}
+	bc.SetDposEngine(bc.engine)
 	bc.genesisBlock, _ = bc.GetBlockByNumber(NoOdr, 0)
 	if bc.genesisBlock == nil {
 		return nil, core.ErrNoGenesis
