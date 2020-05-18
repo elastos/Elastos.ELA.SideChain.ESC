@@ -34,7 +34,21 @@ type mockPeer struct {
 }
 
 func (p *mockPeer) SendELAMessage(msg *ElaMsg) {
-	panic("implement me")
+	var (
+		sendMsg p2p.Message
+		err error
+	)
+
+	switch msg.Type {
+	case GetData:
+		sendMsg, err = p.makeEmptyMessage(p2p.CmdGetData)
+	default:
+		panic("error msg type")
+	}
+	if err != nil {
+		Info("SendELAMessage error", err)
+	}
+	p.QueueMessage(sendMsg, nil)
 }
 
 func (p *mockPeer) Disconnect() {

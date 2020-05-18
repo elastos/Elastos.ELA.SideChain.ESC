@@ -62,6 +62,10 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	if strings.LastIndex(dataDir, "/") == len(dataDir)-1 {
 		logpath = filepath.Join(dataDir, "logs/dpos")
 	}
+	if cfg == nil {
+		dpos.InitLog(0, 0, 0, logpath)
+		return &Pbft{}
+	}
 	dpos.InitLog(cfg.PrintLevel, cfg.MaxPerLogSize, cfg.MaxLogsSize, logpath)
 	producers := make([][]byte, len(cfg.Producers))
 	for i, v := range cfg.Producers {
