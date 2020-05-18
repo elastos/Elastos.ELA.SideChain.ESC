@@ -284,7 +284,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	// fixme: dpos route place here temporary
 	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
 	if err != nil {
-		dpos.Warn("create dpos account error:", err.Error())
+		return eth, nil
 	}
 	routeCfg := dpos.Config{
 		PID:  dposAccount.PublicKeyBytes(),
