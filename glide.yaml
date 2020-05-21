@@ -131,6 +131,7 @@ import:
   version: release_v0.4.0
 - package: github.com/gorilla/websocket
 - package: github.com/mattn/go-sqlite3
+- package: github.com/btcsuite/btcd/wire
 testImport:
 - package: github.com/cespare/cp
   version: ~1.0.0

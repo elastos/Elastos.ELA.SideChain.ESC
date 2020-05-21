@@ -5,6 +5,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
 type Dispatcher struct {
@@ -132,6 +133,16 @@ func (d *Dispatcher) createConfirm() *payload.Confirm {
 
 func (d *Dispatcher) GetProducers() *Producers {
 	return d.producers
+}
+
+func (d *Dispatcher) GetNeedConnectProducers() []peer.PID {
+	peers := make([]peer.PID, len(d.producers.producers))
+	for i, p := range d.producers.producers {
+		var pid peer.PID
+		copy(pid[:], p)
+		peers[i] = pid
+	}
+	return peers
 }
 
 func NewDispatcher(producers [][]byte, confirmCh chan *payload.Confirm) *Dispatcher {

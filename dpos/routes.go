@@ -144,6 +144,8 @@ func New(cfg *Config) *Routes {
 			go r.DonePeer(e.Data.(IPeer))
 		case ETStopRoutes:
 			go r.Stop()
+		case ETAnnounceAddr:
+			go r.AnnounceAddr()
 		}
 	})
 	return &r
@@ -164,7 +166,6 @@ func (r *Routes) DonePeer(peer IPeer) {
 }
 
 func (r *Routes) ElaMsg(msgEvent *MsgEvent) {
-	fmt.Println("OnElaMsg ------------- ", msgEvent.ElaMsg)
 	switch msgEvent.ElaMsg.Type {
 	case Inv:
 		var inv msg.Inv
