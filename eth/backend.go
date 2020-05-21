@@ -291,10 +291,11 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		Addr: fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
 		Sign: dposAccount.Sign,
 		IsCurrent: func() bool {
+			//TODO need to jduge is sync completed
 			return true
 		},
 		RelayAddr: func(iv *msg.InvVect, data interface{}) {
-			fmt.Println("RelayAddr ----")
+			log.Info("[RelayAddr ----")
 			inv := msg.NewInv()
 			inv.AddInvVect(iv)
 
@@ -306,18 +307,19 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			})
 		},
 		OnCipherAddr: func(pid elapeer.PID, cipher []byte) {
-			fmt.Println("OnCipherAddr ----")
 			addr, err := dposAccount.DecryptAddr(cipher)
 			if err != nil {
-				fmt.Println("decrypt address cipher error", err)
+				log.Error("decrypt address cipher error", err)
 				return
 			}
-			fmt.Println("Daddr: ", addr)
-			//a.network.p2pServer.AddAddr(pid, addr)
+			log.Info("Daddr: ", addr)
+			engine.AddDirectLinkPeer(pid, addr)
 		},
 	}
 	routes := dpos.New(&routeCfg)
 	go routes.Start()
+
+	go engine.StartServer()
 
 	return eth, nil
 }

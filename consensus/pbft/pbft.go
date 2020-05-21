@@ -20,11 +20,15 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+	"github.com/elastos/Elastos.ELA/dpos/dtime"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
+	"github.com/elastos/Elastos.ELA/events"
+
 	"golang.org/x/crypto/sha3"
 )
 
@@ -55,11 +59,14 @@ type Pbft struct {
 	dispatcher *dpos.Dispatcher
 	confirmCh  chan *payload.Confirm
 	account    daccount.Account
+	netWork   *dpos.Network
 }
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
 	logpath := filepath.Join(dataDir, "/logs/dpos")
+	dposPath := filepath.Join(dataDir, "/network/dpos")
 	if strings.LastIndex(dataDir, "/") == len(dataDir)-1 {
+		dposPath = filepath.Join(dataDir, "network/dpos")
 		logpath = filepath.Join(dataDir, "logs/dpos")
 	}
 	if cfg == nil {
@@ -73,10 +80,29 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	}
 	confirmCh := make(chan *payload.Confirm)
 	dispatcher := dpos.NewDispatcher(producers, confirmCh)
-
+	var network *dpos.Network
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
 		dpos.Warn("create dpos account error:", err.Error())
+	} else {
+		network, err = dpos.NewNetwork(&dpos.NetworkConfig{
+			IPAddress:   cfg.IPAddress,
+			Magic:       cfg.Magic,
+			DefaultPort: cfg.DPoSPort,
+			Account:     account,
+			MedianTime:  dtime.NewMedianTime(),
+			Listener:    nil,
+			DataPath: 	 dposPath,
+			ProposalDispatcher: dispatcher,
+			PublicKey: account.PublicKeyBytes(),
+			AnnounceAddr: func() {
+				events.Notify(dpos.ETAnnounceAddr, nil)
+			},
+		})
+		if err != nil {
+			dpos.Error("New dpos network error:", err.Error())
+			return nil
+		}
 	}
 
 	pbft := &Pbft{
@@ -85,6 +111,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		dispatcher,
 		confirmCh,
 		account,
+		network,
 	}
 
 	return pbft
@@ -374,5 +401,23 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 	})
 	if err != nil {
 		panic("can't encode: " + err.Error())
+	}
+}
+func (p *Pbft) StartServer() {
+	if p.netWork != nil {
+		p.netWork.Start()
+	}
+}
+
+func (p *Pbft) StopServer() {
+	if p.netWork != nil {
+		p.netWork.Stop()
+	}
+}
+
+func (p *Pbft) AddDirectLinkPeer(pid peer.PID, addr string) {
+	if p.netWork != nil {
+		p.netWork.AddDirectLinkAddr(pid, addr)
+		p.netWork.UpdatePeers(p.dispatcher.GetNeedConnectProducers())
 	}
 }
