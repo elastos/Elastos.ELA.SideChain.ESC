@@ -122,6 +122,20 @@ web3._extend({
 			call: 'pbft_announceDAddr',
 			params: 1,
 		}),
+	],
+	properties: [
+		new web3._extend.Property({
+			name: 'dispatcher',
+			getter: 'pbft_dispatcher'
+		}),
+		new web3._extend.Property({
+			name: 'account',
+			getter: 'pbft_account'
+		}),
+		new web3._extend.Property({
+			name: 'network',
+			getter: 'pbft_network'
+		}),
 	]
 });
 `

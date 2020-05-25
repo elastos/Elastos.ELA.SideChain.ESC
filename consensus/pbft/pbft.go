@@ -358,7 +358,7 @@ func (p *Pbft) APIs(chain consensus.ChainReader) []rpc.API {
 	return []rpc.API{{
 		Namespace: "pbft",
 		Version:   "1.0",
-		Service:   &API{chain: chain},
+		Service:   &API{chain: chain, pbft: p},
 		Public:    false,
 	}}
 }
