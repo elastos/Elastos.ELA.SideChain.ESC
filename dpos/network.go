@@ -7,15 +7,15 @@ import (
 
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 
-	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
-	"github.com/elastos/Elastos.ELA/dpos/manager"
 	"github.com/elastos/Elastos.ELA/dpos/p2p"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	dpeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	elap2p "github.com/elastos/Elastos.ELA/p2p"
-	elamsg "github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
 type NetworkConfig struct {
@@ -23,15 +23,60 @@ type NetworkConfig struct {
 	Magic       uint32
 	DefaultPort uint16
 
-	Account     account.Account
-	MedianTime  dtime.MedianTimeSource
-	Listener    manager.NetworkEventListener
-	DataPath    string
+	Account    account.Account
+	MedianTime dtime.MedianTimeSource
+	Listener   NetworkEventListener
+	DataPath   string
 
 	GetCurrentHeight   func(pid peer.PID) uint64
 	ProposalDispatcher *Dispatcher
 	PublicKey          []byte
 	AnnounceAddr       func()
+}
+
+type DPOSNetwork interface {
+	//Initialize(dnConfig DPOSNetworkConfig)
+
+	Start()
+	Stop() error
+
+	SendMessageToPeer(id dpeer.PID, msg elap2p.Message) error
+	BroadcastMessage(msg elap2p.Message)
+
+	UpdatePeers(peers []dpeer.PID)
+	GetActivePeers() []p2p.Peer
+	RecoverTimeout()
+}
+
+type StatusSyncEventListener interface {
+	OnPing(id dpeer.PID, height uint32)
+	OnPong(id dpeer.PID, height uint32)
+	OnBlock(id dpeer.PID, block *dmsg.BlockMsg)
+	OnInv(id dpeer.PID, blockHash common.Uint256)
+	OnGetBlock(id dpeer.PID, blockHash common.Uint256)
+	OnGetBlocks(id dpeer.PID, startBlockHeight, endBlockHeight uint32)
+	OnResponseBlocks(id dpeer.PID, blockConfirms []*dmsg.BlockMsg)
+	OnRequestConsensus(id dpeer.PID, height uint32)
+	OnResponseConsensus(id dpeer.PID, status *msg.ConsensusStatus)
+	OnRequestProposal(id dpeer.PID, hash common.Uint256)
+	OnIllegalProposalReceived(id dpeer.PID, proposals *payload.DPOSIllegalProposals)
+	OnIllegalVotesReceived(id dpeer.PID, votes *payload.DPOSIllegalVotes)
+}
+
+type NetworkEventListener interface {
+	StatusSyncEventListener
+
+	OnProposalReceived(id dpeer.PID, proposal *payload.DPOSProposal)
+	OnVoteAccepted(id dpeer.PID, proposal *payload.DPOSProposalVote)
+	OnVoteRejected(id dpeer.PID, proposal *payload.DPOSProposalVote)
+
+	OnChangeView()
+	OnBadNetwork()
+	OnRecover()
+	OnRecoverTimeout()
+
+	OnBlockReceived(b *dmsg.BlockMsg, confirmed bool)
+	OnConfirmReceived(c *payload.Confirm, height uint32)
 }
 
 type messageItem struct {
@@ -40,7 +85,7 @@ type messageItem struct {
 }
 
 type Network struct {
-	listener           manager.NetworkEventListener
+	listener           NetworkEventListener
 	proposalDispatcher *Dispatcher
 	publicKey          []byte
 	announceAddr       func()
@@ -54,7 +99,7 @@ type Network struct {
 	recoverChan        chan bool
 	recoverTimeoutChan chan bool
 
-	GetCurrentHeight   func(pid peer.PID) uint64
+	GetCurrentHeight func(pid peer.PID) uint64
 }
 
 func (n *Network) notifyFlag(flag p2p.NotifyFlag) {
@@ -65,7 +110,6 @@ func (n *Network) notifyFlag(flag p2p.NotifyFlag) {
 		n.announceAddr()
 	}
 }
-
 
 func (n *Network) Start() {
 	n.p2pServer.Start()
@@ -103,32 +147,32 @@ func (n *Network) processMessage(msgItem *messageItem) {
 	case msg.CmdReceivedProposal:
 		msgProposal, processed := m.(*msg.Proposal)
 		if processed {
-			fmt.Println(msgProposal)
-			//n.listener.OnProposalReceived(msgItem.ID, &msgProposal.Proposal)
+			//fmt.Println(msgProposal)
+			n.listener.OnProposalReceived(msgItem.ID, &msgProposal.Proposal)
 		}
 	case msg.CmdAcceptVote:
 		msgVote, processed := m.(*msg.Vote)
 		if processed {
-			fmt.Println(msgVote)
-			//n.listener.OnVoteAccepted(msgItem.ID, &msgVote.Vote)
+			//fmt.Println(msgVote)
+			n.listener.OnVoteAccepted(msgItem.ID, &msgVote.Vote)
 		}
 	case msg.CmdRejectVote:
 		msgVote, processed := m.(*msg.Vote)
 		if processed {
-			fmt.Println(msgVote)
-			//n.listener.OnVoteRejected(msgItem.ID, &msgVote.Vote)
+			//fmt.Println(msgVote)
+			n.listener.OnVoteRejected(msgItem.ID, &msgVote.Vote)
 		}
 	case msg.CmdPing:
 		msgPing, processed := m.(*msg.Ping)
 		if processed {
-			fmt.Println(msgPing)
-			//n.listener.OnPing(msgItem.ID, uint32(msgPing.Nonce))
+			//fmt.Println(msgPing)
+			n.listener.OnPing(msgItem.ID, uint32(msgPing.Nonce))
 		}
 	case msg.CmdPong:
 		msgPong, processed := m.(*msg.Pong)
 		if processed {
-			fmt.Println(msgPong)
-			//n.listener.OnPong(msgItem.ID, uint32(msgPong.Nonce))
+			//fmt.Println(msgPong)
+			n.listener.OnPong(msgItem.ID, uint32(msgPong.Nonce))
 		}
 	case elap2p.CmdBlock:
 		blockMsg, processed := m.(*dmsg.BlockMsg)
@@ -140,76 +184,55 @@ func (n *Network) processMessage(msgItem *messageItem) {
 	case msg.CmdInv:
 		msgInv, processed := m.(*msg.Inventory)
 		if processed {
-			fmt.Println(msgInv)
-			//n.listener.OnInv(msgItem.ID, msgInv.BlockHash)
+			//fmt.Println(msgInv)
+			n.listener.OnInv(msgItem.ID, msgInv.BlockHash)
 		}
 	case msg.CmdGetBlock:
 		msgGetBlock, processed := m.(*msg.GetBlock)
 		if processed {
-			fmt.Println(msgGetBlock)
-			//n.listener.OnGetBlock(msgItem.ID, msgGetBlock.BlockHash)
+			//fmt.Println(msgGetBlock)
+			n.listener.OnGetBlock(msgItem.ID, msgGetBlock.BlockHash)
 		}
 	case msg.CmdGetBlocks:
 		msgGetBlocks, processed := m.(*msg.GetBlocks)
 		if processed {
-			fmt.Println(msgGetBlocks)
-			//n.listener.OnGetBlocks(msgItem.ID, msgGetBlocks.StartBlockHeight, msgGetBlocks.EndBlockHeight)
+			//fmt.Println(msgGetBlocks)
+			n.listener.OnGetBlocks(msgItem.ID, msgGetBlocks.StartBlockHeight, msgGetBlocks.EndBlockHeight)
 		}
 	case msg.CmdResponseBlocks:
-		msgResponseBlocks, processed := m.(*msg.ResponseBlocks)
-		if processed {
-			fmt.Println(msgResponseBlocks)
-			//n.listener.OnResponseBlocks(msgItem.ID, msgResponseBlocks.BlockConfirms)
-		}
+		//msgResponseBlocks, processed := m.(*dmsg.BlockMsg)
+		//if processed {
+			//n.listener.OnResponseBlocks(msgItem.ID, msgResponseBlocks)
+		//}
 	case msg.CmdRequestConsensus:
 		msgRequestConsensus, processed := m.(*msg.RequestConsensus)
 		if processed {
-			fmt.Println(msgRequestConsensus)
-			//n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
+			//fmt.Println(msgRequestConsensus)
+			n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
 		}
 	case msg.CmdResponseConsensus:
 		msgResponseConsensus, processed := m.(*msg.ResponseConsensus)
 		if processed {
-			fmt.Println(msgResponseConsensus)
-			//n.listener.OnResponseConsensus(msgItem.ID, &msgResponseConsensus.Consensus)
+			//fmt.Println(msgResponseConsensus)
+			n.listener.OnResponseConsensus(msgItem.ID, &msgResponseConsensus.Consensus)
 		}
 	case msg.CmdRequestProposal:
 		msgRequestProposal, processed := m.(*msg.RequestProposal)
 		if processed {
-			fmt.Println(msgRequestProposal)
-			//n.listener.OnRequestProposal(msgItem.ID, msgRequestProposal.ProposalHash)
+			//fmt.Println(msgRequestProposal)
+			n.listener.OnRequestProposal(msgItem.ID, msgRequestProposal.ProposalHash)
 		}
 	case msg.CmdIllegalProposals:
 		msgIllegalProposals, processed := m.(*msg.IllegalProposals)
 		if processed {
-			fmt.Println(msgIllegalProposals)
-			//n.listener.OnIllegalProposalReceived(msgItem.ID, &msgIllegalProposals.Proposals)
+			//fmt.Println(msgIllegalProposals)
+			n.listener.OnIllegalProposalReceived(msgItem.ID, &msgIllegalProposals.Proposals)
 		}
 	case msg.CmdIllegalVotes:
 		msgIllegalVotes, processed := m.(*msg.IllegalVotes)
 		if processed {
-			fmt.Println(msgIllegalVotes)
-			//n.listener.OnIllegalVotesReceived(msgItem.ID, &msgIllegalVotes.Votes)
-		}
-	case msg.CmdSidechainIllegalData:
-		msgSidechainIllegal, processed := m.(*msg.SidechainIllegalData)
-		if processed {
-			fmt.Println(msgSidechainIllegal)
-			//n.listener.OnSidechainIllegalEvidenceReceived(&msgSidechainIllegal.Data)
-		}
-	case elap2p.CmdTx:
-		//msgTx, processed := m.(*elamsg.Tx)
-		//if processed {
-		//	if tx, ok := msgTx.Serializable.(*types.Transaction); ok && tx.IsInactiveArbitrators() {
-		//		n.listener.OnInactiveArbitratorsReceived(msgItem.ID, tx)
-		//	}
-		//}
-	case msg.CmdResponseInactiveArbitrators:
-		msgResponse, processed := m.(*msg.ResponseInactiveArbitrators)
-		if processed {
-			fmt.Println(msgResponse)
-			//n.listener.OnResponseInactiveArbitratorsReceived(
-			//	&msgResponse.TxHash, msgResponse.Signer, msgResponse.Sign)
+			//fmt.Println(msgIllegalVotes)
+			n.listener.OnIllegalVotesReceived(msgItem.ID, &msgIllegalVotes.Votes)
 		}
 	}
 }
@@ -309,8 +332,6 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 	switch cmd {
 	case elap2p.CmdBlock:
 		message = dmsg.NewBlockMsg([]byte{})
-	case elap2p.CmdTx:
-		message = elamsg.NewTx(&types.Transaction{})
 	case msg.CmdAcceptVote:
 		message = &msg.Vote{Command: msg.CmdAcceptVote}
 	case msg.CmdReceivedProposal:

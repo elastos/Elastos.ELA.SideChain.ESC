@@ -68,7 +68,8 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 
 	if !d.producers.IsProducers(vote.Signer) {
 		err = errors.New("current signer is not producer")
-		return false, false, err
+		// fixme
+		//return false, false, err
 	}
 
 	if err := CheckVote(vote); err != nil {

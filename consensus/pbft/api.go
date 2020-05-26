@@ -35,8 +35,8 @@ func (a *API) UpdatePeers(peers []string) uint64 {
 		node := common.Hex2Bytes(pid)
 		copy(pids[i][:], node)
 	}
-	log.Info("UpdatePeers direct peers:", peers)
-	a.pbft.netWork.UpdatePeers(pids)
+	log.Info("UpdatePeers direct peers", "peers", peers)
+	a.pbft.network.UpdatePeers(pids)
 	return 0
 }
 
@@ -49,5 +49,5 @@ func (a *API) Account() daccount.Account {
 }
 
 func (a *API) Network() *dpos.Network {
-	return a.pbft.netWork
+	return a.pbft.network
 }

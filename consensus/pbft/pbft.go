@@ -20,15 +20,13 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
-	"github.com/elastos/Elastos.ELA/dpos/dtime"
-	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
-
-	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+
 	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
+	"github.com/elastos/Elastos.ELA/dpos/dtime"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
-
 	"golang.org/x/crypto/sha3"
 )
 
@@ -59,7 +57,10 @@ type Pbft struct {
 	dispatcher *dpos.Dispatcher
 	confirmCh  chan *payload.Confirm
 	account    daccount.Account
-	netWork   *dpos.Network
+	network    *dpos.Network
+
+	StartMine func()
+	StopMine  func()
 }
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
@@ -80,39 +81,42 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	}
 	confirmCh := make(chan *payload.Confirm)
 	dispatcher := dpos.NewDispatcher(producers, confirmCh)
-	var network *dpos.Network
+
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
 		dpos.Warn("create dpos account error:", err.Error())
-	} else {
-		network, err = dpos.NewNetwork(&dpos.NetworkConfig{
-			IPAddress:   cfg.IPAddress,
-			Magic:       cfg.Magic,
-			DefaultPort: cfg.DPoSPort,
-			Account:     account,
-			MedianTime:  dtime.NewMedianTime(),
-			Listener:    nil,
-			DataPath: 	 dposPath,
-			ProposalDispatcher: dispatcher,
-			PublicKey: account.PublicKeyBytes(),
-			AnnounceAddr: func() {
-				events.Notify(dpos.ETAnnounceAddr, nil)
-			},
-		})
-		if err != nil {
-			dpos.Error("New dpos network error:", err.Error())
-			return nil
-		}
+		return nil
 	}
-
 	pbft := &Pbft{
 		dataDir,
 		*cfg,
 		dispatcher,
 		confirmCh,
 		account,
-		network,
+		nil,
+		nil,
+		nil,
 	}
+
+	network, err := dpos.NewNetwork(&dpos.NetworkConfig{
+		IPAddress:          cfg.IPAddress,
+		Magic:              cfg.Magic,
+		DefaultPort:        cfg.DPoSPort,
+		Account:            account,
+		MedianTime:         dtime.NewMedianTime(),
+		Listener:           pbft,
+		DataPath:           dposPath,
+		ProposalDispatcher: dispatcher,
+		PublicKey:          account.PublicKeyBytes(),
+		AnnounceAddr: func() {
+			events.Notify(dpos.ETAnnounceAddr, nil)
+		},
+	})
+	if err != nil {
+		dpos.Error("New dpos network error:", err.Error())
+		return nil
+	}
+	pbft.network = network
 
 	return pbft
 }
@@ -264,6 +268,8 @@ func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state
 	// TODO panic("implement me")
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+
+	p.FinishedProposal()
 }
 
 func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
@@ -283,47 +289,22 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if p.account == nil {
 		return errors.New("no signer inited")
 	}
-	if !p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes()) {
-		return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
-	}
-
-	hash, err := elacom.Uint256FromBytes(block.Hash().Bytes())
-	if err != nil {
+	//if !p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes()) {
+	//	return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
+	//}
+	if err := p.StartProposal(block); err != nil {
 		return err
 	}
-	proposal, err := dpos.StartProposal(p.account, *hash)
-	if err != nil {
-		log.Error("Start proposal error:", err)
-		return err
-	}
-	//fixme The following code is used to test out the block, should used p2p network
-	err = p.dispatcher.ProcessProposal(proposal)
-	if err != nil {
-		log.Error("ProcessProposal error:", err)
-		return err
-	}
-	phash := proposal.Hash()
-	vote, err := dpos.StartVote(&phash, true, p.account)
-	if err != nil {
-		log.Error("StartVote error:", err)
-		return err
-	}
-	go func() {
-		_, _, err = p.dispatcher.ProcessVote(vote)
-		if err != nil {
-			log.Error("ProcessVote error:", err)
-		}
-	}()
 
 	select {
 	case confirm := <-p.confirmCh:
-		log.Info("Received confirm :", confirm.Proposal.Hash().String())
+		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String())
 		break
-	case <-time.After(5 * time.Second):
-		log.Warn("Seal block is Timeout, to change view")
-		p.dispatcher.FinishedProposal()
-		results <- nil
-		return errors.New("seal block timeout")
+	//case <-time.After(5 * time.Second):
+	//	log.Warn("Seal block is Timeout, to change view")
+	//	p.dispatcher.FinishedProposal()
+	//	results <- nil
+	//	return errors.New("seal block timeout")
 	case <-stop:
 		return nil
 	}
@@ -403,20 +384,31 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 		panic("can't encode: " + err.Error())
 	}
 }
+
+func (p *Pbft) AddDirectLinkPeer(pid peer.PID, addr string) {
+	if p.network != nil {
+		p.network.AddDirectLinkAddr(pid, addr)
+	}
+}
+
 func (p *Pbft) StartServer() {
-	if p.netWork != nil {
-		p.netWork.Start()
+	if p.network != nil {
+		p.network.Start()
 	}
 }
 
 func (p *Pbft) StopServer() {
-	if p.netWork != nil {
-		p.netWork.Stop()
+	if p.network != nil {
+		p.network.Stop()
 	}
 }
 
-func (p *Pbft) AddDirectLinkPeer(pid peer.PID, addr string) {
-	if p.netWork != nil {
-		p.netWork.AddDirectLinkAddr(pid, addr)
+func (p *Pbft) FinishedProposal() {
+	p.dispatcher.FinishedProposal()
+	if p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes()) {
+		//return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
+		p.StartMine()
+	} else {
+		p.StopMine()
 	}
 }
