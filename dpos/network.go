@@ -237,6 +237,16 @@ func (n *Network) AddDirectLinkAddr(pid peer.PID, addr string) {
 	n.p2pServer.AddAddr(pid, addr)
 }
 
+func (n *Network) SendMessageToPeer(id peer.PID, msg elap2p.Message) error {
+	Info("[SendMessageToPeer] msg:", msg.CMD(), id.String())
+	return n.p2pServer.SendMessageToPeer(id, msg)
+}
+
+func (n *Network) BroadcastMessage(msg elap2p.Message) {
+	Info("[BroadcastMessage] msg:", msg.CMD())
+	n.p2pServer.BroadcastMessage(msg)
+}
+
 func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 	network := &Network{
 		listener:           cfg.Listener,
