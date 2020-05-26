@@ -285,6 +285,13 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 
 	// fixme: dpos route place here temporary
+	engine.StartMine = func() {
+		eth.miner.Start(eth.etherbase)
+	}
+	engine.StopMine = func() {
+		eth.miner.Stop()
+	}
+
 	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
 	if err != nil {
 		return eth, nil
@@ -321,7 +328,6 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 	routes := dpos.New(&routeCfg)
 	go routes.Start()
-
 	go engine.StartServer()
 
 	return eth, nil
