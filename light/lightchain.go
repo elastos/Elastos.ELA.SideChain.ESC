@@ -389,6 +389,9 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 		return lc.InsertBlockHeaders(chain, checkFreq)
 	}
 	limit := lc.hc.Config().PBFTBlock.Uint64() - chain[0].Number.Uint64()
+	if limit > uint64(len(chain)) {
+		return lc.InsertBlockHeaders(chain, checkFreq)
+	}
 	cliqueChain := chain[:limit]
 	n, err := lc.InsertBlockHeaders(cliqueChain, checkFreq)
 	if err != nil {
