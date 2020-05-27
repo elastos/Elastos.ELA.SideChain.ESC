@@ -6,6 +6,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	elapeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
@@ -25,7 +26,17 @@ func (a *API) AnnounceDAddr(pid string) uint64 {
 	node0 := common.Hex2Bytes(pid)
 	copy(producers[0][:], node0)
 	events.Notify(events.ETDirectPeersChanged, producers)
+	return 0
+}
 
+func (a *API) UpdatePeers(peers []string) uint64 {
+	pids := make([]elapeer.PID, len(peers))
+	for i, pid := range peers {
+		node := common.Hex2Bytes(pid)
+		copy(pids[i][:], node)
+	}
+	log.Info("UpdatePeers direct peers:", peers)
+	a.pbft.netWork.UpdatePeers(pids)
 	return 0
 }
 
