@@ -312,7 +312,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 				log.Error("decrypt address cipher error", err)
 				return
 			}
-			log.Info("Daddr: ", addr)
+			log.Info("AddDirectLinkPeer Daddr: ", addr)
 			engine.AddDirectLinkPeer(pid, addr)
 		},
 	}

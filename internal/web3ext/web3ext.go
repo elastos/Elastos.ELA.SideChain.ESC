@@ -122,6 +122,11 @@ web3._extend({
 			call: 'pbft_announceDAddr',
 			params: 1,
 		}),
+		new web3._extend.Method({
+			name: 'updatePeers',
+			call: 'pbft_updatePeers',
+			params: 1,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({

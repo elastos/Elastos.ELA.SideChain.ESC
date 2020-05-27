@@ -103,27 +103,32 @@ func (n *Network) processMessage(msgItem *messageItem) {
 	case msg.CmdReceivedProposal:
 		msgProposal, processed := m.(*msg.Proposal)
 		if processed {
-			n.listener.OnProposalReceived(msgItem.ID, &msgProposal.Proposal)
+			fmt.Println(msgProposal)
+			//n.listener.OnProposalReceived(msgItem.ID, &msgProposal.Proposal)
 		}
 	case msg.CmdAcceptVote:
 		msgVote, processed := m.(*msg.Vote)
 		if processed {
-			n.listener.OnVoteAccepted(msgItem.ID, &msgVote.Vote)
+			fmt.Println(msgVote)
+			//n.listener.OnVoteAccepted(msgItem.ID, &msgVote.Vote)
 		}
 	case msg.CmdRejectVote:
 		msgVote, processed := m.(*msg.Vote)
 		if processed {
-			n.listener.OnVoteRejected(msgItem.ID, &msgVote.Vote)
+			fmt.Println(msgVote)
+			//n.listener.OnVoteRejected(msgItem.ID, &msgVote.Vote)
 		}
 	case msg.CmdPing:
 		msgPing, processed := m.(*msg.Ping)
 		if processed {
-			n.listener.OnPing(msgItem.ID, uint32(msgPing.Nonce))
+			fmt.Println(msgPing)
+			//n.listener.OnPing(msgItem.ID, uint32(msgPing.Nonce))
 		}
 	case msg.CmdPong:
 		msgPong, processed := m.(*msg.Pong)
 		if processed {
-			n.listener.OnPong(msgItem.ID, uint32(msgPong.Nonce))
+			fmt.Println(msgPong)
+			//n.listener.OnPong(msgItem.ID, uint32(msgPong.Nonce))
 		}
 	case elap2p.CmdBlock:
 		blockMsg, processed := m.(*dmsg.BlockMsg)
@@ -135,65 +140,76 @@ func (n *Network) processMessage(msgItem *messageItem) {
 	case msg.CmdInv:
 		msgInv, processed := m.(*msg.Inventory)
 		if processed {
-			n.listener.OnInv(msgItem.ID, msgInv.BlockHash)
+			fmt.Println(msgInv)
+			//n.listener.OnInv(msgItem.ID, msgInv.BlockHash)
 		}
 	case msg.CmdGetBlock:
 		msgGetBlock, processed := m.(*msg.GetBlock)
 		if processed {
-			n.listener.OnGetBlock(msgItem.ID, msgGetBlock.BlockHash)
+			fmt.Println(msgGetBlock)
+			//n.listener.OnGetBlock(msgItem.ID, msgGetBlock.BlockHash)
 		}
 	case msg.CmdGetBlocks:
 		msgGetBlocks, processed := m.(*msg.GetBlocks)
 		if processed {
-			n.listener.OnGetBlocks(msgItem.ID, msgGetBlocks.StartBlockHeight, msgGetBlocks.EndBlockHeight)
+			fmt.Println(msgGetBlocks)
+			//n.listener.OnGetBlocks(msgItem.ID, msgGetBlocks.StartBlockHeight, msgGetBlocks.EndBlockHeight)
 		}
 	case msg.CmdResponseBlocks:
 		msgResponseBlocks, processed := m.(*msg.ResponseBlocks)
 		if processed {
-			n.listener.OnResponseBlocks(msgItem.ID, msgResponseBlocks.BlockConfirms)
+			fmt.Println(msgResponseBlocks)
+			//n.listener.OnResponseBlocks(msgItem.ID, msgResponseBlocks.BlockConfirms)
 		}
 	case msg.CmdRequestConsensus:
 		msgRequestConsensus, processed := m.(*msg.RequestConsensus)
 		if processed {
-			n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
+			fmt.Println(msgRequestConsensus)
+			//n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
 		}
 	case msg.CmdResponseConsensus:
 		msgResponseConsensus, processed := m.(*msg.ResponseConsensus)
 		if processed {
-			n.listener.OnResponseConsensus(msgItem.ID, &msgResponseConsensus.Consensus)
+			fmt.Println(msgResponseConsensus)
+			//n.listener.OnResponseConsensus(msgItem.ID, &msgResponseConsensus.Consensus)
 		}
 	case msg.CmdRequestProposal:
 		msgRequestProposal, processed := m.(*msg.RequestProposal)
 		if processed {
-			n.listener.OnRequestProposal(msgItem.ID, msgRequestProposal.ProposalHash)
+			fmt.Println(msgRequestProposal)
+			//n.listener.OnRequestProposal(msgItem.ID, msgRequestProposal.ProposalHash)
 		}
 	case msg.CmdIllegalProposals:
 		msgIllegalProposals, processed := m.(*msg.IllegalProposals)
 		if processed {
-			n.listener.OnIllegalProposalReceived(msgItem.ID, &msgIllegalProposals.Proposals)
+			fmt.Println(msgIllegalProposals)
+			//n.listener.OnIllegalProposalReceived(msgItem.ID, &msgIllegalProposals.Proposals)
 		}
 	case msg.CmdIllegalVotes:
 		msgIllegalVotes, processed := m.(*msg.IllegalVotes)
 		if processed {
-			n.listener.OnIllegalVotesReceived(msgItem.ID, &msgIllegalVotes.Votes)
+			fmt.Println(msgIllegalVotes)
+			//n.listener.OnIllegalVotesReceived(msgItem.ID, &msgIllegalVotes.Votes)
 		}
 	case msg.CmdSidechainIllegalData:
 		msgSidechainIllegal, processed := m.(*msg.SidechainIllegalData)
 		if processed {
-			n.listener.OnSidechainIllegalEvidenceReceived(&msgSidechainIllegal.Data)
+			fmt.Println(msgSidechainIllegal)
+			//n.listener.OnSidechainIllegalEvidenceReceived(&msgSidechainIllegal.Data)
 		}
 	case elap2p.CmdTx:
-		msgTx, processed := m.(*elamsg.Tx)
-		if processed {
-			if tx, ok := msgTx.Serializable.(*types.Transaction); ok && tx.IsInactiveArbitrators() {
-				n.listener.OnInactiveArbitratorsReceived(msgItem.ID, tx)
-			}
-		}
+		//msgTx, processed := m.(*elamsg.Tx)
+		//if processed {
+		//	if tx, ok := msgTx.Serializable.(*types.Transaction); ok && tx.IsInactiveArbitrators() {
+		//		n.listener.OnInactiveArbitratorsReceived(msgItem.ID, tx)
+		//	}
+		//}
 	case msg.CmdResponseInactiveArbitrators:
 		msgResponse, processed := m.(*msg.ResponseInactiveArbitrators)
 		if processed {
-			n.listener.OnResponseInactiveArbitratorsReceived(
-				&msgResponse.TxHash, msgResponse.Signer, msgResponse.Sign)
+			fmt.Println(msgResponse)
+			//n.listener.OnResponseInactiveArbitratorsReceived(
+			//	&msgResponse.TxHash, msgResponse.Signer, msgResponse.Sign)
 		}
 	}
 }

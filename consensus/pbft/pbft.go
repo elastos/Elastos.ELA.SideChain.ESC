@@ -418,6 +418,5 @@ func (p *Pbft) StopServer() {
 func (p *Pbft) AddDirectLinkPeer(pid peer.PID, addr string) {
 	if p.netWork != nil {
 		p.netWork.AddDirectLinkAddr(pid, addr)
-		p.netWork.UpdatePeers(p.dispatcher.GetNeedConnectProducers())
 	}
 }
