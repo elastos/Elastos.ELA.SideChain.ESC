@@ -1510,12 +1510,15 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		return bc.insertBlockChain(chain, verifySeals, bc.pbftEngine)
 	}
 	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].NumberU64()
+	if limit > uint64(len(chain)) {
+		return bc.insertBlockChain(chain, verifySeals, bc.pbftEngine)
+	}
 	cliqueChain := chain[:limit]
 	n, events, logs, err := bc.insertBlockChain(cliqueChain, verifySeals, bc.engine)
 	if err != nil {
 		return n, events, logs, err
 	}
-	events = events[:len(events) - 1]
+	events = events[:len(events)-1]
 	pbftChain := chain[limit:]
 	n, events1, logs1, err := bc.insertBlockChain(pbftChain, verifySeals, bc.pbftEngine)
 	events = append(events, events1...)
@@ -1815,7 +1818,7 @@ func (bc *BlockChain) OnSyncHeader(header *types.Header) {
 		return
 	}
 	nowHeight := bc.CurrentBlock().Number().Uint64()
-	if nowHeight < cfg.PBFTBlock.Uint64() && height >=  cfg.PBFTBlock.Uint64() - cfg.PreConnectOffset {
+	if nowHeight < cfg.PBFTBlock.Uint64() && height >= cfg.PBFTBlock.Uint64()-cfg.PreConnectOffset {
 		producers := make([]peer.PID, len(cfg.Pbft.Producers))
 		for i, v := range cfg.Pbft.Producers {
 			producer := common.Hex2Bytes(v)
@@ -2049,16 +2052,16 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
 	//elastos is clique
- 	if blocksigner.GetBlockSignersCount() > 1 && len(oldChain) > blocksigner.GetBlockSignersCount() /2 {
+	if blocksigner.GetBlockSignersCount() > 1 && len(oldChain) > blocksigner.GetBlockSignersCount()/2 {
 		msg := "danger chain detected, more than n/2 :"
-		log.Error(msg, blocksigner.GetBlockSignersCount() /2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
+		log.Error(msg, blocksigner.GetBlockSignersCount()/2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
 		defer func() {
 			bc.dangerousFeed.Send(DangerousChainSideEvent{})
 		}()
 		return fmt.Errorf("Dangerous new chain")
 	}
-	
+
 	// Insert the new chain(except the head block(reverse order)),
 	// taking care of the proper incremental order.
 	for i := len(newChain) - 1; i >= 1; i-- {
@@ -2200,6 +2203,9 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 		return bc.InsertBlockHeaders(chain, checkFreq, start)
 	}
 	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].Number.Uint64()
+	if limit > uint64(len(chain)) {
+		return bc.InsertBlockHeaders(chain, checkFreq, start)
+	}
 	cliqueChain := chain[:limit]
 	n, err := bc.InsertBlockHeaders(cliqueChain, checkFreq, start)
 	if err != nil {
