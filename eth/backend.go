@@ -105,6 +105,9 @@ type Ethereum struct {
 }
 
 func (s *Ethereum) SetEngine(engine consensus.Engine) {
+	if s.engine == engine {
+		return
+	}
 	log.Info("-----------------[SWITCH ENGINE TO DPOS!]-----------------")
 	if s.miner != nil {
 		s.StopMining()

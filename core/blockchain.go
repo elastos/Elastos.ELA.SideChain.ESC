@@ -1510,8 +1510,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []
 		return bc.insertBlockChain(chain, verifySeals, bc.pbftEngine)
 	}
 	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].NumberU64()
-	if limit > uint64(len(chain)) {
-		return bc.insertBlockChain(chain, verifySeals, bc.pbftEngine)
+	if limit >= uint64(len(chain)) {
+		return bc.insertBlockChain(chain, verifySeals, bc.engine)
 	}
 	cliqueChain := chain[:limit]
 	n, events, logs, err := bc.insertBlockChain(cliqueChain, verifySeals, bc.engine)
@@ -2203,7 +2203,7 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 		return bc.InsertBlockHeaders(chain, checkFreq, start)
 	}
 	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].Number.Uint64()
-	if limit > uint64(len(chain)) {
+	if limit >= uint64(len(chain)) {
 		return bc.InsertBlockHeaders(chain, checkFreq, start)
 	}
 	cliqueChain := chain[:limit]
