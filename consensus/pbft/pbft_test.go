@@ -3,9 +3,9 @@ package pbft
 import (
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
@@ -29,6 +29,12 @@ func TestReimportMirroredState(t *testing.T) {
 		engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "")
 		signer = new(types.HomesteadSigner)
 	)
+	engine.StartMine = func() {
+
+	}
+	engine.StopMine = func() {
+
+	}
 	genspec := &core.Genesis{
 		ExtraData: make([]byte, extraVanity + common.AddressLength + extraSeal),
 		Alloc: map[common.Address]core.GenesisAccount{
@@ -62,19 +68,10 @@ func TestReimportMirroredState(t *testing.T) {
 		signer := engine.account.PublicKeyBytes()
 		header.Extra = append(header.Extra, signer[:]...)
 		header.Extra = append(header.Extra, make([]byte, extraSeal)...)
-		results := make(chan *types.Block)
-		err := engine.Seal(nil, block.WithSeal(header), results, nil)
-		if err != nil {
-			t.Fatalf("failed to seal block: %v", err)
-			return
-		}
-
-		select {
-		case b := <-results:
-			blocks[i] = b
-		case <-time.NewTimer(time.Second).C:
-			t.Error("sealing result timeout")
-		}
+		length := len(header.Extra)
+		signature := engine.account.Sign(clique.CliqueRLP(header))
+		copy(header.Extra[length-extraSeal:], signature)
+		blocks[i] =block.WithSeal(header)
 	}
 	// Insert the first two blocks and make sure the chain is valid
 	db = rawdb.NewMemoryDatabase()
