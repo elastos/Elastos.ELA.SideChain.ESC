@@ -116,7 +116,6 @@ func node0ProcessVotes(vote *payload.DPOSProposalVote, dispatcher *Dispatcher) b
 		fmt.Println("process is not finished ")
 		return false
 	}
-	fmt.Println("Node0 process the vote:", dispatcher.acceptVotes[vote.Hash()].ProposalHash.String())
 	return true
 }
 
