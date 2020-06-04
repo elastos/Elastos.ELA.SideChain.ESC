@@ -117,8 +117,17 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		return nil
 	}
 	pbft.network = network
-
+	pbft.subscribeEvent()
 	return pbft
+}
+
+func (p *Pbft) subscribeEvent() {
+	events.Subscribe(func(e *events.Event) {
+		switch e.Type {
+		case events.ETDirectPeersChanged:
+			go p.network.UpdatePeers(e.Data.([]peer.PID))
+		}
+	})
 }
 
 func (p *Pbft) GetDataDir() string {
