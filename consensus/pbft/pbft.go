@@ -252,10 +252,9 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	dpos.Info("Pbft Prepare")
 
-	// fixme
-	if !p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes()) {
+	if !p.IsOnduty() {
 		p.StopMine()
-		return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
+		return errors.New("local singer is not on duty")
 	}
 
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
@@ -427,4 +426,11 @@ func (p *Pbft) FinishedProposal() {
 	} else {
 		p.StopMine()
 	}
+}
+
+func (p *Pbft) IsOnduty() bool  {
+	if p.account == nil {
+		return false
+	}
+	return p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes())
 }
