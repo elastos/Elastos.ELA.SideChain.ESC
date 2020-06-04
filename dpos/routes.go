@@ -218,11 +218,11 @@ func (r *Routes) addrHandler() {
 	var lastAnnounce time.Time
 
 	// scheduleAnnounce schedules an announce according to the delay time.
-	//var scheduleAnnounce = func(delay time.Duration) {
-	//	time.AfterFunc(delay, func() {
-	//		r.announce <- struct{}{}
-	//	})
-	//}
+	var scheduleAnnounce = func(delay time.Duration) {
+		time.AfterFunc(delay, func() {
+			r.announce <- struct{}{}
+		})
+	}
 
 out:
 	for {
@@ -266,9 +266,9 @@ out:
 			now := time.Now()
 			if lastAnnounce.Add(minAnnounceDuration).After(now) {
 				// Calculate next announce time and schedule an announce.
-				//nextAnnounce := minAnnounceDuration - now.Sub(lastAnnounce)
-				//scheduleAnnounce(nextAnnounce)
-				//continue
+				nextAnnounce := minAnnounceDuration - now.Sub(lastAnnounce)
+				scheduleAnnounce(nextAnnounce)
+				continue
 			}
 
 			// Update last announce time.
@@ -367,14 +367,14 @@ func (r *Routes) handlePeersMsg(state *state, peers []peer.PID) {
 	}
 
 	// Update peers list.
-	//_, isProducer := newPeers[r.selfPID]
-	//_, wasProducer := state.peers[r.selfPID]
+	_, isProducer := newPeers[r.selfPID]
+	_, wasProducer := state.peers[r.selfPID]
 	state.peers = newPeers
 
 	// Announce address into P2P network if we become arbiter.
-	//if isProducer && !wasProducer {
+	if isProducer && !wasProducer {
 		r.announceAddr()
-	//}
+	}
 }
 
 // AnnounceAddr schedules an local address announce to the P2P network, it used
