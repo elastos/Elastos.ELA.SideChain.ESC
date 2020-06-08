@@ -1,13 +1,16 @@
 package pbft
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -16,7 +19,7 @@ import (
 )
 
 func (p *Pbft) StartProposal(block *types.Block) error {
-	fmt.Println("StartProposal")
+	log.Info("StartProposal", "block hash:", block.Hash().String())
 
 	hash, err := elacom.Uint256FromBytes(block.Hash().Bytes())
 	if err != nil {
@@ -40,6 +43,29 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 	return nil
 }
 
+func (p *Pbft) BroadPreBlock(block *types.Block) error {
+	log.Info("BroadPreBlock,", "block hash:", block.Hash().String())
+	buffer := bytes.NewBuffer([]byte{})
+	err := block.EncodeRLP(buffer)
+	if err != nil {
+		return err
+	}
+	msg := dmsg.NewBlockMsg(buffer.Bytes())
+	p.network.BroadcastMessage(msg)
+	p.blockPool.AppendDposBlock(block)
+	return nil
+}
+
+func (p *Pbft) tryGetCurrentProposal(id peer.PID, v *payload.DPOSProposalVote) (elacom.Uint256, bool) {
+	currentProposal := p.dispatcher.GetProcessingProposal()
+	if currentProposal == nil {
+		requestProposal := &msg.RequestProposal{ProposalHash: v.ProposalHash}
+		go p.network.SendMessageToPeer(id, requestProposal)
+		return elacom.EmptyHash, false
+	}
+	return currentProposal.Hash(), true
+}
+
 func (p *Pbft) OnPing(id peer.PID, height uint32) {
 	fmt.Println("OnPing", id, height)
 }
@@ -49,15 +75,51 @@ func (p *Pbft) OnPong(id peer.PID, height uint32) {
 }
 
 func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
-	fmt.Println("OnBlock")
+	fmt.Println("-----On PreBlock received------:::")
+	b := &types.Block{}
+
+	err := b.DecodeRLP(rlp.NewStream(bytes.NewBuffer(block.GetData()), 0))
+	if err != nil {
+		panic("OnBlock Decode Block Msg error:" + err.Error())
+	}
+	p.blockPool.AppendDposBlock(b)
+
+	if _, ok := p.requestedBlocks[b.Hash()]; ok {
+		delete(p.requestedBlocks, b.Hash())
+	}
 }
 
 func (p *Pbft) OnInv(id peer.PID, blockHash elacom.Uint256) {
-	fmt.Println("OnInv")
+	if !p.dispatcher.GetProducers().IsProducers(p.account.PublicKeyBytes()) {
+		return
+	}
+	if p.blockPool.HasBlock(blockHash) {
+		return
+	}
+	hash := common.BytesToHash(blockHash.Bytes())
+	if _, ok := p.requestedBlocks[hash]; ok {
+		return
+	}
+
+	log.Info("[ProcessInv] send getblock:", blockHash.String())
+	p.limitMap(p.requestedBlocks, maxRequestedBlocks)
+	p.requestedBlocks[hash] = struct{}{}
+	go p.network.SendMessageToPeer(id, msg.NewGetBlock(blockHash))
 }
 
 func (p *Pbft) OnGetBlock(id peer.PID, blockHash elacom.Uint256) {
-	fmt.Println("OnGetBlock")
+	if block, ok := p.blockPool.GetBlock(blockHash); ok {
+		if b, suc := block.(*types.Block); suc {
+			buffer := bytes.NewBuffer([]byte{})
+			err := b.EncodeRLP(buffer)
+			if err != nil {
+				log.Error("[OnGetBlock] Encode Block Error")
+			}
+			go p.network.SendMessageToPeer(id, dmsg.NewBlockMsg(buffer.Bytes()))
+		} else {
+			log.Error("block is not ethereum block")
+		}
+	}
 }
 
 func (p *Pbft) OnGetBlocks(id peer.PID, startBlockHeight, endBlockHeight uint32) {
@@ -77,7 +139,11 @@ func (p *Pbft) OnResponseConsensus(id peer.PID, status *msg.ConsensusStatus) {
 }
 
 func (p *Pbft) OnRequestProposal(id peer.PID, hash elacom.Uint256) {
-	fmt.Println("OnRequestProposal")
+	currentProposal := p.dispatcher.GetProcessingProposal()
+	if currentProposal != nil {
+		responseProposal := &msg.Proposal{Proposal: *currentProposal}
+		go p.network.SendMessageToPeer(id, responseProposal)
+	}
 }
 
 func (p *Pbft) OnIllegalProposalReceived(id peer.PID, proposals *payload.DPOSIllegalProposals) {
@@ -90,7 +156,10 @@ func (p *Pbft) OnIllegalVotesReceived(id peer.PID, votes *payload.DPOSIllegalVot
 
 func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 	fmt.Println("OnProposalReceived")
-
+	if _, ok := p.blockPool.GetBlock(proposal.BlockHash); !ok {
+		p.OnInv(id, proposal.BlockHash)
+		return
+	}
 	err := p.dispatcher.ProcessProposal(proposal)
 	if err != nil {
 		log.Error("ProcessProposal error", "err", err)
@@ -113,10 +182,14 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 
 func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 	fmt.Println("OnVoteAccepted")
-
-	_, _, err := p.dispatcher.ProcessVote(vote)
-	if err != nil {
-		log.Error("ProcessVote error", "err", err)
+	currentProposal, ok := p.tryGetCurrentProposal(id, vote)
+	if !ok {
+		p.dispatcher.AddPendingVote(vote)
+	} else if currentProposal.IsEqual(vote.ProposalHash) {
+		_, _, err := p.dispatcher.ProcessVote(vote)
+		if err != nil {
+			log.Error("ProcessVote error", "err", err)
+		}
 	}
 }
 
@@ -146,4 +219,22 @@ func (p *Pbft) OnBlockReceived(b *dmsg.BlockMsg, confirmed bool) {
 
 func (p *Pbft) OnConfirmReceived(c *payload.Confirm, height uint32) {
 	fmt.Println("OnConfirmReceived")
+}
+
+// limitMap is a helper function for maps that require a maximum limit by
+// evicting a random transaction if adding a new value would cause it to
+// overflow the maximum allowed.
+func (p *Pbft) limitMap(m map[common.Hash]struct{}, limit int) {
+	if len(m)+1 > limit {
+		// Remove a random entry from the map.  For most compilers, Go's
+		// range statement iterates starting at a random item although
+		// that is not 100% guaranteed by the spec.  The iteration order
+		// is not important here because an adversary would have to be
+		// able to pull off preimage attacks on the hashing function in
+		// order to target eviction of specific entries anyways.
+		for hash := range m {
+			delete(m, hash)
+			return
+		}
+	}
 }

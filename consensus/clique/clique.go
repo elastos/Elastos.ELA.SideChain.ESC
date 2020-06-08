@@ -719,6 +719,10 @@ func (c *Clique) SignersCount() int {
 	return c.signersCount
 }
 
+func (c *Clique) IsInBlockPool(hash common.Hash) bool {
+	return false
+}
+
 // Used for test
 func (c *Clique) SetFakeDiff(v bool) {
 	c.fakeDiff = v

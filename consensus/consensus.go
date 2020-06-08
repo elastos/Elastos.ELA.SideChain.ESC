@@ -120,6 +120,8 @@ type Engine interface {
 
 	// SignersCount returns signers count by this engine
 	SignersCount() int
+
+	IsInBlockPool(hash common.Hash) bool
 }
 
 // PoW is a consensus engine based on proof-of-work.

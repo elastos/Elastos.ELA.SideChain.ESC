@@ -13,6 +13,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
@@ -22,17 +23,27 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
+	ecom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
+	"github.com/elastos/Elastos.ELA/p2p/msg"
+
 	"golang.org/x/crypto/sha3"
 )
 
 var (
 	extraVanity = 32 // Fixed number of extra-data prefix bytes
 	extraSeal   = 64 // Fixed number of extra-data suffix bytes reserved for signer seal
+
+)
+
+const (
+	// maxRequestedBlocks is the maximum number of requested block
+	// hashes to store in memory.
+	maxRequestedBlocks = msg.MaxInvPerMsg
 )
 
 var (
@@ -58,9 +69,13 @@ type Pbft struct {
 	confirmCh  chan *payload.Confirm
 	account    daccount.Account
 	network    *dpos.Network
+	blockPool  *dpos.BlockPool
+	chain      *core.BlockChain
 
 	StartMine func()
 	StopMine  func()
+
+	requestedBlocks map[common.Hash]struct{}
 }
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
@@ -87,6 +102,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		dpos.Warn("create dpos account error:", err.Error())
 		return nil
 	}
+
 	pbft := &Pbft{
 		dataDir,
 		*cfg,
@@ -96,8 +112,12 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
+		make(map[common.Hash]struct{}),
 	}
-
+	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock, pbft.isCurrent)
+	pbft.blockPool = blockPool
 	network, err := dpos.NewNetwork(&dpos.NetworkConfig{
 		IPAddress:          cfg.IPAddress,
 		Magic:              cfg.Magic,
@@ -156,7 +176,11 @@ func (p *Pbft) VerifyHeaders(chain consensus.ChainReader, headers []*types.Heade
 
 	go func() {
 		for i, header := range headers {
-			err := p.verifyHeader(chain, header, headers[:i])
+			var err error
+			//Check header is verified
+			if !p.IsInBlockPool(header.Hash()) {
+				err = p.verifyHeader(chain, header, headers[:i])
+			}
 
 			select {
 			case <-abort:
@@ -237,15 +261,11 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 	if err != nil {
 		return err
 	}
-
 	if !p.dispatcher.GetProducers().IsProducers(publicKey) {
 		return errUnauthorizedSigner
 	}
-	//TODO check header by confirm msg
-
 	signature := header.Extra[len(header.Extra)-extraSeal:]
 	err = crypto.Verify(*pubkey, clique.CliqueRLP(header), signature)
-
 	return err
 }
 
@@ -306,6 +326,14 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if !p.IsOnduty() {
 		return errors.New("local singer is not on duty")
 	}
+	header := block.Header()
+	// Sign all the things!
+	length := len(header.Extra)
+	signature := p.account.Sign(clique.CliqueRLP(header))
+	copy(header.Extra[length-extraSeal:], signature)
+	block = block.WithSeal(header)
+	p.BroadPreBlock(block)
+
 	if err := p.StartProposal(block); err != nil {
 		return err
 	}
@@ -314,26 +342,14 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	case confirm := <-p.confirmCh:
 		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String())
 		break
-	//case <-time.After(5 * time.Second):
-	//	log.Warn("Seal block is Timeout, to change view")
-	//	p.dispatcher.FinishedProposal()
-	//	results <- nil
-	//	return errors.New("seal block timeout")
 	case <-stop:
 		return nil
 	}
-
 	log.Info("Stop mining")
 	p.StopMine()
-
-	header := block.Header()
-	// Sign all the things!
-	length := len(header.Extra)
-	signature := p.account.Sign(clique.CliqueRLP(header))
-	copy(header.Extra[length-extraSeal:], signature)
 	go func() {
 		select {
-		case results <- block.WithSeal(header):
+		case results <- block:
 		default:
 			dpos.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
 		}
@@ -430,9 +446,69 @@ func (p *Pbft) FinishedProposal() {
 	}
 }
 
-func (p *Pbft) IsOnduty() bool  {
+func (p *Pbft) IsOnduty() bool {
 	if p.account == nil {
 		return false
 	}
 	return p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes())
+}
+
+func (p *Pbft) SetBlockChain(chain *core.BlockChain) {
+	p.chain = chain
+}
+
+func (p *Pbft) onConfirmBlock(block dpos.DBlock, confirm *payload.Confirm) error {
+	//if b, ok := block.(*types.Block); ok {
+	//	blocks := types.Blocks{}
+	//	blocks = append(blocks, b)
+	//	_, err := p.chain.InsertChain(blocks)
+	//	if err != nil {
+	//		return err
+	//	}
+	//} else {
+	//	errors.New("onConfirmBlock errror, block is not ethereum block")
+	//}
+
+	return nil
+}
+
+func (p *Pbft) verifyConfirm(confirm *payload.Confirm) error {
+	err := dpos.CheckConfirm(confirm)
+	return err
+}
+
+func (p *Pbft) verifyBlock(block dpos.DBlock) error {
+	if p.chain == nil {
+		return errors.New("pbft chain is nil")
+	}
+	if b, ok := block.(*types.Block); ok {
+		err := p.VerifyHeader(p.chain, b.Header(), false)
+		if err != nil {
+			return err
+		}
+		err = p.chain.Validator().ValidateBody(b)
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New("verifyBlock errror, block is not ethereum block")
+	}
+
+	return nil
+}
+
+func (p *Pbft) isCurrent() bool {
+	return true
+}
+
+func (p *Pbft) IsInBlockPool(hash common.Hash) bool {
+	if u256, err := ecom.Uint256FromBytes(hash.Bytes()); err == nil {
+		 _, suc := p.blockPool.GetBlock(*u256)
+		 return suc
+	}
+	return false
+}
+
+func (p *Pbft) CleanFinalConfirmedBlock(height uint64) {
+	p.blockPool.CleanFinalConfirmedBlock(height)
 }

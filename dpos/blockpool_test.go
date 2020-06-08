@@ -52,13 +52,13 @@ type mockBlock struct {
 	txs    []*mockTransaction
 }
 
-func (b *mockBlock) Hash() common.Uint256 {
+func (b *mockBlock) GetHash() common.Uint256 {
 	buf := new(bytes.Buffer)
 	b.header.Serialize(buf)
 	return common.Sha256D(buf.Bytes())
 }
 
-func (b *mockBlock) Height() uint64 {
+func (b *mockBlock) GetHeight() uint64 {
 	return b.header.Height
 }
 
@@ -108,11 +108,11 @@ func TestBlockPool_AppendDposBlock(t *testing.T) {
 	for i := 0; i < size; i++ {
 		block := newTestBlock()
 		confirm := &payload.Confirm{
-			Proposal: payload.DPOSProposal{BlockHash: block.Hash()},
+			Proposal: payload.DPOSProposal{BlockHash: block.GetHash()},
 		}
 		blockPool.AppendConfirm(confirm)
 		blockPool.AppendDposBlock(block)
-		blocks = append(blocks, block.Hash())
+		blocks = append(blocks, block.GetHash())
 	}
 
 	for i := 0; i < size; i++ {

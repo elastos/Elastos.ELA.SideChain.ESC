@@ -30,6 +30,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
+
+	ecom "github.com/elastos/Elastos.ELA/common"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -101,6 +103,10 @@ type headerMarshaling struct {
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
 	return rlpHash(h)
+}
+
+func (h *Header) Height() uint64 {
+	return h.Number.Uint64()
 }
 
 var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
@@ -391,6 +397,19 @@ func (b *Block) Hash() common.Hash {
 	v := b.header.Hash()
 	b.hash.Store(v)
 	return v
+}
+
+func (b *Block) GetHash() ecom.Uint256 {
+	hash := b.Hash()
+	value, err := ecom.Uint256FromBytes(hash.Bytes())
+	if err != nil {
+		return ecom.EmptyHash
+	}
+	return *value
+}
+
+func (b *Block) GetHeight() uint64     {
+	return b.NumberU64()
 }
 
 type Blocks []*Block

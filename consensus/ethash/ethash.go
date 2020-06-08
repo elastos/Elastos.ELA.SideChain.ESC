@@ -588,6 +588,10 @@ func (ethash *Ethash) SignersCount() int {
 	return 0
 }
 
+func (ethash *Ethash) IsInBlockPool(hash common.Hash) bool {
+	return false
+}
+
 // cache tries to retrieve a verification cache for the specified block number
 // by first checking against a list of in-memory caches, then against caches
 // stored on disk, and finally generating one if none can be found.

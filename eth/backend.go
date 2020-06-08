@@ -266,23 +266,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
 
-	//dynamic switch dpos engine
-	if !eth.blockchain.Config().IsPBFTFork(eth.blockchain.CurrentHeader().Number) {
-		var engineChan = make(chan core.EngineChangeEvent)
-		engineSub := eth.blockchain.SubscribeChangeEnginesEvent(engineChan)
-		go func() {
-			defer engineSub.Unsubscribe()
-			for  {
-				select {
-				case <-engineChan:
-					eth.SetEngine(engine)
-					return
-				case <-engineSub.Err():
-					return
-				}
-			}
-		}()
-	}
+	SubscriptEvent(eth, engine)
 
 	// fixme: dpos route place here temporary
 	engine.StartMine = func() {
@@ -291,6 +275,8 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	engine.StopMine = func() {
 		eth.miner.Stop()
 	}
+
+	engine.SetBlockChain(eth.blockchain)
 
 	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
 	if err != nil {
@@ -331,6 +317,42 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	go engine.StartServer()
 
 	return eth, nil
+}
+
+func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
+	//dynamic switch dpos engine
+	if !eth.blockchain.Config().IsPBFTFork(eth.blockchain.CurrentHeader().Number) {
+		var engineChan = make(chan core.EngineChangeEvent)
+		engineSub := eth.blockchain.SubscribeChangeEnginesEvent(engineChan)
+		go func() {
+			defer engineSub.Unsubscribe()
+			for  {
+				select {
+				case <-engineChan:
+					eth.SetEngine(engine)
+					return
+				case <-engineSub.Err():
+					return
+				}
+			}
+		}()
+	} else {
+		var chainEvent = make(chan core.ChainEvent)
+		chainSub := eth.blockchain.SubscribeChainEvent(chainEvent)
+		go func() {
+			defer chainSub.Unsubscribe()
+			for  {
+				select {
+				case evt :=  <-chainEvent:
+					 if pbftEngie, ok := engine.(*pbft.Pbft); ok {
+						 pbftEngie.CleanFinalConfirmedBlock(evt.Block.NumberU64())
+					 }
+				case <-chainSub.Err():
+					return
+				}
+			}
+		}()
+	}
 }
 
 func makeExtraData(extra []byte) []byte {
