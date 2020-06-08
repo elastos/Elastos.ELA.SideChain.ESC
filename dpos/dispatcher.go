@@ -11,6 +11,7 @@ import (
 type Dispatcher struct {
 	acceptVotes   map[common.Uint256]*payload.DPOSProposalVote
 	rejectedVotes map[common.Uint256]*payload.DPOSProposalVote
+	pendingVotes  map[common.Uint256]*payload.DPOSProposalVote
 
 	processingProposal *payload.DPOSProposal
 	producers          *Producers
@@ -43,8 +44,27 @@ func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
 		return err
 	}
 
-	d.processingProposal = proposal
+	d.setProcessingProposal(proposal)
 	return nil
+}
+
+func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
+	d.processingProposal = p
+
+	for _, v := range d.pendingVotes {
+		if v.ProposalHash.IsEqual(p.Hash()) {
+			_, finished, _ := d.ProcessVote(v)
+			if finished {
+				return finished
+			}
+		}
+	}
+	d.pendingVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
+	return false
+}
+
+func (d *Dispatcher) AddPendingVote(v *payload.DPOSProposalVote) {
+	d.pendingVotes[v.Hash()] = v
 }
 
 func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, finished bool, err error) {
@@ -68,8 +88,7 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 
 	if !d.producers.IsProducers(vote.Signer) {
 		err = errors.New("current signer is not producer")
-		// fixme
-		//return false, false, err
+		return false, false, err
 	}
 
 	if err := CheckVote(vote); err != nil {
@@ -103,6 +122,7 @@ func (d *Dispatcher) FinishedProposal() {
 	d.processingProposal = nil
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.rejectedVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
+	d.pendingVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.producers.ChangeView()
 }
 
@@ -136,6 +156,10 @@ func (d *Dispatcher) GetProducers() *Producers {
 	return d.producers
 }
 
+func (p *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
+	return p.processingProposal
+}
+
 func (d *Dispatcher) GetNeedConnectProducers() []peer.PID {
 	peers := make([]peer.PID, len(d.producers.producers))
 	for i, p := range d.producers.producers {
@@ -150,6 +174,7 @@ func NewDispatcher(producers [][]byte, confirmCh chan *payload.Confirm) *Dispatc
 	return &Dispatcher{
 		acceptVotes:       make(map[common.Uint256]*payload.DPOSProposalVote),
 		rejectedVotes:     make(map[common.Uint256]*payload.DPOSProposalVote),
+		pendingVotes:      make(map[common.Uint256]*payload.DPOSProposalVote),
 		producers:         NewProducers(producers),
 		proposalConfirmCh: confirmCh,
 	}

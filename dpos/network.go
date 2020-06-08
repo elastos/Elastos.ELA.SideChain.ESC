@@ -3,7 +3,6 @@ package dpos
 import (
 	"bytes"
 	"errors"
-	"fmt"
 
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 
@@ -142,61 +141,50 @@ func (n *Network) Stop() error {
 
 func (n *Network) processMessage(msgItem *messageItem) {
 	m := msgItem.Message
-	Info("ProcessMessage:", m.CMD())
 	switch m.CMD() {
 	case msg.CmdReceivedProposal:
 		msgProposal, processed := m.(*msg.Proposal)
 		if processed {
-			//fmt.Println(msgProposal)
 			n.listener.OnProposalReceived(msgItem.ID, &msgProposal.Proposal)
 		}
 	case msg.CmdAcceptVote:
 		msgVote, processed := m.(*msg.Vote)
 		if processed {
-			//fmt.Println(msgVote)
 			n.listener.OnVoteAccepted(msgItem.ID, &msgVote.Vote)
 		}
 	case msg.CmdRejectVote:
 		msgVote, processed := m.(*msg.Vote)
 		if processed {
-			//fmt.Println(msgVote)
 			n.listener.OnVoteRejected(msgItem.ID, &msgVote.Vote)
 		}
 	case msg.CmdPing:
 		msgPing, processed := m.(*msg.Ping)
 		if processed {
-			//fmt.Println(msgPing)
 			n.listener.OnPing(msgItem.ID, uint32(msgPing.Nonce))
 		}
 	case msg.CmdPong:
 		msgPong, processed := m.(*msg.Pong)
 		if processed {
-			//fmt.Println(msgPong)
 			n.listener.OnPong(msgItem.ID, uint32(msgPong.Nonce))
 		}
 	case elap2p.CmdBlock:
 		blockMsg, processed := m.(*dmsg.BlockMsg)
 		if processed {
-			//TODO completed this
-			fmt.Println(blockMsg)
-			//n.listener.OnBlock(msgItem.ID, block)
+			n.listener.OnBlock(msgItem.ID, blockMsg)
 		}
 	case msg.CmdInv:
 		msgInv, processed := m.(*msg.Inventory)
 		if processed {
-			//fmt.Println(msgInv)
 			n.listener.OnInv(msgItem.ID, msgInv.BlockHash)
 		}
 	case msg.CmdGetBlock:
 		msgGetBlock, processed := m.(*msg.GetBlock)
 		if processed {
-			//fmt.Println(msgGetBlock)
 			n.listener.OnGetBlock(msgItem.ID, msgGetBlock.BlockHash)
 		}
 	case msg.CmdGetBlocks:
 		msgGetBlocks, processed := m.(*msg.GetBlocks)
 		if processed {
-			//fmt.Println(msgGetBlocks)
 			n.listener.OnGetBlocks(msgItem.ID, msgGetBlocks.StartBlockHeight, msgGetBlocks.EndBlockHeight)
 		}
 	case msg.CmdResponseBlocks:
@@ -207,31 +195,26 @@ func (n *Network) processMessage(msgItem *messageItem) {
 	case msg.CmdRequestConsensus:
 		msgRequestConsensus, processed := m.(*msg.RequestConsensus)
 		if processed {
-			//fmt.Println(msgRequestConsensus)
 			n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
 		}
 	case msg.CmdResponseConsensus:
 		msgResponseConsensus, processed := m.(*msg.ResponseConsensus)
 		if processed {
-			//fmt.Println(msgResponseConsensus)
 			n.listener.OnResponseConsensus(msgItem.ID, &msgResponseConsensus.Consensus)
 		}
 	case msg.CmdRequestProposal:
 		msgRequestProposal, processed := m.(*msg.RequestProposal)
 		if processed {
-			//fmt.Println(msgRequestProposal)
 			n.listener.OnRequestProposal(msgItem.ID, msgRequestProposal.ProposalHash)
 		}
 	case msg.CmdIllegalProposals:
 		msgIllegalProposals, processed := m.(*msg.IllegalProposals)
 		if processed {
-			//fmt.Println(msgIllegalProposals)
 			n.listener.OnIllegalProposalReceived(msgItem.ID, &msgIllegalProposals.Proposals)
 		}
 	case msg.CmdIllegalVotes:
 		msgIllegalVotes, processed := m.(*msg.IllegalVotes)
 		if processed {
-			//fmt.Println(msgIllegalVotes)
 			n.listener.OnIllegalVotesReceived(msgItem.ID, &msgIllegalVotes.Votes)
 		}
 	}

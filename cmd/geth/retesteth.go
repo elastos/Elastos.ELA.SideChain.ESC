@@ -226,6 +226,10 @@ func (e *NoRewardEngine) SignersCount() int {
 	return 0
 }
 
+func (e *NoRewardEngine) IsInBlockPool(hash common.Hash) bool {
+	return false
+}
+
 func (e *NoRewardEngine) accumulateRewards(config *params.ChainConfig, state *state.StateDB, header *types.Header, uncles []*types.Header) {
 	// Simply touch miner and uncle coinbase accounts
 	reward := big.NewInt(0)

@@ -2,18 +2,18 @@ package dpos
 
 import (
 	"errors"
-	"github.com/elastos/Elastos.ELA/events"
 	"sync"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/events"
 )
 
 const cachedCount = 6
 
 type DBlock interface {
-	Hash() common.Uint256
-	Height() uint64
+	GetHash() common.Uint256
+	GetHeight() uint64
 }
 
 type ConfirmInfo struct {
@@ -62,7 +62,7 @@ func (bm *BlockPool) AppendDposBlock(dposBlock DBlock) error {
 
 func (bm *BlockPool) appendBlock(block DBlock) error {
 	// add block
-	hash := block.Hash()
+	hash := block.GetHash()
 	if _, ok := bm.blocks[hash]; ok {
 		return errors.New("duplicate block in pool")
 	}
@@ -72,19 +72,7 @@ func (bm *BlockPool) appendBlock(block DBlock) error {
 		return err
 	}
 
-	bm.blocks[block.Hash()] = block
-
-	// confirm block
-	err := bm.confirmBlock(hash)
-	if err != nil {
-		Debug("[AppendDposBlock] ConfirmBlock failed, height", block.Height,
-			"hash:", hash.String(), "err: ", err)
-		return err
-	}
-
-	// notify new block received
-	events.Notify(events.ETNewBlockReceived, block)
-
+	bm.blocks[block.GetHash()] = block
 	return nil
 }
 
@@ -105,7 +93,7 @@ func (bm *BlockPool) appendConfirm(confirm *payload.Confirm) error {
 	// notify new confirm accepted.
 	events.Notify(events.ETConfirmAccepted, &ConfirmInfo{
 		Confirm: confirm,
-		Height:  block.Height(),
+		Height:  block.GetHeight(),
 	})
 
 	return nil
@@ -147,13 +135,17 @@ func (bm *BlockPool) AddToBlockMap(block DBlock) {
 	bm.Lock()
 	defer bm.Unlock()
 
-	bm.blocks[block.Hash()] = block
+	bm.blocks[block.GetHash()] = block
+}
+
+func (bm *BlockPool) HasBlock(hash common.Uint256) bool {
+	bm.Lock()
+	defer bm.Unlock()
+	_, ok := bm.GetBlock(hash)
+	return ok
 }
 
 func (bm *BlockPool) GetBlock(hash common.Uint256) (DBlock, bool) {
-	bm.RLock()
-	defer bm.RUnlock()
-
 	block, ok := bm.blocks[hash]
 	return block, ok
 }
@@ -170,9 +162,9 @@ func (bm *BlockPool) CleanFinalConfirmedBlock(height uint64) {
 	defer bm.Unlock()
 
 	for _, block := range bm.blocks {
-		if block.Height() < height-cachedCount {
-			delete(bm.blocks, block.Hash())
-			delete(bm.confirms, block.Hash())
+		if height > cachedCount && block.GetHeight() < height - cachedCount {
+			delete(bm.blocks, block.GetHash())
+			delete(bm.confirms, block.GetHash())
 		}
 	}
 }
