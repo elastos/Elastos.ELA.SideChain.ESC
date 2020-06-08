@@ -253,7 +253,6 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	dpos.Info("Pbft Prepare")
 
 	if !p.IsOnduty() {
-		p.StopMine()
 		return errors.New("local singer is not on duty")
 	}
 
@@ -280,11 +279,12 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header) {
 	dpos.Info("Pbft Finalize")
-	// TODO panic("implement me")
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
 	p.dispatcher.FinishedProposal()
+	log.Info("Start mining")
+	p.StartMine()
 }
 
 func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
@@ -300,13 +300,12 @@ func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.He
 
 func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	dpos.Info("Pbft Seal")
-	time.Sleep(2 * time.Second) //todo delete me, 2-second one block to test
 	if p.account == nil {
 		return errors.New("no signer inited")
 	}
-	//if !p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes()) {
-	//	return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
-	//}
+	if !p.IsOnduty() {
+		return errors.New("local singer is not on duty")
+	}
 	if err := p.StartProposal(block); err != nil {
 		return err
 	}
@@ -323,6 +322,9 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	case <-stop:
 		return nil
 	}
+
+	log.Info("Stop mining")
+	p.StopMine()
 
 	header := block.Header()
 	// Sign all the things!
