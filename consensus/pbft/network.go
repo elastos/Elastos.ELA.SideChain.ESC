@@ -5,6 +5,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+	"time"
 
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 
@@ -104,10 +105,10 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 
 	voteMsg := &msg.Vote{Command: msg.CmdAcceptVote, Vote: *vote}
 
-	p.network.BroadcastMessage(voteMsg)
+	// fixme, 2-second one block to test
+	time.Sleep(1 * time.Second)
 
-	// fixme
-	p.dispatcher.FinishedProposal()
+	p.network.BroadcastMessage(voteMsg)
 }
 
 func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
