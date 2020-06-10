@@ -96,8 +96,9 @@ func (p *Producers) GetProducersCount() int {
 }
 
 func (p *Producers) IsMajorityAgree(count int) bool {
+	return count >= p.GetMajorityCount()
+	//TODO should use below condition
 	//return count > p.GetMajorityCount()
-	return true
 }
 
 func (p *Producers) IsMajorityRejected(count int) bool {

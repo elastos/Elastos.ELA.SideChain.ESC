@@ -68,7 +68,7 @@ func TestExampleNormalVote(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Node0 get this proposal first.
-	err = dispatcher.ProcessProposal(proposal)
+	err, _ = dispatcher.ProcessProposal(proposal)
 	assert.NoError(t, err)
 
 	// Node0 broadcast the proposal to p2p network.
@@ -142,7 +142,7 @@ func Node1ProcessProposal(proposal *payload.DPOSProposal) {
 		fmt.Println("node1 create account error:", err)
 	}
 
-	err = dispatcher.ProcessProposal(proposal)
+	err, _ = dispatcher.ProcessProposal(proposal)
 	if err != nil {
 		fmt.Println("node2 process proposal failed:", err)
 	}

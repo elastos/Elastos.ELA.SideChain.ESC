@@ -1818,7 +1818,7 @@ func (bc *BlockChain) OnSyncHeader(header *types.Header) {
 		return
 	}
 	nowHeight := bc.CurrentBlock().Number().Uint64()
-	if nowHeight < cfg.PBFTBlock.Uint64() && height >= cfg.PBFTBlock.Uint64()-cfg.PreConnectOffset {
+	if nowHeight < cfg.PBFTBlock.Uint64() && height == cfg.PBFTBlock.Uint64()-cfg.PreConnectOffset {
 		producers := make([]peer.PID, len(cfg.Pbft.Producers))
 		for i, v := range cfg.Pbft.Producers {
 			producer := common.Hex2Bytes(v)

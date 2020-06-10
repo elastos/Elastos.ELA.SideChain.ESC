@@ -5,6 +5,8 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/dpos/account"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
@@ -19,33 +21,33 @@ type Dispatcher struct {
 	proposalConfirmCh chan *payload.Confirm
 }
 
-func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) error {
+func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) (err error, isSendReject bool) {
 	Info("[ProcessProposal] start")
 	defer Info("[ProcessProposal] end")
 
 	if d.processingProposal != nil {
-		return errors.New("processingProposal is not nil")
+		return errors.New("processingProposal is not nil"), false
 	}
 
 	if d.processingProposal != nil && d.processingProposal.Hash().IsEqual(proposal.Hash()) {
-		return errors.New("already processing this proposal:" + proposal.Hash().String())
+		return errors.New("already processing this proposal:" + proposal.Hash().String()), false
 	}
 
 	if !d.producers.IsProducers(proposal.Sponsor) {
-		return errors.New("current signer is not producer")
+		return errors.New("current signer is not producer"), true
 	}
 
 	if !d.producers.IsOnduty(proposal.Sponsor) {
-		return errors.New("current signer is not producer")
+		return errors.New("current signer is not onDuty"), true
 	}
 
-	err := CheckProposal(proposal)
+	err = CheckProposal(proposal)
 	if err != nil {
-		return err
+		return err, true
 	}
 
 	d.setProcessingProposal(proposal)
-	return nil
+	return nil, false
 }
 
 func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
@@ -102,14 +104,12 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 			confirm := d.createConfirm()
 			d.proposalConfirmCh <- confirm
 			Info("Block confirmed.")
-			d.FinishedProposal()
 			return true, true, nil
 		}
 	} else {
 		d.rejectedVotes[vote.Hash()] = vote
 		if d.producers.IsMajorityRejected(len(d.rejectedVotes)) {
 			Info("Collect majority signs, reject proposal")
-			//todo change view to reconsensus
 			d.FinishedProposal()
 			return true, false, nil
 		}
@@ -129,15 +129,45 @@ func (d *Dispatcher) FinishedProposal() {
 func (d *Dispatcher) alreadyExistVote(v *payload.DPOSProposalVote) bool {
 	_, ok := d.acceptVotes[v.Hash()]
 	if ok {
+		Info("[alreadyExistVote]: ", v.Signer, "already in the AcceptVotes!")
 		return true
 	}
 
 	_, ok = d.rejectedVotes[v.Hash()]
 	if ok {
+		Info("[alreadyExistVote]: ", v.Signer, "already in the RejectedVotes!")
 		return true
 	}
 
 	return false
+}
+
+func (d *Dispatcher) AcceptProposal(proposal *payload.DPOSProposal, ac account.Account) *msg.Vote {
+	if d.setProcessingProposal(proposal) {
+		return nil
+	}
+	hash := proposal.Hash()
+
+	vote, err := StartVote(&hash, true, ac)
+	if err != nil {
+		Error("StartVote error", "err", err)
+		return nil
+	}
+	return &msg.Vote{Command: msg.CmdAcceptVote, Vote: *vote}
+}
+
+
+func (d *Dispatcher) RejectProposal(proposal *payload.DPOSProposal, ac account.Account) *msg.Vote {
+	if d.setProcessingProposal(proposal) {
+		return nil
+	}
+	hash := proposal.Hash()
+	vote, err := StartVote(&hash, false, ac)
+	if err != nil {
+		Error("StartVote error", "err", err)
+		return nil
+	}
+	return &msg.Vote{Command: msg.CmdRejectVote, Vote: *vote}
 }
 
 func (d *Dispatcher) createConfirm() *payload.Confirm {

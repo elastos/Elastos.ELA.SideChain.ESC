@@ -305,10 +305,10 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		OnCipherAddr: func(pid elapeer.PID, cipher []byte) {
 			addr, err := dposAccount.DecryptAddr(cipher)
 			if err != nil {
-				log.Error("decrypt address cipher error", err)
+				log.Error("decrypt address cipher error", "error:", err)
 				return
 			}
-			log.Info("AddDirectLinkPeer Daddr: ", addr)
+			log.Info("AddDirectLinkPeer", "address:", addr)
 			engine.AddDirectLinkPeer(pid, addr)
 		},
 	}
@@ -332,22 +332,6 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 					eth.SetEngine(engine)
 					return
 				case <-engineSub.Err():
-					return
-				}
-			}
-		}()
-	} else {
-		var chainEvent = make(chan core.ChainEvent)
-		chainSub := eth.blockchain.SubscribeChainEvent(chainEvent)
-		go func() {
-			defer chainSub.Unsubscribe()
-			for  {
-				select {
-				case evt :=  <-chainEvent:
-					 if pbftEngie, ok := engine.(*pbft.Pbft); ok {
-						 pbftEngie.CleanFinalConfirmedBlock(evt.Block.NumberU64())
-					 }
-				case <-chainSub.Err():
 					return
 				}
 			}

@@ -298,13 +298,20 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 
 func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header) {
-	dpos.Info("Pbft Finalize")
+	dpos.Info("Pbft Finalize:", "height:", header.Number.Uint64())
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
 	p.dispatcher.FinishedProposal()
+	p.CleanFinalConfirmedBlock(header.Number.Uint64())
 	log.Info("Start mining")
-	p.StartMine()
+	if p.IsOnduty() {
+		go func() {
+			//Wait for insertChain function execution to complete
+			time.Sleep(1 * time.Second)
+			p.StartMine()
+		}()
+	}
 }
 
 func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
@@ -319,7 +326,7 @@ func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.He
 }
 
 func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	dpos.Info("Pbft Seal")
+	dpos.Info("Pbft Seal:", block.NumberU64())
 	if p.account == nil {
 		return errors.New("no signer inited")
 	}
@@ -340,16 +347,23 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 
 	select {
 	case confirm := <-p.confirmCh:
+		err := p.blockPool.AppendConfirm(confirm)
+		p.dispatcher.FinishedProposal()
+		if err != nil {
+			log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String(), "err:", err)
+			return err
+		}
 		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String())
 		break
 	case <-stop:
 		return nil
 	}
-	log.Info("Stop mining")
+	log.Info("Stop mining:", "height", block.NumberU64())
 	p.StopMine()
 	go func() {
 		select {
 		case results <- block:
+			p.CleanFinalConfirmedBlock(block.NumberU64())
 		default:
 			dpos.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
 		}
@@ -359,7 +373,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 }
 
 func (p *Pbft) SealHash(header *types.Header) common.Hash {
-	dpos.Info("Pbft SealHash")
+	dpos.Info("Pbft SealHash:", header.Number.Uint64())
 	return SealHash(header)
 }
 
@@ -436,16 +450,6 @@ func (p *Pbft) StopServer() {
 	}
 }
 
-func (p *Pbft) FinishedProposal() {
-	p.dispatcher.FinishedProposal()
-	if p.dispatcher.GetProducers().IsOnduty(p.account.PublicKeyBytes()) {
-		//return errors.New("singer is not on duty:" + common.Bytes2Hex(p.account.PublicKeyBytes()))
-		p.StartMine()
-	} else {
-		p.StopMine()
-	}
-}
-
 func (p *Pbft) IsOnduty() bool {
 	if p.account == nil {
 		return false
@@ -458,6 +462,7 @@ func (p *Pbft) SetBlockChain(chain *core.BlockChain) {
 }
 
 func (p *Pbft) onConfirmBlock(block dpos.DBlock, confirm *payload.Confirm) error {
+	// if confirm block by direct net, use this
 	//if b, ok := block.(*types.Block); ok {
 	//	blocks := types.Blocks{}
 	//	blocks = append(blocks, b)
