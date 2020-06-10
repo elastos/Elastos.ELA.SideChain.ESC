@@ -255,6 +255,7 @@ out:
 				//continue
 			}
 
+			//TODO Temporary cancellation
 			// Do not announce address if connected peers not enough.
 			if len(state.peerCache) < minPeersToAnnounce {
 				// Retry announce after the retry duration.

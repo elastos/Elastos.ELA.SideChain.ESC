@@ -3,8 +3,6 @@ package pbft
 import (
 	"bytes"
 	"fmt"
-	"time"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
@@ -36,7 +34,7 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 	log.Info("[StartProposal] send proposal message finished", "proposal", msg.GetMessageHash(m))
 	p.network.BroadcastMessage(m)
 
-	if err := p.dispatcher.ProcessProposal(proposal); err != nil {
+	if err, _ := p.dispatcher.ProcessProposal(proposal); err != nil {
 		log.Error("ProcessProposal error", "err", err)
 	}
 
@@ -44,7 +42,7 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 }
 
 func (p *Pbft) BroadPreBlock(block *types.Block) error {
-	log.Info("BroadPreBlock,", "block hash:", block.Hash().String())
+	log.Info("BroadPreBlock,", "block Height:", block.NumberU64())
 	buffer := bytes.NewBuffer([]byte{})
 	err := block.EncodeRLP(buffer)
 	if err != nil {
@@ -155,35 +153,32 @@ func (p *Pbft) OnIllegalVotesReceived(id peer.PID, votes *payload.DPOSIllegalVot
 }
 
 func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
-	fmt.Println("OnProposalReceived")
+	log.Info("OnProposalReceived", "hash:", proposal.Hash().String())
 	if _, ok := p.blockPool.GetBlock(proposal.BlockHash); !ok {
+		log.Info("not have preBlock, request it", "hash:", proposal.BlockHash.String())
 		p.OnInv(id, proposal.BlockHash)
 		return
 	}
-	err := p.dispatcher.ProcessProposal(proposal)
+	var voteMsg *msg.Vote
+	err, isSendReject := p.dispatcher.ProcessProposal(proposal)
 	if err != nil {
 		log.Error("ProcessProposal error", "err", err)
-		return
+		if isSendReject {
+			voteMsg = p.dispatcher.RejectProposal(proposal, p.account)
+		}
+	} else {
+		voteMsg = p.dispatcher.AcceptProposal(proposal, p.account)
 	}
-	phash := proposal.Hash()
-	vote, err := dpos.StartVote(&phash, true, p.account)
-	if err != nil {
-		log.Error("StartVote error", "err", err)
-		return
+	if voteMsg != nil {
+		p.network.BroadcastMessage(voteMsg)
 	}
-
-	voteMsg := &msg.Vote{Command: msg.CmdAcceptVote, Vote: *vote}
-
-	// fixme, 2-second one block to test
-	time.Sleep(1 * time.Second)
-
-	p.network.BroadcastMessage(voteMsg)
 }
 
 func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
-	fmt.Println("OnVoteAccepted")
+	log.Info("OnVoteAccepted:", "hash:", vote.Hash().String())
 	currentProposal, ok := p.tryGetCurrentProposal(id, vote)
 	if !ok {
+		log.Info("not have proposal, get it and push vote into pending vote")
 		p.dispatcher.AddPendingVote(vote)
 	} else if currentProposal.IsEqual(vote.ProposalHash) {
 		_, _, err := p.dispatcher.ProcessVote(vote)
@@ -194,11 +189,11 @@ func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 }
 
 func (p *Pbft) OnVoteRejected(id peer.PID, vote *payload.DPOSProposalVote) {
-	fmt.Println("OnVoteRejected")
+	log.Info("OnVoteRejected", "hash:", vote.Hash().String())
+	p.OnVoteAccepted(id, vote)
 }
 
 func (p *Pbft) OnChangeView() {
-	fmt.Println("OnChangeView")
 }
 
 func (p *Pbft) OnBadNetwork() {
