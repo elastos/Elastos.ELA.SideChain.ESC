@@ -74,10 +74,6 @@ func verifyBlock(block DBlock) error {
 	return nil
 }
 
-func isCurrent() bool {
-	return true
-}
-
 func randomUint256() *common.Uint256 {
 	randBytes := make([]byte, 32)
 	rand.Read(randBytes)
@@ -101,7 +97,7 @@ func newTestBlock() *mockBlock {
 }
 
 func TestBlockPool_AppendDposBlock(t *testing.T) {
-	blockPool := NewBlockPool(onConfirmBlock, verifyConfirm, verifyBlock, isCurrent)
+	blockPool := NewBlockPool(onConfirmBlock, verifyConfirm, verifyBlock)
 	size := rand.Intn(10) + 10
 
 	blocks := make([]common.Uint256, 0)

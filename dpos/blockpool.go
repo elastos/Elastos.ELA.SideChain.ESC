@@ -22,8 +22,6 @@ type ConfirmInfo struct {
 }
 
 type BlockPool struct {
-	IsCurrent func() bool
-
 	sync.RWMutex
 	blocks   map[common.Uint256]DBlock
 	confirms map[common.Uint256]*payload.Confirm
@@ -31,20 +29,47 @@ type BlockPool struct {
 	OnConfirmBlock func(block DBlock, confirm *payload.Confirm) error
 	VerifyConfirm  func(confirm *payload.Confirm) error
 	VerifyBlock    func(block DBlock) error
+
+	futureBlocks map[common.Uint256]DBlock
 }
 
 func NewBlockPool(confirmBlock func(block DBlock, confirm *payload.Confirm) error,
 	verifyConfirm func(confirm *payload.Confirm) error,
-	verifyBlock func(block DBlock) error,
-	isCurrent func() bool) *BlockPool {
+	verifyBlock func(block DBlock) error) *BlockPool {
 	return &BlockPool{
-		IsCurrent:      isCurrent,
 		blocks:         make(map[common.Uint256]DBlock),
 		confirms:       make(map[common.Uint256]*payload.Confirm),
+		futureBlocks:   make(map[common.Uint256]DBlock),
 		OnConfirmBlock: confirmBlock,
 		VerifyConfirm:  verifyConfirm,
 		VerifyBlock:    verifyBlock,
 	}
+}
+
+func (bm *BlockPool) HandleParentBlock(parent DBlock) bool {
+	for _, block := range bm.futureBlocks {
+		if block.GetHeight() - 1 == parent.GetHeight() {
+			bm.AppendDposBlock(block)
+			return true
+		}
+	}
+	return false
+}
+
+func (bm *BlockPool) AppendFutureBlock(dposBlock DBlock) error {
+	bm.Lock()
+	defer bm.Unlock()
+
+	return bm.appendFutureBlock(dposBlock)
+}
+
+func (bm *BlockPool) appendFutureBlock(block DBlock) error {
+	hash := block.GetHash()
+	if _, ok := bm.futureBlocks[hash]; ok {
+		return errors.New("duplicate futureBlocks in pool")
+	}
+	bm.futureBlocks[block.GetHash()] = block
+	return nil
 }
 
 func (bm *BlockPool) AppendConfirm(confirm *payload.Confirm) error {
@@ -57,6 +82,7 @@ func (bm *BlockPool) AppendConfirm(confirm *payload.Confirm) error {
 func (bm *BlockPool) AppendDposBlock(dposBlock DBlock) error {
 	bm.Lock()
 	defer bm.Unlock()
+	Info("[--AppendDposBlock--], height", dposBlock.GetHeight())
 	return bm.appendBlock(dposBlock)
 }
 
@@ -72,7 +98,11 @@ func (bm *BlockPool) appendBlock(block DBlock) error {
 		return err
 	}
 
-	bm.blocks[block.GetHash()] = block
+	bm.blocks[hash] = block
+
+	if _, ok := bm.futureBlocks[hash]; ok {
+		delete(bm.futureBlocks, hash)
+	}
 	return nil
 }
 

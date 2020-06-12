@@ -3,7 +3,9 @@ package pbft
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
@@ -42,7 +44,7 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 }
 
 func (p *Pbft) BroadPreBlock(block *types.Block) error {
-	log.Info("BroadPreBlock,", "block Height:", block.NumberU64())
+	log.Info("BroadPreBlock,", "block Height:", block.NumberU64(), "hash:", block.Hash().String())
 	buffer := bytes.NewBuffer([]byte{})
 	err := block.EncodeRLP(buffer)
 	if err != nil {
@@ -73,17 +75,31 @@ func (p *Pbft) OnPong(id peer.PID, height uint32) {
 }
 
 func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
-	fmt.Println("-----On PreBlock received------:::")
+	log.Info("-----On PreBlock received------")
 	b := &types.Block{}
 
 	err := b.DecodeRLP(rlp.NewStream(bytes.NewBuffer(block.GetData()), 0))
 	if err != nil {
 		panic("OnBlock Decode Block Msg error:" + err.Error())
 	}
-	p.blockPool.AppendDposBlock(b)
+	log.Info("-----received------", "blockHash:", b.Hash().String(), "height:", b.NumberU64())
+	err = p.blockPool.AppendDposBlock(b)
+	if err == consensus.ErrUnknownAncestor {
+		log.Info("Append Future blocks", "height:", b.NumberU64())
+		p.blockPool.AppendFutureBlock(b)
+	}
 
 	if _, ok := p.requestedBlocks[b.Hash()]; ok {
 		delete(p.requestedBlocks, b.Hash())
+	}
+}
+
+func (p *Pbft) AccessFutureBlock(parent *types.Block) {
+	log.Info("----[AccessFutureBlock]-----")
+	if p.blockPool.HandleParentBlock(parent) {
+		log.Info("----[Send RequestProposal]-----")
+		requestProposal := &msg.RequestProposal{ProposalHash: elacom.EmptyHash}
+		go p.network.BroadcastMessage(requestProposal)
 	}
 }
 
@@ -99,7 +115,7 @@ func (p *Pbft) OnInv(id peer.PID, blockHash elacom.Uint256) {
 		return
 	}
 
-	log.Info("[ProcessInv] send getblock:", blockHash.String())
+	log.Info("[ProcessInv] send getblock:", "hash", blockHash.String())
 	p.limitMap(p.requestedBlocks, maxRequestedBlocks)
 	p.requestedBlocks[hash] = struct{}{}
 	go p.network.SendMessageToPeer(id, msg.NewGetBlock(blockHash))
@@ -113,6 +129,7 @@ func (p *Pbft) OnGetBlock(id peer.PID, blockHash elacom.Uint256) {
 			if err != nil {
 				log.Error("[OnGetBlock] Encode Block Error")
 			}
+			log.Info("Send block to peer", "peer:", id, "height:", block.GetHeight())
 			go p.network.SendMessageToPeer(id, dmsg.NewBlockMsg(buffer.Bytes()))
 		} else {
 			log.Error("block is not ethereum block")
@@ -175,7 +192,9 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 }
 
 func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
-	log.Info("OnVoteAccepted:", "hash:", vote.Hash().String())
+	if vote.Accept == true {
+		log.Info("OnVoteAccepted:", "hash:", vote.Hash().String())
+	}
 	currentProposal, ok := p.tryGetCurrentProposal(id, vote)
 	if !ok {
 		log.Info("not have proposal, get it and push vote into pending vote")

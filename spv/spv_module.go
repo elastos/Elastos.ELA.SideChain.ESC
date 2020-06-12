@@ -517,7 +517,7 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 }
 
 func SendEvilProof(addr ethCommon.Address, info interface{}) {
-	log.Info("Send evil Proof", "info", "signer", addr.String())
+	log.Info("Send evil Proof", "signer", addr.String())
 	//ToDO connect ela chain
 
 }

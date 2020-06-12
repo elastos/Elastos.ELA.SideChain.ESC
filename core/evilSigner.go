@@ -104,7 +104,7 @@ func (signers *EvilSignersMap) UpdateEvilSigners(signer common.Address, height *
 	evidence := evidences.getEvidence(height)
 	for index, hash := range hashes {
 		if _, ok := evidence.BlockOnHeight[*hash]; !ok {
-			log.Info("Update evil signers", "evil info", "signer", signer.String(), "height",
+			log.Info("Update evil signers","signer", signer.String(), "height",
 				height.String(), "blockHash", hash.String())
 			evidence.BlockOnHeight[*hash] = elaHeights[index]
 		}

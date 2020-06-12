@@ -109,6 +109,7 @@ func (s *Ethereum) SetEngine(engine consensus.Engine) {
 		return
 	}
 	log.Info("-----------------[SWITCH ENGINE TO DPOS!]-----------------")
+	pbftEngine := engine.(*pbft.Pbft)
 	if s.miner != nil {
 		s.StopMining()
 	}
@@ -117,7 +118,9 @@ func (s *Ethereum) SetEngine(engine consensus.Engine) {
 	s.blockchain.SetEngine(engine)
 	if s.miner != nil {
 		s.miner.SetEngine(engine)
-		s.miner.Start(s.etherbase)
+		if pbftEngine != nil && pbftEngine.IsOnduty() {
+			s.miner.Start(s.etherbase)
+		}
 	}
 }
 
@@ -270,10 +273,14 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 
 	// fixme: dpos route place here temporary
 	engine.StartMine = func() {
-		eth.miner.Start(eth.etherbase)
+		if !eth.IsMining() {
+			eth.miner.Start(eth.etherbase)
+		}
 	}
 	engine.StopMine = func() {
-		eth.miner.Stop()
+		if eth.IsMining() {
+			eth.miner.Stop()
+		}
 	}
 
 	engine.SetBlockChain(eth.blockchain)
@@ -287,8 +294,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		Addr: fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
 		Sign: dposAccount.Sign,
 		IsCurrent: func() bool {
-			//TODO need to jduge is sync completed
-			return true
+			return eth.Downloader().Synchronising() == false
 		},
 		RelayAddr: func(iv *msg.InvVect, data interface{}) {
 			log.Info("[RelayAddr ----")
@@ -337,6 +343,19 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 			}
 		}()
 	}
+	var blockEvent = make(chan core.ChainEvent)
+	chainSub := eth.blockchain.SubscribeChainEvent(blockEvent)
+	go func() {
+		defer chainSub.Unsubscribe()
+		for  {
+			select {
+			case b := <-blockEvent:
+				pbftEngine := engine.(*pbft.Pbft)
+				pbftEngine.AccessFutureBlock(b.Block)
+			}
+		}
+	}()
+
 }
 
 func makeExtraData(extra []byte) []byte {
