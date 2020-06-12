@@ -100,7 +100,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
 		dpos.Warn("create dpos account error:", err.Error())
-		return nil
+		//return nil
 	}
 
 	pbft := &Pbft{
@@ -116,28 +116,30 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		nil,
 		make(map[common.Hash]struct{}),
 	}
-	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock, pbft.isCurrent)
+	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock)
 	pbft.blockPool = blockPool
-	network, err := dpos.NewNetwork(&dpos.NetworkConfig{
-		IPAddress:          cfg.IPAddress,
-		Magic:              cfg.Magic,
-		DefaultPort:        cfg.DPoSPort,
-		Account:            account,
-		MedianTime:         dtime.NewMedianTime(),
-		Listener:           pbft,
-		DataPath:           dposPath,
-		ProposalDispatcher: dispatcher,
-		PublicKey:          account.PublicKeyBytes(),
-		AnnounceAddr: func() {
-			events.Notify(dpos.ETAnnounceAddr, nil)
-		},
-	})
-	if err != nil {
-		dpos.Error("New dpos network error:", err.Error())
-		return nil
+	if account != nil {
+		network, err := dpos.NewNetwork(&dpos.NetworkConfig{
+			IPAddress:          cfg.IPAddress,
+			Magic:              cfg.Magic,
+			DefaultPort:        cfg.DPoSPort,
+			Account:            account,
+			MedianTime:         dtime.NewMedianTime(),
+			Listener:           pbft,
+			DataPath:           dposPath,
+			ProposalDispatcher: dispatcher,
+			PublicKey:          account.PublicKeyBytes(),
+			AnnounceAddr: func() {
+				events.Notify(dpos.ETAnnounceAddr, nil)
+			},
+		})
+		if err != nil {
+			dpos.Error("New dpos network error:", err.Error())
+			return nil
+		}
+		pbft.network = network
+		pbft.subscribeEvent()
 	}
-	pbft.network = network
-	pbft.subscribeEvent()
 	return pbft
 }
 
@@ -304,11 +306,11 @@ func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state
 
 	p.dispatcher.FinishedProposal()
 	p.CleanFinalConfirmedBlock(header.Number.Uint64())
-	log.Info("Start mining")
 	if p.IsOnduty() {
 		go func() {
 			//Wait for insertChain function execution to complete
 			time.Sleep(1 * time.Second)
+			log.Info("Start mining")
 			p.StartMine()
 		}()
 	}
@@ -500,10 +502,6 @@ func (p *Pbft) verifyBlock(block dpos.DBlock) error {
 	}
 
 	return nil
-}
-
-func (p *Pbft) isCurrent() bool {
-	return true
 }
 
 func (p *Pbft) IsInBlockPool(hash common.Hash) bool {
