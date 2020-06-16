@@ -16,6 +16,9 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
+bootnode:
+	build/env.sh go run build/ci.go install ./cmd/bootnode
+
 all:
 	build/env.sh go run build/ci.go install
 
