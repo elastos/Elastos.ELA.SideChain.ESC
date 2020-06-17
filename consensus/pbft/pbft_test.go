@@ -29,11 +29,8 @@ func TestReimportMirroredState(t *testing.T) {
 		engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "")
 		signer = new(types.HomesteadSigner)
 	)
-	engine.StartMine = func() {
-
-	}
-	engine.StopMine = func() {
-
+	engine.IsCurrent = func() bool {
+		return true
 	}
 	genspec := &core.Genesis{
 		ExtraData: make([]byte, extraVanity + common.AddressLength + extraSeal),

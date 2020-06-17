@@ -38,17 +38,3 @@ func TestNewProducers(t *testing.T) {
 	rand.Read(data)
 	assert.False(t,  p.IsProducers(data))
 }
-
-func TestProducers_IsOnduty(t *testing.T) {
-	signers := getRandProducers()
-	p := NewProducers(signers)
-
-	changeCount := rand.Intn(200)
-	for i := 0; i < changeCount; i++ {
-		p.ChangeView()
-		signer := signers[(i + 1) %len(signers)]
-		assert.True(t, p.IsOnduty(signer))
-	}
-
-	assert.Equal(t, p.GetDutyIndex(), changeCount)
-}

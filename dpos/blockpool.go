@@ -85,8 +85,6 @@ func (bm *BlockPool) AppendConfirm(confirm *payload.Confirm) error {
 }
 
 func (bm *BlockPool) AppendDposBlock(dposBlock DBlock) error {
-	bm.Lock()
-	defer bm.Unlock()
 	Info("[--AppendDposBlock--], height", dposBlock.GetHeight())
 	return bm.appendBlock(dposBlock)
 }
@@ -94,7 +92,7 @@ func (bm *BlockPool) AppendDposBlock(dposBlock DBlock) error {
 func (bm *BlockPool) appendBlock(block DBlock) error {
 	// add block
 	hash := block.GetHash()
-	if _, ok := bm.blocks[hash]; ok {
+	if bm.HasBlock(hash) {
 		return errors.New("duplicate block in pool")
 	}
 	// verify block
@@ -102,12 +100,12 @@ func (bm *BlockPool) appendBlock(block DBlock) error {
 		Info("[AppendBlock] check block sanity failed, ", err)
 		return err
 	}
-
+	bm.Lock()
 	bm.blocks[hash] = block
-
 	if _, ok := bm.futureBlocks[hash]; ok {
 		delete(bm.futureBlocks, hash)
 	}
+	bm.Unlock()
 	return nil
 }
 
@@ -174,14 +172,14 @@ func (bm *BlockPool) AddToBlockMap(block DBlock) {
 }
 
 func (bm *BlockPool) HasBlock(hash common.Uint256) bool {
-	bm.Lock()
-	defer bm.Unlock()
 	_, ok := bm.GetBlock(hash)
 	return ok
 }
 
 func (bm *BlockPool) GetBlock(hash common.Uint256) (DBlock, bool) {
+	bm.Lock()
 	block, ok := bm.blocks[hash]
+	bm.Unlock()
 	return block, ok
 }
 

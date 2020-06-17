@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/elastos/Elastos.ELA/account"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
+	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 
 	"github.com/stretchr/testify/assert"
@@ -56,8 +58,15 @@ func TestExampleNormalVote(t *testing.T) {
 	proposalch = make(chan *msg.Proposal, 1)
 	votech = make(chan *msg.Vote, 1)
 	wg := &sync.WaitGroup{}
-	confirmCh := make(chan *payload.Confirm)
-	dispatcher := NewDispatcher(getProducerList(), confirmCh)
+	onConfirm := func(confirm *payload.Confirm) error {
+		Info("node0 confirm", confirm.Proposal.BlockHash)
+		return nil
+	}
+	unconfirm := func(confirm *payload.Confirm) error {
+		Info("node0 unconfirm", confirm.Proposal.BlockHash)
+		return nil
+	}
+	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil)
 
 	// Assume that there are Node0 and Node1 in the p2p network.
 	// Node0 is sponsor, Node1 is normal producer.
@@ -88,13 +97,6 @@ func TestExampleNormalVote(t *testing.T) {
 func node0Loop(wg *sync.WaitGroup, dispatcher *Dispatcher) {
 	wg.Add(1)
 	defer wg.Done()
-
-	go func() {
-		select {
-		case c := <-dispatcher.proposalConfirmCh:
-			fmt.Println("Node0 reveived confirm:", c.Proposal.Hash().String())
-		}
-	}()
 
 	for {
 		select {
@@ -140,8 +142,15 @@ func node1Loop(wg *sync.WaitGroup) {
 }
 
 func Node1ProcessProposal(proposal *payload.DPOSProposal) {
-	confirmCh := make(chan *payload.Confirm)
-	dispatcher := NewDispatcher(getProducerList(), confirmCh)
+	onConfirm := func(confirm *payload.Confirm) error {
+		Info("node1 confirm", confirm.Proposal.BlockHash)
+		return nil
+	}
+	unconfirm := func(confirm *payload.Confirm) error {
+		Info("node1 unconfirm", confirm.Proposal.BlockHash)
+		return nil
+	}
+	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil)
 	node1Wallet, err := getTestWallet(key1, "node1")
 	if err != nil {
 		fmt.Println("node1 create account error:", err)

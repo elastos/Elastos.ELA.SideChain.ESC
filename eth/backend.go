@@ -118,7 +118,7 @@ func (s *Ethereum) SetEngine(engine consensus.Engine) {
 	s.blockchain.SetEngine(engine)
 	if s.miner != nil {
 		s.miner.SetEngine(engine)
-		if pbftEngine != nil && pbftEngine.IsOnduty() {
+		if pbftEngine != nil {
 			s.miner.Start(s.etherbase)
 		}
 	}
@@ -271,16 +271,9 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 
 	SubscriptEvent(eth, engine)
 
-	// fixme: dpos route place here temporary
-	engine.StartMine = func() {
-		if !eth.IsMining() {
-			eth.miner.Start(eth.etherbase)
-		}
-	}
-	engine.StopMine = func() {
-		if eth.IsMining() {
-			eth.miner.Stop()
-		}
+	engine.IsCurrent = func() bool {
+		progress := eth.Downloader().Progress()
+		return progress.CurrentBlock >= progress.HighestBlock
 	}
 
 	engine.SetBlockChain(eth.blockchain)
@@ -289,38 +282,42 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	if err != nil {
 		return eth, nil
 	}
-	routeCfg := dpos.Config{
-		PID:  dposAccount.PublicKeyBytes(),
-		Addr: fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
-		Sign: dposAccount.Sign,
-		IsCurrent: func() bool {
-			return eth.Downloader().Synchronising() == false
-		},
-		RelayAddr: func(iv *msg.InvVect, data interface{}) {
-			log.Info("[RelayAddr ----")
-			inv := msg.NewInv()
-			inv.AddInvVect(iv)
+	if chainConfig.Pbft != nil {
+		routeCfg := dpos.Config{
+			PID:  dposAccount.PublicKeyBytes(),
+			Addr: fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
+			Sign: dposAccount.Sign,
+			IsCurrent: func() bool {
+				return engine.IsCurrent()
+			},
+			RelayAddr: func(iv *msg.InvVect, data interface{}) {
+				inv := msg.NewInv()
+				inv.AddInvVect(iv)
 
-			invBuf := new(bytes.Buffer)
-			inv.Serialize(invBuf)
-			eth.protocolManager.BroadcastDAddr(&dpos.ElaMsg{
-				Type: dpos.Inv,
-				Msg:  invBuf.Bytes(),
-			})
-		},
-		OnCipherAddr: func(pid elapeer.PID, cipher []byte) {
-			addr, err := dposAccount.DecryptAddr(cipher)
-			if err != nil {
-				log.Error("decrypt address cipher error", "error:", err)
-				return
-			}
-			log.Info("AddDirectLinkPeer", "address:", addr)
-			engine.AddDirectLinkPeer(pid, addr)
-		},
+				invBuf := new(bytes.Buffer)
+				inv.Serialize(invBuf)
+				eth.protocolManager.BroadcastDAddr(&dpos.ElaMsg{
+					Type: dpos.Inv,
+					Msg:  invBuf.Bytes(),
+				})
+			},
+			OnCipherAddr: func(pid elapeer.PID, cipher []byte) {
+				addr, err := dposAccount.DecryptAddr(cipher)
+				if err != nil {
+					log.Error("decrypt address cipher error", "error:", err)
+					return
+				}
+				log.Info("AddDirectLinkPeer", "address:", addr)
+				engine.AddDirectLinkPeer(pid, addr)
+			},
+		}
+		routes := dpos.New(&routeCfg)
+		go routes.Start()
+		go engine.StartServer()
+		if eth.blockchain.Engine() == engine && engine.AnnounceDAddr() {
+			engine.Start()//TODO Provisional test
+		}
 	}
-	routes := dpos.New(&routeCfg)
-	go routes.Start()
-	go engine.StartServer()
 
 	return eth, nil
 }
@@ -336,6 +333,9 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				select {
 				case <-engineChan:
 					eth.SetEngine(engine)
+					if pbftEngine, ok := engine.(*pbft.Pbft); ok {
+						pbftEngine.Start()
+					}
 					return
 				case <-engineSub.Err():
 					return

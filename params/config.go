@@ -342,9 +342,7 @@ type CliqueConfig struct {
 func (c *CliqueConfig) String() string {
 	return "clique"
 }
-//Localhost:        cfg.ChainParams.DPoSIPAddress,
-//MagicNumber:      cfg.ChainParams.DPoSMagic,
-//DefaultPort:      cfg.ChainParams.DPoSDefaultPort,
+
 type PbftConfig struct {
 	Producers     []string `json:"producers"` // list of producers participating the pbft consensus.
 	Magic 	      uint32 `json:"magic"`// Magic defines the magic number used in the DPoS network.

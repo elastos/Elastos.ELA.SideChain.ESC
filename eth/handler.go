@@ -744,7 +744,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 		pm.txpool.AddRemotes(txs)
 	case msg.Code == ELAMSG:
-		p.Log().Info("[received ela message,]", "Code:", msg.Code)
 		elaMsg := new(dpos.ElaMsg)
 		if err := msg.Decode(&elaMsg); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)

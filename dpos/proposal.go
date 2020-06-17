@@ -15,14 +15,14 @@ import (
 func StartProposal(ac account.Account, blockHash common.Uint256) (*payload.DPOSProposal, error) {
 	Info("[StartProposal] start")
 	defer Info("[StartProposal] end")
-	proposal := &payload.DPOSProposal{Sponsor:ac.PublicKeyBytes(),
+	proposal := &payload.DPOSProposal{Sponsor: ac.PublicKeyBytes(),
 		BlockHash: blockHash, ViewOffset: 0}
 	sign, err := ac.SignProposal(proposal)
 	if err != nil {
 		Error("[StartProposal] start proposal failed:", err.Error())
 		return nil, err
 	}
-	Info("[StartProposal] sponsor:", ac.PublicKeyBytes())
+	Info("[StartProposal] hash:", proposal.Hash().String())
 	proposal.Sign = sign
 
 	return proposal, nil
@@ -31,12 +31,12 @@ func StartProposal(ac account.Account, blockHash common.Uint256) (*payload.DPOSP
 func CheckProposal(proposal *payload.DPOSProposal) error {
 	pk, err := crypto.DecodePoint(proposal.Sponsor)
 	if err != nil {
-		Error("[CheckProposal] decode signer " + "error, details: ", err)
+		Error("[CheckProposal] decode signer "+"error, details: ", err)
 		return err
 	}
 
 	if err := crypto.Verify(*pk, proposal.Data(), proposal.Sign); err != nil {
-		Error("[CheckProposal] sign verify " + "error, details: ", err)
+		Error("[CheckProposal] sign verify "+"error, details: ", err)
 		return err
 	}
 	return nil
