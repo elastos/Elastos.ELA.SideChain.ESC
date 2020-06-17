@@ -8,19 +8,15 @@ package dpos
 import (
 	"bytes"
 	"sync"
-
-	"github.com/elastos/Elastos.ELA/common"
 )
 
 type Producers struct {
 	producers [][]byte
-	dutyIndex int
 	mtx       sync.Mutex
 }
 
 func NewProducers(producers [][]byte) *Producers {
 	producer := &Producers{
-		dutyIndex: 		  0,
 	}
 	producer.UpdateProducers(producers)
 	return producer
@@ -31,7 +27,6 @@ func (p *Producers) UpdateProducers(producers [][]byte) error {
 	defer p.mtx.Unlock()
 	p.producers = make([][]byte, len(producers))
 	copy(p.producers, producers)
-	p.dutyIndex = 0
 	return nil
 }
 
@@ -54,37 +49,6 @@ func (p *Producers) IsProducers(signer []byte) bool {
 	return false
 }
 
-func (p *Producers) IsOnduty(signer []byte) bool {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	index := p.dutyIndex % len(p.producers)
-	dutySigner := p.producers[index]
-	return bytes.Equal(dutySigner, signer)
-}
-
-func (p *Producers) ChangeView() {
-	p.mtx.Lock()
-	p.dutyIndex ++
-	p.mtx.Unlock()
-	str := "ChangeView-------------------\n"
-	for _, signer := range p.producers {
-		if p.IsOnduty(signer) {
-			str = str + common.BytesToHexString(signer) + " onDuty \n"
-		} else {
-			str = str + common.BytesToHexString(signer) + " not onDuty \n"
-		}
-
-	}
-	Info(str)
-}
-
-func (p *Producers) GetDutyIndex() int {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	index := p.dutyIndex
-	return index
-}
-
 func (p *Producers) GetMajorityCount() int {
 	p.mtx.Lock()
 	minSignCount := int(float64(len(p.producers)) * 2 / 3)
@@ -100,6 +64,19 @@ func (p *Producers) GetProducersCount() int {
 	return result
 }
 
+func (p *Producers) GetNextOnDutyProducer(offset uint32) []byte {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	producers := p.producers
+	if len(producers) == 0 {
+		return nil
+	}
+	index := int(offset) % len(producers)
+	producer := producers[index]
+
+	return producer
+}
+
 func (p *Producers) IsMajorityAgree(count int) bool {
 	return count >= p.GetMajorityCount()
 	//TODO should use below condition
@@ -108,5 +85,16 @@ func (p *Producers) IsMajorityAgree(count int) bool {
 
 func (p *Producers) IsMajorityRejected(count int) bool {
 	num := len(p.producers)
-	return count >= num - p.GetMajorityCount()
+	return count >= num-p.GetMajorityCount()
+}
+
+func (p *Producers) HasProducerMajorityCount(num int) bool {
+	return num > p.GetMajorityCount()
+}
+
+func (p *Producers) HasArbitersMinorityCount(num int) bool {
+	p.mtx.Lock()
+	count := len(p.producers)
+	p.mtx.Unlock()
+	return num >= count-p.GetMajorityCount()
 }

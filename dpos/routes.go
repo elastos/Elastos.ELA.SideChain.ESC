@@ -394,10 +394,10 @@ func (r *Routes) AnnounceAddr() {
 
 func (r *Routes) announceAddr() {
 	// Ignore if BlockChain not sync to current.
-	if !r.cfg.IsCurrent() {
-		Warn("announce Addr error, blockChain not sync to current")
-		return
-	}
+	//if !r.cfg.IsCurrent() {
+	//	Warn("announce Addr error, blockChain not sync to current")
+	//	return
+	//}
 
 	//Refuse new announce if a previous announce is waiting,
 	//this is to reduce unnecessary announce.

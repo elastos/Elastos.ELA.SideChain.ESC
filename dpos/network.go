@@ -8,7 +8,6 @@ package dpos
 import (
 	"bytes"
 	"errors"
-
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -49,7 +48,6 @@ type DPOSNetwork interface {
 
 	UpdatePeers(peers []dpeer.PID)
 	GetActivePeers() []p2p.Peer
-	RecoverTimeout()
 }
 
 type StatusSyncEventListener interface {
@@ -60,7 +58,7 @@ type StatusSyncEventListener interface {
 	OnGetBlock(id dpeer.PID, blockHash common.Uint256)
 	OnGetBlocks(id dpeer.PID, startBlockHeight, endBlockHeight uint32)
 	OnResponseBlocks(id dpeer.PID, blockConfirms []*dmsg.BlockMsg)
-	OnRequestConsensus(id dpeer.PID, height uint32)
+	OnRequestConsensus(id dpeer.PID, height uint64)
 	OnResponseConsensus(id dpeer.PID, status *msg.ConsensusStatus)
 	OnRequestProposal(id dpeer.PID, hash common.Uint256)
 	OnIllegalProposalReceived(id dpeer.PID, proposals *payload.DPOSIllegalProposals)
@@ -77,7 +75,6 @@ type NetworkEventListener interface {
 	OnChangeView()
 	OnBadNetwork()
 	OnRecover()
-	OnRecoverTimeout()
 
 	OnBlockReceived(b *dmsg.BlockMsg, confirmed bool)
 	OnConfirmReceived(c *payload.Confirm, height uint32)
@@ -90,7 +87,6 @@ type messageItem struct {
 
 type Network struct {
 	listener           NetworkEventListener
-	proposalDispatcher *Dispatcher
 	publicKey          []byte
 	announceAddr       func()
 
@@ -101,9 +97,12 @@ type Network struct {
 	badNetworkChan     chan bool
 	changeViewChan     chan bool
 	recoverChan        chan bool
-	recoverTimeoutChan chan bool
 
 	GetCurrentHeight func(pid peer.PID) uint64
+}
+
+func (n *Network) GetActivePeers() []p2p.Peer {
+	return n.p2pServer.ConnectedPeers()
 }
 
 func (n *Network) notifyFlag(flag p2p.NotifyFlag) {
@@ -130,8 +129,6 @@ func (n *Network) Start() {
 				n.badNetwork()
 			case <-n.recoverChan:
 				n.recover()
-			case <-n.recoverTimeoutChan:
-				n.recoverTimeout()
 			case <-n.quit:
 				break out
 			}
@@ -142,6 +139,14 @@ func (n *Network) Start() {
 func (n *Network) Stop() error {
 	n.quit <- true
 	return n.p2pServer.Stop()
+}
+
+func (n *Network) PostChangeViewTask() {
+	n.changeViewChan <- true
+}
+
+func (n *Network) PostRecoverTask() {
+	n.recoverChan <- true
 }
 
 func (n *Network) processMessage(msgItem *messageItem) {
@@ -198,7 +203,7 @@ func (n *Network) processMessage(msgItem *messageItem) {
 			//n.listener.OnResponseBlocks(msgItem.ID, msgResponseBlocks)
 		//}
 	case msg.CmdRequestConsensus:
-		msgRequestConsensus, processed := m.(*msg.RequestConsensus)
+		msgRequestConsensus, processed := m.(*dmsg.RequestConsensus)
 		if processed {
 			n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
 		}
@@ -226,7 +231,6 @@ func (n *Network) processMessage(msgItem *messageItem) {
 }
 
 func (n *Network) changeView() {
-	Info("net changeView")
 	n.listener.OnChangeView()
 }
 
@@ -237,7 +241,7 @@ func (n *Network) UpdatePeers(peers []peer.PID) {
 			return
 		}
 	}
-	Info("[UpdatePeers] i am not in peers")
+	Info("[UpdatePeers] i am not in peers", "self account:", common.BytesToHexString(n.publicKey))
 	n.p2pServer.ConnectPeers(nil)
 }
 
@@ -253,11 +257,6 @@ func (n *Network) badNetwork() {
 func (n *Network) recover() {
 	Info("network recover")
 	n.listener.OnRecover()
-}
-
-func (n *Network) recoverTimeout() {
-	Info("network recoverTimeout")
-	n.listener.OnRecoverTimeout()
 }
 
 func (n *Network) AddDirectLinkAddr(pid peer.PID, addr string) {
@@ -277,7 +276,6 @@ func (n *Network) BroadcastMessage(msg elap2p.Message) {
 func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 	network := &Network{
 		listener:           cfg.Listener,
-		proposalDispatcher: cfg.ProposalDispatcher,
 		publicKey:          cfg.PublicKey,
 		announceAddr:       cfg.AnnounceAddr,
 
@@ -286,7 +284,6 @@ func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 		badNetworkChan:     make(chan bool),
 		changeViewChan:     make(chan bool),
 		recoverChan:        make(chan bool),
-		recoverTimeoutChan: make(chan bool),
 	}
 
 	notifier := p2p.NewNotifier(p2p.NFNetStabled|p2p.NFBadNetwork, network.notifyFlag)
@@ -335,7 +332,7 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 	case msg.CmdResponseBlocks:
 		message = &msg.ResponseBlocks{}
 	case msg.CmdRequestConsensus:
-		message = &msg.RequestConsensus{}
+		message = &dmsg.RequestConsensus{}
 	case msg.CmdResponseConsensus:
 		message = &msg.ResponseConsensus{}
 	case msg.CmdRequestProposal:
