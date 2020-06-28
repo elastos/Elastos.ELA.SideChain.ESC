@@ -28,7 +28,7 @@ func TestStartAndCheckProposal(t *testing.T) {
 	rand.Read(data)
 	blockHash, err := common.Uint256FromBytes(data)
 	assert.NoError(t, err)
-	proposal, err := StartProposal(daccount.New(ac), *blockHash)
+	proposal, err := StartProposal(daccount.New(ac), *blockHash, 0)
 	assert.NoError(t, err)
 
 	err = CheckProposal(proposal)

@@ -78,14 +78,15 @@ type Pbft struct {
 
 	// IsCurrent returns whether BlockChain synced to best height.
 	IsCurrent func() bool
+	StartMine func()
 
 	requestedBlocks map[common.Hash]struct{}
 	statusMap       map[uint32]map[string]*dmsg.ConsensusStatus
 
-	enableViewLoop  bool
-	recoverStarted  bool
-	isAnnouncedAddr bool
-	period          uint64
+	enableViewLoop bool
+	recoverStarted bool
+	isRecoved      bool
+	period         uint64
 }
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
@@ -124,7 +125,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock)
 	pbft.blockPool = blockPool
 	dispatcher := dpos.NewDispatcher(producers, pbft.onConfirm, pbft.onUnConfirm,
-		5*time.Second, account.PublicKeyBytes(), medianTimeSouce, pbft)
+		10*time.Second, account.PublicKeyBytes(), medianTimeSouce, pbft)
 	pbft.dispatcher = dispatcher
 	if account != nil {
 		network, err := dpos.NewNetwork(&dpos.NetworkConfig{
@@ -155,8 +156,16 @@ func (p *Pbft) subscribeEvent() {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
 			go p.network.UpdatePeers(e.Data.([]peer.PID))
+		case dpos.ETNewPeer:
+			if p.chain.Engine() == p {
+				go p.AnnounceDAddr()
+			}
 		}
 	})
+}
+
+func (p *Pbft) IsRecoved() bool {
+	return p.isRecoved
 }
 
 func (p *Pbft) GetDataDir() string {
@@ -290,7 +299,13 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	log.Info("Pbft Prepare:", "height;", header.Number.Uint64())
-
+	if !p.isRecoved {
+		return errors.New("wait for recoved states")
+	}
+	if p.dispatcher.GetConsensusView().IsRunning() && p.enableViewLoop {
+		return errors.New("current consensus is running")
+	}
+	p.Start()
 	if !p.IsOnduty() {
 		return errors.New("local singer is not on duty")
 	}
@@ -302,7 +317,7 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	header.Difficulty = parent.Difficulty
 	header.Time = parent.Time + p.period
 	if header.Time < uint64(time.Now().Unix()) {
-		header.Time = uint64(time.Now().Unix())
+		header.Time = uint64(time.Now().Unix()) + p.period
 	}
 
 	// Ensure the extra data has all its components 32 + 65
@@ -323,9 +338,7 @@ func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state
 	dpos.Info("Pbft Finalize:", "height:", header.Number.Uint64())
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
-	if p.IsCurrent() {
-		p.dispatcher.FinishedProposal()
-	}
+	p.dispatcher.FinishedProposal()
 	p.CleanFinalConfirmedBlock(header.Number.Uint64())
 }
 
@@ -367,14 +380,13 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	select {
 	case confirm := <-p.confirmCh:
 		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String())
-		if confirm.Votes[0].Accept == false {
-			return nil
-		}
+		p.dispatcher.FinishedProposal()
 		break
 	case <-time.After(delay):
 		log.Warn("seal time out stop mine")
 		return nil
 	case <-stop:
+		log.Warn("pbft seal is stoped")
 		return nil
 	}
 	go func() {
@@ -397,7 +409,6 @@ func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 	}
 	if p.IsOnduty() {
 		p.confirmCh <- confirm
-		p.dispatcher.FinishedProposal()
 	}
 	return err
 }
@@ -410,13 +421,11 @@ func (p *Pbft) onUnConfirm(unconfirm *payload.Confirm) error {
 	}
 	if p.IsOnduty() {
 		p.confirmCh <- unconfirm
-		p.dispatcher.FinishedProposal()
 	}
 	return err
 }
 
 func (p *Pbft) SealHash(header *types.Header) common.Hash {
-	dpos.Info("Pbft SealHash:", header.Number.Uint64())
 	return SealHash(header)
 }
 
@@ -486,6 +495,7 @@ func (p *Pbft) AddDirectLinkPeer(pid peer.PID, addr string) {
 func (p *Pbft) StartServer() {
 	if p.network != nil {
 		p.network.Start()
+		p.recover()
 	}
 }
 
@@ -498,11 +508,12 @@ func (p *Pbft) StopServer() {
 
 func (p *Pbft) Start() {
 	if !p.enableViewLoop {
-		p.dispatcher.ResetView()
 		p.enableViewLoop = true
-		//go p.changeViewLoop()
-		//go p.recover()
+		go p.changeViewLoop()
+	} else {
+		p.dispatcher.ResetView()
 	}
+	p.dispatcher.GetConsensusView().SetRunning()
 }
 
 func (p *Pbft) changeViewLoop() {
@@ -519,7 +530,6 @@ func (p *Pbft) recover() {
 	}
 
 	for {
-		log.Info("----- active peers  --------", "count:", len(p.network.GetActivePeers()))
 		if p.IsCurrent() && len(p.network.GetActivePeers()) > 0 &&
 			p.dispatcher.GetConsensusView().HasArbitersMinorityCount(len(p.network.GetActivePeers())) {
 			log.Info("----- PostRecoverTask --------")
@@ -603,5 +613,18 @@ func (p *Pbft) CleanFinalConfirmedBlock(height uint64) {
 }
 
 func (p *Pbft) OnViewChanged(isOnDuty bool, force bool) {
-	p.dispatcher.CleanProposals()
+	proposal := p.dispatcher.UpdatePrecociousProposals()
+	if proposal != nil {
+		log.Info("UpdatePrecociousProposals process proposal")
+		p.OnProposalReceived(peer.PID{}, proposal)
+	}
+
+	if !force {
+		p.dispatcher.CleanProposals(true)
+		if p.IsCurrent() && isOnDuty {
+			log.Info("---------startMine()-------")
+			p.dispatcher.GetConsensusView().SetReady()
+			p.StartMine()
+		}
+	}
 }
