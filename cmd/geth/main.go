@@ -33,6 +33,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/cmd/utils"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/console"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth"
@@ -597,9 +598,26 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		if ctx.GlobalIsSet(utils.MinerThreadsFlag.Name) {
 			threads = ctx.GlobalInt(utils.MinerThreadsFlag.Name)
 		}
-		if err := ethereum.StartMining(threads); err != nil {
-			utils.Fatalf("Failed to start mining: %v", err)
+		if ethereum.Engine() != ethereum.BlockChain().GetDposEngine() {
+			if err := ethereum.StartMining(threads); err != nil {
+				utils.Fatalf("Failed to start mining: %v", err)
+			}
+		} else {
+			go func() {
+				for {
+					pbftEngine := ethereum.BlockChain().GetDposEngine().(*pbft.Pbft)
+					log.Info("waiting sync state", "recoved", pbftEngine.IsRecoved())
+					if pbftEngine.IsRecoved() {
+						if err := ethereum.StartMining(threads); err != nil {
+							utils.Fatalf("Failed to start mining: %v", err)
+						}
+						break
+					}
+					time.Sleep(time.Second)
+				}
+			}()
 		}
+
 	}
 }
 

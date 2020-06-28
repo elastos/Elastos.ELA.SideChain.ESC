@@ -12,13 +12,19 @@ type ViewListener interface {
 	OnViewChanged(isOnDuty bool, force bool)
 }
 
+const (
+	consensusReady = iota
+	consensusRunning
+)
+
 type ConsensusView struct {
+	consensusStatus uint32
 	viewOffset      uint32
-	publicKey     []byte
-	signTolerance time.Duration
-	viewStartTime time.Time
-	isDposOnDuty  bool
-	producers     *Producers
+	publicKey       []byte
+	signTolerance   time.Duration
+	viewStartTime   time.Time
+	isDposOnDuty    bool
+	producers       *Producers
 
 	listener ViewListener
 }
@@ -27,13 +33,27 @@ func (v *ConsensusView) resetViewOffset() {
 	v.viewOffset = 0
 }
 
-func (v *ConsensusView) TryChangeView(now time.Time) bool {
-	if now.After(v.viewStartTime.Add(v.signTolerance)) {
+func (v *ConsensusView) SetRunning() {
+	v.consensusStatus = consensusRunning
+}
+
+func (v *ConsensusView) SetReady() {
+	v.consensusStatus = consensusReady
+}
+
+func (v *ConsensusView) IsRunning() bool {
+	return v.consensusStatus == consensusRunning
+}
+
+func (v *ConsensusView) IsReady() bool {
+	return v.consensusStatus == consensusReady
+}
+
+func (v *ConsensusView) TryChangeView(now time.Time) {
+	if v.IsRunning() && now.After(v.viewStartTime.Add(v.signTolerance)) {
 		Info("[TryChangeView] succeed")
 		v.ChangeView(now, false)
-		return true
 	}
-	return false
 }
 
 func (v *ConsensusView) GetProducers() [][]byte {
@@ -60,9 +80,12 @@ func (v *ConsensusView) ChangeView(now time.Time, force bool) {
 
 	if offset > 0 {
 		Info("\n\n\n--------------------Change View---------------------")
-		Info("viewStartTime:", v.viewStartTime.String(), "nowTime:", now, "offset:", offset, "offsetTime:", offsetTime, "force:", force)
+		Info("viewStartTime:", v.viewStartTime, "nowTime:", now, "offset:", offset, "offsetTime:", offsetTime, "force:", force)
 		currentProducer := v.producers.GetNextOnDutyProducer(v.viewOffset)
 		v.isDposOnDuty = bytes.Equal(currentProducer, v.publicKey)
+		if bytes.Equal(currentProducer, v.producers.producers[0]) {
+			v.resetViewOffset()//Prevent viewOffset overflow
+		}
 		v.DumpInfo()
 		Info("\n\n\n")
 		if v.listener != nil {
@@ -75,7 +98,7 @@ func (v *ConsensusView) DumpInfo() {
 	str := "\n"
 	for _, signer := range v.producers.producers {
 		if v.ProducerIsOnDuty(signer) {
-			duty := log.Color(log.Green, common.BytesToHexString(signer) + " onDuty \n")
+			duty := log.Color(log.Green, common.BytesToHexString(signer)+" onDuty \n")
 			str = str + duty
 		} else {
 			str = str + common.BytesToHexString(signer) + " not onDuty \n"
@@ -90,6 +113,10 @@ func (v *ConsensusView) GetViewInterval() time.Duration {
 
 func (v *ConsensusView) GetViewStartTime() time.Time {
 	return v.viewStartTime
+}
+
+func (v *ConsensusView) GetViewOffset() uint32 {
+	return v.viewOffset
 }
 
 func (v *ConsensusView) ResetView(t time.Time) {
@@ -121,9 +148,15 @@ func (v *ConsensusView) HasArbitersMinorityCount(count int) bool {
 	return v.producers.HasArbitersMinorityCount(count)
 }
 
+func (v *ConsensusView) HasProducerMajorityCount(count int) bool {
+	return v.producers.HasProducerMajorityCount(count)
+}
+
 func NewConsensusView(tolerance time.Duration, account []byte,
 	producers *Producers, viewListener ViewListener) *ConsensusView {
 	c := &ConsensusView{
+		consensusStatus: consensusReady,
+		viewStartTime:   time.Unix(0, 0),
 		viewOffset:      0,
 		publicKey:       account,
 		signTolerance:   tolerance,

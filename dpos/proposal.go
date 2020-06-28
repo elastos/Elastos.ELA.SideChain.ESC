@@ -12,11 +12,11 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/account"
 )
 
-func StartProposal(ac account.Account, blockHash common.Uint256) (*payload.DPOSProposal, error) {
+func StartProposal(ac account.Account, blockHash common.Uint256, viewOffset uint32) (*payload.DPOSProposal, error) {
 	Info("[StartProposal] start")
 	defer Info("[StartProposal] end")
 	proposal := &payload.DPOSProposal{Sponsor: ac.PublicKeyBytes(),
-		BlockHash: blockHash, ViewOffset: 0}
+		BlockHash: blockHash, ViewOffset: viewOffset}
 	sign, err := ac.SignProposal(proposal)
 	if err != nil {
 		Error("[StartProposal] start proposal failed:", err.Error())

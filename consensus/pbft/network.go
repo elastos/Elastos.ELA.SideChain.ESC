@@ -28,7 +28,7 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 	if err != nil {
 		return err
 	}
-	proposal, err := dpos.StartProposal(p.account, *hash)
+	proposal, err := dpos.StartProposal(p.account, *hash, p.dispatcher.GetConsensusView().GetViewOffset())
 	if err != nil {
 		log.Error("Start proposal error", "err", err)
 		return err
@@ -51,14 +51,9 @@ func (p *Pbft) AnnounceDAddr() bool {
 		log.Error("is not a super node")
 		return false
 	}
-	if p.isAnnouncedAddr {
-		log.Warn("is already announced address")
-		return false
-	}
 	producers := p.dispatcher.GetNeedConnectProducers()
 	log.Info("Announce DAddr ", "Producers:", producers)
 	events.Notify(events.ETDirectPeersChanged, producers)
-	p.isAnnouncedAddr = true
 	return true
 }
 
@@ -121,7 +116,6 @@ func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
 }
 
 func (p *Pbft) AccessFutureBlock(parent *types.Block) {
-	log.Info("----[AccessFutureBlock]-----")
 	if p.blockPool.HandleParentBlock(parent) {
 		log.Info("----[Send RequestProposal]-----")
 		requestProposal := &msg.RequestProposal{ProposalHash: elacom.EmptyHash}
@@ -218,6 +212,10 @@ func (p *Pbft) OnIllegalVotesReceived(id peer.PID, votes *payload.DPOSIllegalVot
 
 func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 	log.Info("OnProposalReceived", "hash:", proposal.Hash().String())
+	if !p.dispatcher.GetConsensusView().IsRunning() {
+		log.Info("consensus is not running")
+		return
+	}
 	hash := common.BytesToHash(proposal.BlockHash.Bytes())
 	if b := p.chain.GetBlockByHash(hash); b != nil {
 		log.Info("allready confirm proposal drop it", "hash:", b.Hash(), "height", b.NumberU64())
@@ -245,6 +243,9 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 }
 
 func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
+	if !p.dispatcher.GetConsensusView().IsRunning() {
+		return
+	}
 	if vote.Accept == true {
 		log.Info("OnVoteAccepted:", "hash:", vote.Hash().String())
 	}
@@ -302,6 +303,7 @@ func (p *Pbft) recoverAbnormalState() bool {
 		go func() {
 			<-time.NewTicker(time.Second * 2).C
 			p.OnRecoverTimeout()
+			p.isRecoved = true
 		}()
 		return true
 	}
@@ -342,7 +344,6 @@ func (p *Pbft) DoRecover() {
 		return startTimes[i] < startTimes[j]
 	})
 	medianTime := medianOf(startTimes)
-	log.Info("[DoRecover] received status, ", "startTimes:", len(startTimes), "viewOffset:", status.ViewOffset)
 	p.dispatcher.RecoverAbnormal(status, medianTime)
 }
 

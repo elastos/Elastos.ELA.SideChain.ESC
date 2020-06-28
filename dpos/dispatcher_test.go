@@ -78,7 +78,7 @@ func TestExampleNormalVote(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Node0 create a proposal.
-	proposal, err := StartProposal(node0Wallet, *blockHash)
+	proposal, err := StartProposal(node0Wallet, *blockHash, 0)
 	assert.NoError(t, err)
 
 	// Node0 get this proposal first.

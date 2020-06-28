@@ -18,9 +18,10 @@ import (
 )
 
 type Dispatcher struct {
-	acceptVotes   map[common.Uint256]*payload.DPOSProposalVote
-	rejectedVotes map[common.Uint256]*payload.DPOSProposalVote
-	pendingVotes  map[common.Uint256]*payload.DPOSProposalVote
+	acceptVotes         map[common.Uint256]*payload.DPOSProposalVote
+	rejectedVotes       map[common.Uint256]*payload.DPOSProposalVote
+	pendingVotes        map[common.Uint256]*payload.DPOSProposalVote
+	precociousProposals map[common.Uint256]*payload.DPOSProposal
 
 	processingProposal *payload.DPOSProposal
 	consensusView      *ConsensusView
@@ -44,6 +45,14 @@ func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) (err error,
 
 	if !d.consensusView.IsProducers(proposal.Sponsor) {
 		return errors.New("current signer is not producer"), true
+	}
+
+	if d.GetConsensusView().GetViewOffset() != proposal.ViewOffset {
+		Info("have different view offset")
+		if proposal.ViewOffset > d.GetConsensusView().GetViewOffset() {
+			d.precociousProposals[proposal.Hash()] = proposal
+		}
+		return errors.New("have different view offset"), false
 	}
 
 	if !d.consensusView.ProducerIsOnDuty(proposal.Sponsor) {
@@ -130,16 +139,40 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 }
 
 func (d *Dispatcher) FinishedProposal() {
-	d.CleanProposals()
+	Info("Clean proposals")
+	d.consensusView.SetReady()
+	d.CleanProposals(false)
 	d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true)
 }
-
-func (d *Dispatcher) CleanProposals() {
+func (d *Dispatcher) CleanProposals(changeView bool) {
 	Info("Clean proposals")
 	d.processingProposal = nil
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.rejectedVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.pendingVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
+	if !changeView {
+		d.precociousProposals = make(map[common.Uint256]*payload.DPOSProposal)
+	} else {
+		// clear pending proposals less than current view offset
+		currentOffset := d.consensusView.GetViewOffset()
+		for k, v := range d.precociousProposals {
+			if v.ViewOffset < currentOffset {
+				delete(d.precociousProposals, k)
+			}
+		}
+	}
+}
+
+
+func (d *Dispatcher) UpdatePrecociousProposals() *payload.DPOSProposal{
+	for k, v := range d.precociousProposals {
+		if d.consensusView.IsRunning() &&
+			v.ViewOffset == d.consensusView.GetViewOffset() {
+			delete(d.precociousProposals, k)
+			return v
+		}
+	}
+	return nil
 }
 
 func (d *Dispatcher) alreadyExistVote(v *payload.DPOSProposalVote) bool {
@@ -217,8 +250,8 @@ func (d *Dispatcher) ProducerIsOnDuty() bool {
 	return d.consensusView.IsOnduty()
 }
 
-func (p *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
-	return p.processingProposal
+func (d *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
+	return d.processingProposal
 }
 
 func (d *Dispatcher) GetNeedConnectProducers() []peer.PID {
@@ -251,6 +284,7 @@ func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHe
 		return nil
 	}
 	status := &msg.ConsensusStatus{}
+	status.ConsensusStatus = d.consensusView.consensusStatus
 	status.ViewOffset = d.consensusView.viewOffset
 	status.ViewStartTime = d.consensusView.GetViewStartTime()
 
@@ -279,14 +313,16 @@ func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHe
 
 func (d *Dispatcher) RecoverAbnormal(status *msg.ConsensusStatus, medianTime int64) {
 	status.ViewStartTime = dtime.Int64ToTime(medianTime)
-	offset, offsetTime := d.consensusView.calculateOffsetTime(status.ViewStartTime, d.timeSource.AdjustedTime())
-	status.ViewOffset += offset
-	status.ViewStartTime = d.timeSource.AdjustedTime().Add(-offsetTime)
-
+	if medianTime != 0 {
+		offset, offsetTime := d.consensusView.calculateOffsetTime(status.ViewStartTime, d.timeSource.AdjustedTime())
+		status.ViewOffset += offset
+		status.ViewStartTime = d.timeSource.AdjustedTime().Add(-offsetTime)
+	}
 	d.RecoverFromConsensusStatus(status)
 }
 
 func (d *Dispatcher) RecoverFromConsensusStatus(status *msg.ConsensusStatus) error {
+	d.consensusView.consensusStatus = status.ConsensusStatus
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	for _, v := range status.AcceptVotes {
 		vote := v
@@ -322,12 +358,13 @@ func NewDispatcher(producers [][]byte, onConfirm func(confirm *payload.Confirm) 
 	unConfirm func(confirm *payload.Confirm) error, tolerance time.Duration, publicKey []byte,
 	medianTime dtime.MedianTimeSource, viewListener ViewListener) *Dispatcher {
 	return &Dispatcher{
-		acceptVotes:   make(map[common.Uint256]*payload.DPOSProposalVote),
-		rejectedVotes: make(map[common.Uint256]*payload.DPOSProposalVote),
-		pendingVotes:  make(map[common.Uint256]*payload.DPOSProposalVote),
-		consensusView: NewConsensusView(tolerance, publicKey, NewProducers(producers), viewListener),
-		onConfirm:     onConfirm,
-		unConfirm:     unConfirm,
-		timeSource:    medianTime,
+		acceptVotes:         make(map[common.Uint256]*payload.DPOSProposalVote),
+		rejectedVotes:       make(map[common.Uint256]*payload.DPOSProposalVote),
+		pendingVotes:        make(map[common.Uint256]*payload.DPOSProposalVote),
+		precociousProposals: make(map[common.Uint256]*payload.DPOSProposal),
+		consensusView:       NewConsensusView(tolerance, publicKey, NewProducers(producers), viewListener),
+		onConfirm:           onConfirm,
+		unConfirm:           unConfirm,
+		timeSource:          medianTime,
 	}
 }

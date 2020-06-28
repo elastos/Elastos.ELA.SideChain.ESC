@@ -275,6 +275,12 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		progress := eth.Downloader().Progress()
 		return progress.CurrentBlock >= progress.HighestBlock
 	}
+	engine.StartMine = func() {
+		if eth.IsMining() {
+			eth.StopMining()
+		}
+		eth.StartMining(0)
+	}
 
 	engine.SetBlockChain(eth.blockchain)
 
@@ -314,9 +320,6 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		routes := dpos.New(&routeCfg)
 		go routes.Start()
 		go engine.StartServer()
-		if eth.blockchain.Engine() == engine && engine.AnnounceDAddr() {
-			engine.Start()//TODO Provisional test
-		}
 	}
 
 	return eth, nil
@@ -333,9 +336,6 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				select {
 				case <-engineChan:
 					eth.SetEngine(engine)
-					if pbftEngine, ok := engine.(*pbft.Pbft); ok {
-						pbftEngine.Start()
-					}
 					return
 				case <-engineSub.Err():
 					return
