@@ -7,6 +7,7 @@ package dpos
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -29,6 +30,8 @@ type Dispatcher struct {
 
 	onConfirm func(confirm *payload.Confirm) error
 	unConfirm func(confirm *payload.Confirm) error
+
+	mu sync.RWMutex
 }
 
 func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) (err error, isSendReject bool) {
@@ -90,7 +93,8 @@ func (d *Dispatcher) AddPendingVote(v *payload.DPOSProposalVote) {
 func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, finished bool, err error) {
 	Info("[ProcessVote] start")
 	defer Info("[ProcessVote] end")
-
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if d.processingProposal == nil {
 		err = errors.New("not proposal to process vote")
 		return false, false, err
@@ -163,8 +167,7 @@ func (d *Dispatcher) CleanProposals(changeView bool) {
 	}
 }
 
-
-func (d *Dispatcher) UpdatePrecociousProposals() *payload.DPOSProposal{
+func (d *Dispatcher) UpdatePrecociousProposals() *payload.DPOSProposal {
 	for k, v := range d.precociousProposals {
 		if d.consensusView.IsRunning() &&
 			v.ViewOffset == d.consensusView.GetViewOffset() {
@@ -352,6 +355,10 @@ func (d *Dispatcher) RecoverFromConsensusStatus(status *msg.ConsensusStatus) err
 	d.consensusView.DumpInfo()
 	Info("\n\n\n\n \n\n\n\n")
 	return nil
+}
+
+func (d *Dispatcher) GetNowTime() time.Time {
+	return d.timeSource.AdjustedTime()
 }
 
 func NewDispatcher(producers [][]byte, onConfirm func(confirm *payload.Confirm) error,

@@ -73,7 +73,7 @@ func (p *Pbft) BroadPreBlock(block *types.Block) error {
 func (p *Pbft) RequestAbnormalRecovering() {
 	height := p.chain.CurrentHeader().Height()
 	msgItem := &dmsg.RequestConsensus{Height: height}
-	log.Info("[RequestAbnormalRecovering] broadcast message to peers")
+	log.Info("[RequestAbnormalRecovering]", "height", height)
 	p.network.BroadcastMessage(msgItem)
 }
 
@@ -233,7 +233,20 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 		log.Error("Process Proposal error", "err", err)
 		if isSendReject {
 			voteMsg = p.dispatcher.RejectProposal(proposal, p.account)
+		} else if p.dispatcher.GetConsensusView().GetViewOffset() != proposal.ViewOffset {
+			log.Info("[OnProposalReceived] has minority not handled" +
+				" proposals, need recover")
+			if p.dispatcher.GetConsensusView().HasArbitersMinorityCount(len(p.network.GetActivePeers())) {
+				if p.recoverAbnormalState() {
+					log.Info("[OnProposalReceived] recover start")
+				} else {
+					log.Error("[OnProposalReceived] has no active peers recover failed")
+				}
+			} else {
+				log.Info("active peers is short:", len(p.network.GetActivePeers()))
+			}
 		}
+
 	} else {
 		voteMsg = p.dispatcher.AcceptProposal(proposal, p.account)
 	}
@@ -304,6 +317,9 @@ func (p *Pbft) recoverAbnormalState() bool {
 			<-time.NewTicker(time.Second * 2).C
 			p.OnRecoverTimeout()
 			p.isRecoved = true
+			if p.chain.Engine() == p {
+				p.StartMine()
+			}
 		}()
 		return true
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
@@ -113,6 +114,9 @@ func (self *Miner) update() {
 					self.Start(self.coinbase)
 				}
 				// stop immediately and ignore all further pending events
+				if pbftEngine, ok := self.engine.(*pbft.Pbft); ok {
+					go pbftEngine.Recover()
+				}
 				return
 			}
 		case <-self.exitCh:
