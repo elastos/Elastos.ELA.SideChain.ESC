@@ -164,10 +164,6 @@ func (p *Pbft) subscribeEvent() {
 	})
 }
 
-func (p *Pbft) IsRecoved() bool {
-	return p.isRecoved
-}
-
 func (p *Pbft) GetDataDir() string {
 	return p.datadir
 }
@@ -316,8 +312,9 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	}
 	header.Difficulty = parent.Difficulty
 	header.Time = parent.Time + p.period
-	if header.Time < uint64(time.Now().Unix()) {
-		header.Time = uint64(time.Now().Unix()) + p.period
+	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
+	if header.Time < nowTime {
+		header.Time = nowTime + p.period
 	}
 
 	// Ensure the extra data has all its components 32 + 65
@@ -374,7 +371,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	}
 
 	//Waiting for statistics of voting results
-	delay := time.Unix(int64(header.Time), 0).Sub(time.Now())
+	delay := time.Unix(int64(header.Time), 0).Sub(p.dispatcher.GetNowTime())
 	time.Sleep(delay)
 
 	select {
@@ -495,7 +492,7 @@ func (p *Pbft) AddDirectLinkPeer(pid peer.PID, addr string) {
 func (p *Pbft) StartServer() {
 	if p.network != nil {
 		p.network.Start()
-		p.recover()
+		p.Recover()
 	}
 }
 
@@ -523,7 +520,7 @@ func (p *Pbft) changeViewLoop() {
 	}
 }
 
-func (p *Pbft) recover() {
+func (p *Pbft) Recover() {
 	if p.IsCurrent == nil || p.account == nil ||
 		!p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
 		return

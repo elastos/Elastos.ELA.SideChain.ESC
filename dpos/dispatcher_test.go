@@ -7,6 +7,7 @@ package dpos
 
 import (
 	"fmt"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -170,4 +171,42 @@ func Node1ProcessProposal(proposal *payload.DPOSProposal) {
 	fmt.Println("Node1 vote the proposal:", vote.Hash().String())
 	votech <- &msg.Vote{"voteMsg", *vote}
 
+}
+
+func TestProcessVote(t *testing.T) {
+	onConfirm := func(confirm *payload.Confirm) error {
+		return nil
+	}
+	unconfirm := func(confirm *payload.Confirm) error {
+		return nil
+	}
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	wallet, _ := getTestWallet(key1, "node1")
+	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil)
+	go func() {
+		for i := 0; i < 1000; i++{
+			proposal, _ := StartProposal(wallet, *randomUint256(), rand.Uint32())
+			dispatcher.processingProposal = proposal
+			phash := proposal.Hash()
+			vote, _ := StartVote(&phash, true, wallet)
+			dispatcher.ProcessVote(vote)
+			time.Sleep(1)
+		}
+		wg.Done()
+	}()
+
+	go func() {
+		for i := 0; i < 1000; i++{
+			proposal, _ := StartProposal(wallet, *randomUint256(), rand.Uint32())
+			dispatcher.processingProposal = proposal
+			phash := proposal.Hash()
+			vote, _ := StartVote(&phash, true, wallet)
+			dispatcher.ProcessVote(vote)
+			time.Sleep(1)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
