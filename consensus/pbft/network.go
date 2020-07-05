@@ -22,9 +22,10 @@ import (
 )
 
 func (p *Pbft) StartProposal(block *types.Block) error {
-	log.Info("StartProposal", "block hash:", block.Hash().String())
+	sealHash := p.SealHash(block.Header())
+	log.Info("StartProposal", "block hash:", sealHash.String())
 
-	hash, err := elacom.Uint256FromBytes(block.Hash().Bytes())
+	hash, err := elacom.Uint256FromBytes(sealHash.Bytes())
 	if err != nil {
 		return err
 	}
@@ -58,7 +59,8 @@ func (p *Pbft) AnnounceDAddr() bool {
 }
 
 func (p *Pbft) BroadPreBlock(block *types.Block) error {
-	log.Info("BroadPreBlock,", "block Height:", block.NumberU64(), "hash:", block.Hash().String())
+	sealHash := p.SealHash(block.Header())
+	log.Info("BroadPreBlock,", "block Height:", block.NumberU64(), "hash:", sealHash.String())
 	buffer := bytes.NewBuffer([]byte{})
 	err := block.EncodeRLP(buffer)
 	if err != nil {
@@ -103,15 +105,16 @@ func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
 	if err != nil {
 		panic("OnBlock Decode Block Msg error:" + err.Error())
 	}
-	log.Info("-----OnBlock received------", "blockHash:", b.Hash().String(), "height:", b.NumberU64())
+	sealHash := p.SealHash(b.Header())
+	log.Info("-----OnBlock received------", "blockHash:", sealHash.String(), "height:", b.NumberU64())
 	err = p.blockPool.AppendDposBlock(b)
 	if err == consensus.ErrUnknownAncestor {
 		log.Info("Append Future blocks", "height:", b.NumberU64())
 		p.blockPool.AppendFutureBlock(b)
 	}
 
-	if _, ok := p.requestedBlocks[b.Hash()]; ok {
-		delete(p.requestedBlocks, b.Hash())
+	if _, ok := p.requestedBlocks[sealHash]; ok {
+		delete(p.requestedBlocks, sealHash)
 	}
 }
 
@@ -218,7 +221,7 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 	}
 	hash := common.BytesToHash(proposal.BlockHash.Bytes())
 	if b := p.chain.GetBlockByHash(hash); b != nil {
-		log.Info("allready confirm proposal drop it", "hash:", b.Hash(), "height", b.NumberU64())
+		log.Info("allready confirm proposal drop it", "hash:", p.SealHash(b.Header()), "height", b.NumberU64())
 		return
 	}
 

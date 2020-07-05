@@ -12,7 +12,6 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
@@ -24,7 +23,6 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
 	ecom "github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/crypto"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	dmsg "github.com/elastos/Elastos.ELA/dpos/p2p/msg"
@@ -122,7 +120,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		statusMap:       make(map[uint32]map[string]*dmsg.ConsensusStatus),
 		period:          5,
 	}
-	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock)
+	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock, DBlockSealHash)
 	pbft.blockPool = blockPool
 	dispatcher := dpos.NewDispatcher(producers, pbft.onConfirm, pbft.onUnConfirm,
 		10*time.Second, account.PublicKeyBytes(), medianTimeSouce, pbft)
@@ -198,8 +196,10 @@ func (p *Pbft) VerifyHeaders(chain consensus.ChainReader, headers []*types.Heade
 					err = consensus.ErrFutureBlock
 				}
 			}
-			if err == nil && !p.IsInBlockPool(header.Hash()) {
+			if err == nil && !p.IsInBlockPool(p.SealHash(header)) {
 				err = p.verifyHeader(chain, header, headers[:i], seals[i])
+			} else {
+				err = p.verifySeal(chain, header, headers[:i])
 			}
 
 			select {
@@ -254,7 +254,12 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 	if parent.Time+p.period > header.Time {
 		return ErrInvalidTimestamp
 	}
-	return p.verifySeal(chain, header, parents)
+
+	if seal {
+		return p.verifySeal(chain, header, parents)
+	}
+
+	return nil
 }
 
 func (p *Pbft) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
@@ -280,21 +285,25 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 		return errMissingSignature
 	}
 
-	publicKey := header.Extra[extraVanity : len(header.Extra)-extraSeal]
-	pubkey, err := crypto.DecodePoint(publicKey)
+	//fmt.Println("verify seal confirm hex, ", common.Bytes2Hex(header.Extra))
+	// Retrieve the confirm from the header extra-data
+	var confirm payload.Confirm
+	err := confirm.Deserialize(bytes.NewReader(header.Extra))
 	if err != nil {
 		return err
 	}
-	if !p.dispatcher.IsProducer(publicKey) {
-		return errUnauthorizedSigner
+	//fmt.Println("verify seal confirm", confirm)
+	err = p.verifyConfirm(&confirm)
+	if err != nil {
+		return err
 	}
-	signature := header.Extra[len(header.Extra)-extraSeal:]
-	err = crypto.Verify(*pubkey, clique.CliqueRLP(header), signature)
-	return err
+
+	return nil
 }
 
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	log.Info("Pbft Prepare:", "height;", header.Number.Uint64())
+	fmt.Println("prepare parentHash:", header.ParentHash.String())
 	if !p.isRecoved {
 		return errors.New("wait for recoved states")
 	}
@@ -305,7 +314,6 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	if !p.IsOnduty() {
 		return errors.New("local singer is not on duty")
 	}
-
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
@@ -315,16 +323,6 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
 	if header.Time < nowTime {
 		header.Time = nowTime + p.period
-	}
-
-	// Ensure the extra data has all its components 32 + 65
-	if len(header.Extra) < extraVanity {
-		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
-	}
-	if p.account != nil {
-		signer := p.account.PublicKeyBytes()
-		header.Extra = append(header.Extra, signer[:]...)
-		header.Extra = append(header.Extra, make([]byte, extraSeal)...)
 	}
 
 	return nil
@@ -358,25 +356,28 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if !p.IsOnduty() {
 		return errors.New("local singer is not on duty")
 	}
-	header := block.Header()
-	// Sign all the things!
-	length := len(header.Extra)
-	signature := p.account.Sign(clique.CliqueRLP(header))
-	copy(header.Extra[length-extraSeal:], signature)
-	block = block.WithSeal(header)
 	p.BroadPreBlock(block)
 
 	if err := p.StartProposal(block); err != nil {
 		return err
 	}
-
+	header := block.Header()
 	//Waiting for statistics of voting results
 	delay := time.Unix(int64(header.Time), 0).Sub(p.dispatcher.GetNowTime())
 	time.Sleep(delay)
 
 	select {
 	case confirm := <-p.confirmCh:
-		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String())
+		//fmt.Println("seal confirm, ", confirm)
+		sealBuf := new(bytes.Buffer)
+		if err := confirm.Serialize(sealBuf); err != nil {
+			return err
+		}
+		header.Extra = make([]byte, sealBuf.Len())
+		//fmt.Println("seal confirm hex string, ", common.Bytes2Hex(sealBuf.Bytes()))
+		copy(header.Extra[:], sealBuf.Bytes()[:])
+
+		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String(), "block:", block.Hash().String())
 		p.dispatcher.FinishedProposal()
 		break
 	case <-time.After(delay):
@@ -386,9 +387,10 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		log.Warn("pbft seal is stoped")
 		return nil
 	}
+
 	go func() {
 		select {
-		case results <- block:
+		case results <- block.WithSeal(header):
 			p.CleanFinalConfirmedBlock(block.NumberU64())
 		default:
 			dpos.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
@@ -458,6 +460,23 @@ func SealHash(header *types.Header) (hash common.Hash) {
 	encodeSigHeader(hasher, header)
 	hasher.Sum(hash[:0])
 	return hash
+}
+
+func DBlockSealHash(block dpos.DBlock) (hash ecom.Uint256, err error) {
+	if b, ok := block.(*types.Block); ok {
+		hasher := sha3.NewLegacyKeccak256()
+		encodeSigHeader(hasher, b.Header())
+		hasher.Sum(hash[:0])
+		return hash, nil
+	} else {
+		return ecom.EmptyHash, errors.New("verifyBlock errror, block is not ethereum block")
+	}
+}
+
+func PbftRLP(header *types.Header) []byte {
+	b := new(bytes.Buffer)
+	encodeSigHeader(b, header)
+	return b.Bytes()
 }
 
 func encodeSigHeader(w io.Writer, header *types.Header) {

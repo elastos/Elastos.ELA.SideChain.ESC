@@ -48,3 +48,4 @@ profile.cov
 
 **/yarn-error.log
 dpos/logs/
+consensus/pbft/logs

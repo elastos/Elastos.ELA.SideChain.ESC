@@ -79,6 +79,10 @@ func verifyBlock(block DBlock) error {
 	return nil
 }
 
+func sealHash(block DBlock) (common.Uint256, error) {
+	return common.EmptyHash, nil
+}
+
 func randomUint256() *common.Uint256 {
 	randBytes := make([]byte, 32)
 	rand.Read(randBytes)
@@ -102,7 +106,7 @@ func newTestBlock() *mockBlock {
 }
 
 func TestBlockPool_AppendDposBlock(t *testing.T) {
-	blockPool := NewBlockPool(onConfirmBlock, verifyConfirm, verifyBlock)
+	blockPool := NewBlockPool(onConfirmBlock, verifyConfirm, verifyBlock, sealHash)
 	size := rand.Intn(10) + 10
 
 	blocks := make([]common.Uint256, 0)

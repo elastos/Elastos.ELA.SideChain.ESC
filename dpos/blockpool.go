@@ -34,13 +34,15 @@ type BlockPool struct {
 	OnConfirmBlock func(block DBlock, confirm *payload.Confirm) error
 	VerifyConfirm  func(confirm *payload.Confirm) error
 	VerifyBlock    func(block DBlock) error
+	SealHash	func(block DBlock) (common.Uint256, error)
 
 	futureBlocks map[common.Uint256]DBlock
 }
 
 func NewBlockPool(confirmBlock func(block DBlock, confirm *payload.Confirm) error,
 	verifyConfirm func(confirm *payload.Confirm) error,
-	verifyBlock func(block DBlock) error) *BlockPool {
+	verifyBlock func(block DBlock) error,
+	sealHash func(block DBlock) (common.Uint256, error)) *BlockPool {
 	return &BlockPool{
 		blocks:         make(map[common.Uint256]DBlock),
 		confirms:       make(map[common.Uint256]*payload.Confirm),
@@ -48,6 +50,7 @@ func NewBlockPool(confirmBlock func(block DBlock, confirm *payload.Confirm) erro
 		OnConfirmBlock: confirmBlock,
 		VerifyConfirm:  verifyConfirm,
 		VerifyBlock:    verifyBlock,
+		SealHash: sealHash,
 	}
 }
 
@@ -69,11 +72,14 @@ func (bm *BlockPool) AppendFutureBlock(dposBlock DBlock) error {
 }
 
 func (bm *BlockPool) appendFutureBlock(block DBlock) error {
-	hash := block.GetHash()
+	hash, err := bm.SealHash(block)
+	if err != nil {
+		return err
+	}
 	if _, ok := bm.futureBlocks[hash]; ok {
 		return errors.New("duplicate futureBlocks in pool")
 	}
-	bm.futureBlocks[block.GetHash()] = block
+	bm.futureBlocks[hash] = block
 	return nil
 }
 
@@ -91,7 +97,10 @@ func (bm *BlockPool) AppendDposBlock(dposBlock DBlock) error {
 
 func (bm *BlockPool) appendBlock(block DBlock) error {
 	// add block
-	hash := block.GetHash()
+	hash, err := bm.SealHash(block)
+	if err != nil {
+		return err
+	}
 	if bm.HasBlock(hash) {
 		return errors.New("duplicate block in pool")
 	}
@@ -168,7 +177,9 @@ func (bm *BlockPool) AddToBlockMap(block DBlock) {
 	bm.Lock()
 	defer bm.Unlock()
 
-	bm.blocks[block.GetHash()] = block
+	hash, _ := bm.SealHash(block)
+
+	bm.blocks[hash] = block
 }
 
 func (bm *BlockPool) HasBlock(hash common.Uint256) bool {
@@ -195,9 +206,10 @@ func (bm *BlockPool) CleanFinalConfirmedBlock(height uint64) {
 	defer bm.Unlock()
 
 	for _, block := range bm.blocks {
+		hash, _ := bm.SealHash(block)
 		if height > cachedCount && block.GetHeight() < height - cachedCount {
-			delete(bm.blocks, block.GetHash())
-			delete(bm.confirms, block.GetHash())
+			delete(bm.blocks, hash)
+			delete(bm.confirms, hash)
 		}
 	}
 }
