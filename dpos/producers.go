@@ -78,9 +78,7 @@ func (p *Producers) GetNextOnDutyProducer(offset uint32) []byte {
 }
 
 func (p *Producers) IsMajorityAgree(count int) bool {
-	return count >= p.GetMajorityCount()
-	//TODO should use below condition
-	//return count > p.GetMajorityCount()
+	return count > p.GetMajorityCount()
 }
 
 func (p *Producers) IsMajorityRejected(count int) bool {
