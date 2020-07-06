@@ -44,6 +44,12 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 		log.Error("ProcessProposal error", "err", err)
 	}
 
+	// Broadcast vote
+	voteMsg := p.dispatcher.AcceptProposal(proposal, p.account)
+	if voteMsg != nil {
+		p.network.BroadcastMessage(voteMsg)
+	}
+
 	return nil
 }
 
@@ -188,7 +194,7 @@ func (p *Pbft) OnResponseConsensus(id peer.PID, status *msg.ConsensusStatus) {
 		return
 	}
 	log.Info("[OnResponseConsensus] status:", "status", *status)
-	if  !p.recoverStarted {
+	if !p.recoverStarted {
 		return
 	}
 	if _, ok := p.statusMap[status.ViewOffset]; !ok {
@@ -299,7 +305,7 @@ func (p *Pbft) OnBadNetwork() {
 }
 
 func (p *Pbft) OnRecover() {
-	if p.account == nil || !p.dispatcher.IsProducer(p.account.PublicKeyBytes()){
+	if p.account == nil || !p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
 		return
 	}
 	p.recoverAbnormalState()
@@ -338,7 +344,6 @@ func (p *Pbft) OnRecoverTimeout() {
 		p.statusMap = make(map[uint32]map[string]*msg.ConsensusStatus)
 	}
 }
-
 
 func (p *Pbft) DoRecover() {
 	var maxCount int
