@@ -18,6 +18,7 @@ import (
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -83,7 +84,7 @@ func TestExampleNormalVote(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Node0 get this proposal first.
-	err, _ = dispatcher.ProcessProposal(proposal)
+	err, _, _ = dispatcher.ProcessProposal(peer.PID{}, proposal)
 	assert.NoError(t, err)
 
 	// Node0 broadcast the proposal to p2p network.
@@ -157,7 +158,7 @@ func Node1ProcessProposal(proposal *payload.DPOSProposal) {
 		fmt.Println("node1 create account error:", err)
 	}
 
-	err, _ = dispatcher.ProcessProposal(proposal)
+	err, _, _ = dispatcher.ProcessProposal(peer.PID{}, proposal)
 	if err != nil {
 		fmt.Println("node2 process proposal failed:", err)
 	}

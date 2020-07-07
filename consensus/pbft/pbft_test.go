@@ -1,16 +1,21 @@
 package pbft
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
 
+	ecom "github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/dpos/account"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 )
 
@@ -61,13 +66,13 @@ func TestReimportMirroredState(t *testing.T) {
 		if i > 0 {
 			header.ParentHash = blocks[i-1].Hash()
 		}
-		header.Extra = make([]byte, extraVanity)
-		signer := engine.account.PublicKeyBytes()
-		header.Extra = append(header.Extra, signer[:]...)
-		header.Extra = append(header.Extra, make([]byte, extraSeal)...)
-		length := len(header.Extra)
-		signature := engine.account.Sign(clique.CliqueRLP(header))
-		copy(header.Extra[length-extraSeal:], signature)
+
+		confirm := createConfirm(block, engine.account)
+		sealBuf := new(bytes.Buffer)
+		confirm.Serialize(sealBuf)
+		header.Extra = make([]byte, sealBuf.Len())
+		copy(header.Extra[:], sealBuf.Bytes()[:])
+
 		blocks[i] =block.WithSeal(header)
 	}
 	// Insert the first two blocks and make sure the chain is valid
@@ -96,4 +101,21 @@ func TestReimportMirroredState(t *testing.T) {
 	if head := chain.CurrentBlock().NumberU64(); head != 3 {
 		t.Fatalf("chain head mismatch: have %d, want %d", head, 3)
 	}
+}
+
+
+func createConfirm(block *types.Block, ac account.Account) *payload.Confirm {
+	hash := SealHash(block.Header())
+	sealHash, _ := ecom.Uint256FromBytes(hash.Bytes())
+	proposal, _ := dpos.StartProposal(ac, *sealHash, 0)
+
+	proposalHash := proposal.Hash()
+	vote, _ := dpos.StartVote(&proposalHash, true, ac)
+
+	confirm := &payload.Confirm{
+		Proposal: *proposal,
+		Votes:    make([]payload.DPOSProposalVote, 0),
+	}
+	confirm.Votes = append(confirm.Votes, *vote)
+	return confirm
 }

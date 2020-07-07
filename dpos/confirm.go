@@ -16,7 +16,10 @@ func CheckConfirm(confirm *payload.Confirm) error {
 	if err != nil {
 		return err
 	}
-	proposalHash := confirm.Proposal.Hash()
+	if len(confirm.Votes) <= 0 {
+		return errors.New("[CheckConfirm] error, not have votes")
+	}
+		proposalHash := confirm.Proposal.Hash()
 	for _, vote := range confirm.Votes {
 		if !vote.Accept {
 			return errors.New("[CheckConfirm] confirm contains " +

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/events"
@@ -119,7 +121,8 @@ func (bm *BlockPool) appendBlock(block DBlock) error {
 }
 
 func (bm *BlockPool) appendConfirm(confirm *payload.Confirm) error {
-
+	log.Info("[appendConfirm] start")
+	defer Info("[appendConfirm] end")
 	// verify confirmation
 	if err := bm.VerifyConfirm(confirm); err != nil {
 		return err

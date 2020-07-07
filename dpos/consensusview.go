@@ -13,8 +13,8 @@ type ViewListener interface {
 }
 
 const (
-	consensusReady = iota
-	consensusRunning
+	ConsensusReady = iota
+	ConsensusRunning
 )
 
 type ConsensusView struct {
@@ -34,19 +34,19 @@ func (v *ConsensusView) resetViewOffset() {
 }
 
 func (v *ConsensusView) SetRunning() {
-	v.consensusStatus = consensusRunning
+	v.consensusStatus = ConsensusRunning
 }
 
 func (v *ConsensusView) SetReady() {
-	v.consensusStatus = consensusReady
+	v.consensusStatus = ConsensusReady
 }
 
 func (v *ConsensusView) IsRunning() bool {
-	return v.consensusStatus == consensusRunning
+	return v.consensusStatus == ConsensusRunning
 }
 
 func (v *ConsensusView) IsReady() bool {
-	return v.consensusStatus == consensusReady
+	return v.consensusStatus == ConsensusReady
 }
 
 func (v *ConsensusView) TryChangeView(now time.Time) {
@@ -155,7 +155,7 @@ func (v *ConsensusView) HasProducerMajorityCount(count int) bool {
 func NewConsensusView(tolerance time.Duration, account []byte,
 	producers *Producers, viewListener ViewListener) *ConsensusView {
 	c := &ConsensusView{
-		consensusStatus: consensusReady,
+		consensusStatus: ConsensusReady,
 		viewStartTime:   time.Unix(0, 0),
 		viewOffset:      0,
 		publicKey:       account,

@@ -80,7 +80,7 @@ func verifyBlock(block DBlock) error {
 }
 
 func sealHash(block DBlock) (common.Uint256, error) {
-	return common.EmptyHash, nil
+	return block.GetHash(), nil
 }
 
 func randomUint256() *common.Uint256 {
@@ -112,11 +112,14 @@ func TestBlockPool_AppendDposBlock(t *testing.T) {
 	blocks := make([]common.Uint256, 0)
 	for i := 0; i < size; i++ {
 		block := newTestBlock()
+		hash, _ := sealHash(block)
 		confirm := &payload.Confirm{
-			Proposal: payload.DPOSProposal{BlockHash: block.GetHash()},
+			Proposal: payload.DPOSProposal{BlockHash: hash},
 		}
-		blockPool.AppendConfirm(confirm)
+
 		blockPool.AppendDposBlock(block)
+		blockPool.AppendConfirm(confirm)
+
 		blocks = append(blocks, block.GetHash())
 	}
 
