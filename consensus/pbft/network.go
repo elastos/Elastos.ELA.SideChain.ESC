@@ -34,22 +34,25 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 		log.Error("Start proposal error", "err", err)
 		return err
 	}
+
+	var id peer.PID
+	copy(id[:], p.account.PublicKeyBytes()[:])
+	if err, _, _ := p.dispatcher.ProcessProposal(id, proposal); err != nil {
+		log.Error("ProcessProposal error", "err", err)
+	}
+
 	m := &msg.Proposal{
 		Proposal: *proposal,
 	}
 	log.Info("[StartProposal] send proposal message", "proposal", msg.GetMessageHash(m))
 	p.network.BroadcastMessage(m)
 
-	if err, _ := p.dispatcher.ProcessProposal(proposal); err != nil {
-		log.Error("ProcessProposal error", "err", err)
-	}
-
 	// Broadcast vote
 	voteMsg := p.dispatcher.AcceptProposal(proposal, p.account)
 	if voteMsg != nil {
 		p.network.BroadcastMessage(voteMsg)
+		p.OnVoteAccepted(id, &voteMsg.Vote)
 	}
-
 	return nil
 }
 
@@ -237,27 +240,33 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 		return
 	}
 	var voteMsg *msg.Vote
-	err, isSendReject := p.dispatcher.ProcessProposal(proposal)
+	err, isSendReject, handled := p.dispatcher.ProcessProposal(id, proposal)
 	if err != nil {
 		log.Error("Process Proposal error", "err", err)
 		if isSendReject {
 			voteMsg = p.dispatcher.RejectProposal(proposal, p.account)
-		} else if p.dispatcher.GetConsensusView().GetViewOffset() != proposal.ViewOffset {
-			log.Info("[OnProposalReceived] has minority not handled" +
-				" proposals, need recover")
-			if p.dispatcher.GetConsensusView().HasArbitersMinorityCount(len(p.network.GetActivePeers())) {
+		} else if !handled {
+			pubKey := common.Bytes2Hex(id[:])
+			p.notHandledProposal[pubKey] = struct{}{}
+			count := len(p.notHandledProposal)
+			log.Info("[OnProposalReceived] not handled", "count", count)
+			if p.dispatcher.GetConsensusView().HasArbitersMinorityCount(count) {
+				log.Info("[OnProposalReceived] has minority not handled" +
+					" proposals, need recover")
 				if p.recoverAbnormalState() {
 					log.Info("[OnProposalReceived] recover start")
 				} else {
 					log.Error("[OnProposalReceived] has no active peers recover failed")
 				}
-			} else {
-				log.Info("active peers is short:", len(p.network.GetActivePeers()))
 			}
 		}
 
 	} else {
 		voteMsg = p.dispatcher.AcceptProposal(proposal, p.account)
+	}
+	if handled {
+		log.Info("[OnProposalReceived]handled reset notHandledProposal")
+		p.notHandledProposal = make(map[string]struct{})
 	}
 	if voteMsg != nil {
 		p.network.BroadcastMessage(voteMsg)
@@ -279,6 +288,7 @@ func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 	if !ok {
 		log.Info("not have proposal, get it and push vote into pending vote")
 		p.dispatcher.AddPendingVote(vote)
+		log.Info("addPendingVote end")
 	} else if currentProposal.IsEqual(vote.ProposalHash) {
 		if _, ok := p.blockPool.GetConfirm(p.dispatcher.GetProcessingProposal().BlockHash); ok {
 			log.Warn("Has Confirm proposal")
@@ -360,6 +370,10 @@ func (p *Pbft) DoRecover() {
 	startTimes := make([]int64, 0)
 	for _, v := range p.statusMap[maxCountMaxViewOffset] {
 		if status == nil {
+			if v.ConsensusStatus == dpos.ConsensusReady {
+				p.notHandledProposal = make(map[string]struct{})
+				return
+			}
 			status = v
 		}
 		startTimes = append(startTimes, v.ViewStartTime.UnixNano())
@@ -369,6 +383,7 @@ func (p *Pbft) DoRecover() {
 	})
 	medianTime := medianOf(startTimes)
 	p.dispatcher.RecoverAbnormal(status, medianTime)
+	p.notHandledProposal = make(map[string]struct{})
 }
 
 func medianOf(nums []int64) int64 {

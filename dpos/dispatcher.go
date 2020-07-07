@@ -6,7 +6,9 @@
 package dpos
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -34,20 +36,17 @@ type Dispatcher struct {
 	mu sync.RWMutex
 }
 
-func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) (err error, isSendReject bool) {
+func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal) (err error, isSendReject bool, handled bool) {
 	Info("[ProcessProposal] start ", proposal.Hash().String())
 	defer Info("[ProcessProposal] end", proposal.Hash().String())
-
-	if d.processingProposal != nil {
-		return errors.New("processingProposal is not nil"), false
-	}
+	self := bytes.Equal(id[:], proposal.Sponsor)
 
 	if d.processingProposal != nil && d.processingProposal.Hash().IsEqual(proposal.Hash()) {
-		return errors.New("already processing this proposal:" + proposal.Hash().String()), false
+		return errors.New("already processing this proposal:" + proposal.Hash().String()), false, true
 	}
 
 	if !d.consensusView.IsProducers(proposal.Sponsor) {
-		return errors.New("current signer is not producer"), true
+		return errors.New("current signer is not producer"), true, true
 	}
 
 	if d.GetConsensusView().GetViewOffset() != proposal.ViewOffset {
@@ -55,25 +54,26 @@ func (d *Dispatcher) ProcessProposal(proposal *payload.DPOSProposal) (err error,
 		if proposal.ViewOffset > d.GetConsensusView().GetViewOffset() {
 			d.precociousProposals[proposal.Hash()] = proposal
 		}
-		return errors.New("have different view offset"), false
+		return errors.New("have different view offset"), false, !self
 	}
 
 	if !d.consensusView.ProducerIsOnDuty(proposal.Sponsor) {
-		return errors.New("current signer is not onDuty"), true
+		return errors.New("current signer is not onDuty"), false, !self
 	}
 
 	err = CheckProposal(proposal)
 	if err != nil {
-		return err, true
+		return err, true, true
 	}
 
 	d.setProcessingProposal(proposal)
-	return nil, false
+	return nil, false, true
 }
 
 func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
 	d.processingProposal = p
-
+	fmt.Println("setProcessingProposal start")
+	defer fmt.Println("setProcessingProposal end")
 	for _, v := range d.pendingVotes {
 		if v.ProposalHash.IsEqual(p.Hash()) {
 			_, finished, _ := d.ProcessVote(v)
@@ -87,6 +87,8 @@ func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bo
 }
 
 func (d *Dispatcher) AddPendingVote(v *payload.DPOSProposalVote) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.pendingVotes[v.Hash()] = v
 }
 
@@ -143,7 +145,7 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 }
 
 func (d *Dispatcher) FinishedProposal() {
-	Info("Clean proposals")
+	Info("FinishedProposal")
 	d.consensusView.SetReady()
 	d.CleanProposals(false)
 	d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true)
@@ -280,7 +282,7 @@ func (d *Dispatcher) GetConsensusView() *ConsensusView {
 }
 
 func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHeight uint64) *msg.ConsensusStatus {
-	Info("\n \n \n \n[HelpToRecoverAbnormal] peer id:", common.BytesToHexString(id[:]))
+	Info("[HelpToRecoverAbnormal] peer id:", common.BytesToHexString(id[:]))
 
 	if height > currentHeight {
 		Error("Requesting height greater than current processing height")

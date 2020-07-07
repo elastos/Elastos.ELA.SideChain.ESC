@@ -78,8 +78,9 @@ type Pbft struct {
 	IsCurrent func() bool
 	StartMine func()
 
-	requestedBlocks map[common.Hash]struct{}
-	statusMap       map[uint32]map[string]*dmsg.ConsensusStatus
+	requestedBlocks    map[common.Hash]struct{}
+	statusMap          map[uint32]map[string]*dmsg.ConsensusStatus
+	notHandledProposal map[string]struct{}
 
 	enableViewLoop bool
 	recoverStarted bool
@@ -112,13 +113,14 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	medianTimeSouce := dtime.NewMedianTime()
 
 	pbft := &Pbft{
-		datadir:         dataDir,
-		cfg:             *cfg,
-		confirmCh:       confirmCh,
-		account:         account,
-		requestedBlocks: make(map[common.Hash]struct{}),
-		statusMap:       make(map[uint32]map[string]*dmsg.ConsensusStatus),
-		period:          5,
+		datadir:            dataDir,
+		cfg:                *cfg,
+		confirmCh:          confirmCh,
+		account:            account,
+		requestedBlocks:    make(map[common.Hash]struct{}),
+		statusMap:          make(map[uint32]map[string]*dmsg.ConsensusStatus),
+		notHandledProposal: make(map[string]struct{}),
+		period:             5,
 	}
 	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock, DBlockSealHash)
 	pbft.blockPool = blockPool
@@ -368,16 +370,15 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 
 	select {
 	case confirm := <-p.confirmCh:
-		//fmt.Println("seal confirm, ", confirm)
+		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String(), "block:", block.NumberU64())
 		sealBuf := new(bytes.Buffer)
 		if err := confirm.Serialize(sealBuf); err != nil {
+			log.Error("confirm serialize error", "error", err)
 			return err
 		}
 		header.Extra = make([]byte, sealBuf.Len())
-		//fmt.Println("seal confirm hex string, ", common.Bytes2Hex(sealBuf.Bytes()))
 		copy(header.Extra[:], sealBuf.Bytes()[:])
 
-		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String(), "block:", block.Hash().String())
 		p.dispatcher.FinishedProposal()
 		break
 	case <-time.After(delay):
@@ -407,7 +408,10 @@ func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 		log.Error("Received confirm", "proposal", confirm.Proposal.Hash().String(), "err:", err)
 	}
 	if p.IsOnduty() {
+		log.Info("on duty, set confirm block")
 		p.confirmCh <- confirm
+	} else {
+		log.Info("not on duty, not broad confirm block")
 	}
 	return err
 }
