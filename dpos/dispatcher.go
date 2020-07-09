@@ -8,7 +8,7 @@ package dpos
 import (
 	"bytes"
 	"errors"
-	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"sync"
 	"time"
 
@@ -33,6 +33,8 @@ type Dispatcher struct {
 	onConfirm func(confirm *payload.Confirm) error
 	unConfirm func(confirm *payload.Confirm) error
 
+	proposalProcessFinished bool
+
 	mu sync.RWMutex
 }
 
@@ -40,14 +42,6 @@ func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal
 	Info("[ProcessProposal] start ", proposal.Hash().String())
 	defer Info("[ProcessProposal] end", proposal.Hash().String())
 	self := bytes.Equal(id[:], proposal.Sponsor)
-
-	if d.processingProposal != nil && d.processingProposal.Hash().IsEqual(proposal.Hash()) {
-		return errors.New("already processing this proposal:" + proposal.Hash().String()), false, true
-	}
-
-	if !d.consensusView.IsProducers(proposal.Sponsor) {
-		return errors.New("current signer is not producer"), true, true
-	}
 
 	if d.GetConsensusView().GetViewOffset() != proposal.ViewOffset {
 		Info("have different view offset")
@@ -61,6 +55,13 @@ func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal
 		return errors.New("current signer is not onDuty"), false, !self
 	}
 
+	if d.processingProposal != nil && d.processingProposal.Hash().IsEqual(proposal.Hash()) {
+		return errors.New("already processing this proposal:" + proposal.Hash().String()), false, true
+	}
+
+	if !d.consensusView.IsProducers(proposal.Sponsor) {
+		return errors.New("current signer is not producer"), true, true
+	}
 	err = CheckProposal(proposal)
 	if err != nil {
 		return err, true, true
@@ -70,10 +71,18 @@ func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal
 	return nil, false, true
 }
 
+func (d *Dispatcher) GetProposalProcessFinished() bool {
+	return d.proposalProcessFinished
+}
+
+func (d *Dispatcher) SetProposalProcessFinished() {
+	d.proposalProcessFinished = true
+}
+
 func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
 	d.processingProposal = p
-	fmt.Println("setProcessingProposal start")
-	defer fmt.Println("setProcessingProposal end")
+	log.Info("setProcessingProposal start")
+	defer log.Info("setProcessingProposal end")
 	for _, v := range d.pendingVotes {
 		if v.ProposalHash.IsEqual(p.Hash()) {
 			_, finished, _ := d.ProcessVote(v)
@@ -156,6 +165,7 @@ func (d *Dispatcher) CleanProposals(changeView bool) {
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.rejectedVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.pendingVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
+	d.proposalProcessFinished = false
 	if !changeView {
 		d.precociousProposals = make(map[common.Uint256]*payload.DPOSProposal)
 	} else {
@@ -197,9 +207,6 @@ func (d *Dispatcher) alreadyExistVote(v *payload.DPOSProposalVote) bool {
 }
 
 func (d *Dispatcher) AcceptProposal(proposal *payload.DPOSProposal, ac account.Account) *msg.Vote {
-	if d.setProcessingProposal(proposal) {
-		return nil
-	}
 	hash := proposal.Hash()
 
 	vote, err := StartVote(&hash, true, ac)

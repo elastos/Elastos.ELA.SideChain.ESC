@@ -190,6 +190,25 @@ func (bm *BlockPool) HasBlock(hash common.Uint256) bool {
 	return ok
 }
 
+func (bm *BlockPool) HashConfirmed(number uint64) bool {
+	bm.Lock()
+	var temp DBlock = nil
+	for _, block := range bm.blocks {
+		if block.GetHeight() == number {
+			temp = block
+			break
+		}
+	}
+	bm.Unlock()
+	if temp != nil {
+		hash, _ := bm.SealHash(temp)
+		_, has := bm.GetConfirm(hash)
+		return has
+	}
+
+	return false
+}
+
 func (bm *BlockPool) GetBlock(hash common.Uint256) (DBlock, bool) {
 	bm.Lock()
 	block, ok := bm.blocks[hash]

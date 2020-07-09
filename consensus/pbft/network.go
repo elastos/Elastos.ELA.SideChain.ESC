@@ -50,8 +50,8 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 	// Broadcast vote
 	voteMsg := p.dispatcher.AcceptProposal(proposal, p.account)
 	if voteMsg != nil {
+		go p.OnVoteAccepted(id, &voteMsg.Vote)
 		p.network.BroadcastMessage(voteMsg)
-		p.OnVoteAccepted(id, &voteMsg.Vote)
 	}
 	return nil
 }
@@ -234,11 +234,7 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 		return
 	}
 
-	if _, ok := p.blockPool.GetBlock(proposal.BlockHash); !ok {
-		log.Info("not have preBlock, request it", "hash:", proposal.BlockHash.String())
-		p.OnInv(id, proposal.BlockHash)
-		return
-	}
+
 	var voteMsg *msg.Vote
 	err, isSendReject, handled := p.dispatcher.ProcessProposal(id, proposal)
 	if err != nil {
@@ -264,16 +260,27 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 	} else {
 		voteMsg = p.dispatcher.AcceptProposal(proposal, p.account)
 	}
+
+	if _, ok := p.blockPool.GetBlock(proposal.BlockHash); !ok {
+		log.Info("not have preBlock, request it", "hash:", proposal.BlockHash.String())
+		p.OnInv(id, proposal.BlockHash)
+		return
+	}
+
 	if handled {
 		log.Info("[OnProposalReceived]handled reset notHandledProposal")
 		p.notHandledProposal = make(map[string]struct{})
 	}
-	if voteMsg != nil {
+	if voteMsg != nil && !p.dispatcher.GetProposalProcessFinished() {
 		p.network.BroadcastMessage(voteMsg)
+		p.dispatcher.SetProposalProcessFinished()
 	}
 }
 
 func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
+	if !p.IsProducer() {
+		return
+	}
 	if !p.dispatcher.GetConsensusView().IsRunning() {
 		return
 	}

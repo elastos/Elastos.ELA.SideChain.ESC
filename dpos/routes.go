@@ -15,6 +15,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/crypto"
+	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
@@ -53,6 +54,9 @@ type Config struct {
 
 	// The network address of this arbiter.
 	Addr string
+
+	// TimeSource is the median time source of the P2P network.
+	TimeSource dtime.MedianTimeSource
 
 	// Sign the addr message of this arbiter.
 	Sign func(data []byte) (signature []byte)
@@ -394,10 +398,10 @@ func (r *Routes) AnnounceAddr() {
 
 func (r *Routes) announceAddr() {
 	// Ignore if BlockChain not sync to current.
-	//if !r.cfg.IsCurrent() {
-	//	Warn("announce Addr error, blockChain not sync to current")
-	//	return
-	//}
+	if !r.cfg.IsCurrent() {
+		Warn("announce Addr error, blockChain not sync to current")
+		return
+	}
 
 	//Refuse new announce if a previous announce is waiting,
 	//this is to reduce unnecessary announce.
@@ -579,12 +583,12 @@ func (r *Routes) verifyDAddr(s *state, m *msg.DAddr) error {
 
 			//TODO add adjustedtime
 			//// Check if timestamp out of median time offset.
-			//medianTime := r.cfg.TimeSource.AdjustedTime()
-			//minTime := medianTime.Add(-maxTimeOffset)
-			//maxTime := medianTime.Add(maxTimeOffset)
-			//if m.Timestamp.Before(minTime) || m.Timestamp.After(maxTime) {
-			//	return fmt.Errorf("timestamp out of offset range")
-			//}
+			medianTime := r.cfg.TimeSource.AdjustedTime()
+			minTime := medianTime.Add(-maxTimeOffset)
+			maxTime := medianTime.Add(maxTimeOffset)
+			if m.Timestamp.Before(minTime) || m.Timestamp.After(maxTime) {
+				return fmt.Errorf("timestamp out of offset range")
+			}
 
 			// Check if the address announces too frequent.
 			if ka.Timestamp.Add(minAnnounceDuration).After(m.Timestamp) {
