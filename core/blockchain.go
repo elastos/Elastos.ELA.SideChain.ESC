@@ -1446,7 +1446,10 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		bc.insert(block)
 	}
 	bc.futureBlocks.Remove(block.Hash())
-	bc.OnSyncHeader(block.Header())
+	go func() {
+		time.Sleep(100)
+		bc.OnSyncHeader(block.Header())
+	}()
 	return status, nil
 }
 

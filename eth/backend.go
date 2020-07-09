@@ -21,11 +21,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math/big"
-	"runtime"
-	"sync"
-	"sync/atomic"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi/bind"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -55,9 +50,12 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
-
 	elapeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
+	"math/big"
+	"runtime"
+	"sync"
+	"sync/atomic"
 )
 
 type LesServer interface {
@@ -292,6 +290,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		routeCfg := dpos.Config{
 			PID:  dposAccount.PublicKeyBytes(),
 			Addr: fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
+			TimeSource: engine.GetTimeSource(),
 			Sign: dposAccount.Sign,
 			IsCurrent: func() bool {
 				return engine.IsCurrent()

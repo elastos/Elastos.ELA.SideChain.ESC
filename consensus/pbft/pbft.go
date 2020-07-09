@@ -61,6 +61,8 @@ var (
 	// ErrInvalidTimestamp is returned if the timestamp of a block is lower than
 	// the previous block's timestamp + the minimum block period.
 	ErrInvalidTimestamp = errors.New("invalid timestamp")
+
+	ErrAlreadyConfirmedBlock = errors.New("already confirmed block")
 )
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
@@ -73,6 +75,7 @@ type Pbft struct {
 	network    *dpos.Network
 	blockPool  *dpos.BlockPool
 	chain      *core.BlockChain
+	timeSource dtime.MedianTimeSource
 
 	// IsCurrent returns whether BlockChain synced to best height.
 	IsCurrent func() bool
@@ -86,6 +89,7 @@ type Pbft struct {
 	recoverStarted bool
 	isRecoved      bool
 	period         uint64
+	isSealOver     bool
 }
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
@@ -121,6 +125,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		statusMap:          make(map[uint32]map[string]*dmsg.ConsensusStatus),
 		notHandledProposal: make(map[string]struct{}),
 		period:             5,
+		timeSource:         medianTimeSouce,
 	}
 	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock, DBlockSealHash)
 	pbft.blockPool = blockPool
@@ -252,6 +257,12 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 		return consensus.ErrUnknownAncestor
 	}
+	log.Info("verify header HashConfirmed1111", "seal:", seal, "height", header.Number)
+	if !seal && p.blockPool.HashConfirmed(number) {
+		log.Info("verify header already confirm block")
+		return ErrAlreadyConfirmedBlock
+	}
+	log.Info("verify header HashConfirmed2222")
 
 	if parent.Time+p.period > header.Time {
 		return ErrInvalidTimestamp
@@ -306,6 +317,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	log.Info("Pbft Prepare:", "height;", header.Number.Uint64())
 	fmt.Println("prepare parentHash:", header.ParentHash.String())
+	p.isSealOver = false
 	if !p.isRecoved {
 		return errors.New("wait for recoved states")
 	}
@@ -320,11 +332,16 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
+	log.Info("verify has confirmed:", "height", header.Number.Uint64())
+	if p.blockPool.HashConfirmed(header.Number.Uint64()) {
+		log.Info("already confirm block")
+		return ErrAlreadyConfirmedBlock
+	}
 	header.Difficulty = parent.Difficulty
 	header.Time = parent.Time + p.period
 	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
 	if header.Time < nowTime {
-		header.Time = nowTime + p.period
+		header.Time = nowTime
 	}
 
 	return nil
@@ -363,11 +380,15 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if err := p.StartProposal(block); err != nil {
 		return err
 	}
+	p.isSealOver = false
 	header := block.Header()
 	//Waiting for statistics of voting results
 	delay := time.Unix(int64(header.Time), 0).Sub(p.dispatcher.GetNowTime())
+	log.Info("wait seal time", "delay", delay)
 	time.Sleep(delay)
-
+	changeViewTime := p.dispatcher.GetConsensusView().GetViewStartTime().Add(p.dispatcher.GetConsensusView().GetViewInterval())
+	toleranceDelay := changeViewTime.Sub(p.dispatcher.GetNowTime())
+	log.Info("changeViewLeftTime", "toleranceDelay", toleranceDelay)
 	select {
 	case confirm := <-p.confirmCh:
 		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String(), "block:", block.NumberU64())
@@ -380,12 +401,15 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		copy(header.Extra[:], sealBuf.Bytes()[:])
 
 		p.dispatcher.FinishedProposal()
+		p.isSealOver = true
 		break
-	case <-time.After(delay):
+	case <-time.After(toleranceDelay):
 		log.Warn("seal time out stop mine")
+		p.isSealOver = true
 		return nil
 	case <-stop:
 		log.Warn("pbft seal is stoped")
+		p.isSealOver = true
 		return nil
 	}
 
@@ -403,6 +427,10 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 
 func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 	log.Info("--------[onConfirm]------", "proposal:", confirm.Proposal.Hash())
+	if p.isSealOver {
+		log.Warn("seal block is over, can't confirm")
+		return errors.New("seal block is over, can't confirm")
+	}
 	err := p.blockPool.AppendConfirm(confirm)
 	if err != nil {
 		log.Error("Received confirm", "proposal", confirm.Proposal.Hash().String(), "err:", err)
@@ -418,6 +446,9 @@ func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 
 func (p *Pbft) onUnConfirm(unconfirm *payload.Confirm) error {
 	log.Info("--------[onUnConfirm]------", "proposal:", unconfirm.Proposal.Hash())
+	if p.isSealOver {
+		return errors.New("seal block is over, can't unconfirm")
+	}
 	err := p.blockPool.AppendConfirm(unconfirm)
 	if err != nil {
 		log.Error("Received unconfirm", "proposal", unconfirm.Proposal.Hash(), "err:", err)
@@ -647,4 +678,8 @@ func (p *Pbft) OnViewChanged(isOnDuty bool, force bool) {
 			p.StartMine()
 		}
 	}
+}
+
+func (p *Pbft) GetTimeSource() dtime.MedianTimeSource {
+	return p.timeSource
 }
