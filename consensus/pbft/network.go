@@ -114,6 +114,11 @@ func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
 	if err != nil {
 		panic("OnBlock Decode Block Msg error:" + err.Error())
 	}
+	if b.NumberU64() <= p.chain.CurrentHeader().Number.Uint64() ||
+		b.NumberU64() <= p.dispatcher.GetFinishedHeight() { //old height block coming
+		log.Warn("blockchain.Height", "chain height",p.chain.CurrentHeader().Number.Uint64(), "b.Height", b.NumberU64(), "finishedHeight", p.dispatcher.GetFinishedHeight())
+		return
+	}
 	sealHash := p.SealHash(b.Header())
 	log.Info("-----OnBlock received------", "blockHash:", sealHash.String(), "height:", b.NumberU64())
 	err = p.blockPool.AppendDposBlock(b)
@@ -228,9 +233,16 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 		log.Info("consensus is not running")
 		return
 	}
-	hash := common.BytesToHash(proposal.BlockHash.Bytes())
-	if b := p.chain.GetBlockByHash(hash); b != nil {
-		log.Info("allready confirm proposal drop it", "hash:", p.SealHash(b.Header()), "height", b.NumberU64())
+	p.dispatcher.OnChangeView()
+	//todo need use block hash, not sealhash
+	//hash := common.BytesToHash(proposal.BlockHash.Bytes())
+	//if b := p.chain.GetBlockByHash(hash); b != nil {
+	//	log.Info("already exist block in block chain", "hash:", p.SealHash(b.Header()), "height", b.NumberU64())
+	//	return
+	//}
+
+	if proposal.BlockHash.IsEqual(p.dispatcher.GetFinishedBlockSealHash()) {
+		log.Info("already processed block")
 		return
 	}
 
@@ -287,16 +299,23 @@ func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 	if vote.Accept == true {
 		log.Info("OnVoteAccepted:", "hash:", vote.Hash().String())
 	}
+	if p.dispatcher.GetFinishedProposal().IsEqual(vote.ProposalHash) {
+		log.Info("all ready finished proposal, no need vote")
+		return
+	}
 	if _, ok := p.blockPool.GetConfirm(vote.ProposalHash); ok {
-		log.Info("all ready confim proposal, no need vote, drop")
+		log.Info("all ready confim proposal, no need vote")
 		return
 	}
 	currentProposal, ok := p.tryGetCurrentProposal(id, vote)
 	if !ok {
 		log.Info("not have proposal, get it and push vote into pending vote")
 		p.dispatcher.AddPendingVote(vote)
-		log.Info("addPendingVote end")
 	} else if currentProposal.IsEqual(vote.ProposalHash) {
+		if p.dispatcher.GetProcessingProposal() == nil {
+			log.Info("GetProcessingProposal is nil")
+			return
+		}
 		if _, ok := p.blockPool.GetConfirm(p.dispatcher.GetProcessingProposal().BlockHash); ok {
 			log.Warn("Has Confirm proposal")
 			return

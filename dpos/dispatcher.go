@@ -34,6 +34,9 @@ type Dispatcher struct {
 	unConfirm func(confirm *payload.Confirm) error
 
 	proposalProcessFinished bool
+	finishedHeight          uint64
+	finishedBlockSealHash   common.Uint256
+	finishedProposal        common.Uint256
 
 	mu sync.RWMutex
 }
@@ -75,8 +78,20 @@ func (d *Dispatcher) GetProposalProcessFinished() bool {
 	return d.proposalProcessFinished
 }
 
+func (d *Dispatcher) GetFinishedHeight() uint64 {
+	return d.finishedHeight
+}
+
 func (d *Dispatcher) SetProposalProcessFinished() {
 	d.proposalProcessFinished = true
+}
+
+func (d *Dispatcher) GetFinishedBlockSealHash() common.Uint256 {
+	return d.finishedBlockSealHash
+}
+
+func (d *Dispatcher) GetFinishedProposal() common.Uint256 {
+	return d.finishedProposal
 }
 
 func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
@@ -153,8 +168,14 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	return true, false, nil
 }
 
-func (d *Dispatcher) FinishedProposal() {
+func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256) {
 	Info("FinishedProposal")
+	d.finishedHeight = height
+	d.finishedBlockSealHash = sealHash
+	if d.processingProposal != nil {
+		d.finishedProposal = d.processingProposal.Hash()
+	}
+
 	d.consensusView.SetReady()
 	d.CleanProposals(false)
 	d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true)

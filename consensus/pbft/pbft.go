@@ -224,6 +224,9 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 	if header.Number == nil || header.Number.Uint64() == 0 {
 		return errUnknownBlock
 	}
+	if chain.GetHeaderByNumber(header.Number.Uint64()) != nil {
+		return ErrAlreadyConfirmedBlock
+	}
 	// Don't waste time checking blocks from the future
 	if seal && header.Time > uint64(time.Now().Unix()) {
 		return consensus.ErrFutureBlock
@@ -257,12 +260,11 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 		return consensus.ErrUnknownAncestor
 	}
-	log.Info("verify header HashConfirmed1111", "seal:", seal, "height", header.Number)
-	if !seal && p.blockPool.HashConfirmed(number) {
+	log.Info("verify header HashConfirmed", "seal:", seal, "height", header.Number)
+	if !seal && p.dispatcher.GetFinishedHeight() >= number {
 		log.Info("verify header already confirm block")
 		return ErrAlreadyConfirmedBlock
 	}
-	log.Info("verify header HashConfirmed2222")
 
 	if parent.Time+p.period > header.Time {
 		return ErrInvalidTimestamp
@@ -333,7 +335,7 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 		return consensus.ErrUnknownAncestor
 	}
 	log.Info("verify has confirmed:", "height", header.Number.Uint64())
-	if p.blockPool.HashConfirmed(header.Number.Uint64()) {
+	if header.Number.Uint64() <= p.dispatcher.GetFinishedHeight() {
 		log.Info("already confirm block")
 		return ErrAlreadyConfirmedBlock
 	}
@@ -350,9 +352,11 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header) {
 	dpos.Info("Pbft Finalize:", "height:", header.Number.Uint64())
+	sealHash := p.SealHash(header)
+	hash, _ := ecom.Uint256FromBytes(sealHash.Bytes())
+	p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash)
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
-	p.dispatcher.FinishedProposal()
 	p.CleanFinalConfirmedBlock(header.Number.Uint64())
 }
 
@@ -399,8 +403,9 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		}
 		header.Extra = make([]byte, sealBuf.Len())
 		copy(header.Extra[:], sealBuf.Bytes()[:])
-
-		p.dispatcher.FinishedProposal()
+		sealHash := SealHash(header)
+		hash, _ := ecom.Uint256FromBytes(sealHash.Bytes())
+		p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash)
 		p.isSealOver = true
 		break
 	case <-time.After(toleranceDelay):
