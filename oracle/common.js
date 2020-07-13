@@ -51,7 +51,11 @@ module.exports = {
         return;
     },
     retnum: function toNonExponential(num) {
-        let m = num.toExponential().match(/\d(?:\.(\d*))?e([+-]\d+)/);
-        return num.toFixed(Math.max(0, (m[1] || '').length - m[2]));
+        let m = num.toExponential(8).match(/\d(?:\.(\d*))?e([+-]\d+)/);
+        if (m[2] < 0 ) {
+            m[2] = '0';
+        }
+        let jingdu = Math.max(0, (m[1] || '').length - m[2])
+        return num.toFixed(jingdu);
     }
 };
