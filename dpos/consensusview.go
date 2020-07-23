@@ -23,6 +23,7 @@ type ConsensusView struct {
 	publicKey       []byte
 	signTolerance   time.Duration
 	viewStartTime   time.Time
+	viewChangeTime  time.Time
 	isDposOnDuty    bool
 	producers       *Producers
 
@@ -50,9 +51,9 @@ func (v *ConsensusView) IsReady() bool {
 }
 
 func (v *ConsensusView) TryChangeView(now time.Time) {
-	if v.IsRunning() && now.After(v.viewStartTime.Add(v.signTolerance)) {
-		Info("[TryChangeView] succeed")
-		v.ChangeView(now, false)
+	if v.IsRunning() && now.After(v.viewChangeTime) {
+		Info("[TryChangeView] succeed", "now", now.String(), "changeTime", v.viewChangeTime.String())
+		v.ChangeView(now, false, uint64(v.viewStartTime.Unix()))
 	}
 }
 
@@ -69,18 +70,18 @@ func (v *ConsensusView) calculateOffsetTime(startTime time.Time,
 	return uint32(offset), offsetTime
 }
 
-func (v *ConsensusView) ChangeView(now time.Time, force bool) {
+func (v *ConsensusView) ChangeView(now time.Time, force bool, parentTime uint64) {
 	offset, offsetTime := v.calculateOffsetTime(v.viewStartTime, now)
 	v.viewStartTime = now.Add(-offsetTime)
 	if force {
 		offset = 1
-		v.ResetView(now)
+		v.ResetView(now, parentTime)
 	}
 	v.viewOffset += offset
 
 	if offset > 0 {
 		Info("\n\n\n--------------------Change View---------------------")
-		Info("viewStartTime:", v.viewStartTime, "nowTime:", now, "offset:", offset, "offsetTime:", offsetTime, "force:", force)
+		Info("viewStartTime:", v.viewStartTime, "changeViewTime",v.viewChangeTime, "nowTime:", now, "offset:", offset, "offsetTime:", offsetTime, "force:", force)
 		currentProducer := v.producers.GetNextOnDutyProducer(v.viewOffset)
 		v.isDposOnDuty = bytes.Equal(currentProducer, v.publicKey)
 		if bytes.Equal(currentProducer, v.producers.producers[0]) {
@@ -115,12 +116,25 @@ func (v *ConsensusView) GetViewStartTime() time.Time {
 	return v.viewStartTime
 }
 
+func (v *ConsensusView) GetChangeViewTime() time.Time {
+	return v.viewChangeTime
+}
+
 func (v *ConsensusView) GetViewOffset() uint32 {
 	return v.viewOffset
 }
 
-func (v *ConsensusView) ResetView(t time.Time) {
+func (v *ConsensusView) ResetView(t time.Time, parentTime uint64) {
 	v.viewStartTime = t
+	v.SetChangViewTime(parentTime)
+}
+
+func (v *ConsensusView) SetChangViewTime(parentTime uint64) {
+	headerTime := time.Unix(int64(parentTime), 0)
+	v.viewChangeTime = headerTime.Add(v.signTolerance)
+	if v.viewChangeTime.Sub(v.viewStartTime) <= 0 {
+		v.viewChangeTime = v.viewStartTime.Add(v.signTolerance)
+	}
 }
 
 func (v *ConsensusView) IsProducers(account []byte) bool {

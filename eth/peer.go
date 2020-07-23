@@ -127,13 +127,13 @@ func (p *peer) broadcast() {
 				return
 			}
 			p.Log().Trace("Propagated block", "number", prop.block.Number(), "hash", prop.block.Hash(), "td", prop.td)
-
+			p.Log().Info("Propagated block", "number", prop.block.Number(), "hash", prop.block.Hash(), "td", prop.td)
 		case block := <-p.queuedAnns:
 			if err := p.SendNewBlockHashes([]common.Hash{block.Hash()}, []uint64{block.NumberU64()}); err != nil {
 				return
 			}
 			p.Log().Trace("Announced block", "number", block.Number(), "hash", block.Hash())
-
+			p.Log().Info("Announced block", "number", block.Number(), "hash", block.Hash())
 		case <-p.term:
 			return
 		}
@@ -266,6 +266,7 @@ func (p *peer) AsyncSendNewBlockHash(block *types.Block) {
 		}
 	default:
 		p.Log().Debug("Dropping block announcement", "number", block.NumberU64(), "hash", block.Hash())
+		p.Log().Warn("Dropping block announcement", "number", block.NumberU64(), "hash", block.Hash())
 	}
 }
 
