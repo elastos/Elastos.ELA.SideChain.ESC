@@ -67,15 +67,16 @@ var (
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
 type Pbft struct {
-	datadir    string
-	cfg        params.PbftConfig
-	dispatcher *dpos.Dispatcher
-	confirmCh  chan *payload.Confirm
-	account    daccount.Account
-	network    *dpos.Network
-	blockPool  *dpos.BlockPool
-	chain      *core.BlockChain
-	timeSource dtime.MedianTimeSource
+	datadir     string
+	cfg         params.PbftConfig
+	dispatcher  *dpos.Dispatcher
+	confirmCh   chan *payload.Confirm
+	unConfirmCh chan *payload.Confirm
+	account     daccount.Account
+	network     *dpos.Network
+	blockPool   *dpos.BlockPool
+	chain       *core.BlockChain
+	timeSource  dtime.MedianTimeSource
 
 	// IsCurrent returns whether BlockChain synced to best height.
 	IsCurrent func() bool
@@ -108,7 +109,6 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	for i, v := range cfg.Producers {
 		producers[i] = common.Hex2Bytes(v)
 	}
-	confirmCh := make(chan *payload.Confirm)
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
 		dpos.Warn("create dpos account error:", err.Error())
@@ -119,7 +119,8 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	pbft := &Pbft{
 		datadir:            dataDir,
 		cfg:                *cfg,
-		confirmCh:          confirmCh,
+		confirmCh:          make(chan *payload.Confirm),
+		unConfirmCh:		make(chan *payload.Confirm),
 		account:            account,
 		requestedBlocks:    make(map[common.Hash]struct{}),
 		statusMap:          make(map[uint32]map[string]*dmsg.ConsensusStatus),
@@ -408,12 +409,16 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash)
 		p.isSealOver = true
 		break
+	case <- p.unConfirmCh:
+		log.Warn("proposal is rejected")
+		p.isSealOver = true
+		return nil
 	case <-time.After(toleranceDelay):
 		log.Warn("seal time out stop mine")
 		p.isSealOver = true
 		return nil
 	case <-stop:
-		log.Warn("pbft seal is stoped")
+		log.Warn("pbft seal is stop")
 		p.isSealOver = true
 		return nil
 	}
@@ -454,14 +459,10 @@ func (p *Pbft) onUnConfirm(unconfirm *payload.Confirm) error {
 	if p.isSealOver {
 		return errors.New("seal block is over, can't unconfirm")
 	}
-	err := p.blockPool.AppendConfirm(unconfirm)
-	if err != nil {
-		log.Error("Received unconfirm", "proposal", unconfirm.Proposal.Hash(), "err:", err)
-	}
 	if p.IsOnduty() {
 		p.confirmCh <- unconfirm
 	}
-	return err
+	return nil
 }
 
 func (p *Pbft) SealHash(header *types.Header) common.Hash {
