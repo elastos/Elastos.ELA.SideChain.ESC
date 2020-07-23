@@ -116,7 +116,7 @@ func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
 	}
 	if b.NumberU64() <= p.chain.CurrentHeader().Number.Uint64() ||
 		b.NumberU64() <= p.dispatcher.GetFinishedHeight() { //old height block coming
-		log.Warn("blockchain.Height", "chain height",p.chain.CurrentHeader().Number.Uint64(), "b.Height", b.NumberU64(), "finishedHeight", p.dispatcher.GetFinishedHeight())
+		log.Warn("old height block coming  blockchain.Height", "chain height",p.chain.CurrentHeader().Number.Uint64(), "b.Height", b.NumberU64(), "finishedHeight", p.dispatcher.GetFinishedHeight())
 		return
 	}
 	sealHash := p.SealHash(b.Header())

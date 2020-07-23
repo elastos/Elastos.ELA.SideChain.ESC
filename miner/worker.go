@@ -28,10 +28,11 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/misc"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
@@ -932,14 +933,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	commitUncles(w.localUncles)
 	commitUncles(w.remoteUncles)
 
-	if !noempty {
+	// Fill the block with all available pending transactions.
+	pending, err := w.eth.TxPool().Pending()
+
+	_, isPbft := w.engine.(*pbft.Pbft)
+	if (!noempty && !isPbft) || (isPbft && len(pending) == 0) {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
 		w.commit(uncles, nil, false, tstart)
 	}
 
-	// Fill the block with all available pending transactions.
-	pending, err := w.eth.TxPool().Pending()
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
 		return

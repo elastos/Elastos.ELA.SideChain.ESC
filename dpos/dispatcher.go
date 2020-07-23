@@ -168,7 +168,8 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	return true, false, nil
 }
 
-func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256) {
+func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256,
+	headerTime uint64) {
 	Info("FinishedProposal")
 	d.finishedHeight = height
 	d.finishedBlockSealHash = sealHash
@@ -178,7 +179,7 @@ func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256) {
 
 	d.consensusView.SetReady()
 	d.CleanProposals(false)
-	d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true)
+	d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true, headerTime)
 }
 func (d *Dispatcher) CleanProposals(changeView bool) {
 	Info("Clean proposals")
@@ -301,8 +302,8 @@ func (d *Dispatcher) OnChangeView() {
 	d.consensusView.TryChangeView(d.timeSource.AdjustedTime())
 }
 
-func (d *Dispatcher) ResetView() {
-	d.consensusView.ResetView(d.timeSource.AdjustedTime())
+func (d *Dispatcher) ResetView(parentTime uint64) {
+	d.consensusView.ResetView(d.timeSource.AdjustedTime(), parentTime)
 }
 
 func (d *Dispatcher) GetConsensusView() *ConsensusView {
@@ -379,7 +380,7 @@ func (d *Dispatcher) RecoverFromConsensusStatus(status *msg.ConsensusStatus) err
 	}
 
 	d.consensusView.viewOffset = status.ViewOffset
-	d.consensusView.ResetView(status.ViewStartTime)
+	d.consensusView.ResetView(status.ViewStartTime, uint64(status.ViewStartTime.Unix()))
 	d.consensusView.isDposOnDuty = d.consensusView.ProducerIsOnDuty(d.consensusView.publicKey)
 	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime())
 	d.consensusView.DumpInfo()

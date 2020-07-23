@@ -317,8 +317,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 }
 
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	log.Info("Pbft Prepare:", "height;", header.Number.Uint64())
-	fmt.Println("prepare parentHash:", header.ParentHash.String())
+	log.Info("Pbft Prepare:", "height;", header.Number.Uint64(), "parent", header.ParentHash.String())
 	p.isSealOver = false
 	if !p.isRecoved {
 		return errors.New("wait for recoved states")
@@ -326,15 +325,16 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	if p.dispatcher.GetConsensusView().IsRunning() && p.enableViewLoop {
 		return errors.New("current consensus is running")
 	}
-	p.Start()
-	if !p.IsOnduty() {
-		return errors.New("local singer is not on duty")
-	}
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	log.Info("verify has confirmed:", "height", header.Number.Uint64())
+
+	p.Start(parent.Time)
+	if !p.IsOnduty() {
+		return errors.New("local singer is not on duty")
+	}
+
 	if header.Number.Uint64() <= p.dispatcher.GetFinishedHeight() {
 		log.Info("already confirm block")
 		return ErrAlreadyConfirmedBlock
@@ -354,7 +354,7 @@ func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state
 	dpos.Info("Pbft Finalize:", "height:", header.Number.Uint64())
 	sealHash := p.SealHash(header)
 	hash, _ := ecom.Uint256FromBytes(sealHash.Bytes())
-	p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash)
+	p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash, header.Time)
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 	p.CleanFinalConfirmedBlock(header.Number.Uint64())
@@ -390,7 +390,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	delay := time.Unix(int64(header.Time), 0).Sub(p.dispatcher.GetNowTime())
 	log.Info("wait seal time", "delay", delay)
 	time.Sleep(delay)
-	changeViewTime := p.dispatcher.GetConsensusView().GetViewStartTime().Add(p.dispatcher.GetConsensusView().GetViewInterval())
+	changeViewTime := p.dispatcher.GetConsensusView().GetChangeViewTime()
 	toleranceDelay := changeViewTime.Sub(p.dispatcher.GetNowTime())
 	log.Info("changeViewLeftTime", "toleranceDelay", toleranceDelay)
 	select {
@@ -405,7 +405,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		copy(header.Extra[:], sealBuf.Bytes()[:])
 		sealHash := SealHash(header)
 		hash, _ := ecom.Uint256FromBytes(sealHash.Bytes())
-		p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash)
+		p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash, header.Time)
 		p.isSealOver = true
 		break
 	case <-time.After(toleranceDelay):
@@ -562,12 +562,13 @@ func (p *Pbft) StopServer() {
 	p.enableViewLoop = false
 }
 
-func (p *Pbft) Start() {
+func (p *Pbft) Start(headerTime uint64) {
 	if !p.enableViewLoop {
 		p.enableViewLoop = true
+		p.dispatcher.GetConsensusView().SetChangViewTime(headerTime)
 		go p.changeViewLoop()
 	} else {
-		p.dispatcher.ResetView()
+		p.dispatcher.ResetView(headerTime)
 	}
 	p.dispatcher.GetConsensusView().SetRunning()
 }
