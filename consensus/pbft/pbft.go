@@ -460,7 +460,7 @@ func (p *Pbft) onUnConfirm(unconfirm *payload.Confirm) error {
 		return errors.New("seal block is over, can't unconfirm")
 	}
 	if p.IsOnduty() {
-		p.confirmCh <- unconfirm
+		p.unConfirmCh <- unconfirm
 	}
 	return nil
 }
