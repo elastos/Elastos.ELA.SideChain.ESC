@@ -91,6 +91,9 @@ type Pbft struct {
 	isRecoved      bool
 	period         uint64
 	isSealOver     bool
+
+	// The fields below are for testing only
+	fakeDiff bool // Skip difficulty verifications
 }
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
@@ -220,12 +223,17 @@ func (p *Pbft) VerifyHeaders(chain consensus.ChainReader, headers []*types.Heade
 	return abort, results
 }
 
+// Used for test
+func (p *Pbft) SetFakeDiff(v bool) {
+	p.fakeDiff = v
+}
+
 func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header, seal bool) error {
 
 	if header.Number == nil || header.Number.Uint64() == 0 {
 		return errUnknownBlock
 	}
-	if chain.GetHeaderByNumber(header.Number.Uint64()) != nil {
+	if !p.fakeDiff && chain.GetHeaderByNumber(header.Number.Uint64()) != nil {
 		return ErrAlreadyConfirmedBlock
 	}
 	// Don't waste time checking blocks from the future
@@ -296,9 +304,8 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 		return errUnknownBlock
 	}
 
-	// Retrieve the signature from the header extra-data
-	if len(header.Extra) < extraSeal+extraVanity {
-		return errMissingSignature
+	if !p.fakeDiff && chain.GetHeaderByNumber(header.Number.Uint64()) != nil {
+		return ErrAlreadyConfirmedBlock
 	}
 
 	//fmt.Println("verify seal confirm hex, ", common.Bytes2Hex(header.Extra))
@@ -444,6 +451,7 @@ func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 	err := p.blockPool.AppendConfirm(confirm)
 	if err != nil {
 		log.Error("Received confirm", "proposal", confirm.Proposal.Hash().String(), "err:", err)
+		return err
 	}
 	if p.IsOnduty() {
 		log.Info("on duty, set confirm block")

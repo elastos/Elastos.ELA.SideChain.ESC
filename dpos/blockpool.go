@@ -57,11 +57,18 @@ func NewBlockPool(confirmBlock func(block DBlock, confirm *payload.Confirm) erro
 }
 
 func (bm *BlockPool) HandleParentBlock(parent DBlock) bool {
+	bm.Lock()
+	var handledBlock DBlock
 	for _, block := range bm.futureBlocks {
 		if block.GetHeight() - 1 == parent.GetHeight() {
-			bm.AppendDposBlock(block)
-			return true
+			handledBlock = block
+			break
 		}
+	}
+	bm.Unlock()
+	if handledBlock != nil {
+		bm.AppendDposBlock(handledBlock)
+		return true
 	}
 	return false
 }

@@ -13,7 +13,7 @@ import (
 )
 
 func StartVote(ProposalHash *common.Uint256, isAcceipt bool, ac account.Account) (*payload.DPOSProposalVote, error) {
-	Info("[StartVote] start")
+	Info("[StartVote] start", "proposal hash", ProposalHash.String())
 	defer Info("[StartVote] end")
 
 	vote := &payload.DPOSProposalVote{

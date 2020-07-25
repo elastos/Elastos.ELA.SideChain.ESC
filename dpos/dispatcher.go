@@ -151,7 +151,9 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 		if d.consensusView.IsMajorityAgree(len(d.acceptVotes)) {
 			Info("Collect majority signs. Proposal confirmed.")
 			confirm := d.createConfirm()
-			d.onConfirm(confirm)
+			if confirm != nil {
+				d.onConfirm(confirm)
+			}
 			Info("Block confirmed.")
 			return true, true, nil
 		}
@@ -253,6 +255,10 @@ func (d *Dispatcher) RejectProposal(proposal *payload.DPOSProposal, ac account.A
 }
 
 func (d *Dispatcher) createConfirm() *payload.Confirm {
+	if d.processingProposal == nil {
+		log.Warn("processingProposal is nil, can't create confirm")
+		return nil
+	}
 	confirm := &payload.Confirm{
 		Proposal: *d.processingProposal,
 		Votes:    make([]payload.DPOSProposalVote, 0),
