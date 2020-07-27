@@ -166,6 +166,10 @@ func (v *ConsensusView) HasProducerMajorityCount(count int) bool {
 	return v.producers.HasProducerMajorityCount(count)
 }
 
+func (v *ConsensusView) GetMajorityCount() int {
+	return v.producers.GetMajorityCount()
+}
+
 func NewConsensusView(tolerance time.Duration, account []byte,
 	producers *Producers, viewListener ViewListener) *ConsensusView {
 	c := &ConsensusView{
