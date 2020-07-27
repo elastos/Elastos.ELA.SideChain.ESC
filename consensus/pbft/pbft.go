@@ -641,7 +641,7 @@ func (p *Pbft) onConfirmBlock(block dpos.DBlock, confirm *payload.Confirm) error
 }
 
 func (p *Pbft) verifyConfirm(confirm *payload.Confirm) error {
-	err := dpos.CheckConfirm(confirm)
+	err := dpos.CheckConfirm(confirm, p.dispatcher.GetConsensusView().GetMajorityCount())
 	return err
 }
 

@@ -11,13 +11,13 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
-func CheckConfirm(confirm *payload.Confirm) error {
+func CheckConfirm(confirm *payload.Confirm, minSignCount int) error {
 	err := CheckProposal(&confirm.Proposal)
 	if err != nil {
 		return err
 	}
-	if len(confirm.Votes) <= 0 {
-		return errors.New("[CheckConfirm] error, not have votes")
+	if len(confirm.Votes) < minSignCount {
+		return errors.New("[CheckConfirm] error, there are not enough votes")
 	}
 	proposalHash := confirm.Proposal.Hash()
 	for _, vote := range confirm.Votes {
