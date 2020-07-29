@@ -1,0 +1,10 @@
+version: "3.2"
+
+services:
+  build:
+    container_name: eth-side-build
+    image: yz89/golang:latest
+    working_dir: /eth-sidechain
+    volumes:
+      - ./:/eth-sidechain
+    command: sh -c "make"
