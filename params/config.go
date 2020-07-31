@@ -179,25 +179,42 @@ var (
 		},
 		Threshold: 2,
 	}
-
 	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
 	GoerliChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(5),
+		OldChainID:          big.NewInt(23),
 		ChainID:             big.NewInt(23),
-		HomesteadBlock:      big.NewInt(0),
+		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(0),
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: big.NewInt(0),
-		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(1561651),
-		ChainIDBlock:        big.NewInt(100),
+		EIP150Block:         big.NewInt(2),
+		EIP150Hash:          common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
+		EIP155Block:         big.NewInt(3),
+		EIP158Block:         big.NewInt(3),
+		ByzantiumBlock:      big.NewInt(4),
+		ConstantinopleBlock: big.NewInt(10000000),
+		PetersburgBlock:     big.NewInt(10000000),
+		IstanbulBlock:       nil,
+		ChainIDBlock:        big.NewInt(5),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
+		},
+		PBFTBlock: big.NewInt(20),
+		PreConnectOffset: 5,
+		Pbft: &PbftConfig{
+			Producers: []string{
+				"0342eeb0d664e2507d732382c66d0eedbd0a0f989179fd33d71679aa607d5d3b57",
+				"03b0a37c11d1dfa8622e3d64b9dfefee781c6eb8279fa28f0c723efbc7c67adcd8",
+				"023288ae99c212b42e3ba9fa088f4578eb2c958a0c2293b900d4fdefd5e6c571ee",
+				"02bd6d05a6d3d97ce3a1137f0d0c56c0d7f23c06fe04d7c85430780d440b64d88b",
+				"031c0c22f6712324babd9443475c9120a51ac8813c446a84161b6b950e2c1bb0f5",
+			},
+			PrintLevel: 0,
+			MaxLogsSize: 0,
+			MaxPerLogSize: 0,
+			Magic: 202000,
+			IPAddress: "34.229.27.111",
+			DPoSPort: 20639,
 		},
 	}
 

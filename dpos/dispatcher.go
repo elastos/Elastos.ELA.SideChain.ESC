@@ -51,7 +51,7 @@ func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal
 		if proposal.ViewOffset > d.GetConsensusView().GetViewOffset() {
 			d.precociousProposals[proposal.Hash()] = proposal
 		}
-		return errors.New("have different view offset"), false, !self
+		return errors.New("have different view offset"), false, false
 	}
 
 	if !d.consensusView.ProducerIsOnDuty(proposal.Sponsor) {
@@ -203,6 +203,10 @@ func (d *Dispatcher) CleanProposals(changeView bool) {
 	}
 }
 
+func (d *Dispatcher) ResetAcceptVotes() {
+	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
+}
+
 func (d *Dispatcher) UpdatePrecociousProposals() *payload.DPOSProposal {
 	for k, v := range d.precociousProposals {
 		if d.consensusView.IsRunning() &&
@@ -309,7 +313,7 @@ func (d *Dispatcher) OnChangeView() {
 }
 
 func (d *Dispatcher) ResetView(parentTime uint64) {
-	d.consensusView.ResetView(d.timeSource.AdjustedTime(), parentTime)
+	d.consensusView.ResetView(parentTime)
 }
 
 func (d *Dispatcher) GetConsensusView() *ConsensusView {
@@ -386,7 +390,7 @@ func (d *Dispatcher) RecoverFromConsensusStatus(status *msg.ConsensusStatus) err
 	}
 
 	d.consensusView.viewOffset = status.ViewOffset
-	d.consensusView.ResetView(status.ViewStartTime, uint64(status.ViewStartTime.Unix()))
+	d.consensusView.ResetView(uint64(status.ViewStartTime.Unix()))
 	d.consensusView.isDposOnDuty = d.consensusView.ProducerIsOnDuty(d.consensusView.publicKey)
 	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime())
 	d.consensusView.DumpInfo()

@@ -67,10 +67,6 @@ func (b *mockBlock) GetHeight() uint64 {
 	return b.header.Height
 }
 
-func onConfirmBlock(block DBlock, confirm *payload.Confirm) error {
-	return nil
-}
-
 func verifyConfirm(confirm *payload.Confirm) error {
 	return nil
 }
@@ -106,7 +102,7 @@ func newTestBlock() *mockBlock {
 }
 
 func TestBlockPool_AppendDposBlock(t *testing.T) {
-	blockPool := NewBlockPool(onConfirmBlock, verifyConfirm, verifyBlock, sealHash)
+	blockPool := NewBlockPool(verifyConfirm, verifyBlock, sealHash)
 	size := rand.Intn(10) + 10
 
 	blocks := make([]common.Uint256, 0)

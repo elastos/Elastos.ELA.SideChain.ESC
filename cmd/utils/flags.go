@@ -166,7 +166,7 @@ var (
 	}
 	GoerliFlag = cli.BoolFlag{
 		Name:  "goerli",
-		Usage: "Görli network: pre-configured proof-of-authority test network",
+		Usage: "Görli network: pre-configured dpos test network",
 	}
 	DeveloperFlag = cli.BoolFlag{
 		Name:  "dev",
@@ -1548,9 +1548,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 5
+			cfg.NetworkId = 1
 		}
 		cfg.Genesis = core.DefaultGoerliGenesisBlock()
+		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
+		if !ctx.GlobalIsSet(DataDirFlag.Name) {
+			cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "goerli", "geth")
+		}
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337

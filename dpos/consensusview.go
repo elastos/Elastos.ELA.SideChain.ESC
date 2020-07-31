@@ -53,7 +53,8 @@ func (v *ConsensusView) IsReady() bool {
 func (v *ConsensusView) TryChangeView(now time.Time) {
 	if v.IsRunning() && now.After(v.viewChangeTime) {
 		Info("[TryChangeView] succeed", "now", now.String(), "changeTime", v.viewChangeTime.String())
-		v.ChangeView(now, false, uint64(v.viewStartTime.Unix()))
+		parentTime := float64(v.viewChangeTime.Unix()) - v.signTolerance.Seconds()
+		v.ChangeView(now, false, uint64(parentTime))
 	}
 }
 
@@ -72,10 +73,13 @@ func (v *ConsensusView) calculateOffsetTime(startTime time.Time,
 
 func (v *ConsensusView) ChangeView(now time.Time, force bool, parentTime uint64) {
 	offset, offsetTime := v.calculateOffsetTime(v.viewStartTime, now)
-	v.viewStartTime = now.Add(-offsetTime)
+	if offset > 0 {
+		v.viewStartTime = now.Add(-offsetTime)
+		v.ResetView(uint64(v.viewStartTime.Unix()))
+	}
 	if force {
 		offset = 1
-		v.ResetView(now, parentTime)
+		v.ResetView(parentTime)
 	}
 	v.viewOffset += offset
 
@@ -124,17 +128,14 @@ func (v *ConsensusView) GetViewOffset() uint32 {
 	return v.viewOffset
 }
 
-func (v *ConsensusView) ResetView(t time.Time, parentTime uint64) {
-	v.viewStartTime = t
+func (v *ConsensusView) ResetView(parentTime uint64) {
 	v.SetChangViewTime(parentTime)
 }
 
 func (v *ConsensusView) SetChangViewTime(parentTime uint64) {
 	headerTime := time.Unix(int64(parentTime), 0)
 	v.viewChangeTime = headerTime.Add(v.signTolerance)
-	if v.viewChangeTime.Sub(v.viewStartTime) <= 0 {
-		v.viewChangeTime = v.viewStartTime.Add(v.signTolerance)
-	}
+	v.viewStartTime = headerTime
 }
 
 func (v *ConsensusView) IsProducers(account []byte) bool {

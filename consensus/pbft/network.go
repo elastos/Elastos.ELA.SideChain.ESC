@@ -67,7 +67,7 @@ func (p *Pbft) AnnounceDAddr() bool {
 	return true
 }
 
-func (p *Pbft) BroadPreBlock(block *types.Block) error {
+func (p *Pbft) BroadBlockMsg(block *types.Block) error {
 	sealHash := p.SealHash(block.Header())
 	log.Info("BroadPreBlock,", "block Height:", block.NumberU64(), "hash:", sealHash.String())
 	buffer := bytes.NewBuffer([]byte{})
@@ -91,8 +91,10 @@ func (p *Pbft) RequestAbnormalRecovering() {
 func (p *Pbft) tryGetCurrentProposal(id peer.PID, v *payload.DPOSProposalVote) (elacom.Uint256, bool) {
 	currentProposal := p.dispatcher.GetProcessingProposal()
 	if currentProposal == nil {
-		requestProposal := &msg.RequestProposal{ProposalHash: v.ProposalHash}
-		go p.network.SendMessageToPeer(id, requestProposal)
+		if _, ok := p.requestedProposals[v.ProposalHash]; !ok {
+			requestProposal := &msg.RequestProposal{ProposalHash: v.ProposalHash}
+			go p.network.SendMessageToPeer(id, requestProposal)
+		}
 		return elacom.EmptyHash, false
 	}
 	return currentProposal.Hash(), true
@@ -107,24 +109,37 @@ func (p *Pbft) OnPong(id peer.PID, height uint32) {
 }
 
 func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
-	log.Info("-----On PreBlock received------")
+	log.Info("-----OnBlock received------")
 	b := &types.Block{}
 
 	err := b.DecodeRLP(rlp.NewStream(bytes.NewBuffer(block.GetData()), 0))
 	if err != nil {
 		panic("OnBlock Decode Block Msg error:" + err.Error())
 	}
+	if len(b.Extra()) > extraVanity {
+		p.OnBlockReceived(id, block, true)
+		return
+	}
+
 	if b.NumberU64() <= p.chain.CurrentHeader().Number.Uint64() ||
 		b.NumberU64() <= p.dispatcher.GetFinishedHeight() { //old height block coming
+		p.blockPool.AddBadBlock(b)
 		log.Warn("old height block coming  blockchain.Height", "chain height",p.chain.CurrentHeader().Number.Uint64(), "b.Height", b.NumberU64(), "finishedHeight", p.dispatcher.GetFinishedHeight())
 		return
 	}
 	sealHash := p.SealHash(b.Header())
-	log.Info("-----OnBlock received------", "blockHash:", sealHash.String(), "height:", b.NumberU64())
+	log.Info("-----On PreBlock received------", "blockHash:", sealHash.String(), "height:", b.NumberU64())
 	err = p.blockPool.AppendDposBlock(b)
 	if err == consensus.ErrUnknownAncestor {
 		log.Info("Append Future blocks", "height:", b.NumberU64())
 		p.blockPool.AppendFutureBlock(b)
+	}
+
+	hash, err := elacom.Uint256FromBytes(sealHash.Bytes())
+	if err == nil {
+		if c, ok := p.blockPool.GetConfirm(*hash); ok {
+			p.OnConfirmReceived(id, c, b.GetHeight())
+		}
 	}
 
 	if _, ok := p.requestedBlocks[sealHash]; ok {
@@ -201,7 +216,6 @@ func (p *Pbft) OnResponseConsensus(id peer.PID, status *msg.ConsensusStatus) {
 	if !p.IsProducer() {
 		return
 	}
-	log.Info("[OnResponseConsensus] status:", "status", *status)
 	if !p.recoverStarted {
 		return
 	}
@@ -229,24 +243,26 @@ func (p *Pbft) OnIllegalVotesReceived(id peer.PID, votes *payload.DPOSIllegalVot
 
 func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 	log.Info("OnProposalReceived", "hash:", proposal.Hash().String())
+	if _, ok := p.requestedProposals[proposal.Hash()]; ok {
+		delete(p.requestedProposals, proposal.Hash())
+	}
 	if !p.dispatcher.GetConsensusView().IsRunning() {
 		log.Info("consensus is not running")
 		return
 	}
 	p.dispatcher.OnChangeView()
-	//todo need use block hash, not sealhash
-	//hash := common.BytesToHash(proposal.BlockHash.Bytes())
-	//if b := p.chain.GetBlockByHash(hash); b != nil {
-	//	log.Info("already exist block in block chain", "hash:", p.SealHash(b.Header()), "height", b.NumberU64())
-	//	return
-	//}
 
 	if proposal.BlockHash.IsEqual(p.dispatcher.GetFinishedBlockSealHash()) {
 		log.Info("already processed block")
 		return
 	}
 
-
+	isBadProposal := p.blockPool.IsBadBlockProposal(proposal)
+	if _, ok := p.blockPool.GetBlock(proposal.BlockHash); !ok && !isBadProposal {
+		log.Info("not have preBlock, request it", "hash:", proposal.BlockHash.String())
+		p.OnInv(id, proposal.BlockHash)
+		return
+	}
 	var voteMsg *msg.Vote
 	err, isSendReject, handled := p.dispatcher.ProcessProposal(id, proposal)
 	if err != nil {
@@ -269,14 +285,11 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 			}
 		}
 
+	} else if isBadProposal {
+		log.Info("bad proposal reject")
+		voteMsg = p.dispatcher.RejectProposal(proposal, p.account)
 	} else {
 		voteMsg = p.dispatcher.AcceptProposal(proposal, p.account)
-	}
-
-	if _, ok := p.blockPool.GetBlock(proposal.BlockHash); !ok {
-		log.Info("not have preBlock, request it", "hash:", proposal.BlockHash.String())
-		p.OnInv(id, proposal.BlockHash)
-		return
 	}
 
 	if handled {
@@ -426,12 +439,76 @@ func medianOf(nums []int64) int64 {
 	return nums[l/2]
 }
 
-func (p *Pbft) OnBlockReceived(b *dmsg.BlockMsg, confirmed bool) {
-	fmt.Println("OnBlockReceived")
+func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
+	log.Info("-------[OnBlockReceived]--------")
+	if !confirmed {
+		return
+	}
+	block := &types.Block{}
+
+	err := block.DecodeRLP(rlp.NewStream(bytes.NewBuffer(b.GetData()), 0))
+	if err != nil {
+		panic("OnBlock Decode Block Msg error:" + err.Error())
+	}
+
+	delay := time.Unix(int64(block.Time()), 0).Sub(p.dispatcher.GetNowTime())
+	log.Info("wait seal time", "delay", delay)
+	time.Sleep(delay)
+
+	parent := p.chain.GetBlock(block.ParentHash(), block.NumberU64() - 1)
+	if parent == nil {//ErrUnknownAncestor
+		count := len(p.network.GetActivePeers())
+		log.Warn("verify block error", "error", consensus.ErrUnknownAncestor, "activePeers", count)
+		if !p.dispatcher.GetConsensusView().HasProducerMajorityCount(count) {
+			go p.AnnounceDAddr()
+		}
+		return
+	}
+
+	blocks := types.Blocks{}
+	blocks = append(blocks, block)
+	log.Info("InsertChain", "height", block.GetHeight())
+	p.chain.InsertChain(blocks)
 }
 
-func (p *Pbft) OnConfirmReceived(c *payload.Confirm, height uint32) {
-	fmt.Println("OnConfirmReceived")
+func (p *Pbft) OnConfirmReceived(pid peer.PID, c *payload.Confirm, height uint64) {
+	log.Info("OnConfirmReceived",  "confirm", c.Proposal.Hash(), "height", height)
+	defer log.Info("OnConfirmReceived end")
+	
+	if p.IsOnduty() {
+		p.isSealOver = true
+		go p.Recover()
+		return
+	}
+	
+	if height >  p.chain.CurrentHeader().Number.Uint64() + 1 {
+		log.Info("is future confirm")
+		return
+	}
+	
+	if height <= p.dispatcher.GetFinishedHeight() {
+		log.Info("already confirmed block")
+		return
+	}
+	
+	if _, hasConfirm := p.blockPool.GetConfirmByHeight(height); hasConfirm {
+		log.Info("has confirmed block", "height", height)
+		return
+	}
+	
+	if _, ok := p.blockPool.GetBlock(c.Proposal.BlockHash); !ok {
+		log.Info("not have preBlock, request it", "hash:", c.Proposal.BlockHash.String())
+		p.OnInv(pid, c.Proposal.BlockHash)
+		return
+	}
+
+	if _, ok :=  p.blockPool.GetConfirm(c.Proposal.BlockHash); !ok {
+		p.dispatcher.ResetAcceptVotes()
+		for _, vote := range c.Votes {
+			p.dispatcher.ProcessVote(&vote)
+		}
+		return
+	}
 }
 
 // limitMap is a helper function for maps that require a maximum limit by

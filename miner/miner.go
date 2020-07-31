@@ -107,7 +107,7 @@ func (self *Miner) update() {
 				}
 			case downloader.DoneEvent, downloader.FailedEvent:
 				shouldStart := atomic.LoadInt32(&self.shouldStart) == 1
-
+				log.Info("downloader sync done")
 				atomic.StoreInt32(&self.canStart, 1)
 				atomic.StoreInt32(&self.shouldStart, 0)
 				if shouldStart {
@@ -115,13 +115,16 @@ func (self *Miner) update() {
 				}
 				// stop immediately and ignore all further pending events
 				if pbftEngine, ok := self.engine.(*pbft.Pbft); ok {
-					go pbftEngine.Recover()
+					if pbftEngine.GetActivePeersCount() <= 0 && pbftEngine.AnnounceDAddr()  {
+						go pbftEngine.Recover()
+					}
 				}
 				return
 			}
 		case <-self.exitCh:
 			return
 		case <-dangerChain:
+			log.Warn("get danger chain reorg to long")
 			self.Close()
 		}
 	}

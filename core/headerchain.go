@@ -62,9 +62,10 @@ type HeaderChain struct {
 
 	procInterrupt func() bool
 
-	rand   *mrand.Rand
-	engine consensus.Engine
+	rand       *mrand.Rand
+	engine     consensus.Engine
 	pbftEngine consensus.Engine
+	poaEngine  consensus.Engine
 }
 
 // NewHeaderChain creates a new HeaderChain structure.
@@ -112,6 +113,10 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 
 func (hc *HeaderChain) SetEngine(engine consensus.Engine) {
 	hc.engine = engine
+}
+
+func (hc *HeaderChain) SetPOAEngine(engine consensus.Engine) {
+	hc.poaEngine = engine
 }
 
 func (hc *HeaderChain) SetDposChain(engine consensus.Engine) {
@@ -242,7 +247,7 @@ func (hc *HeaderChain) ValidateHeaderChain(chain []*types.Header, checkFreq int)
 		seals[len(seals)-1] = true
 	}
 	var (
-		abort chan<- struct{}
+		abort   chan<- struct{}
 		results <-chan error
 	)
 	if hc.config.IsPBFTFork(chain[0].Number) {

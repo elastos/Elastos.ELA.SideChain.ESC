@@ -34,7 +34,6 @@ func TestReimportMirroredState(t *testing.T) {
 		engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "")
 		signer = new(types.HomesteadSigner)
 	)
-	engine.SetFakeDiff(true)
 	engine.IsCurrent = func() bool {
 		return true
 	}
@@ -94,7 +93,6 @@ func TestReimportMirroredState(t *testing.T) {
 	// flushing the dirty states out. Insert the last block, trigerring a sidechain
 	// reimport.
 	engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "")
-	engine.SetFakeDiff(true)
 	chain, _ = core.NewBlockChain(db, nil, PbftProtocolChanges, engine, engine, vm.Config{}, nil)
 	defer chain.Stop()
 
