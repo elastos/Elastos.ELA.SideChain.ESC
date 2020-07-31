@@ -102,6 +102,7 @@ func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.
 	if err != nil {
 		return nil, err
 	}
+	bc.SetPOAEngine(engine)
 	bc.SetDposEngine(bc.engine)
 	bc.genesisBlock, _ = bc.GetBlockByNumber(NoOdr, 0)
 	if bc.genesisBlock == nil {
@@ -143,6 +144,10 @@ func (lc *LightChain) SetEngine(engine consensus.Engine) {
 
 func (lc *LightChain) SetDposEngine(engine consensus.Engine) {
 	lc.hc.SetDposChain(engine)
+}
+
+func (lc *LightChain) SetPOAEngine(engine consensus.Engine) {
+	lc.hc.SetPOAEngine(engine)
 }
 
 // AddTrustedCheckpoint adds a trusted checkpoint to the blockchain

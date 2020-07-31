@@ -455,14 +455,37 @@ func DefaultRinkebyGenesisBlock() *Genesis {
 
 // DefaultGoerliGenesisBlock returns the Görli network genesis block.
 func DefaultGoerliGenesisBlock() *Genesis {
-	return &Genesis{
+	ga := make(GenesisAlloc, 1)
+	acc1 := common.BytesToAddress(hexutil.MustDecode("0x53781e106a2e3378083bdcede1874e5c2a7225f8"))
+
+	ga[acc1] = GenesisAccount{Balance: big.NewInt(0).SetUint64(9999999999999999999)}
+
+	genesis := &Genesis{
 		Config:     params.GoerliChainConfig,
 		Timestamp:  1548854791,
 		ExtraData:  hexutil.MustDecode("0x22466c6578692069732061207468696e6722202d204166726900000000000000e0a2bd4258d2768837baa26a28fe71dc079f84c70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   10485760,
+		GasLimit:   0x2068F7700,
 		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(goerliAllocData),
+		Alloc:      ga,
 	}
+
+	extra := make([]byte, 0)
+	extra = append(extra, bytes.Repeat([]byte{0x00}, 32)...)
+	address1 := hexutil.MustDecode("0x53781e106a2e3378083bdcede1874e5c2a7225f8")
+	address2 := hexutil.MustDecode("0xd9758863f280c25b0d1f2f81705e3725ccd5ac49")
+	address3 := hexutil.MustDecode("0xfd7f1f6e2c5157a33dda2e91f58f32862f864d70")
+	address4 := hexutil.MustDecode("0x9b170f914ef3541cd29ee672a11c56d4b96b4b6f")
+	address5 := hexutil.MustDecode("0x8aef2209eab2f60bc13da5e669ad832709f5e71d")
+	address6 := hexutil.MustDecode("0x05f9b7a73f6ba0298c5c1943204a6a54839166b2")
+	extra = append(extra, address1...)
+	extra = append(extra, address2...)
+	extra = append(extra, address3...)
+	extra = append(extra, address4...)
+	extra = append(extra, address5...)
+	extra = append(extra, address6...)
+	extra = append(extra, bytes.Repeat([]byte{0x00}, 65)...)
+	genesis.ExtraData = extra
+	return genesis
 }
 
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block. Note, this must

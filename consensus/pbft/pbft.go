@@ -16,6 +16,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
+	emsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
@@ -63,6 +64,10 @@ var (
 	ErrInvalidTimestamp = errors.New("invalid timestamp")
 
 	ErrAlreadyConfirmedBlock = errors.New("already confirmed block")
+
+	ErrWaitSyncBlock = errors.New("has confirmed, wait sync block")
+
+	ErrInvalidConfirm = errors.New("invalid confirm")
 )
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
@@ -83,6 +88,7 @@ type Pbft struct {
 	StartMine func()
 
 	requestedBlocks    map[common.Hash]struct{}
+	requestedProposals map[ecom.Uint256]struct{}
 	statusMap          map[uint32]map[string]*dmsg.ConsensusStatus
 	notHandledProposal map[string]struct{}
 
@@ -91,9 +97,7 @@ type Pbft struct {
 	isRecoved      bool
 	period         uint64
 	isSealOver     bool
-
-	// The fields below are for testing only
-	fakeDiff bool // Skip difficulty verifications
+	isRecovering   bool
 }
 
 func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
@@ -114,7 +118,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	}
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
-		dpos.Warn("create dpos account error:", err.Error())
+		dpos.Warn("create dpos account error:", err.Error(), "pbftKeystore:", pbftKeystore, "password")
 		//can't return, because common node need verify use this engine
 	}
 	medianTimeSouce := dtime.NewMedianTime()
@@ -126,17 +130,18 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		unConfirmCh:		make(chan *payload.Confirm),
 		account:            account,
 		requestedBlocks:    make(map[common.Hash]struct{}),
+		requestedProposals: make(map[ecom.Uint256]struct{}),
 		statusMap:          make(map[uint32]map[string]*dmsg.ConsensusStatus),
 		notHandledProposal: make(map[string]struct{}),
 		period:             5,
 		timeSource:         medianTimeSouce,
 	}
-	blockPool := dpos.NewBlockPool(pbft.onConfirmBlock, pbft.verifyConfirm, pbft.verifyBlock, DBlockSealHash)
+	blockPool := dpos.NewBlockPool(pbft.verifyConfirm, pbft.verifyBlock, DBlockSealHash)
 	pbft.blockPool = blockPool
-	dispatcher := dpos.NewDispatcher(producers, pbft.onConfirm, pbft.onUnConfirm,
-		10*time.Second, account.PublicKeyBytes(), medianTimeSouce, pbft)
-	pbft.dispatcher = dispatcher
+	var accpubkey []byte
+
 	if account != nil {
+		accpubkey = account.PublicKeyBytes()
 		network, err := dpos.NewNetwork(&dpos.NetworkConfig{
 			IPAddress:   cfg.IPAddress,
 			Magic:       cfg.Magic,
@@ -145,7 +150,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 			MedianTime:  medianTimeSouce,
 			Listener:    pbft,
 			DataPath:    dposPath,
-			PublicKey:   account.PublicKeyBytes(),
+			PublicKey:   accpubkey,
 			AnnounceAddr: func() {
 				events.Notify(dpos.ETAnnounceAddr, nil)
 			},
@@ -157,6 +162,8 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		pbft.network = network
 		pbft.subscribeEvent()
 	}
+	pbft.dispatcher = dpos.NewDispatcher(producers, pbft.onConfirm, pbft.onUnConfirm,
+		10*time.Second, accpubkey, medianTimeSouce, pbft)
 	return pbft
 }
 
@@ -166,7 +173,9 @@ func (p *Pbft) subscribeEvent() {
 		case events.ETDirectPeersChanged:
 			go p.network.UpdatePeers(e.Data.([]peer.PID))
 		case dpos.ETNewPeer:
-			if p.chain.Engine() == p {
+			count := len(p.network.GetActivePeers())
+			log.Info("new peer accept","active peer count", count)
+			if p.chain.Engine() == p && !p.dispatcher.GetConsensusView().HasProducerMajorityCount(count) {
 				go p.AnnounceDAddr()
 			}
 		}
@@ -223,18 +232,10 @@ func (p *Pbft) VerifyHeaders(chain consensus.ChainReader, headers []*types.Heade
 	return abort, results
 }
 
-// Used for test
-func (p *Pbft) SetFakeDiff(v bool) {
-	p.fakeDiff = v
-}
-
 func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header, seal bool) error {
 
 	if header.Number == nil || header.Number.Uint64() == 0 {
 		return errUnknownBlock
-	}
-	if !p.fakeDiff && chain.GetHeaderByNumber(header.Number.Uint64()) != nil {
-		return ErrAlreadyConfirmedBlock
 	}
 	// Don't waste time checking blocks from the future
 	if seal && header.Time > uint64(time.Now().Unix()) {
@@ -270,7 +271,7 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 		return consensus.ErrUnknownAncestor
 	}
 	log.Info("verify header HashConfirmed", "seal:", seal, "height", header.Number)
-	if !seal && p.dispatcher.GetFinishedHeight() >= number {
+	if !seal && p.dispatcher.GetFinishedHeight() == number {
 		log.Info("verify header already confirm block")
 		return ErrAlreadyConfirmedBlock
 	}
@@ -304,23 +305,16 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 		return errUnknownBlock
 	}
 
-	if !p.fakeDiff && chain.GetHeaderByNumber(header.Number.Uint64()) != nil {
-		return ErrAlreadyConfirmedBlock
-	}
-
-	//fmt.Println("verify seal confirm hex, ", common.Bytes2Hex(header.Extra))
 	// Retrieve the confirm from the header extra-data
 	var confirm payload.Confirm
 	err := confirm.Deserialize(bytes.NewReader(header.Extra))
 	if err != nil {
 		return err
 	}
-	//fmt.Println("verify seal confirm", confirm)
 	err = p.verifyConfirm(&confirm)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -337,8 +331,12 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-
-	p.Start(parent.Time)
+	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
+	if header.Number.Cmp(p.chain.Config().PBFTBlock) == 0 {
+		p.Start(nowTime)
+	} else {
+		p.Start(parent.Time)
+	}
 	if !p.IsOnduty() {
 		return errors.New("local singer is not on duty")
 	}
@@ -349,9 +347,9 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	}
 	header.Difficulty = parent.Difficulty
 	header.Time = parent.Time + p.period
-	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
 	if header.Time < nowTime {
 		header.Time = nowTime
+		p.dispatcher.ResetView(nowTime)
 	}
 
 	return nil
@@ -387,7 +385,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if !p.IsOnduty() {
 		return errors.New("local singer is not on duty")
 	}
-	p.BroadPreBlock(block)
+	p.BroadBlockMsg(block)
 
 	if err := p.StartProposal(block); err != nil {
 		return err
@@ -403,17 +401,8 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	log.Info("changeViewLeftTime", "toleranceDelay", toleranceDelay)
 	select {
 	case confirm := <-p.confirmCh:
-		log.Info("Received confirm", "proposal", confirm.Proposal.Hash().String(), "block:", block.NumberU64())
-		sealBuf := new(bytes.Buffer)
-		if err := confirm.Serialize(sealBuf); err != nil {
-			log.Error("confirm serialize error", "error", err)
-			return err
-		}
-		header.Extra = make([]byte, sealBuf.Len())
-		copy(header.Extra[:], sealBuf.Bytes()[:])
-		sealHash := SealHash(header)
-		hash, _ := ecom.Uint256FromBytes(sealHash.Bytes())
-		p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash, header.Time)
+		log.Info("Received confirmCh", "proposal", confirm.Proposal.Hash().String(), "block:", block.NumberU64())
+		p.addConfirmToBlock(header, confirm)
 		p.isSealOver = true
 		break
 	case <- p.unConfirmCh:
@@ -429,10 +418,11 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		p.isSealOver = true
 		return nil
 	}
-
+	finalBlock  := block.WithSeal(header)
 	go func() {
 		select {
-		case results <- block.WithSeal(header):
+		case results <- finalBlock:
+			p.BroadBlockMsg(finalBlock)
 			p.CleanFinalConfirmedBlock(block.NumberU64())
 		default:
 			dpos.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
@@ -442,9 +432,23 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	return nil
 }
 
+func (p *Pbft) addConfirmToBlock(header *types.Header, confirm *payload.Confirm) error {
+	sealBuf := new(bytes.Buffer)
+	if err := confirm.Serialize(sealBuf); err != nil {
+		log.Error("confirm serialize error", "error", err)
+		return err
+	}
+	header.Extra = make([]byte, sealBuf.Len())
+	copy(header.Extra[:], sealBuf.Bytes()[:])
+	sealHash := SealHash(header)
+	hash, _ := ecom.Uint256FromBytes(sealHash.Bytes())
+	p.dispatcher.FinishedProposal(header.Number.Uint64(), *hash, header.Time)
+	return nil
+}
+
 func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 	log.Info("--------[onConfirm]------", "proposal:", confirm.Proposal.Hash())
-	if p.isSealOver {
+	if p.isSealOver && p.IsOnduty() {
 		log.Warn("seal block is over, can't confirm")
 		return errors.New("seal block is over, can't confirm")
 	}
@@ -459,6 +463,7 @@ func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 	} else {
 		log.Info("not on duty, not broad confirm block")
 	}
+
 	return err
 }
 
@@ -557,6 +562,13 @@ func (p *Pbft) AddDirectLinkPeer(pid peer.PID, addr string) {
 	}
 }
 
+func (p *Pbft) GetActivePeersCount() int {
+	if p.network != nil {
+		return len(p.network.GetActivePeers())
+	}
+	return 0
+}
+
 func (p *Pbft) StartServer() {
 	if p.network != nil {
 		p.network.Start()
@@ -590,16 +602,17 @@ func (p *Pbft) changeViewLoop() {
 }
 
 func (p *Pbft) Recover() {
-	if p.IsCurrent == nil || p.account == nil ||
+	if p.IsCurrent == nil || p.account == nil || p.isRecovering ||
 		!p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
 		return
 	}
-
+	p.isRecovering = true
 	for {
 		if p.IsCurrent() && len(p.network.GetActivePeers()) > 0 &&
 			p.dispatcher.GetConsensusView().HasArbitersMinorityCount(len(p.network.GetActivePeers())) {
 			log.Info("----- PostRecoverTask --------")
 			p.network.PostRecoverTask()
+			p.isRecovering = false
 			return
 		}
 		time.Sleep(time.Second)
@@ -624,20 +637,9 @@ func (p *Pbft) SetBlockChain(chain *core.BlockChain) {
 	p.chain = chain
 }
 
-func (p *Pbft) onConfirmBlock(block dpos.DBlock, confirm *payload.Confirm) error {
-	// if confirm block by direct net, use this
-	//if b, ok := block.(*types.Block); ok {
-	//	blocks := types.Blocks{}
-	//	blocks = append(blocks, b)
-	//	_, err := p.chain.InsertChain(blocks)
-	//	if err != nil {
-	//		return err
-	//	}
-	//} else {
-	//	errors.New("onConfirmBlock errror, block is not ethereum block")
-	//}
-
-	return nil
+func (p *Pbft) broadConfirmMsg(confirm *payload.Confirm, height uint64) {
+	msg := emsg.NewConfirmMsg(confirm, height)
+	p.network.BroadcastMessage(msg)
 }
 
 func (p *Pbft) verifyConfirm(confirm *payload.Confirm) error {

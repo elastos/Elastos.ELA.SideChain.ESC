@@ -204,7 +204,7 @@ func IsNeedStopChain(headerNew, headerOld *types.Header, engine consensus.Engine
 
 	if journal != nil {
 		for hash, height := range addHashes {
-			log.Info("EvilSignerEvent", "Insert", "Singer", singerNew.String(), "Number:",
+			log.Info("EvilSignerEvent Insert", "Singer", singerNew.String(), "Number:",
 				headerNew.Number.Uint64(), "Hash:", hash.String())
 			journal.Insert(&EvilSingerEvent{&singerNew, headerNew.Number, height, &hash})
 		}

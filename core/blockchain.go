@@ -176,6 +176,7 @@ type BlockChain struct {
 
 	engine     consensus.Engine
 	pbftEngine consensus.Engine
+	poaEngine  consensus.Engine
 	validator  Validator  // Block and state validator interface
 	prefetcher Prefetcher // Block state prefetcher interface
 	processor  Processor  // Block transaction processor interface
@@ -256,6 +257,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		return nil, err
 	}
 
+	bc.setPoAEngine(engine)
 	bc.SetDposEngine(pbftEngine)
 	if chainConfig.IsPBFTFork(bc.CurrentHeader().Number) {
 		bc.SetEngine(pbftEngine)
@@ -334,8 +336,17 @@ func (bc *BlockChain) SetDposEngine(engine consensus.Engine) {
 	bc.hc.pbftEngine = engine
 }
 
+func (bc *BlockChain) setPoAEngine(engine consensus.Engine) {
+	bc.poaEngine = engine
+	bc.hc.poaEngine = engine
+}
+
 func (bc *BlockChain) GetDposEngine() consensus.Engine {
 	return bc.pbftEngine
+}
+
+func (bc *BlockChain) GetPoAEngine() consensus.Engine {
+	return bc.poaEngine
 }
 
 func (bc *BlockChain) getProcInterrupt() bool {
@@ -1447,7 +1458,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 	bc.futureBlocks.Remove(block.Hash())
 	go func() {
-		time.Sleep(100)
 		bc.OnSyncHeader(block.Header())
 	}()
 	return status, nil
@@ -1510,19 +1520,26 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 
 func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, []interface{}, []*types.Log, error) {
 	if bc.chainConfig.IsPBFTFork(chain[0].Number()) || bc.chainConfig.PBFTBlock == nil {
+		log.Info("insert chain use pbftEngine engine1")
 		return bc.insertBlockChain(chain, verifySeals, bc.pbftEngine)
 	}
 	limit := bc.chainConfig.PBFTBlock.Uint64() - chain[0].NumberU64()
 	if limit >= uint64(len(chain)) {
-		return bc.insertBlockChain(chain, verifySeals, bc.engine)
+		log.Info("insert chain use clique engine1")
+		return bc.insertBlockChain(chain, verifySeals, bc.poaEngine)
 	}
 	cliqueChain := chain[:limit]
-	n, events, logs, err := bc.insertBlockChain(cliqueChain, verifySeals, bc.engine)
+	log.Info("insert chain use clique engine2")
+	n, events, logs, err := bc.insertBlockChain(cliqueChain, verifySeals, bc.poaEngine)
 	if err != nil {
 		return n, events, logs, err
 	}
-	events = events[:len(events)-1]
+	if len(events) > 0 {
+		events = events[:len(events)-1]
+	}
+
 	pbftChain := chain[limit:]
+	log.Info("insert chain use pbftEngine engine2")
 	n, events1, logs1, err := bc.insertBlockChain(pbftChain, verifySeals, bc.pbftEngine)
 	events = append(events, events1...)
 	logs = append(logs, logs1...)
@@ -1636,6 +1653,7 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 	case err != nil:
 		bc.futureBlocks.Remove(block.Hash())
 		stats.ignored += len(it.chain)
+		log.Error("reportBlock validator error:", "error", err)
 		bc.reportBlock(block, nil, err)
 		return it.index, events, coalescedLogs, err
 	}
@@ -1648,6 +1666,7 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 		}
 		// If the header is a banned one, straight out abort
 		if BadHashes[block.Hash()] {
+			log.Error("reportBlock bad block:", "error", ErrBlacklistedHash)
 			bc.reportBlock(block, nil, ErrBlacklistedHash)
 			return it.index, events, coalescedLogs, ErrBlacklistedHash
 		}
@@ -1709,6 +1728,7 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 		substart := time.Now()
 		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 		if err != nil {
+			log.Error("reportBlock process error:", "error", err)
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
 			return it.index, events, coalescedLogs, err
@@ -1728,6 +1748,7 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 		// Validate the state using the default validator
 		substart = time.Now()
 		if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
+			log.Error("reportBlock ValidateState error:", "error", err)
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
 			return it.index, events, coalescedLogs, err
@@ -1820,8 +1841,8 @@ func (bc *BlockChain) OnSyncHeader(header *types.Header) {
 	if cfg.PBFTBlock == nil {
 		return
 	}
-	nowHeight := bc.CurrentBlock().Number().Uint64()
-	if nowHeight < cfg.PBFTBlock.Uint64() && height == cfg.PBFTBlock.Uint64()-cfg.PreConnectOffset {
+	//nowHeight := bc.CurrentBlock().Number().Uint64()
+	if height >= cfg.PBFTBlock.Uint64()-cfg.PreConnectOffset && height < cfg.PBFTBlock.Uint64() {
 		producers := make([]peer.PID, len(cfg.Pbft.Producers))
 		for i, v := range cfg.Pbft.Producers {
 			producer := common.Hex2Bytes(v)
@@ -2055,9 +2076,9 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
 	//elastos is clique
-	if blocksigner.GetBlockSignersCount() > 1 && len(oldChain) > blocksigner.GetBlockSignersCount()/2 {
+	if blocksigner.GetBlockSignersCount() > 6 && len(oldChain) > blocksigner.GetBlockSignersCount()/2 {
 		msg := "danger chain detected, more than n/2 :"
-		log.Error(msg, blocksigner.GetBlockSignersCount()/2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
+		log.Error(msg, "singerCount", blocksigner.GetBlockSignersCount()/2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
 		defer func() {
 			bc.dangerousFeed.Send(DangerousChainSideEvent{})

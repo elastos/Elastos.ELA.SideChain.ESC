@@ -76,8 +76,8 @@ type NetworkEventListener interface {
 	OnBadNetwork()
 	OnRecover()
 
-	OnBlockReceived(b *dmsg.BlockMsg, confirmed bool)
-	OnConfirmReceived(c *payload.Confirm, height uint32)
+	OnBlockReceived(id dpeer.PID, b *dmsg.BlockMsg, confirmed bool)
+	OnConfirmReceived(id dpeer.PID, c *payload.Confirm, height uint64)
 }
 
 type messageItem struct {
@@ -227,6 +227,11 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnIllegalVotesReceived(msgItem.ID, &msgIllegalVotes.Votes)
 		}
+	case dmsg.CmdConfirm:
+		msgConfirm, processed := m.(*dmsg.ConfirmMsg)
+		if processed {
+			n.listener.OnConfirmReceived(msgItem.ID, msgConfirm.Confirm, msgConfirm.Height)
+		}
 	}
 }
 
@@ -345,6 +350,8 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &msg.SidechainIllegalData{}
 	case msg.CmdResponseInactiveArbitrators:
 		message = &msg.ResponseInactiveArbitrators{}
+	case dmsg.CmdConfirm:
+		message = &dmsg.ConfirmMsg{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}

@@ -151,7 +151,7 @@ func (p *peer) Disconnect() {
 
 func (p *peer) SendELAMessage(msg *dpos.ElaMsg) {
 	if err := p2p.Send(p.rw, ELAMSG, msg); err != nil {
-		p.Log().Warn("Send ELA message failed, ", err)
+		p.Log().Warn("Send ELA message failed, ", "error", err, "msg", msg.Type)
 	}
 }
 

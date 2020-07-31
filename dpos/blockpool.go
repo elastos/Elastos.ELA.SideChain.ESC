@@ -13,7 +13,6 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
-	"github.com/elastos/Elastos.ELA/events"
 )
 
 const cachedCount = 6
@@ -30,29 +29,30 @@ type ConfirmInfo struct {
 
 type BlockPool struct {
 	sync.RWMutex
-	blocks   map[common.Uint256]DBlock
-	confirms map[common.Uint256]*payload.Confirm
+	blocks         map[common.Uint256]DBlock
+	confirms       map[common.Uint256]*payload.Confirm
+	heightConfirms map[uint64]*payload.Confirm
+	badBlocks      map[common.Uint256]DBlock
 
-	OnConfirmBlock func(block DBlock, confirm *payload.Confirm) error
 	VerifyConfirm  func(confirm *payload.Confirm) error
 	VerifyBlock    func(block DBlock) error
-	SealHash	func(block DBlock) (common.Uint256, error)
+	SealHash       func(block DBlock) (common.Uint256, error)
 
 	futureBlocks map[common.Uint256]DBlock
 }
 
-func NewBlockPool(confirmBlock func(block DBlock, confirm *payload.Confirm) error,
-	verifyConfirm func(confirm *payload.Confirm) error,
+func NewBlockPool(verifyConfirm func(confirm *payload.Confirm) error,
 	verifyBlock func(block DBlock) error,
 	sealHash func(block DBlock) (common.Uint256, error)) *BlockPool {
 	return &BlockPool{
 		blocks:         make(map[common.Uint256]DBlock),
 		confirms:       make(map[common.Uint256]*payload.Confirm),
+		heightConfirms: make(map[uint64]*payload.Confirm),
+		badBlocks:      make(map[common.Uint256]DBlock),
 		futureBlocks:   make(map[common.Uint256]DBlock),
-		OnConfirmBlock: confirmBlock,
 		VerifyConfirm:  verifyConfirm,
 		VerifyBlock:    verifyBlock,
-		SealHash: sealHash,
+		SealHash:       sealHash,
 	}
 }
 
@@ -60,7 +60,7 @@ func (bm *BlockPool) HandleParentBlock(parent DBlock) bool {
 	bm.Lock()
 	var handledBlock DBlock
 	for _, block := range bm.futureBlocks {
-		if block.GetHeight() - 1 == parent.GetHeight() {
+		if block.GetHeight()-1 == parent.GetHeight() {
 			handledBlock = block
 			break
 		}
@@ -68,6 +68,32 @@ func (bm *BlockPool) HandleParentBlock(parent DBlock) bool {
 	bm.Unlock()
 	if handledBlock != nil {
 		bm.AppendDposBlock(handledBlock)
+		return true
+	}
+	return false
+}
+
+func (bm *BlockPool) AddBadBlock(block DBlock) error {
+	bm.Lock()
+	defer bm.Unlock()
+
+	hash, err := bm.SealHash(block)
+	if err != nil {
+		return err
+	}
+	if _, ok := bm.badBlocks[hash]; ok {
+		return errors.New("duplicate badBlock in pool")
+	}
+	bm.badBlocks[hash] = block
+	return nil
+}
+
+func (bm *BlockPool) IsBadBlockProposal(proposal *payload.DPOSProposal) bool {
+	bm.Lock()
+	defer bm.Unlock()
+	hash := proposal.BlockHash
+	if b, ok := bm.badBlocks[hash]; ok {
+		log.Info("bad block propsoal", "height", b.GetHeight())
 		return true
 	}
 	return false
@@ -94,8 +120,11 @@ func (bm *BlockPool) appendFutureBlock(block DBlock) error {
 
 func (bm *BlockPool) AppendConfirm(confirm *payload.Confirm) error {
 	bm.Lock()
-	defer bm.Unlock()
-
+	_, ok := bm.confirms[confirm.Proposal.BlockHash]
+	bm.Unlock()
+	if ok {
+		return errors.New("conformation is all ready in block pool")
+	}
 	return bm.appendConfirm(confirm)
 }
 
@@ -134,19 +163,13 @@ func (bm *BlockPool) appendConfirm(confirm *payload.Confirm) error {
 	if err := bm.VerifyConfirm(confirm); err != nil {
 		return err
 	}
+	bm.Lock()
 	bm.confirms[confirm.Proposal.BlockHash] = confirm
-
+	bm.Unlock()
 	err := bm.confirmBlock(confirm.Proposal.BlockHash)
 	if err != nil {
 		return err
 	}
-	block := bm.blocks[confirm.Proposal.BlockHash]
-
-	// notify new confirm accepted.
-	events.Notify(events.ETConfirmAccepted, &ConfirmInfo{
-		Confirm: confirm,
-		Height:  block.GetHeight(),
-	})
 
 	return nil
 }
@@ -160,25 +183,22 @@ func (bm *BlockPool) ConfirmBlock(hash common.Uint256) error {
 
 func (bm *BlockPool) confirmBlock(hash common.Uint256) error {
 	Info("[ConfirmBlock] block hash:", hash)
+	bm.Lock()
 
 	block, ok := bm.blocks[hash]
 	if !ok {
+		bm.Unlock()
 		return errors.New("there is no block in pool when confirming block")
 	}
 
 	confirm, ok := bm.confirms[hash]
 	if !ok {
+		bm.Unlock()
 		return errors.New("there is no block confirmation in pool when confirming block")
 	}
 
-	if bm.OnConfirmBlock != nil {
-		err := bm.OnConfirmBlock(block, confirm)
-		if err != nil {
-			return err
-		}
-	} else {
-		panic("Not set OnConfirmBlock callBack")
-	}
+	bm.heightConfirms[block.GetHeight()] = confirm
+	bm.Unlock()
 
 	return nil
 }
@@ -236,11 +256,32 @@ func (bm *BlockPool) CleanFinalConfirmedBlock(height uint64) {
 
 	for _, block := range bm.blocks {
 		hash, _ := bm.SealHash(block)
-		if height > cachedCount && block.GetHeight() < height - cachedCount {
+		if height > cachedCount && block.GetHeight() < height-cachedCount {
 			delete(bm.blocks, hash)
 			delete(bm.confirms, hash)
 		}
 	}
+
+	for _, block := range bm.badBlocks {
+		hash, _ := bm.SealHash(block)
+		if height > cachedCount && block.GetHeight() < height-cachedCount {
+			delete(bm.badBlocks, hash)
+		}
+	}
+
+	for cheight, _ := range bm.heightConfirms {
+		if height > cachedCount && cheight < height-cachedCount {
+			delete(bm.heightConfirms, cheight)
+		}
+	}
+}
+
+func (bm *BlockPool) GetConfirmByHeight(height uint64) (*payload.Confirm, bool) {
+	bm.Lock()
+	defer bm.Unlock()
+
+	confirm, ok := bm.heightConfirms[height]
+	return confirm, ok
 }
 
 func (bm *BlockPool) GetConfirm(hash common.Uint256) (*payload.Confirm, bool) {
@@ -249,4 +290,13 @@ func (bm *BlockPool) GetConfirm(hash common.Uint256) (*payload.Confirm, bool) {
 
 	confirm, ok := bm.confirms[hash]
 	return confirm, ok
+}
+
+func (bm *BlockPool) RemoveConfirm(hash common.Uint256) {
+	bm.Lock()
+	defer bm.Unlock()
+
+	if _, ok := bm.confirms[hash]; ok {
+		delete(bm.confirms, hash)
+	}
 }

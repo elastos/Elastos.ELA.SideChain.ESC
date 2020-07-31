@@ -423,7 +423,16 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(headers)
+	beforeChangeEngine := false
+	for i := 0; i < len(headers); i++ {
+		beforeChangeEngine = c.isBeforeChangeEngine(chain, headers[i])
+		log.Info("snap headers","number:", headers[i].Number.Uint64(), "beforeChangeEngine", beforeChangeEngine)
+		if beforeChangeEngine {
+			log.Info("get before change engine header")
+			break
+		}
+	}
+	snap, err := snap.apply(headers, beforeChangeEngine)
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +487,13 @@ func (c *Clique) verifySeal(chain consensus.ChainReader, header *types.Header, p
 	if _, ok := snap.Signers[signer]; !ok {
 		return errUnauthorizedSigner
 	}
+	beforeChangeEngine := c.isBeforeChangeEngine(chain, header)
+	log.Info("verifySeal beforeChangeEngine", "beforeChangeEngine", beforeChangeEngine, "headerNumber", header.Number.Uint64(), "header.Difficulty:", header.Difficulty)
 	for seen, recent := range snap.Recents {
+		if beforeChangeEngine == true && header.Difficulty.Cmp(diffInTurn) == 0 {
+			log.Info("is before change engine, not judge recent")
+			break
+		}
 		if recent == signer {
 			// Signer is among recents, only fail if the current block doesn't shift it out
 			if limit := uint64(len(snap.Signers)/2 + 1); seen > number-limit {
@@ -572,6 +587,7 @@ func (c *Clique) Finalize(chain consensus.ChainReader, header *types.Header, sta
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+	log.Info("clique finalize", "height", header.Number.Uint64(), "hash",   header.Hash().String())
 }
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
@@ -593,6 +609,11 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 
 	c.signer = signer
 	c.signFn = signFn
+}
+
+func (c *Clique) isBeforeChangeEngine(chain consensus.ChainReader,
+	header *types.Header) bool {
+	return chain.Config().PBFTBlock.Uint64() - 1 == header.Number.Uint64()
 }
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
@@ -632,13 +653,22 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 	if _, authorized := snap.Signers[signer]; !authorized {
 		return errUnauthorizedSigner
 	}
+	beforeChangeEngine := c.isBeforeChangeEngine(chain, header)
+	if beforeChangeEngine && header.Difficulty.Cmp(diffNoTurn) == 0 {
+		log.Info("Before change engine, must inturn signer")
+		return nil
+	}
 	// If we're amongst the recent signers, wait for the next block
 	for seen, recent := range snap.Recents {
 		if recent == signer {
 			// Signer is among recents, only wait if the current block doesn't shift it out
 			if limit := uint64(len(snap.Signers)/2 + 1); number < limit || seen > number-limit {
-				log.Info("Signed recently, must wait for others")
-				return nil
+				if !beforeChangeEngine {
+					log.Info("Signed recently, must wait for others")
+					return nil
+				} else {
+					log.Info("Signed recently, but before change engine, not return")
+				}
 			}
 		}
 	}

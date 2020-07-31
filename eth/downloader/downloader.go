@@ -434,8 +434,9 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	}
 
 	log.Debug("Synchronising with the network", "peer", p.id, "eth", p.version, "head", hash, "td", td, "mode", d.mode)
+	log.Info("Synchronising with the network", "peer", p.id, "eth", p.version, "head", hash.String(), "td", td, "mode", d.mode, "time", time.Now())
 	defer func(start time.Time) {
-		log.Debug("Synchronisation terminated", "elapsed", common.PrettyDuration(time.Since(start)))
+		log.Info("Synchronisation terminated", "elapsed", common.PrettyDuration(time.Since(start)))
 	}(time.Now())
 
 	// Look up the sync boundaries: the common ancestor and the target block
@@ -451,23 +452,23 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 	}
 
 	// If the number of blocks rolled back is greater than n over 2 of the number of signatures, stop node
-	if d.blockchain != nil && d.blockchain.CurrentBlock() != nil {
-		currentBlockNumber := d.blockchain.CurrentBlock().NumberU64()
-		localTD := d.blockchain.GetTd(d.blockchain.CurrentBlock().Hash(), currentBlockNumber)
-		if localTD.Cmp(td) < 0 && d.engineSingersCountFunc() > 1 {
-			if currentBlockNumber >= height {
-				if height - origin > uint64(d.engineSingersCountFunc()/2) {
-					log.Error("Soft bifurcation causes n/2 blocks to be rolled back->", height, origin)
-					d.nodeStopFunc()
-				}
-			} else if (height > currentBlockNumber && currentBlockNumber > 0) {
-				if currentBlockNumber - origin > uint64(d.engineSingersCountFunc()/2) {
-					log.Error("Soft bifurcation causes n/2 blocks to be rolled back-->", currentBlockNumber, origin)
-					d.nodeStopFunc()
-				}
-			}
-		}
-	}
+	//if d.blockchain != nil && d.blockchain.CurrentBlock() != nil {
+	//	currentBlockNumber := d.blockchain.CurrentBlock().NumberU64()
+	//	localTD := d.blockchain.GetTd(d.blockchain.CurrentBlock().Hash(), currentBlockNumber)
+	//	if localTD.Cmp(td) < 0 && d.engineSingersCountFunc() > 1 {
+	//		if currentBlockNumber >= height {
+	//			if height - origin > uint64(d.engineSingersCountFunc()/2) {
+	//				log.Error("Soft bifurcation causes n/2 blocks to be rolled back->", "height", height, "origin", origin)
+	//				d.nodeStopFunc()
+	//			}
+	//		} else if (height > currentBlockNumber && currentBlockNumber > 0) {
+	//			if currentBlockNumber - origin > uint64(d.engineSingersCountFunc()/2) {
+	//				log.Error("Soft bifurcation causes n/2 blocks to be rolled back-->", "currentBlockNumber", currentBlockNumber, "origin", origin)
+	//				d.nodeStopFunc()
+	//			}
+	//		}
+	//	}
+	//}
 
 	d.syncStatsLock.Lock()
 	if d.syncStatsChainHeight <= origin || d.syncStatsChainOrigin > origin {
@@ -1077,7 +1078,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) 
 				break
 			}
 			// Header retrieval timed out, consider the peer bad and drop
-			p.log.Debug("Header request timed out", "elapsed", ttl)
+			p.log.Info("Header request timed out", "elapsed", ttl)
 			headerTimeoutMeter.Mark(1)
 			d.dropPeer(p.id)
 
