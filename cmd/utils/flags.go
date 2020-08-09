@@ -788,6 +788,16 @@ var (
 		Usage: "pbft keystore password",
 		Value: "123",
 	}
+	PbftIPAddress = cli.StringFlag{
+		Name: "pbft.net.address",
+		Usage: "connect dpos direct net ip",
+		Value: "127.0.0.1",
+	}
+	PbftDposPort = cli.StringFlag{
+		Name: "pbft.net.port",
+		Usage: "connect dpos direct net port",
+		Value: "20639",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1526,6 +1536,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PreConnectOffset = ctx.GlobalUint64(PreConnectOffset.Name)
 	cfg.PbftKeyStore = ctx.GlobalString(PbftKeyStore.Name)
 	cfg.PbftKeyStorePassWord = ctx.GlobalString(PbftKeystorePassWord.Name)
+	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
+	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
@@ -1548,7 +1560,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 1
+			cfg.NetworkId = 5
 		}
 		cfg.Genesis = core.DefaultGoerliGenesisBlock()
 		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
