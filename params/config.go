@@ -213,8 +213,8 @@ var (
 			MaxLogsSize: 0,
 			MaxPerLogSize: 0,
 			Magic: 202000,
-			IPAddress: "34.229.27.111",
-			DPoSPort: 20639,
+			IPAddress: "",
+			DPoSPort: 0,
 		},
 	}
 

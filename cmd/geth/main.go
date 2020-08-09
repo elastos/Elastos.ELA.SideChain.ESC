@@ -167,6 +167,8 @@ var (
 		utils.PreConnectOffset,
 		utils.PbftKeyStore,
 		utils.PbftKeystorePassWord,
+		utils.PbftIPAddress,
+		utils.PbftDposPort,
 	}
 
 	rpcFlags = []cli.Flag{
