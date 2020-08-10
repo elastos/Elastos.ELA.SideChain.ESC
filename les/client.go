@@ -97,15 +97,17 @@ func New(ctx *node.ServiceContext, config *eth.Config, node *node.Node) (*LightE
 		chainConfig.PbftKeyStorePassWord = config.PbftKeyStorePassWord
 	}
 
-	if len(chainConfig.Pbft.IPAddress) > 0 {
-		config.PbftIPAddress = chainConfig.Pbft.IPAddress
-	} else {
-		chainConfig.Pbft.IPAddress = config.PbftIPAddress
-	}
-	if chainConfig.Pbft.DPoSPort > 0 {
-		config.PbftDPosPort = chainConfig.Pbft.DPoSPort
-	} else {
-		chainConfig.Pbft.DPoSPort = config.PbftDPosPort
+	if chainConfig.Pbft != nil {
+		if len(chainConfig.Pbft.IPAddress) > 0 {
+			config.PbftIPAddress = chainConfig.Pbft.IPAddress
+		} else {
+			chainConfig.Pbft.IPAddress = config.PbftIPAddress
+		}
+		if chainConfig.Pbft.DPoSPort > 0 {
+			config.PbftDPosPort = chainConfig.Pbft.DPoSPort
+		} else {
+			chainConfig.Pbft.DPoSPort = config.PbftDPosPort
+		}
 	}
 
 	log.Info("Initialised chain configuration", "config", chainConfig)

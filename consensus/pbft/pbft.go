@@ -36,7 +36,7 @@ import (
 
 var (
 	extraVanity = 32 // Fixed number of extra-data prefix bytes
-	extraSeal   = 64 // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 
 )
 
@@ -118,7 +118,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	}
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
-		dpos.Warn("create dpos account error:", err.Error(), "pbftKeystore:", pbftKeystore, "password")
+		fmt.Println("create dpos account error:", err.Error(), "pbftKeystore:", pbftKeystore, "password")
 		//can't return, because common node need verify use this engine
 	}
 	medianTimeSouce := dtime.NewMedianTime()

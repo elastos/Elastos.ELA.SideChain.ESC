@@ -359,7 +359,7 @@ func IteratorUnTransaction(from ethCommon.Address) {
 
 	_, ok := blocksigner.Signers[from]
 	if !ok {
-		log.Error("error signers", from.String())
+		log.Error("error signers", "signer", from.String())
 		return
 	}
 
