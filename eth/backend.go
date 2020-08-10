@@ -185,16 +185,19 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		chainConfig.PbftKeyStorePassWord = config.PbftKeyStorePassWord
 	}
 
-	if len(chainConfig.Pbft.IPAddress) > 0 {
-		config.PbftIPAddress = chainConfig.Pbft.IPAddress
-	} else {
-		chainConfig.Pbft.IPAddress = config.PbftIPAddress
+	if chainConfig.Pbft != nil {
+		if len(chainConfig.Pbft.IPAddress) > 0 {
+			config.PbftIPAddress = chainConfig.Pbft.IPAddress
+		} else {
+			chainConfig.Pbft.IPAddress = config.PbftIPAddress
+		}
+		if chainConfig.Pbft.DPoSPort > 0 {
+			config.PbftDPosPort = chainConfig.Pbft.DPoSPort
+		} else {
+			chainConfig.Pbft.DPoSPort = config.PbftDPosPort
+		}
 	}
-	if chainConfig.Pbft.DPoSPort > 0 {
-		config.PbftDPosPort = chainConfig.Pbft.DPoSPort
-	} else {
-		chainConfig.Pbft.DPoSPort = config.PbftDPosPort
-	}
+
 		log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{

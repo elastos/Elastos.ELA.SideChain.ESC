@@ -72,6 +72,18 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
+		PBFTBlock: big.NewInt(999999999),
+		PreConnectOffset: 5,
+		Pbft: &PbftConfig{
+			Producers: []string{
+			},
+			PrintLevel: 0,
+			MaxLogsSize: 0,
+			MaxPerLogSize: 0,
+			Magic: 202000,
+			IPAddress: "",
+			DPoSPort: 0,
+		},
 	}
 
 	// MainnetTrustedCheckpoint contains the light client trusted checkpoint for the main network.
@@ -115,6 +127,18 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
+		PBFTBlock: big.NewInt(999999999),
+		PreConnectOffset: 5,
+		Pbft: &PbftConfig{
+			Producers: []string{
+			},
+			PrintLevel: 0,
+			MaxLogsSize: 0,
+			MaxPerLogSize: 0,
+			Magic: 202000,
+			IPAddress: "",
+			DPoSPort: 0,
+		},
 	}
 
 	// TestnetTrustedCheckpoint contains the light client trusted checkpoint for the Ropsten test network.
@@ -157,6 +181,18 @@ var (
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
+		},
+		PBFTBlock: big.NewInt(999999999),
+		PreConnectOffset: 5,
+		Pbft: &PbftConfig{
+			Producers: []string{
+			},
+			PrintLevel: 0,
+			MaxLogsSize: 0,
+			MaxPerLogSize: 0,
+			Magic: 202000,
+			IPAddress: "",
+			DPoSPort: 0,
 		},
 	}
 

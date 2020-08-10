@@ -149,6 +149,8 @@ func TestUnlockFlag(t *testing.T) {
 		"js", "testdata/empty.js")
 	geth.Expect(`
 error: failed to load password hash
+create dpos account error: open wallet failed pbftKeystore: keystore.dat password
+error: failed to load password hash
 Unlocking account f466859ead1932d743d622cb74fc058882e8648a | Attempt 1/3
 !! Unsupported terminal, password will be echoed.
 Password: {{.InputLine "foobar"}}
@@ -174,6 +176,8 @@ func TestUnlockFlagWrongPassword(t *testing.T) {
 	defer geth.ExpectExit()
 	geth.Expect(`
 error: failed to load password hash
+create dpos account error: open wallet failed pbftKeystore: keystore.dat password
+error: failed to load password hash
 Unlocking account f466859ead1932d743d622cb74fc058882e8648a | Attempt 1/3
 !! Unsupported terminal, password will be echoed.
 Password: {{.InputLine "wrong1"}}
@@ -193,6 +197,8 @@ func TestUnlockFlagMultiIndex(t *testing.T) {
 		"--unlock", "0,2",
 		"js", "testdata/empty.js")
 	geth.Expect(`
+error: failed to load password hash
+create dpos account error: open wallet failed pbftKeystore: keystore.dat password
 error: failed to load password hash
 Unlocking account 0 | Attempt 1/3
 !! Unsupported terminal, password will be echoed.
@@ -242,6 +248,8 @@ func TestUnlockFlagPasswordFileWrongPassword(t *testing.T) {
 	defer geth.ExpectExit()
 	geth.Expect(`
 error: failed to load password hash
+create dpos account error: open wallet failed pbftKeystore: keystore.dat password
+error: failed to load password hash
 Fatal: Failed to unlock account 0 (could not decrypt key with given password)
 `)
 }
@@ -260,6 +268,8 @@ func TestUnlockFlagAmbiguous(t *testing.T) {
 		return abs
 	})
 	geth.Expect(`
+error: failed to load password hash
+create dpos account error: open wallet failed pbftKeystore: keystore.dat password
 error: failed to load password hash
 Unlocking account f466859ead1932d743d622cb74fc058882e8648a | Attempt 1/3
 !! Unsupported terminal, password will be echoed.
@@ -298,6 +308,8 @@ func TestUnlockFlagAmbiguousWrongPassword(t *testing.T) {
 		return abs
 	})
 	geth.Expect(`
+error: failed to load password hash
+create dpos account error: open wallet failed pbftKeystore: keystore.dat password
 error: failed to load password hash
 Unlocking account f466859ead1932d743d622cb74fc058882e8648a | Attempt 1/3
 !! Unsupported terminal, password will be echoed.
