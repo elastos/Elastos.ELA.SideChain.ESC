@@ -808,7 +808,7 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 	// Broadcast transactions to a batch of peers not knowing about it
 	blackAddr := common.Address{}
 	for _, tx := range txs {
-		if *tx.To() == blackAddr && len(tx.Data()) == 32 {
+		if tx.To() != nil && *tx.To() == blackAddr && len(tx.Data()) == 32 {
 			continue
 		}
 		//Because the recharge transaction is the packaging of the current node on duty, there is no need to broadcast
