@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 //
@@ -19,6 +19,7 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/elanet/bloom"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
+	"github.com/elastos/Elastos.ELA/elanet/filter/nextturndposfilter"
 	"github.com/elastos/Elastos.ELA/elanet/filter/sidefilter"
 	"github.com/elastos/Elastos.ELA/elanet/netsync"
 	"github.com/elastos/Elastos.ELA/elanet/pact"
@@ -51,7 +52,7 @@ func (f *naFilter) Filter(na *p2p.NetAddress) bool {
 // newPeerMsg represent a new connected peer.
 type newPeerMsg struct {
 	svr.IPeer
-	reply chan struct{}
+	reply chan bool
 }
 
 // donePeerMsg represent a disconnected peer.
@@ -108,6 +109,8 @@ func newServerPeer(s *server) *serverPeer {
 			return bloom.NewTxFilter()
 		case filter.FTDPOS:
 			return sidefilter.New(s.chain.GetState())
+		case filter.FTNexTTurnDPOSInfo:
+			return nextturndposfilter.New()
 		}
 		return nil
 	})
@@ -138,6 +141,7 @@ func (sp *serverPeer) handleDisconnect() {
 // used to negotiate the protocol version details as well as kick start
 // the communications.
 func (sp *serverPeer) OnVersion(_ *peer.Peer, m *msg.Version) {
+
 	// Disconnect full node peers that do not support DPOS protocol.
 	if nodeFlag(m.Services) && sp.ProtocolVersion() < pact.DPOSStartVersion {
 		sp.Disconnect()
@@ -538,7 +542,7 @@ func (sp *serverPeer) OnTxFilterLoad(_ *peer.Peer, tf *msg.TxFilterLoad) {
 // OnReject is invoked when a peer receives a reject message.
 func (sp *serverPeer) OnReject(_ *peer.Peer, msg *msg.Reject) {
 	log.Infof("%s sent a reject message Code: %s, Hash %s, Reason: %s",
-		sp, msg.Code.String(), msg.Hash.String(), msg.Reason)
+		sp, msg.RejectCode.String(), msg.Hash.String(), msg.Reason)
 }
 
 // pushTxMsg sends a tx message for the provided transaction hash to the
@@ -712,8 +716,9 @@ func (s *server) pushMerkleBlockMsg(sp *serverPeer, hash *common.Uint256,
 			HaveConfirm: blk.HaveConfirm,
 			Confirm:     confirm,
 		}
+	case *nextturndposfilter.NextTurnDPOSInfoFilter:
+		merkle.Header = &blk.Header
 	}
-
 	// Once we have fetched data wait for any previous operation to finish.
 	if waitChan != nil {
 		<-waitChan
@@ -725,6 +730,7 @@ func (s *server) pushMerkleBlockMsg(sp *serverPeer, hash *common.Uint256,
 	if len(matchedTxIndices) == 0 {
 		dc = doneChan
 	}
+
 	sp.QueueMessage(merkle, dc)
 
 	// Finally, send any matched transactions.
@@ -852,11 +858,40 @@ cleanup:
 	}
 }
 
+func (s *server) isOverMaxNodePerHost(peers map[svr.IPeer]*serverPeer,
+	orgPeer svr.IPeer) bool {
+	sp := orgPeer.ToPeer()
+	hostNodeCount := uint32(1)
+	for _, peer := range peers {
+		var peerNa, spNa *p2p.NetAddress
+		if peerNa = peer.NA(); peerNa == nil {
+			continue
+		}
+		if spNa = sp.NA(); spNa == nil {
+			return true
+		}
+		if peer.NA().IP.String() == sp.NA().IP.String() {
+			hostNodeCount++
+		}
+	}
+	if hostNodeCount > s.chainParams.MaxNodePerHost {
+		log.Infof("New peer %s ignored, "+
+			"hostNodeCount %d is more than  MaxNodePerHost %d ",
+			sp, hostNodeCount, s.chainParams.MaxNodePerHost)
+		return true
+	}
+	return false
+}
+
 // handlePeerMsg deals with adding and removing peers.
 func (s *server) handlePeerMsg(peers map[svr.IPeer]*serverPeer, p interface{}) {
 	switch p := p.(type) {
 	case newPeerMsg:
 		sp := newServerPeer(s)
+		if s.isOverMaxNodePerHost(peers, p) {
+			p.reply <- false
+			return
+		}
 		sp.Peer = peer.New(p, &peer.Listeners{
 			OnVersion:      sp.OnVersion,
 			OnMemPool:      sp.OnMemPool,
@@ -873,10 +908,8 @@ func (s *server) handlePeerMsg(peers map[svr.IPeer]*serverPeer, p interface{}) {
 			OnReject:       sp.OnReject,
 			OnDAddr:        s.routes.QueueDAddr,
 		})
-
 		peers[p.IPeer] = sp
-		p.reply <- struct{}{}
-
+		p.reply <- true
 	case donePeerMsg:
 		delete(peers, p.IPeer)
 		p.reply <- struct{}{}
@@ -898,10 +931,10 @@ func (s *server) Services() pact.ServiceFlag {
 }
 
 // NewPeer adds a new peer that has already been connected to the server.
-func (s *server) NewPeer(p svr.IPeer) {
-	reply := make(chan struct{})
+func (s *server) NewPeer(p svr.IPeer) bool {
+	reply := make(chan bool)
 	s.peerQueue <- newPeerMsg{p, reply}
-	<-reply
+	return <-reply
 }
 
 // DonePeer removes a peer that has already been connected to the server by ip.
@@ -945,7 +978,7 @@ func (s *server) Stop() error {
 // NewServer returns a new elanet server configured to listen on addr for the
 // network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
-func NewServer(dataDir string, cfg *Config) (*server, error) {
+func NewServer(dataDir string, cfg *Config, nodeVersion string) (*server, error) {
 	services := defaultServices
 	params := cfg.ChainParams
 	if params.DisableTxFilters {
@@ -958,11 +991,17 @@ func NewServer(dataDir string, cfg *Config) (*server, error) {
 		params.ListenAddrs = []string{fmt.Sprint(":", params.DefaultPort)}
 	}
 
+	var pver = pact.DPOSStartVersion
+	if cfg.Chain.GetHeight() >= uint32(params.NewP2PProtocolVersionHeight) {
+		pver = pact.CRProposalVersion
+	}
+
 	svrCfg := svr.NewDefaultConfig(
-		params.Magic, pact.DPOSStartVersion, uint64(services),
+		params.Magic, pver, uint64(services),
 		params.DefaultPort, params.DNSSeeds, params.ListenAddrs,
 		nil, nil, makeEmptyMessage,
 		func() uint64 { return uint64(cfg.Chain.GetHeight()) },
+		params.NewP2PProtocolVersionHeight, nodeVersion,
 	)
 	svrCfg.DataDir = dataDir
 	svrCfg.NAFilter = &naFilter{}

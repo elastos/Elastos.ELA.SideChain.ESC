@@ -1,7 +1,7 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package manager
 
@@ -23,11 +23,10 @@ import (
 	dmsg "github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/dpos/state"
-	"github.com/elastos/Elastos.ELA/dpos/store"
 )
 
 type ProposalDispatcherConfig struct {
-	store.EventStoreAnalyzerConfig
+	EventAnalyzerConfig
 	EventMonitor *log.EventMonitor
 	Consensus    *Consensus
 	Network      DPOSNetwork
@@ -58,7 +57,7 @@ type ProposalDispatcher struct {
 	currentInactiveArbitratorTx *types.Transaction
 	signedTxs                   map[common.Uint256]interface{}
 
-	eventAnalyzer  *store.EventStoreAnalyzer
+	eventAnalyzer  *eventAnalyzer
 	illegalMonitor *IllegalBehaviorMonitor
 }
 
@@ -818,7 +817,10 @@ func (p *ProposalDispatcher) CreateInactiveArbitrators() (
 func (p *ProposalDispatcher) createArbitratorsRedeemScript() ([]byte, error) {
 	var pks []*crypto.PublicKey
 	for _, v := range p.cfg.Arbitrators.GetCRCArbiters() {
-		pk, err := crypto.DecodePoint(v)
+		if !v.IsNormal {
+			continue
+		}
+		pk, err := crypto.DecodePoint(v.NodePublicKey)
 		if err != nil {
 			return nil, err
 		}
@@ -844,8 +846,7 @@ func NewDispatcherAndIllegalMonitor(cfg ProposalDispatcherConfig) (
 		pendingVotes:           make(map[common.Uint256]*payload.DPOSProposalVote),
 		signedTxs:              make(map[common.Uint256]interface{}),
 		firstBadNetworkRecover: true,
-		eventAnalyzer: store.NewEventStoreAnalyzer(store.EventStoreAnalyzerConfig{
-			Store:       cfg.Store,
+		eventAnalyzer: newEventStoreAnalyzer(EventAnalyzerConfig{
 			Arbitrators: cfg.Arbitrators,
 		}),
 	}

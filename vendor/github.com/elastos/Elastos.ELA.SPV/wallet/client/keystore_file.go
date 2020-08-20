@@ -115,7 +115,7 @@ func (store *KeystoreFile) LoadFromFile() error {
 		return errors.New("keystore file not exist")
 	}
 
-	file, err := os.OpenFile(KeystoreFilename, os.O_RDONLY, 0666)
+	file, err := os.OpenFile(KeystoreFilename, os.O_RDONLY, 0400)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (store *KeystoreFile) SaveToFile() error {
 	store.Lock()
 	defer store.Unlock()
 
-	file, err := os.OpenFile(KeystoreFilename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	file, err := os.OpenFile(KeystoreFilename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}

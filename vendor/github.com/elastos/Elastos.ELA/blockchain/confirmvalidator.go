@@ -1,7 +1,7 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package blockchain
 
@@ -47,6 +47,9 @@ func ConfirmSanityCheck(confirm *payload.Confirm) error {
 func ConfirmContextCheck(confirm *payload.Confirm) error {
 	signers := make(map[string]struct{})
 	for _, vote := range confirm.Votes {
+		if !vote.Accept {
+			continue
+		}
 		signers[common.BytesToHexString(vote.Signer)] = struct{}{}
 	}
 
@@ -97,7 +100,7 @@ func PreProcessSpecialTx(block *Block) error {
 			if err := CheckInactiveArbitrators(tx); err != nil {
 				return err
 			}
-			if err := checkTransactionSignature(tx, map[*Input]*Output{}); err != nil {
+			if err := checkTransactionSignature(tx, map[*Input]Output{}); err != nil {
 				return err
 			}
 
@@ -177,10 +180,13 @@ func ProposalSanityCheck(proposal *payload.DPOSProposal) error {
 }
 
 func ProposalContextCheck(proposal *payload.DPOSProposal) error {
-	var isArbiter bool
 	arbiters := DefaultLedger.Arbitrators.GetArbitrators()
+	var isArbiter bool
 	for _, a := range arbiters {
-		if bytes.Equal(a, proposal.Sponsor) {
+		if !a.IsNormal {
+			continue
+		}
+		if bytes.Equal(a.NodePublicKey, proposal.Sponsor) {
 			isArbiter = true
 		}
 	}
@@ -198,7 +204,7 @@ func ProposalContextCheckByHeight(proposal *payload.DPOSProposal,
 out:
 	for _, k := range keyFrames {
 		for _, a := range k.CurrentArbitrators {
-			if bytes.Equal(a, proposal.Sponsor) {
+			if bytes.Equal(a.GetNodePublicKey(), proposal.Sponsor) {
 				isArbiter = true
 				break out
 			}
@@ -251,10 +257,13 @@ func VoteSanityCheck(vote *payload.DPOSProposalVote) error {
 }
 
 func VoteContextCheck(vote *payload.DPOSProposalVote) error {
-	var isArbiter bool
 	arbiters := DefaultLedger.Arbitrators.GetArbitrators()
+	var isArbiter bool
 	for _, a := range arbiters {
-		if bytes.Equal(a, vote.Signer) {
+		if !a.IsNormal {
+			continue
+		}
+		if bytes.Equal(a.NodePublicKey, vote.Signer) {
 			isArbiter = true
 		}
 	}
@@ -272,7 +281,7 @@ func VoteContextCheckByHeight(vote *payload.DPOSProposalVote,
 out:
 	for _, k := range keyFrames {
 		for _, a := range k.CurrentArbitrators {
-			if bytes.Equal(a, vote.Signer) {
+			if bytes.Equal(a.GetNodePublicKey(), vote.Signer) {
 				isArbiter = true
 				break out
 			}

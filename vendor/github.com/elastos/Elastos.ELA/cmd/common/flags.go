@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 //
@@ -147,6 +147,10 @@ var (
 		Name:  "magic",
 		Usage: "magic number for node to initialize p2p connection",
 	}
+	PrintLevelFlag = cli.StringFlag{
+		Name:  "printlevel",
+		Usage: "level to print log",
+	}
 	EnableDnsFlag = cli.StringFlag{
 		Name:  "dnsseed",
 		Usage: "enable dns seeds for node to initialize p2p connection",
@@ -179,6 +183,10 @@ var (
 		Name:  "instant",
 		Usage: "specify if need to generate instant block",
 	}
+	FoundationAddrFlag = cli.StringFlag{
+		Name:  "foundation",
+		Usage: "specify the foundation address",
+	}
 	PayToAddrFlag = cli.StringFlag{
 		Name:  "paytoaddr",
 		Usage: "specify the miner reward address",
@@ -200,6 +208,14 @@ var (
 		Name:  "checkaddressheight",
 		Usage: "defines the height begin to check output hash",
 	}
+	CheckRewardHeightFlag = cli.StringFlag{
+		Name:  "checkrewardheight",
+		Usage: "defines the height begin to check reward",
+	}
+	EnableArbiterFlag = cli.StringFlag{
+		Name:  "arbiter",
+		Usage: "indicates where or not to enable DPoS arbiter switch",
+	}
 	CRCOnlyDPOSHeightFlag = cli.StringFlag{
 		Name: "crconlydposheight",
 		Usage: "(H1) indicates the height of DPOS consensus begins with only " +
@@ -214,13 +230,25 @@ var (
 		Name:  "crcommitteestartheight",
 		Usage: "defines the height of CR Committee started",
 	}
+	CRClaimDPOSNodeStartHeightFlag = cli.StringFlag{
+		Name:  "crclaimdposnodestartheight",
+		Usage: "defines the height of CR claim DPOS node started",
+	}
+	CRClaimDPOSNodePeriodFlag = cli.StringFlag{
+		Name:  "crclaimdposnodeperiod",
+		Usage: "defines the period of CR claim DPOS node",
+	}
 	CRVotingStartHeightFlag = cli.StringFlag{
 		Name:  "crvotingstartheight",
 		Usage: "defines the height of CR voting started",
 	}
-	CheckRewardHeightFlag = cli.StringFlag{
-		Name:  "checkrewardheight",
-		Usage: "defines the height to check reward in block",
+	MaxCommitteeProposalCount = cli.StringFlag{
+		Name:  "maxcommitteeproposalcount",
+		Usage: "defines max count of the proposal that one cr can proposal",
+	}
+	MaxNodePerHost = cli.StringFlag{
+		Name:  "maxnodeperhost",
+		Usage: "defines max nodes that one host can establish",
 	}
 	VoteStatisticsHeightFlag = cli.StringFlag{
 		Name:  "votestatisticsheight",
@@ -243,6 +271,22 @@ var (
 		Name:  "dposport",
 		Usage: "defines the default port for the DPoS network",
 	}
+	SecretaryGeneralFlag = cli.StringFlag{
+		Name:  "secretarygeneral",
+		Usage: "defines the secretary general of CR",
+	}
+	MaxProposalTrackingCountFlag = cli.StringFlag{
+		Name:  "maxproposaltrackingcount",
+		Usage: "defines the max count of CRC proposal tracking",
+	}
+	OriginArbitersFlag = cli.StringFlag{
+		Name:  "originarbiters",
+		Usage: "defines origin arbiters",
+	}
+	CRCArbitersFlag = cli.StringFlag{
+		Name:  "crcarbiters",
+		Usage: "defines crc arbiters",
+	}
 	PreConnectOffsetFlag = cli.StringFlag{
 		Name:  "preconnectoffset",
 		Usage: "defines the offset blocks to pre-connect to the block producers",
@@ -259,6 +303,14 @@ var (
 		Name:  "maxinactiverounds",
 		Usage: "defines the maximum inactive rounds before producer takes penalty",
 	}
+	InactivePenaltyFlag = cli.StringFlag{
+		Name:  "inactivepenalty",
+		Usage: "defines penalty of inactive",
+	}
+	EmergencyInactivePenaltyFlag = cli.StringFlag{
+		Name:  "emergencyinactivepenalty",
+		Usage: "defines penalty of emergency inactive",
+	}
 	CRMemberCountFlag = cli.StringFlag{
 		Name:  "crmembercount",
 		Usage: "defines the number of CR committee members",
@@ -268,10 +320,88 @@ var (
 		Usage: "defines the duration of a normal duty period which measured " +
 			"by block height",
 	}
+	CRDepositLockupBlocksFlag = cli.StringFlag{
+		Name:  "crdepositlockupblocks",
+		Usage: "DepositLockupBlocks indicates how many blocks need to wait when cancel",
+	}
 	CRVotingPeriodFlag = cli.StringFlag{
 		Name: "crvotingperiod",
 		Usage: "defines the duration of voting period which measured by " +
 			"block height",
+	}
+	ProposalCRVotingPeriodFlag = cli.StringFlag{
+		Name:  "proposalcrvotingperiod",
+		Usage: "defines the duration of CR voting about a proposal",
+	}
+	ProposalPublicVotingPeriodFlag = cli.StringFlag{
+		Name: "proposalpublicvotingperiod",
+		Usage: "defines the duration of all voters send reject vote about " +
+			"a proposal",
+	}
+	CRAgreementCountFlag = cli.StringFlag{
+		Name: "cragreementcount",
+		Usage: "defines minimum count to let a registered proposal transfer " +
+			"to CRAgreed state",
+	}
+	VoterRejectPercentageFlag = cli.StringFlag{
+		Name:  "voterrejectpercentage",
+		Usage: "defines percentage about voters reject a proposal",
+	}
+	CRCProposalHashFlag = cli.StringFlag{
+		Name:  "proposalhash",
+		Usage: "the `<proposalhash>` of the transaction",
+	}
+	CRCProposalStageFlag = cli.StringFlag{
+		Name:  "stage",
+		Usage: "the  `<stage>` of the proposal",
+	}
+	CRCCommiteeAddrFlag = cli.StringFlag{
+		Name:  "crccommiteeaddr",
+		Usage: "the  `<crccommiteeaddr>`",
+	}
+	CRCAppropriatePercentageFlag = cli.StringFlag{
+		Name:  "crcappropriatepercentage",
+		Usage: "defines percentage about CRC appropriation",
+	}
+	CRAssetsAddressFlag = cli.StringFlag{
+		Name:  "crassetsaddress",
+		Usage: "defines foundation address of CRC",
+	}
+	CRExpensesAddressFlag = cli.StringFlag{
+		Name:  "crexpensesaddress",
+		Usage: "defines appropriation address of CRC committee",
+	}
+	RegisterCRByDIDHeightFlag = cli.StringFlag{
+		Name:  "registercrbydidheight",
+		Usage: "defines the height to support register CR by CID",
+	}
+	MaxCRAssetsAddressUTXOCount = cli.StringFlag{
+		Name:  "maxcrassetsaddressutxocount",
+		Usage: "defines the maximum number of utxo cr assets address can have ",
+	}
+	MinCRAssetsAddressUTXOCount = cli.StringFlag{
+		Name:  "mincrassetsaddressutxocount",
+		Usage: "defines the minimum number of utxo cr assets address can rectify",
+	}
+	CRAssetsRectifyTransactionHeight = cli.StringFlag{
+		Name:  "crassetsrectifytransactionheight",
+		Usage: "defines the cr rectify transaction start height",
+	}
+	CRCProposalWithdrawPayloadV1Height = cli.StringFlag{
+		Name:  "crcproposalwithdrawpayloadv1height",
+		Usage: "defines the crc withdraw proposal payload type v1 accept height",
+	}
+	RectifyTxFee = cli.StringFlag{
+		Name:  "rectifytxfee",
+		Usage: "defines the fee of cr rectify transaction",
+	}
+	RealWithdrawSingleFee = cli.StringFlag{
+		Name:  "realwithdrawsinglefee",
+		Usage: "defines the single fee of cr real proposal withdraw transaction",
+	}
+	NewVersionHeight = cli.StringFlag{
+		Name:  "newversionheight",
+		Usage: "defines the new version message height",
 	}
 )
 

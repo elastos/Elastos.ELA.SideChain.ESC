@@ -26,7 +26,8 @@ func (msg *ConfirmMsg) CMD() string {
 }
 
 func (msg *ConfirmMsg) MaxLength() uint32 {
-	return pact.MaxBlockSize
+	//TODO use real data size
+	return pact.MaxBlockContextSize
 }
 
 func (msg *ConfirmMsg) Serialize(w io.Writer) error {

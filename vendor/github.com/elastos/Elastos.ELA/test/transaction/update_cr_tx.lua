@@ -1,12 +1,21 @@
--- Copyright (c) 2017-2019 The Elastos Foundation
+-- Copyright (c) 2017-2020 The Elastos Foundation
 -- Use of this source code is governed by an MIT
 -- license that can be found in the LICENSE file.
 -- 
 
 local m = require("api")
 
--- client: path, password, if create
-local wallet = client.new("keystore.dat", "123", false)
+local keystore = getWallet()
+local password = getPassword()
+
+if keystore == "" then
+	keystore = "keystore.dat"
+end
+if password == "" then
+	password = "123"
+end
+
+local wallet = client.new(keystore, password, false)
 
 -- account
 local addr = wallet:get_address()
@@ -32,6 +41,7 @@ local nick_name = getNickName()
 local url = getUrl()
 local location = getLocation()
 local fee = getFee()
+local payload_version = getPayloadVersion()
 
 if cr_publickey == ""
 	then
@@ -63,13 +73,15 @@ print("public key:", cr_publickey)
 print("nick_name:", nick_name)
 print("url:", url)
 print("location:", location)
+print("payload version:", payload_version)
 
 -- register cr payload: publickey, nickname, url, local, wallet
-local up_payload =updatecr.new(cr_publickey, nick_name, url, location, wallet)
+local up_payload =updatecr.new(cr_publickey, nick_name, url, location,
+ payload_version, wallet)
 print(up_payload:get())
 
 -- transaction: version, txType, payloadVersion, payload, locktime
-local tx = transaction.new(9, 0x23, 0, up_payload, 0)
+local tx = transaction.new(9, 0x23, payload_version, up_payload, 0)
 print("tx1")
 print(tx:get())
 

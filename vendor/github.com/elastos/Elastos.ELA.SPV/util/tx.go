@@ -70,7 +70,7 @@ func (t *Tx) Deserialize(r io.Reader) error {
 	}
 	t.Timestamp = time.Unix(int64(timestamp), 0)
 
-	t.RawData, err = common.ReadVarBytes(r, pact.MaxBlockSize,
+	t.RawData, err = common.ReadVarBytes(r, pact.MaxBlockContextSize,
 		"Tx RawData")
 	return err
 }

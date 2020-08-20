@@ -1,7 +1,7 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package peer
 
@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/elanet/pact"
+	elaerr "github.com/elastos/Elastos.ELA/errors"
 	"github.com/elastos/Elastos.ELA/p2p"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
@@ -91,6 +93,7 @@ type StatsSnap struct {
 	LastBlock      uint32
 	LastPingTime   time.Time
 	LastPingMicros int64
+	NodeVersion    string
 }
 
 // MessageFunc is a message handler in peer's configuration
@@ -109,6 +112,8 @@ type Config struct {
 	IsSelfConnection func(ip net.IP, port int, nonce uint64) bool
 	GetVersionNonce  func() uint64
 	MessageFunc      MessageFunc
+	NewVersionHeight uint64
+	NodeVersion      string
 }
 
 // minUint32 is a helper function to return the minimum of two uint32s.
@@ -167,14 +172,15 @@ type Peer struct {
 	messageFuncs []MessageFunc
 	stallHandle  StallHandler
 
-	flagsMtx           sync.Mutex // protects the peer flags below
-	na                 *p2p.NetAddress
-	id                 uint64
-	services           uint64
-	versionKnown       bool
-	advertisedProtoVer uint32 // protocol version advertised by remote
-	protocolVersion    uint32 // negotiated protocol version
-	verAckReceived     bool
+	flagsMtx               sync.Mutex // protects the peer flags below
+	na                     *p2p.NetAddress
+	id                     uint64
+	services               uint64
+	versionKnown           bool
+	advertisedProtoVer     uint32 // protocol version advertised by remote
+	protocolVersion        uint32 // negotiated protocol version
+	advertisedProtoNodeVer string // protocol node version advertised by remote
+	verAckReceived         bool
 
 	// These fields keep track of statistics for the peer and are protected
 	// by the statsMtx mutex.
@@ -220,7 +226,7 @@ func (p *Peer) SetStallHandler(handler StallHandler) {
 //
 // This function is safe for concurrent access.
 func (p *Peer) String() string {
-	return fmt.Sprintf("%s (%s)", p.addr, directionString(p.inbound))
+	return fmt.Sprintf("%s (%s) (%d %s)", p.addr, directionString(p.inbound), p.advertisedProtoVer, p.advertisedProtoNodeVer)
 }
 
 // UpdateHeight updates the last known block for the peer.
@@ -243,6 +249,7 @@ func (p *Peer) StatsSnapshot() *StatsSnap {
 	addr := p.addr
 	services := p.services
 	protocolVersion := p.advertisedProtoVer
+	nodeVersion := p.advertisedProtoNodeVer
 	p.flagsMtx.Unlock()
 
 	// Get a copy of all relevant flags and stats.
@@ -260,6 +267,7 @@ func (p *Peer) StatsSnapshot() *StatsSnap {
 		LastBlock:      p.height,
 		LastPingMicros: p.lastPingMicros,
 		LastPingTime:   p.lastPingTime,
+		NodeVersion:    nodeVersion,
 	}
 
 	p.statsMtx.RUnlock()
@@ -288,6 +296,19 @@ func (p *Peer) NA() *p2p.NetAddress {
 	return na
 }
 
+func (p *Peer) SetNA(addr net.Addr) bool {
+	na, err := newNetAddress(addr, p.services)
+	if err != nil {
+		log.Errorf("SetNA Cannot create remote net address: %v", err)
+		return false
+	}
+	p.flagsMtx.Lock()
+	p.na = na
+	p.flagsMtx.Unlock()
+
+	return true
+}
+
 // Addr returns the peer address.
 //
 // This function is safe for concurrent access.
@@ -295,6 +316,20 @@ func (p *Peer) Addr() string {
 	// The address doesn't change after initialization, therefore it is not
 	// protected by a mutex.
 	return p.addr
+}
+
+func (p *Peer) Host() (string, error) {
+	host, _, err := net.SplitHostPort(p.addr)
+	if err != nil {
+		return "", err
+	}
+	return host, nil
+}
+
+func (p *Peer) SetAddr(addr string) {
+	// The address doesn't change after initialization, therefore it is not
+	// protected by a mutex.
+	p.addr = addr
 }
 
 // Inbound returns whether the peer is inbound.
@@ -527,7 +562,8 @@ func (p *Peer) makeEmptyMessage(cmd string) (p2p.Message, error) {
 }
 
 func (p *Peer) readMessage() (p2p.Message, error) {
-	msg, err := p2p.ReadMessage(p.conn, p.cfg.Magic, p.makeEmptyMessage)
+	msg, err := p2p.ReadMessage(
+		p.conn, p.cfg.Magic, p2p.ReadMessageTimeOut, p.makeEmptyMessage)
 	// Use closures to log expensive operations so they are only run when
 	// the logging level requires it.
 	log.Debugf("%v", newLogClosure(func() string {
@@ -564,7 +600,7 @@ func (p *Peer) writeMessage(m p2p.Message) error {
 	}))
 
 	// Write the message to the peer.
-	return p2p.WriteMessage(p.conn, p.cfg.Magic, m,
+	return p2p.WriteMessage(p.conn, p.cfg.Magic, m, p2p.WriteMessageTimeOut,
 		func(message p2p.Message) (*types.DposBlock, bool) {
 			msgBlock, ok := message.(*msg.Block)
 			if !ok {
@@ -662,9 +698,11 @@ out:
 			// local peer is not forcibly disconnecting and the
 			// remote peer has not disconnected.
 			if p.shouldHandleIOError(err) {
-				errMsg := fmt.Sprintf("Can't read message from %s: %v", p, err)
+				elaErr := elaerr.SimpleWithMessage(elaerr.ErrP2pRejectMalformed,
+					nil, fmt.Sprintf(
+						"Can't read message from %s: %v", p, err))
 				if err != io.ErrUnexpectedEOF {
-					log.Errorf(errMsg)
+					log.Errorf(elaErr.Error())
 				}
 
 				// Push a reject message for the malformed message and wait for
@@ -674,7 +712,7 @@ out:
 				// at least that much of the message was valid, but that is not
 				// currently exposed by wire, so just used malformed for the
 				// command.
-				rejectMsg := msg.NewReject("malformed", msg.RejectMalformed, errMsg)
+				rejectMsg := msg.NewReject("malformed", elaErr)
 				// Send the message and block until it has been sent before returning.
 				doneChan := make(chan struct{}, 1)
 				p.QueueMessage(rejectMsg, doneChan)
@@ -689,8 +727,9 @@ out:
 		p.stallControl <- StallControlMsg{SCCHandlerStart, rmsg}
 		switch m := rmsg.(type) {
 		case *msg.Version:
-
-			rejectMsg := msg.NewReject(m.CMD(), msg.RejectDuplicate, "duplicate version message")
+			elaErr := elaerr.SimpleWithMessage(elaerr.ErrP2pRejectDuplicate,
+				nil, "duplicate version message")
+			rejectMsg := msg.NewReject(m.CMD(), elaErr)
 			// Send the message and block until it has been sent before returning.
 			doneChan := make(chan struct{}, 1)
 			p.QueueMessage(rejectMsg, doneChan)
@@ -952,6 +991,7 @@ func (p *Peer) handleRemoteVersionMsg(msg *msg.Version) error {
 	// Negotiate the protocol version.
 	p.flagsMtx.Lock()
 	p.advertisedProtoVer = uint32(msg.Version)
+	p.advertisedProtoNodeVer = msg.NodeVersion
 	p.protocolVersion = minUint32(p.protocolVersion, p.advertisedProtoVer)
 	p.versionKnown = true
 	log.Debugf("Negotiated protocol version %d for peer %s", p.protocolVersion, p)
@@ -978,10 +1018,11 @@ func (p *Peer) readRemoteVersionMsg() error {
 
 	remoteVerMsg, ok := message.(*msg.Version)
 	if !ok {
-		errStr := "A version message must precede all others"
-		log.Error(errStr)
+		elaErr := elaerr.SimpleWithMessage(elaerr.ErrP2pRejectMalformed,
+			nil, "A version message must precede all others")
+		log.Error(elaErr)
 
-		rejectMsg := msg.NewReject(message.CMD(), msg.RejectMalformed, errStr)
+		rejectMsg := msg.NewReject(message.CMD(), elaErr)
 		return p.writeMessage(rejectMsg)
 	}
 
@@ -1001,11 +1042,20 @@ func (p *Peer) localVersionMsg() (*msg.Version, error) {
 	// recently seen nonces.
 	nonce := p.cfg.GetVersionNonce()
 
+	var m *msg.Version
+	bestHeight := p.cfg.BestHeight()
+	var nodeVersion string
+	var ver = p.cfg.ProtocolVersion
+	if bestHeight >= p.cfg.NewVersionHeight {
+		nodeVersion = p.cfg.NodeVersion
+		ver = pact.CRProposalVersion
+		p.cfg.ProtocolVersion = ver
+	}
 	// Version message.
-	msg := msg.NewVersion(p.cfg.ProtocolVersion, p.cfg.DefaultPort,
-		p.cfg.Services, nonce, p.cfg.BestHeight(), p.cfg.DisableRelayTx)
+	m = msg.NewVersion(ver, p.cfg.DefaultPort,
+		p.cfg.Services, nonce, bestHeight, p.cfg.DisableRelayTx, nodeVersion)
 
-	return msg, nil
+	return m, nil
 }
 
 // writeLocalVersionMsg writes our version message to the remote peer.
@@ -1085,22 +1135,6 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 
 	p.conn = conn
 	p.timeConnected = time.Now()
-
-	if p.inbound {
-		p.addr = p.conn.RemoteAddr().String()
-
-		// Set up a NetAddress for the peer to be used with AddrManager.  We
-		// only do this inbound because outbound set this up at connection time
-		// and no point recomputing.
-		na, err := newNetAddress(p.conn.RemoteAddr(), p.services)
-		if err != nil {
-			log.Errorf("Cannot create remote net address: %v", err)
-			p.Disconnect()
-			return
-		}
-		p.na = na
-	}
-
 	go func() {
 		if err := p.start(); err != nil {
 			log.Debugf("Cannot negotiate peer %v: %v", p, err)

@@ -42,9 +42,9 @@ With SPV service, you just need to implement your own DataStore and GetBloomFilt
 
 ## Build and Run `spvwallet` sample APP
 
-## Build on Mac
+## Pre-requisites on Mac
 
-### Check OS version
+#### 1. Check OS version
 
 Make sure the OSX version is 16.7+
 
@@ -53,68 +53,56 @@ $ uname -srm
 Darwin 16.7.0 x86_64
 ```
 
-### Install Go distribution 1.9
+#### 2. Install Go distribution 1.13
 
-Use Homebrew to install Golang 1.9.
-```shell
-$ brew install go@1.9
-```
-> If you install older version, such as v1.8, you may get missing math/bits package error when build.
-
-### Setup basic workspace
-In this instruction we use ~/dev/src as our working directory. If you clone the source code to a different directory, please make sure you change other environment variables accordingly (not recommended).
+Use Homebrew to install Golang 1.13.
 
 ```shell
-$ mkdir ~/dev/bin
-$ mkdir ~/dev/src
+$ brew install go@1.13
+$ go version
+
 ```
 
-### Set correct environment variables.
+#### 3. Check Go version
+Check the golang version. Make sure they are the following version number or above.
 
-```shell
-export GOROOT=/usr/local/opt/go@1.9/libexec
-export GOPATH=$HOME/dev
-export GOBIN=$GOPATH/bin
-export PATH=$GOROOT/bin:$PATH
-export PATH=$GOBIN:$PATH
-```
-
-### Install Glide
-
-Glide is a package manager for Golang. We use Glide to install dependent packages.
-
-```shell
-$ brew install --ignore-dependencies glide
-```
-
-### Check Go version and glide version
-Check the golang and glider version. Make sure they are the following version number or above.
 ```shell
 $ go version
-go version go1.9.2 darwin/amd64
-
-$ glide --version
-glide version 0.13.1
+go version go1.13 darwin/amd64
 ```
-If you cannot see the version number, there must be something wrong when install.
 
-### Clone source code to `$GOPATH/src/github.com/elastos/` folder
-Make sure you are in the folder of `$GOPATH/src/github.com/elastos/`
+## Pre-requisites on Ubuntu
+
+#### 1. Check Ubuntu version
+
+Make sure your ubuntu version is 16.04+
+
+```shell
+$ cat /etc/issue
+Ubuntu 16.04.3 LTS \n \l
+```
+
+#### 2. Install git
+
+```shell
+$ sudo apt-get install -y git
+```
+
+#### 3. Install Go distribution 1.13
+
+```shell
+$ curl -O https://storage.googleapis.com/golang/go1.13.5.linux-amd64.tar.gz
+$ tar -xvf go1.13.5.linux-amd64.tar.gz
+$ sudo chown -R root:root ./go
+$ sudo mv go /usr/local
+$ export GOPATH=$HOME/go
+$ export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+$ source ~/.profile
+```
+
+### Clone source code
 ```shell
 $ git clone https://github.com/elastos/Elastos.ELA.SPV.git
-```
-
-If clone works successfully, you should see folder structure like $GOPATH/src/github.com/elastos/Elastos.ELA.SPV/makefile
-
-### Glide install
-
-Run `glide update && glide install` to download project dependencies.
-
-### Install bolt and sqlite database
-This will make the `make` progress far more fester.
-```shell
-$ go install github.com/elastos/Elastos.ELA.SPV/vendor/github.com/boltdb/bolt
-$ go install github.com/elastos/Elastos.ELA.SPV/vendor/github.com/mattn/go-sqlite3
 ```
 
 ### Make
@@ -125,7 +113,7 @@ Run `make` to build the executable files `service` and `ela-wallet`
 
 > `ela-wallet` is the command line user interface to communicate with the SPV service, which can create accounts, build sign or send a transaction, or check your account balance.
 
-## Run on Mac
+## Run
 
 ### Set up configuration file
 A file named `config.json` should be placed in the same folder with `service` with the parameters as below.

@@ -3,6 +3,7 @@ package _interface
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -18,7 +19,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types"
-	"github.com/elastos/Elastos.ELA/elanet/filter"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/elanet/pact"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
@@ -33,10 +34,13 @@ const (
 
 type spvservice struct {
 	sdk.IService
-	headers   store.HeaderStore
-	db        store.DataStore
-	rollback  func(height uint32)
-	listeners map[common.Uint256]TransactionListener
+	headers       store.HeaderStore
+	db            store.DataStore
+	rollback      func(height uint32)
+	listeners     map[common.Uint256]TransactionListener
+	blockListener BlockListener
+	//FilterType is the filter type .(FTBloom, FTDPOS  and so on )
+	filterType uint8
 }
 
 // NewSPVService creates a new SPV service instance.
@@ -58,16 +62,25 @@ func NewSPVService(cfg *Config) (*spvservice, error) {
 		return nil, err
 	}
 
-	dataStore, err := store.NewDataStore(dataDir)
+	var originArbiters [][]byte
+	for _, a := range cfg.ChainParams.CRCArbiters {
+		v, err := hex.DecodeString(a)
+		if err != nil {
+			return nil, err
+		}
+		originArbiters = append(originArbiters, v)
+	}
+	dataStore, err := store.NewDataStore(dataDir, originArbiters)
 	if err != nil {
 		return nil, err
 	}
 
 	service := &spvservice{
-		headers:   headerStore,
-		db:        dataStore,
-		rollback:  cfg.OnRollback,
-		listeners: make(map[common.Uint256]TransactionListener),
+		headers:    headerStore,
+		db:         dataStore,
+		rollback:   cfg.OnRollback,
+		listeners:  make(map[common.Uint256]TransactionListener),
+		filterType: cfg.FilterType,
 	}
 
 	chainStore := database.NewChainDB(headerStore, service)
@@ -108,6 +121,11 @@ func (s *spvservice) RegisterTransactionListener(listener TransactionListener) e
 	}
 	s.listeners[key] = listener
 	return s.db.Addrs().Put(address)
+}
+
+func (s *spvservice) RegisterBlockListener(listener BlockListener) error {
+	s.blockListener = listener
+	return nil
 }
 
 func (s *spvservice) SubmitTransactionReceipt(notifyId, txHash common.Uint256) error {
@@ -170,11 +188,20 @@ func (s *spvservice) GetTransaction(txId *common.Uint256) (*types.Transaction, e
 	return &tx, nil
 }
 
+//Get arbiters according to height
+func (s *spvservice) GetArbiters(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error) {
+	return s.db.Arbiters().GetByHeight(height)
+}
+
 func (s *spvservice) GetTransactionIds(height uint32) ([]*common.Uint256, error) {
 	return s.db.Txs().GetIds(height)
 }
 
-func (s *spvservice) HeaderStore() database.Headers {
+func (s *spvservice) GetBlockListener() BlockListener {
+	return s.blockListener
+}
+
+func (s *spvservice) HeaderStore() store.HeaderStore {
 	return s.headers
 }
 
@@ -184,7 +211,7 @@ func (s *spvservice) GetFilter() *msg.TxFilterLoad {
 	for _, address := range addrs {
 		f.Add(address.Bytes())
 	}
-	return f.ToTxFilterMsg(filter.FTBloom)
+	return f.ToTxFilterMsg(s.filterType)
 }
 
 func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
@@ -206,6 +233,15 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 		addr := s.db.Ops().HaveOp(util.NewOutPoint(op.TxID, op.Index))
 		if addr != nil {
 			hits[*addr] = struct{}{}
+		}
+	}
+
+	if tx.TxType == types.NextTurnDPOSInfo {
+		nextTurnDposInfo := tx.Payload.(*payload.NextTurnDPOSInfo)
+		nakedBatch := batch.GetNakedBatch()
+		err := s.db.Arbiters().BatchPut(nextTurnDposInfo.WorkingHeight, nextTurnDposInfo.CRPublickeys, nextTurnDposInfo.DPOSPublicKeys, nakedBatch)
+		if err != nil {
+			return false, err
 		}
 	}
 
@@ -405,6 +441,11 @@ func (s *spvservice) BlockCommitted(block *util.Block) {
 			listener.Notify(item.NotifyId, proof, tx)
 		}
 	}
+
+	if s.blockListener != nil && s.IsCurrent() {
+		s.blockListener.NotifyBlock(block)
+	}
+
 }
 
 func (s *spvservice) ClearData() error {

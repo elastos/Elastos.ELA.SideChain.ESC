@@ -17,9 +17,10 @@ type dataStore struct {
 	txs   *txs
 	ops   *ops
 	que   *que
+	ars   *arbiters
 }
 
-func NewDataStore(dataDir string) (*dataStore, error) {
+func NewDataStore(dataDir string, originArbiters [][]byte) (*dataStore, error) {
 	db, err := leveldb.OpenFile(filepath.Join(dataDir, "store"), nil)
 	if err != nil {
 		return nil, err
@@ -39,6 +40,7 @@ func NewDataStore(dataDir string) (*dataStore, error) {
 		txs:   NewTxs(db),
 		ops:   NewOps(db),
 		que:   NewQue(db),
+		ars:   NewArbiters(db, originArbiters),
 	}, nil
 }
 
@@ -56,6 +58,10 @@ func (d *dataStore) Ops() Ops {
 
 func (d *dataStore) Que() Que {
 	return d.que
+}
+
+func (d *dataStore) Arbiters() Arbiters {
+	return d.ars
 }
 
 func (d *dataStore) Batch() DataBatch {
@@ -90,5 +96,6 @@ func (d *dataStore) Close() error {
 	d.txs.Close()
 	d.ops.Close()
 	d.que.Close()
+	d.ars.Close()
 	return d.db.Close()
 }

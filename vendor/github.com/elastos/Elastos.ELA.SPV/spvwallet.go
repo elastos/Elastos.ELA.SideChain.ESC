@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	"github.com/elastos/Elastos.ELA.SPV/database"
 	"github.com/elastos/Elastos.ELA.SPV/sdk"
@@ -13,10 +12,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/wallet/store/sqlite"
 	"github.com/elastos/Elastos.ELA.SPV/wallet/sutil"
 
+	"github.com/elastos/Elastos.ELA/elanet/filter"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/core/types"
-	"github.com/elastos/Elastos.ELA/elanet/filter"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 	"github.com/elastos/Elastos.ELA/utils/http"
 	"github.com/elastos/Elastos.ELA/utils/http/jsonrpc"
@@ -213,8 +212,7 @@ func (w *spvwallet) GetFilter() *msg.TxFilterLoad {
 	for _, op := range outpoints {
 		f.Add(op.Bytes())
 	}
-
-	return f.ToTxFilterMsg(filter.FTBloom)
+	return f.ToTxFilterMsg(filter.FTNexTTurnDPOSInfo)
 }
 
 func (w *spvwallet) NotifyNewAddress(hash []byte) {

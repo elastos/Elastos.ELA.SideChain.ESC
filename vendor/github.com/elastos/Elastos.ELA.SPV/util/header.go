@@ -87,7 +87,7 @@ func (h *Header) Deserialize(b []byte) error {
 	if err != nil {
 		return err
 	}
-	if count > pact.MaxTxPerBlock {
+	if count > uint64(pact.MaxTxPerBlock) {
 		str := fmt.Sprintf("too many transactions to fit into a block "+
 			"[count %d, max %d]", count, pact.MaxTxPerBlock)
 		return common.FuncError("Header.Deserialize", str)

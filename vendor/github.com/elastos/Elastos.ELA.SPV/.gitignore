@@ -20,9 +20,11 @@ Log
 *.cache
 *.lock
 *.json
+go.sum
 vendor/
 data/
 data_spv/
 test/
 ela-wallet
 service
+go.sum

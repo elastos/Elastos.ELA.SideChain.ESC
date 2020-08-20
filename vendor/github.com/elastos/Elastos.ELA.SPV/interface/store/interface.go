@@ -6,8 +6,9 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/database"
 	"github.com/elastos/Elastos.ELA.SPV/sdk"
 	"github.com/elastos/Elastos.ELA.SPV/util"
-
 	"github.com/elastos/Elastos.ELA/common"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type HeaderStore interface {
@@ -21,6 +22,7 @@ type DataStore interface {
 	Txs() Txs
 	Ops() Ops
 	Que() Que
+	Arbiters() Arbiters
 	Batch() DataBatch
 }
 
@@ -29,6 +31,7 @@ type DataBatch interface {
 	Txs() TxsBatch
 	Ops() OpsBatch
 	Que() QueBatch
+	GetNakedBatch() *leveldb.Batch
 	// Delete all transactions, ops, queued items on
 	// the given height.
 	DelAll(height uint32) error
@@ -113,4 +116,12 @@ type QueItem struct {
 	TxId       common.Uint256
 	Height     uint32
 	LastNotify time.Time
+}
+
+type Arbiters interface {
+	database.DB
+	Put(height uint32, crcArbiters [][]byte, normalArbiters [][]byte) error
+	BatchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error
+	Get() (crcArbiters [][]byte, normalArbiters [][]byte, err error)
+	GetByHeight(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error)
 }

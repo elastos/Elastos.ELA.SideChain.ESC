@@ -1,7 +1,7 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package state
 
@@ -15,9 +15,13 @@ type Arbitrators interface {
 	Start()
 	CheckDPOSIllegalTx(block *types.Block) error
 	ProcessSpecialTxPayload(p types.Payload, height uint32) error
+	CheckCRCAppropriationTx(block *types.Block) error
+	CheckNextTurnDPOSInfoTx(block *types.Block) error
 
 	IsArbitrator(pk []byte) bool
-	GetArbitrators() [][]byte
+	IsNextCRCArbitrator(pk []byte) bool
+	IsMemberElectedNextCRCArbitrator(pk []byte) bool
+	GetArbitrators() []*ArbiterInfo
 	GetCandidates() [][]byte
 	GetNextArbitrators() [][]byte
 	GetNextCandidates() [][]byte
@@ -32,18 +36,20 @@ type Arbitrators interface {
 	IsInactiveMode() bool
 	IsUnderstaffedMode() bool
 
-	GetCRCArbiters() [][]byte
-	GetCRCProducer(publicKey []byte) *Producer
-	GetCRCArbitrators() map[string]*Producer
+	GetConnectedProducer(publicKey []byte) ArbiterMember
+	GetCRCArbiters() []*ArbiterInfo
+	GetNextCRCArbiters() [][]byte
+	CRCProducerCount() int
 	IsCRCArbitrator(pk []byte) bool
 	IsActiveProducer(pk []byte) bool
 	IsDisabledProducer(pk []byte) bool
+	IsNeedNextTurnDPOSInfo() bool
 
 	GetOnDutyArbitrator() []byte
 	GetNextOnDutyArbitrator(offset uint32) []byte
 
 	GetOnDutyCrossChainArbitrator() []byte
-	GetCrossChainArbiters() [][]byte
+	GetCrossChainArbiters() []*ArbiterInfo
 	GetCrossChainArbitersCount() int
 	GetCrossChainArbitersMajorityCount() int
 
@@ -53,7 +59,7 @@ type Arbitrators interface {
 	HasArbitersMajorityCount(num int) bool
 	HasArbitersMinorityCount(num int) bool
 
-	GetSnapshot(height uint32) []*KeyFrame
+	GetSnapshot(height uint32) []*CheckPoint
 	DumpInfo(height uint32)
 }
 

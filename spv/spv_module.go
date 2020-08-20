@@ -125,6 +125,7 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
 	spvCfg.ChainParams = chainParams
+	spvCfg.PermanentPeers = chainParams.PermanentPeers
 	dataDir = cfg.DataDir
 	initLog(cfg.DataDir)
 

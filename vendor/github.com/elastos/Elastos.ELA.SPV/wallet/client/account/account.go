@@ -90,7 +90,7 @@ func getPublicKeys(content string) ([]*crypto.PublicKey, error) {
 	var publicKeyStrings []string
 	if _, err := os.Stat(content); err == nil { // if content is a file
 
-		file, err := os.OpenFile(content, os.O_RDONLY, 0666)
+		file, err := os.OpenFile(content, os.O_RDONLY, 0400)
 		if err != nil {
 			return nil, errors.New("open public key file failed")
 		}

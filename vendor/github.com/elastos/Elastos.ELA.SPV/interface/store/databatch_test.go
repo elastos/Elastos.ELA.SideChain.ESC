@@ -7,7 +7,7 @@ import (
 )
 
 func TestDataBatch_DelAll(t *testing.T) {
-	db, err := NewDataStore("test")
+	db, err := NewDataStore("test", nil)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}

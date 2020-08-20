@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 //
@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"crypto/elliptic"
 	"crypto/rand"
+	crand "crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -16,6 +18,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	elaact "github.com/elastos/Elastos.ELA/account"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/common/log"
@@ -38,8 +41,13 @@ type txValidatorTestSuite struct {
 	ELA               int64
 	foundationAddress common.Uint168
 	HeightVersion1    uint32
+	CurrentHeight     uint32
 	Chain             *BlockChain
 	OriginalLedger    *Ledger
+}
+
+func init() {
+	testing.Init()
 }
 
 func (s *txValidatorTestSuite) SetupSuite() {
@@ -49,33 +57,37 @@ func (s *txValidatorTestSuite) SetupSuite() {
 	FoundationAddress = params.Foundation
 	s.foundationAddress = params.Foundation
 
-	chainStore, err := NewChainStore(
-		filepath.Join(test.DataPath, "txvalidator"), params.GenesisBlock)
+	chainStore, err := NewChainStore(filepath.Join(test.DataPath, "txvalidator"), params)
 	if err != nil {
 		s.Error(err)
 	}
 	s.Chain, err = New(chainStore, params,
-		state.NewState(params, nil, nil),
+		state.NewState(params, nil, nil, nil, nil),
 		crstate.NewCommittee(params))
 	if err != nil {
 		s.Error(err)
 	}
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          chainStore.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
 
+	if err := s.Chain.Init(nil); err != nil {
+		s.Error(err)
+	}
 	s.OriginalLedger = DefaultLedger
 
 	arbiters, err := state.NewArbitrators(params,
-		nil)
+		nil, nil)
 	if err != nil {
 		s.Fail("initialize arbitrator failed")
 	}
 	arbiters.RegisterFunction(chainStore.GetHeight,
 		func(height uint32) (*types.Block, error) {
-			hash, err := chainStore.GetBlockHash(height)
-			if err != nil {
-				return nil, err
-			}
-			return chainStore.GetBlock(hash)
-		})
+			return nil, nil
+		}, nil)
 	DefaultLedger = &Ledger{Arbitrators: arbiters}
 }
 
@@ -89,12 +101,20 @@ func (s *txValidatorTestSuite) TestCheckTxHeightVersion() {
 	// to CRVotingStartHeight.
 	blockHeight1 := s.Chain.chainParams.CRVotingStartHeight - 1
 	blockHeight2 := s.Chain.chainParams.CRVotingStartHeight
+	blockHeight3 := s.Chain.chainParams.RegisterCRByDIDHeight
 
 	// check height version of registerCR transaction.
 	registerCR := &types.Transaction{TxType: types.RegisterCR}
 	err := s.Chain.checkTxHeightVersion(registerCR, blockHeight1)
 	s.EqualError(err, "not support before CRVotingStartHeight")
 	err = s.Chain.checkTxHeightVersion(registerCR, blockHeight2)
+	s.NoError(err)
+
+	registerCR2 := &types.Transaction{TxType: types.RegisterCR,
+		PayloadVersion: payload.CRInfoDIDVersion}
+	err = s.Chain.checkTxHeightVersion(registerCR2, blockHeight1)
+	s.EqualError(err, "not support before CRVotingStartHeight")
+	err = s.Chain.checkTxHeightVersion(registerCR2, blockHeight3)
 	s.NoError(err)
 
 	// check height version of updateCR transaction.
@@ -206,14 +226,14 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		{AssetID: config.ELAAssetID, ProgramHash: s.foundationAddress},
 		{AssetID: config.ELAAssetID, ProgramHash: s.foundationAddress},
 	}
-	err := s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err := s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.NoError(err)
 
 	// outputs < 2
 	tx.Outputs = []*types.Output{
 		{AssetID: config.ELAAssetID, ProgramHash: s.foundationAddress},
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.EqualError(err, "coinbase output is not enough, at least 2")
 
 	// invalid asset id
@@ -221,8 +241,8 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		{AssetID: common.EmptyHash, ProgramHash: s.foundationAddress},
 		{AssetID: common.EmptyHash, ProgramHash: s.foundationAddress},
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
-	s.EqualError(err, "Asset ID in coinbase is invalid")
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
+	s.EqualError(err, "asset ID in coinbase is invalid")
 
 	// reward to foundation in coinbase = 30% (CheckTxOut version)
 	totalReward := config.DefaultParams.RewardPerBlock
@@ -233,7 +253,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		{AssetID: config.ELAAssetID, ProgramHash: s.foundationAddress, Value: foundationReward},
 		{AssetID: config.ELAAssetID, ProgramHash: common.Uint168{}, Value: totalReward - foundationReward},
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.NoError(err)
 
 	// reward to foundation in coinbase < 30% (CheckTxOut version)
@@ -243,7 +263,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		{AssetID: config.ELAAssetID, ProgramHash: s.foundationAddress, Value: foundationReward},
 		{AssetID: config.ELAAssetID, ProgramHash: common.Uint168{}, Value: totalReward - foundationReward},
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.EqualError(err, "reward to foundation in coinbase < 30%")
 
 	// normal transaction
@@ -252,12 +272,12 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		output.AssetID = config.ELAAssetID
 		output.ProgramHash = common.Uint168{}
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.NoError(err)
 
 	// outputs < 1
 	tx.Outputs = nil
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.EqualError(err, "transaction has no outputs")
 
 	// invalid asset ID
@@ -266,7 +286,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		output.AssetID = common.EmptyHash
 		output.ProgramHash = common.Uint168{}
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.EqualError(err, "asset ID in output is invalid")
 
 	// should only have one special output
@@ -287,11 +307,11 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		})
 	}
 	tx.Outputs = appendSpecial()
-	s.NoError(s.Chain.checkTransactionOutput(s.HeightVersion1, tx))
+	s.NoError(s.Chain.checkTransactionOutput(tx, s.HeightVersion1))
 	tx.Outputs = appendSpecial() // add another special output here
 	originHeight := config.DefaultParams.PublicDPOSHeight
 	config.DefaultParams.PublicDPOSHeight = 0
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	config.DefaultParams.PublicDPOSHeight = originHeight
 	s.EqualError(err, "special output count should less equal than 1")
 
@@ -305,7 +325,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 		output.ProgramHash = address
 	}
 	config.DefaultParams.PublicDPOSHeight = 0
-	s.NoError(s.Chain.checkTransactionOutput(s.HeightVersion1, tx))
+	s.NoError(s.Chain.checkTransactionOutput(tx, s.HeightVersion1))
 	config.DefaultParams.PublicDPOSHeight = originHeight
 
 	// new sideChainPow
@@ -318,7 +338,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 			},
 		},
 	}
-	s.NoError(s.Chain.checkTransactionOutput(s.HeightVersion1, tx))
+	s.NoError(s.Chain.checkTransactionOutput(tx, s.HeightVersion1))
 
 	tx.Outputs = []*types.Output{
 		{
@@ -330,7 +350,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 			Type:  0,
 		},
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.EqualError(err, "new sideChainPow tx must have only one output")
 
 	tx.Outputs = []*types.Output{
@@ -339,7 +359,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 			Type:  0,
 		},
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.EqualError(err, "the value of new sideChainPow tx output must be 0")
 
 	tx.Outputs = []*types.Output{
@@ -348,7 +368,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionOutput() {
 			Type:  1,
 		},
 	}
-	err = s.Chain.checkTransactionOutput(s.HeightVersion1, tx)
+	err = s.Chain.checkTransactionOutput(tx, s.HeightVersion1)
 	s.EqualError(err, "the type of new sideChainPow tx output must be OTNone")
 }
 
@@ -483,14 +503,14 @@ func (s *txValidatorTestSuite) TestCheckTransactionBalance() {
 		{AssetID: config.ELAAssetID, ProgramHash: s.foundationAddress, Value: outputValue1},
 	}
 
-	references := map[*types.Input]*types.Output{
+	references := map[*types.Input]types.Output{
 		&types.Input{}: {
 			Value: outputValue1,
 		},
 	}
 	s.EqualError(s.Chain.checkTransactionFee(tx, references), "transaction fee not enough")
 
-	references = map[*types.Input]*types.Output{
+	references = map[*types.Input]types.Output{
 		&types.Input{}: {
 			Value: outputValue1 + s.Chain.chainParams.MinTransactionFee,
 		},
@@ -506,14 +526,14 @@ func (s *txValidatorTestSuite) TestCheckTransactionBalance() {
 		{AssetID: config.ELAAssetID, ProgramHash: common.Uint168{}, Value: outputValue2},
 	}
 
-	references = map[*types.Input]*types.Output{
+	references = map[*types.Input]types.Output{
 		&types.Input{}: {
 			Value: outputValue1 + outputValue2,
 		},
 	}
 	s.EqualError(s.Chain.checkTransactionFee(tx, references), "transaction fee not enough")
 
-	references = map[*types.Input]*types.Output{
+	references = map[*types.Input]types.Output{
 		&types.Input{}: {
 			Value: outputValue1 + outputValue2 + s.Chain.chainParams.MinTransactionFee,
 		},
@@ -560,7 +580,7 @@ func (s *txValidatorTestSuite) TestCheckDestructionAddress() {
 	destructionAddress := "ELANULLXXXXXXXXXXXXXXXXXXXXXYvs3rr"
 	txID, _ := common.Uint256FromHexString("7e8863a503e90e6464529feb1c25d98c903e01bec00ccfea2475db4e37d7328b")
 	programHash, _ := common.Uint168FromAddress(destructionAddress)
-	reference := map[*types.Input]*types.Output{
+	reference := map[*types.Input]types.Output{
 		&types.Input{Previous: types.OutPoint{*txID, 1234}, Sequence: 123456}: {
 			ProgramHash: *programHash,
 		},
@@ -572,9 +592,9 @@ func (s *txValidatorTestSuite) TestCheckDestructionAddress() {
 
 func (s *txValidatorTestSuite) TestCheckRegisterProducerTransaction() {
 	// Generate a register producer transaction
-	publicKeyStr1 := "03c77af162438d4b7140f8544ad6523b9734cca9c7a62476d54ed5d1bddc7a39c3"
+	publicKeyStr1 := "02ca89a5fe6213da1b51046733529a84f0265abac59005f6c16f62330d20f02aeb"
 	publicKey1, _ := common.HexStringToBytes(publicKeyStr1)
-	privateKeyStr1 := "7638c2a799d93185279a4a6ae84a5b76bd89e41fa9f465d9ae9b2120533983a1"
+	privateKeyStr1 := "7a50d2b036d64fcb3d344cee429f61c4a3285a934c45582b26e8c9227bc1f33a"
 	privateKey1, _ := common.HexStringToBytes(privateKeyStr1)
 	publicKeyStr2 := "027c4f35081821da858f5c7197bac5e33e77e5af4a3551285f8a8da0a59bd37c45"
 	publicKey2, _ := common.HexStringToBytes(publicKeyStr2)
@@ -600,7 +620,7 @@ func (s *txValidatorTestSuite) TestCheckRegisterProducerTransaction() {
 	txn.Payload = rpPayload
 
 	txn.Programs = []*program.Program{&program.Program{
-		Code:      getCode(publicKeyStr1),
+		Code:      getCodeByPubKeyStr(publicKeyStr1),
 		Parameter: nil,
 	}}
 
@@ -701,11 +721,18 @@ func (s *txValidatorTestSuite) TestCheckRegisterProducerTransaction() {
 	s.EqualError(err, "there must be only one deposit address in outputs")
 }
 
-func getCode(publicKey string) []byte {
+func getCodeByPubKeyStr(publicKey string) []byte {
 	pkBytes, _ := common.HexStringToBytes(publicKey)
 	pk, _ := crypto.DecodePoint(pkBytes)
 	redeemScript, _ := contract.CreateStandardRedeemScript(pk)
 	return redeemScript
+}
+func getCodeHexStr(publicKey string) string {
+	pkBytes, _ := common.HexStringToBytes(publicKey)
+	pk, _ := crypto.DecodePoint(pkBytes)
+	redeemScript, _ := contract.CreateStandardRedeemScript(pk)
+	codeHexStr := common.BytesToHexString(redeemScript)
+	return codeHexStr
 }
 
 func (s *txValidatorTestSuite) TestCheckVoteProducerOutput() {
@@ -863,7 +890,7 @@ func (s *txValidatorTestSuite) TestCheckVoteProducerOutput() {
 	s.EqualError(err, "duplicate vote type")
 
 	err = outputs1[5].Payload.(*outputpayload.VoteOutput).Validate()
-	s.EqualError(err, "invalid vote type")
+	s.NoError(err)
 
 	err = outputs1[6].Payload.(*outputpayload.VoteOutput).Validate()
 	s.NoError(err)
@@ -1020,7 +1047,7 @@ func (s *txValidatorTestSuite) TestCheckVoteProducerOutput() {
 	s.EqualError(err, "duplicate vote type")
 
 	err = outputs[5].Payload.(*outputpayload.VoteOutput).Validate()
-	s.EqualError(err, "invalid vote type")
+	s.NoError(err)
 
 	err = outputs[6].Payload.(*outputpayload.VoteOutput).Validate()
 	s.EqualError(err, "invalid candidate votes")
@@ -1049,14 +1076,35 @@ func (s *txValidatorTestSuite) TestCheckUpdateProducerTransaction() {
 	txn.Payload = registerPayload
 
 	txn.Programs = []*program.Program{{
-		Code:      getCode(publicKeyStr1),
+		Code:      getCodeByPubKeyStr(publicKeyStr1),
 		Parameter: nil,
 	}}
 
+	s.CurrentHeight = 1
+	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
+	s.Chain.state = state.NewState(s.Chain.chainParams, nil, nil, nil, func(programHash common.Uint168) (common.Fixed64,
+		error) {
+		amount := common.Fixed64(0)
+		utxos, err := s.Chain.db.GetFFLDB().GetUTXO(&programHash)
+		if err != nil {
+			return amount, err
+		}
+		for _, utxo := range utxos {
+			amount += utxo.Value
+		}
+		return amount, nil
+	})
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
 	block := &types.Block{
 		Transactions: []*types.Transaction{
 			txn,
 		},
+		Header: types.Header{Height: s.CurrentHeight},
 	}
 	s.Chain.state.ProcessBlock(block, nil)
 
@@ -1070,6 +1118,8 @@ func (s *txValidatorTestSuite) TestCheckUpdateProducerTransaction() {
 		NetAddress:     "",
 	}
 	txn.Payload = updatePayload
+	s.CurrentHeight++
+	block.Header = types.Header{Height: s.CurrentHeight}
 	s.Chain.state.ProcessBlock(block, nil)
 
 	s.EqualError(s.Chain.checkUpdateProducerTransaction(txn), "field NickName has invalid string length")
@@ -1136,7 +1186,7 @@ func (s *txValidatorTestSuite) TestCheckCancelProducerTransaction() {
 	txn.Payload = cancelPayload
 
 	txn.Programs = []*program.Program{{
-		Code:      getCode(publicKeyStr1),
+		Code:      getCodeByPubKeyStr(publicKeyStr1),
 		Parameter: nil,
 	}}
 
@@ -1163,7 +1213,7 @@ func (s *txValidatorTestSuite) TestCheckActivateProducerTransaction() {
 	txn.Payload = activatePayload
 
 	txn.Programs = []*program.Program{{
-		Code:      getCode(publicKeyStr1),
+		Code:      getCodeByPubKeyStr(publicKeyStr1),
 		Parameter: nil,
 	}}
 
@@ -1185,27 +1235,29 @@ func (s *txValidatorTestSuite) TestCheckRegisterCRTransaction() {
 	privateKeyStr2 := "b2c25e877c8a87d54e8a20a902d27c7f24ed52810813ba175ca4e8d3036d130e"
 	publicKeyStr3 := "024010e8ac9b2175837dac34917bdaf3eb0522cff8c40fc58419d119589cae1433"
 	privateKeyStr3 := "e19737ffeb452fc7ed9dc0e70928591c88ad669fd1701210dcd8732e0946829b"
-	nickName1 := "nickname 1"
+	nickName1 := randomString()
 
 	hash1, _ := getDepositAddress(publicKeyStr1)
 	hash2, _ := getDepositAddress(publicKeyStr2)
 
-	txn := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1)
+	txn := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1,
+		payload.CRInfoVersion, &common.Uint168{})
 
-	code1 := getCode(publicKeyStr1)
-	code2 := getCode(publicKeyStr2)
+	code1 := getCodeByPubKeyStr(publicKeyStr1)
+	code2 := getCodeByPubKeyStr(publicKeyStr2)
 	codeStr1 := common.BytesToHexString(code1)
 
-	did1 := getDid(code1)
-	did2 := getDid(code2)
+	cid1 := getCID(code1)
+	cid2 := getCID(code2)
 
 	votingHeight := config.DefaultParams.CRVotingStartHeight
+	registerCRByDIDHeight := config.DefaultParams.RegisterCRByDIDHeight
 
-	// all ok
+	// All ok
 	err := s.Chain.checkRegisterCRTransaction(txn, votingHeight)
 	s.NoError(err)
 
-	//invalid payload
+	// Invalid payload
 	txnUpdateCr := s.getUnregisterCRTx(publicKeyStr1, privateKeyStr1)
 	err = s.Chain.checkRegisterCRTransaction(txnUpdateCr, votingHeight)
 	s.EqualError(err, "invalid payload")
@@ -1230,19 +1282,20 @@ func (s *txValidatorTestSuite) TestCheckRegisterCRTransaction() {
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
 	s.EqualError(err, "field Url has invalid string length")
 
-	//not in vote Period lower
+	// Not in vote Period lower
 	txn.Payload.(*payload.CRInfo).Url = url
 	err = s.Chain.checkRegisterCRTransaction(txn, config.DefaultParams.CRVotingStartHeight-1)
 	s.EqualError(err, "should create tx during voting period")
 
-	//not in vote Period lower upper c.params.CRCommitteeStartHeight
+	// Not in vote Period upper c.params.CRCommitteeStartHeight
+	s.Chain.crCommittee.InElectionPeriod = true
 	err = s.Chain.checkRegisterCRTransaction(txn, config.DefaultParams.CRCommitteeStartHeight+1)
 	s.EqualError(err, "should create tx during voting period")
 
-	//nickname already in use
+	// Nickname already in use
 	s.Chain.crCommittee.GetState().Nicknames[nickName1] = struct{}{}
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
-	s.EqualError(err, "nick name nickname 1 already inuse")
+	s.EqualError(err, "nick name "+nickName1+" already inuse")
 
 	delete(s.Chain.crCommittee.GetState().Nicknames, nickName1)
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
@@ -1251,35 +1304,35 @@ func (s *txValidatorTestSuite) TestCheckRegisterCRTransaction() {
 	err = s.Chain.checkRegisterCRTransaction(txn, 0)
 	s.EqualError(err, "should create tx during voting period")
 
-	//did aready exist
-	s.Chain.crCommittee.GetState().CodeDIDMap[codeStr1] = *did1
-	s.Chain.crCommittee.GetState().ActivityCandidates[*did1] = &crstate.Candidate{}
-	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
-	s.EqualError(err, "did "+
-		"67ae53989e21c3212dd9bfed6daeb56874782502dd already exist")
-
-	delete(s.Chain.crCommittee.GetState().CodeDIDMap, codeStr1)
+	delete(s.Chain.crCommittee.GetState().CodeCIDMap, codeStr1)
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
 	s.NoError(err)
+
+	// CID already exist
+	s.Chain.crCommittee.GetState().CodeCIDMap[codeStr1] = *cid1
+	s.Chain.crCommittee.GetState().Candidates[*cid1] = &crstate.Candidate{}
+	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
+	s.EqualError(err, "cid "+cid1.String()+" already exist")
+	delete(s.Chain.crCommittee.GetState().Candidates, *cid1)
 
 	// Give an invalid code in payload
 	txn.Payload.(*payload.CRInfo).Code = []byte{}
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
 	s.EqualError(err, "code is nil")
 
-	// Give an invalid DID in payload
+	// Give an invalid CID in payload
 	txn.Payload.(*payload.CRInfo).Code = code1
-	txn.Payload.(*payload.CRInfo).DID = common.Uint168{1, 2, 3}
+	txn.Payload.(*payload.CRInfo).CID = common.Uint168{1, 2, 3}
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
-	s.EqualError(err, "invalid did address")
+	s.EqualError(err, "invalid cid address")
 
-	// Give a mismatching code and DID in payload
-	txn.Payload.(*payload.CRInfo).DID = *did2
+	// Give a mismatching code and CID in payload
+	txn.Payload.(*payload.CRInfo).CID = *cid2
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
-	s.EqualError(err, "invalid did address")
+	s.EqualError(err, "invalid cid address")
 
 	// Invalidates the signature in payload
-	txn.Payload.(*payload.CRInfo).DID = *did1
+	txn.Payload.(*payload.CRInfo).CID = *cid1
 	signatature := txn.Payload.(*payload.CRInfo).Signature
 	txn.Payload.(*payload.CRInfo).Signature = randomSignature()
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
@@ -1349,6 +1402,23 @@ func (s *txValidatorTestSuite) TestCheckRegisterCRTransaction() {
 		[]string{privateKeyStr1}, nickName1)
 	err = s.Chain.checkRegisterCRTransaction(txn, votingHeight)
 	s.EqualError(err, "CR not support multi sign code")
+
+	//check register cr with CRInfoDIDVersion
+	txn2 := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1,
+		payload.CRInfoDIDVersion, &common.Uint168{1, 2, 3})
+	err = s.Chain.checkRegisterCRTransaction(txn2, registerCRByDIDHeight)
+	s.EqualError(err, "invalid did address")
+	did2, _ := getDIDFromCode(code2)
+	txn2 = s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1,
+		payload.CRInfoDIDVersion, did2)
+	err = s.Chain.checkRegisterCRTransaction(txn2, registerCRByDIDHeight)
+	s.EqualError(err, "invalid did address")
+
+	did1, _ := getDIDFromCode(code1)
+	txn2 = s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1,
+		payload.CRInfoDIDVersion, did1)
+	err = s.Chain.checkRegisterCRTransaction(txn2, registerCRByDIDHeight)
+	s.NoError(err)
 }
 
 func getDepositAddress(publicKeyStr string) (*common.Uint168, error) {
@@ -1360,43 +1430,45 @@ func getDepositAddress(publicKeyStr string) (*common.Uint168, error) {
 	return hash, nil
 }
 
-func getDid(code []byte) *common.Uint168 {
-	ct1, _ := contract.CreateCRDIDContractByCode(code)
+func getCID(code []byte) *common.Uint168 {
+	ct1, _ := contract.CreateCRIDContractByCode(code)
 	return ct1.ToProgramHash()
 }
 
-func (s *txValidatorTestSuite) getRegisterCRTx(publicKeyStr, privateKeyStr, nickName string) *types.Transaction {
+func (s *txValidatorTestSuite) getRegisterCRTx(publicKeyStr, privateKeyStr,
+	nickName string, payloadVersion byte, did *common.Uint168) *types.Transaction {
 
 	publicKeyStr1 := publicKeyStr
 	privateKeyStr1 := privateKeyStr
 	publicKey1, _ := common.HexStringToBytes(publicKeyStr1)
 	privateKey1, _ := common.HexStringToBytes(privateKeyStr1)
 
-	code1 := getCode(publicKeyStr1)
-
-	ct1, _ := contract.CreateCRDIDContractByCode(code1)
-	did1 := ct1.ToProgramHash()
+	code1 := getCodeByPubKeyStr(publicKeyStr1)
+	ct1, _ := contract.CreateCRIDContractByCode(code1)
+	cid1 := ct1.ToProgramHash()
 
 	hash1, _ := contract.PublicKeyToDepositProgramHash(publicKey1)
 
 	txn := new(types.Transaction)
 	txn.TxType = types.RegisterCR
 	txn.Version = types.TxVersion09
+	txn.PayloadVersion = payloadVersion
 	crInfoPayload := &payload.CRInfo{
 		Code:     code1,
-		DID:      *did1,
+		CID:      *cid1,
+		DID:      *did,
 		NickName: nickName,
 		Url:      "http://www.elastos_test.com",
 		Location: 1,
 	}
 	signBuf := new(bytes.Buffer)
-	crInfoPayload.SerializeUnsigned(signBuf, payload.CRInfoVersion)
+	crInfoPayload.SerializeUnsigned(signBuf, payloadVersion)
 	rcSig1, _ := crypto.Sign(privateKey1, signBuf.Bytes())
 	crInfoPayload.Signature = rcSig1
 	txn.Payload = crInfoPayload
 
 	txn.Programs = []*program.Program{&program.Program{
-		Code:      getCode(publicKeyStr1),
+		Code:      getCodeByPubKeyStr(publicKeyStr1),
 		Parameter: nil,
 	}}
 
@@ -1423,8 +1495,8 @@ func (s *txValidatorTestSuite) getMultiSigRegisterCRTx(
 
 	multiCode, _ := contract.CreateMultiSigRedeemScript(len(publicKeys)*2/3, publicKeys)
 
-	ctDID, _ := contract.CreateCRDIDContractByCode(multiCode)
-	did := ctDID.ToProgramHash()
+	ctDID, _ := contract.CreateCRIDContractByCode(multiCode)
+	cid := ctDID.ToProgramHash()
 
 	ctDeposit, _ := contract.CreateDepositContractByCode(multiCode)
 	deposit := ctDeposit.ToProgramHash()
@@ -1434,7 +1506,7 @@ func (s *txValidatorTestSuite) getMultiSigRegisterCRTx(
 	txn.Version = types.TxVersion09
 	crInfoPayload := &payload.CRInfo{
 		Code:     multiCode,
-		DID:      *did,
+		CID:      *cid,
 		NickName: nickName,
 		Url:      "http://www.elastos_test.com",
 		Location: 1,
@@ -1470,16 +1542,16 @@ func (s *txValidatorTestSuite) getUpdateCRTx(publicKeyStr, privateKeyStr, nickNa
 	publicKeyStr1 := publicKeyStr
 	privateKeyStr1 := privateKeyStr
 	privateKey1, _ := common.HexStringToBytes(privateKeyStr1)
-	code1 := getCode(publicKeyStr1)
-	ct1, _ := contract.CreateCRDIDContractByCode(code1)
-	did1 := ct1.ToProgramHash()
+	code1 := getCodeByPubKeyStr(publicKeyStr1)
+	ct1, _ := contract.CreateCRIDContractByCode(code1)
+	cid1 := ct1.ToProgramHash()
 
 	txn := new(types.Transaction)
 	txn.TxType = types.UpdateCR
 	txn.Version = types.TxVersion09
 	crInfoPayload := &payload.CRInfo{
 		Code:     code1,
-		DID:      *did1,
+		CID:      *cid1,
 		NickName: nickName,
 		Url:      "http://www.elastos_test.com",
 		Location: 1,
@@ -1493,7 +1565,7 @@ func (s *txValidatorTestSuite) getUpdateCRTx(publicKeyStr, privateKeyStr, nickNa
 	txn.Payload = crInfoPayload
 
 	txn.Programs = []*program.Program{&program.Program{
-		Code:      getCode(publicKeyStr1),
+		Code:      getCodeByPubKeyStr(publicKeyStr1),
 		Parameter: nil,
 	}}
 	return txn
@@ -1505,13 +1577,13 @@ func (s *txValidatorTestSuite) getUnregisterCRTx(publicKeyStr, privateKeyStr str
 	privateKeyStr1 := privateKeyStr
 	privateKey1, _ := common.HexStringToBytes(privateKeyStr1)
 
-	code1 := getCode(publicKeyStr1)
+	code1 := getCodeByPubKeyStr(publicKeyStr1)
 
 	txn := new(types.Transaction)
 	txn.TxType = types.UnregisterCR
 	txn.Version = types.TxVersion09
 	unregisterCRPayload := &payload.UnregisterCR{
-		DID: *getDid(code1),
+		CID: *getCID(code1),
 	}
 	signBuf := new(bytes.Buffer)
 	err := unregisterCRPayload.SerializeUnsigned(signBuf, payload.UnregisterCRVersion)
@@ -1522,9 +1594,594 @@ func (s *txValidatorTestSuite) getUnregisterCRTx(publicKeyStr, privateKeyStr str
 	txn.Payload = unregisterCRPayload
 
 	txn.Programs = []*program.Program{&program.Program{
-		Code:      getCode(publicKeyStr1),
+		Code:      getCodeByPubKeyStr(publicKeyStr1),
 		Parameter: nil,
 	}}
+	return txn
+}
+
+func (s *txValidatorTestSuite) getCRMember(publicKeyStr, privateKeyStr, nickName string) *crstate.CRMember {
+	publicKeyStr1 := publicKeyStr
+	privateKeyStr1 := privateKeyStr
+	privateKey1, _ := common.HexStringToBytes(privateKeyStr1)
+	code1 := getCodeByPubKeyStr(publicKeyStr1)
+	did1, _ := getDIDFromCode(code1)
+
+	txn := new(types.Transaction)
+	txn.TxType = types.RegisterCR
+	txn.Version = types.TxVersion09
+	crInfoPayload := payload.CRInfo{
+		Code:     code1,
+		DID:      *did1,
+		NickName: nickName,
+		Url:      "http://www.elastos_test.com",
+		Location: 1,
+	}
+	signBuf := new(bytes.Buffer)
+	crInfoPayload.SerializeUnsigned(signBuf, payload.CRInfoVersion)
+	rcSig1, _ := crypto.Sign(privateKey1, signBuf.Bytes())
+	crInfoPayload.Signature = rcSig1
+
+	return &crstate.CRMember{
+		Info: crInfoPayload,
+	}
+}
+
+func (s *txValidatorTestSuite) getSecretaryGeneralCRCProposalTx(ownerPublicKeyStr, ownerPrivateKeyStr,
+	crPublicKeyStr, crPrivateKeyStr, secretaryPublicKeyStr, secretaryPrivateKeyStr string) *types.Transaction {
+
+	ownerPublicKey, _ := common.HexStringToBytes(ownerPublicKeyStr)
+	ownerPrivateKey, _ := common.HexStringToBytes(ownerPrivateKeyStr)
+
+	secretaryPublicKey, _ := common.HexStringToBytes(secretaryPublicKeyStr)
+	secretaryGeneralDID, _ := getDiDFromPublicKey(secretaryPublicKey)
+	secretaryGeneralPrivateKey, _ := common.HexStringToBytes(secretaryPrivateKeyStr)
+
+	crPrivateKey, _ := common.HexStringToBytes(crPrivateKeyStr)
+	crCode := getCodeByPubKeyStr(crPublicKeyStr)
+
+	draftData := randomBytes(10)
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposal
+	txn.Version = types.TxVersion09
+
+	recipient := *randomUint168()
+	recipient[0] = uint8(contract.PrefixStandard)
+	crDID, _ := getDIDFromCode(crCode)
+	crcProposalPayload := &payload.CRCProposal{
+		ProposalType:              payload.SecretaryGeneral,
+		CategoryData:              "111",
+		OwnerPublicKey:            ownerPublicKey,
+		DraftHash:                 common.Hash(draftData),
+		SecretaryGeneralPublicKey: secretaryPublicKey,
+		SecretaryGeneralDID:       *secretaryGeneralDID,
+		CRCouncilMemberDID:        *crDID,
+	}
+
+	signBuf := new(bytes.Buffer)
+	crcProposalPayload.SerializeUnsigned(signBuf, payload.CRCProposalVersion)
+	sig, _ := crypto.Sign(ownerPrivateKey, signBuf.Bytes())
+	crcProposalPayload.Signature = sig
+
+	secretaryGeneralSig, _ := crypto.Sign(secretaryGeneralPrivateKey, signBuf.Bytes())
+	crcProposalPayload.SecretaryGeneraSignature = secretaryGeneralSig
+
+	common.WriteVarBytes(signBuf, sig)
+	common.WriteVarBytes(signBuf, secretaryGeneralSig)
+	crcProposalPayload.CRCouncilMemberDID.Serialize(signBuf)
+	crSig, _ := crypto.Sign(crPrivateKey, signBuf.Bytes())
+	crcProposalPayload.CRCouncilMemberSignature = crSig
+
+	txn.Payload = crcProposalPayload
+	txn.Programs = []*program.Program{&program.Program{
+		Code:      getCodeByPubKeyStr(ownerPublicKeyStr),
+		Parameter: nil,
+	}}
+	return txn
+}
+
+func (s *txValidatorTestSuite) getCRCProposalTx(publicKeyStr, privateKeyStr,
+	crPublicKeyStr, crPrivateKeyStr string) *types.Transaction {
+
+	publicKey1, _ := common.HexStringToBytes(publicKeyStr)
+	privateKey1, _ := common.HexStringToBytes(privateKeyStr)
+
+	privateKey2, _ := common.HexStringToBytes(crPrivateKeyStr)
+	code2 := getCodeByPubKeyStr(crPublicKeyStr)
+
+	draftData := randomBytes(10)
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposal
+	txn.Version = types.TxVersion09
+
+	recipient := *randomUint168()
+	recipient[0] = uint8(contract.PrefixStandard)
+	did2, _ := getDIDFromCode(code2)
+	crcProposalPayload := &payload.CRCProposal{
+		ProposalType:       payload.Normal,
+		OwnerPublicKey:     publicKey1,
+		CRCouncilMemberDID: *did2,
+		DraftHash:          common.Hash(draftData),
+		Budgets:            createBudgets(3),
+		Recipient:          recipient,
+	}
+
+	signBuf := new(bytes.Buffer)
+	crcProposalPayload.SerializeUnsigned(signBuf, payload.CRCProposalVersion)
+	sig, _ := crypto.Sign(privateKey1, signBuf.Bytes())
+	crcProposalPayload.Signature = sig
+
+	common.WriteVarBytes(signBuf, sig)
+	crcProposalPayload.CRCouncilMemberDID.Serialize(signBuf)
+	crSig, _ := crypto.Sign(privateKey2, signBuf.Bytes())
+	crcProposalPayload.CRCouncilMemberSignature = crSig
+
+	txn.Payload = crcProposalPayload
+	txn.Programs = []*program.Program{&program.Program{
+		Code:      getCodeByPubKeyStr(publicKeyStr),
+		Parameter: nil,
+	}}
+	return txn
+}
+
+func (s *txValidatorTestSuite) createSpecificStatusProposal(publicKey1, publicKey2 []byte, height uint32,
+	status crstate.ProposalStatus, proposalType payload.CRCProposalType) (*crstate.ProposalState, *payload.CRCProposal) {
+	draftData := randomBytes(10)
+	recipient := *randomUint168()
+	recipient[0] = uint8(contract.PrefixStandard)
+	code2 := getCodeByPubKeyStr(hex.EncodeToString(publicKey2))
+	CRCouncilMemberDID, _ := getDIDFromCode(code2)
+	proposal := &payload.CRCProposal{
+		ProposalType:       proposalType,
+		OwnerPublicKey:     publicKey1,
+		CRCouncilMemberDID: *CRCouncilMemberDID,
+		DraftHash:          common.Hash(draftData),
+		Budgets:            createBudgets(3),
+		Recipient:          recipient,
+	}
+	budgetsStatus := make(map[uint8]crstate.BudgetStatus)
+	for _, budget := range proposal.Budgets {
+		if budget.Type == payload.Imprest {
+			budgetsStatus[budget.Stage] = crstate.Withdrawable
+			continue
+		}
+		budgetsStatus[budget.Stage] = crstate.Unfinished
+	}
+	proposalState := &crstate.ProposalState{
+		Status:              status,
+		Proposal:            *proposal,
+		TxHash:              common.Hash(randomBytes(10)),
+		CRVotes:             map[common.Uint168]payload.VoteResult{},
+		VotersRejectAmount:  common.Fixed64(0),
+		RegisterHeight:      height,
+		VoteStartHeight:     0,
+		WithdrawnBudgets:    make(map[uint8]common.Fixed64),
+		WithdrawableBudgets: make(map[uint8]common.Fixed64),
+		BudgetsStatus:       budgetsStatus,
+		FinalPaymentStatus:  false,
+		TrackingCount:       0,
+		TerminatedHeight:    0,
+		ProposalOwner:       proposal.OwnerPublicKey,
+	}
+	return proposalState, proposal
+}
+
+func (s *txValidatorTestSuite) getCRCCloseProposalTxWithHash(publicKeyStr, privateKeyStr,
+	crPublicKeyStr, crPrivateKeyStr string, closeProposalHash common.Uint256) *types.Transaction {
+	draftData := randomBytes(10)
+
+	privateKey1, _ := common.HexStringToBytes(privateKeyStr)
+	publicKey1, _ := common.HexStringToBytes(publicKeyStr)
+
+	privateKey2, _ := common.HexStringToBytes(crPrivateKeyStr)
+	//publicKey2, _ := common.HexStringToBytes(crPublicKeyStr)
+	code2 := getCodeByPubKeyStr(crPublicKeyStr)
+	//did2, _ := getDIDFromCode(code2)
+
+	//draftData := randomBytes(10)
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposal
+	txn.Version = types.TxVersion09
+	CRCouncilMemberDID, _ := getDIDFromCode(code2)
+	crcProposalPayload := &payload.CRCProposal{
+		ProposalType:       payload.CloseProposal,
+		OwnerPublicKey:     publicKey1,
+		CRCouncilMemberDID: *CRCouncilMemberDID,
+		DraftHash:          common.Hash(draftData),
+		TargetProposalHash: closeProposalHash,
+	}
+
+	signBuf := new(bytes.Buffer)
+	crcProposalPayload.SerializeUnsigned(signBuf, payload.CRCProposalVersion)
+	sig, _ := crypto.Sign(privateKey1, signBuf.Bytes())
+	crcProposalPayload.Signature = sig
+
+	common.WriteVarBytes(signBuf, sig)
+	crcProposalPayload.CRCouncilMemberDID.Serialize(signBuf)
+	crSig, _ := crypto.Sign(privateKey2, signBuf.Bytes())
+	crcProposalPayload.CRCouncilMemberSignature = crSig
+
+	txn.Payload = crcProposalPayload
+	txn.Programs = []*program.Program{&program.Program{
+		Code:      getCodeByPubKeyStr(publicKeyStr),
+		Parameter: nil,
+	}}
+	return txn
+}
+
+func (s *txValidatorTestSuite) getCRCCloseProposalTx(publicKeyStr, privateKeyStr,
+	crPublicKeyStr, crPrivateKeyStr string) *types.Transaction {
+
+	privateKey1, _ := common.HexStringToBytes(privateKeyStr)
+
+	privateKey2, _ := common.HexStringToBytes(crPrivateKeyStr)
+	publicKey2, _ := common.HexStringToBytes(crPublicKeyStr)
+	code2 := getCodeByPubKeyStr(crPublicKeyStr)
+	//did2, _ := getDIDFromCode(code2)
+
+	draftData := randomBytes(10)
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposal
+	txn.Version = types.TxVersion09
+	CRCouncilMemberDID, _ := getDIDFromCode(code2)
+	crcProposalPayload := &payload.CRCProposal{
+		ProposalType:       payload.CloseProposal,
+		OwnerPublicKey:     publicKey2,
+		CRCouncilMemberDID: *CRCouncilMemberDID,
+		DraftHash:          common.Hash(draftData),
+		TargetProposalHash: common.Hash(randomBytes(10)),
+	}
+
+	signBuf := new(bytes.Buffer)
+	crcProposalPayload.SerializeUnsigned(signBuf, payload.CRCProposalVersion)
+	sig, _ := crypto.Sign(privateKey1, signBuf.Bytes())
+	crcProposalPayload.Signature = sig
+
+	common.WriteVarBytes(signBuf, sig)
+	crcProposalPayload.CRCouncilMemberDID.Serialize(signBuf)
+	crSig, _ := crypto.Sign(privateKey2, signBuf.Bytes())
+	crcProposalPayload.CRCouncilMemberSignature = crSig
+
+	txn.Payload = crcProposalPayload
+	txn.Programs = []*program.Program{&program.Program{
+		Code:      getCodeByPubKeyStr(publicKeyStr),
+		Parameter: nil,
+	}}
+	return txn
+}
+
+func createBudgets(n int) []payload.Budget {
+	budgets := make([]payload.Budget, 0)
+	for i := 0; i < n; i++ {
+		var budgetType = payload.NormalPayment
+		if i == 0 {
+			budgetType = payload.Imprest
+		}
+		if i == n-1 {
+			budgetType = payload.FinalPayment
+		}
+		budget := &payload.Budget{
+			Stage:  byte(i),
+			Type:   budgetType,
+			Amount: common.Fixed64((i + 1) * 1e8),
+		}
+		budgets = append(budgets, *budget)
+	}
+	return budgets
+}
+
+func randomFix64() common.Fixed64 {
+	var randNum int64
+	binary.Read(crand.Reader, binary.BigEndian, &randNum)
+	return common.Fixed64(randNum)
+}
+
+func (s *txValidatorTestSuite) TestCheckCRCProposalTrackingTransaction() {
+	publicKeyStr1 := "02f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5"
+	privateKeyStr1 := "15e0947580575a9b6729570bed6360a890f84a07dc837922fe92275feec837d4"
+
+	publicKeyStr2 := "036db5984e709d2e0ec62fd974283e9a18e7b87e8403cc784baf1f61f775926535"
+	privateKeyStr2 := "b2c25e877c8a87d54e8a20a902d27c7f24ed52810813ba175ca4e8d3036d130e"
+
+	publicKeyStr3 := "024010e8ac9b2175837dac34917bdaf3eb0522cff8c40fc58419d119589cae1433"
+	privateKeyStr3 := "e19737ffeb452fc7ed9dc0e70928591c88ad669fd1701210dcd8732e0946829b"
+
+	ownerPubKey, _ := common.HexStringToBytes(publicKeyStr1)
+
+	proposalHash := randomUint256()
+	recipient := randomUint168()
+	votingHeight := config.DefaultParams.CRVotingStartHeight
+
+	// Set secretary general.
+	s.Chain.crCommittee.GetProposalManager().SecretaryGeneralPublicKey = publicKeyStr3
+	// Check Common tracking tx.
+	txn := s.getCRCProposalTrackingTx(payload.Common, *proposalHash, 0,
+		publicKeyStr1, privateKeyStr1, "", "",
+		publicKeyStr3, privateKeyStr3)
+
+	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash] =
+		&crstate.ProposalState{
+			Proposal: payload.CRCProposal{
+				ProposalType:       0,
+				OwnerPublicKey:     ownerPubKey,
+				CRCouncilMemberDID: *randomUint168(),
+				DraftHash:          *randomUint256(),
+				Budgets:            createBudgets(3),
+				Recipient:          *recipient,
+			},
+			Status:        crstate.VoterAgreed,
+			ProposalOwner: ownerPubKey,
+		}
+
+	err := s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.NoError(err)
+
+	txn = s.getCRCProposalTrackingTx(payload.Common, *proposalHash, 1,
+		publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2,
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "stage should assignment zero value")
+
+	txn = s.getCRCProposalTrackingTx(payload.Common, *proposalHash, 0,
+		publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2,
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "the NewOwnerPublicKey need to be empty")
+
+	// Check Progress tracking tx.
+	txn = s.getCRCProposalTrackingTx(payload.Progress, *proposalHash, 1,
+		publicKeyStr1, privateKeyStr1, "", "",
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.NoError(err)
+
+	txn = s.getCRCProposalTrackingTx(payload.Progress, *proposalHash, 1,
+		publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2,
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "the NewOwnerPublicKey need to be empty")
+
+	// Check Terminated tracking tx.
+	txn = s.getCRCProposalTrackingTx(payload.Terminated, *proposalHash, 0,
+		publicKeyStr1, privateKeyStr1, "", "",
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.NoError(err)
+
+	txn = s.getCRCProposalTrackingTx(payload.Terminated, *proposalHash, 1,
+		publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2,
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "stage should assignment zero value")
+
+	txn = s.getCRCProposalTrackingTx(payload.Terminated, *proposalHash, 0,
+		publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2,
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "the NewOwnerPublicKey need to be empty")
+
+	// Check ChangeOwner tracking tx.
+	txn = s.getCRCProposalTrackingTx(payload.ChangeOwner, *proposalHash, 0,
+		publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2,
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.NoError(err)
+
+	txn = s.getCRCProposalTrackingTx(payload.ChangeOwner, *proposalHash, 1,
+		publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2,
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "stage should assignment zero value")
+
+	txn = s.getCRCProposalTrackingTx(payload.ChangeOwner, *proposalHash, 0,
+		publicKeyStr1, privateKeyStr1, "", "",
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "invalid new proposal owner public key")
+
+	// Check invalid proposal hash.
+	txn = s.getCRCProposalTrackingTx(payload.Common, *randomUint256(), 0,
+		publicKeyStr1, privateKeyStr1, "", "",
+		publicKeyStr3, privateKeyStr3)
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "proposal not exist")
+
+	txn = s.getCRCProposalTrackingTx(payload.Common, *proposalHash, 0,
+		publicKeyStr1, privateKeyStr1, "", "",
+		publicKeyStr3, privateKeyStr3)
+
+	// Check proposal status is not VoterAgreed.
+	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash] =
+		&crstate.ProposalState{
+			Proposal: payload.CRCProposal{
+				ProposalType:       0,
+				OwnerPublicKey:     ownerPubKey,
+				CRCouncilMemberDID: *randomUint168(),
+				DraftHash:          *randomUint256(),
+				Budgets:            createBudgets(3),
+				Recipient:          *recipient,
+			},
+			TerminatedHeight: 100,
+			Status:           crstate.VoterCanceled,
+			ProposalOwner:    ownerPubKey,
+		}
+	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash].TerminatedHeight = 100
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "proposal status is not VoterAgreed")
+
+	// Check reach max proposal tracking count.
+	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash] =
+		&crstate.ProposalState{
+			Proposal: payload.CRCProposal{
+				ProposalType:       0,
+				OwnerPublicKey:     ownerPubKey,
+				CRCouncilMemberDID: *randomUint168(),
+				DraftHash:          *randomUint256(),
+				Budgets:            createBudgets(3),
+				Recipient:          *recipient,
+			},
+			TrackingCount: 128,
+			Status:        crstate.VoterAgreed,
+			ProposalOwner: ownerPubKey,
+		}
+	err = s.Chain.checkCRCProposalTrackingTransaction(txn, votingHeight)
+	s.EqualError(err, "reached max tracking count")
+
+}
+
+func (s *txValidatorTestSuite) getCRCProposalTrackingTx(
+	trackingType payload.CRCProposalTrackingType,
+	proposalHash common.Uint256, stage uint8,
+	ownerPublicKeyStr, ownerPrivateKeyStr,
+	newownerpublickeyStr, newownerprivatekeyStr,
+	sgPublicKeyStr, sgPrivateKeyStr string) *types.Transaction {
+
+	ownerPublicKey, _ := common.HexStringToBytes(ownerPublicKeyStr)
+	ownerPrivateKey, _ := common.HexStringToBytes(ownerPrivateKeyStr)
+
+	newownerpublickey, _ := common.HexStringToBytes(newownerpublickeyStr)
+	newownerprivatekey, _ := common.HexStringToBytes(newownerprivatekeyStr)
+
+	sgPrivateKey, _ := common.HexStringToBytes(sgPrivateKeyStr)
+
+	documentData := randomBytes(10)
+	opinionHash := randomBytes(10)
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposalTracking
+	txn.Version = types.TxVersion09
+	cPayload := &payload.CRCProposalTracking{
+		ProposalTrackingType:        trackingType,
+		ProposalHash:                proposalHash,
+		Stage:                       stage,
+		MessageHash:                 common.Hash(documentData),
+		OwnerPublicKey:              ownerPublicKey,
+		NewOwnerPublicKey:           newownerpublickey,
+		SecretaryGeneralOpinionHash: common.Hash(opinionHash),
+	}
+
+	signBuf := new(bytes.Buffer)
+	cPayload.SerializeUnsigned(signBuf, payload.CRCProposalTrackingVersion)
+	sig, _ := crypto.Sign(ownerPrivateKey, signBuf.Bytes())
+	cPayload.OwnerSignature = sig
+	common.WriteVarBytes(signBuf, sig)
+
+	if newownerpublickeyStr != "" && newownerprivatekeyStr != "" {
+		crSig, _ := crypto.Sign(newownerprivatekey, signBuf.Bytes())
+		cPayload.NewOwnerSignature = crSig
+		sig = crSig
+	} else {
+		sig = []byte{}
+	}
+
+	common.WriteVarBytes(signBuf, sig)
+	signBuf.Write([]byte{byte(cPayload.ProposalTrackingType)})
+	cPayload.SecretaryGeneralOpinionHash.Serialize(signBuf)
+	crSig, _ := crypto.Sign(sgPrivateKey, signBuf.Bytes())
+	cPayload.SecretaryGeneralSignature = crSig
+
+	txn.Payload = cPayload
+	return txn
+}
+
+func (s *txValidatorTestSuite) TestCheckCRCAppropriationTransaction() {
+	// Set CR assets address and CR expenses address.
+	s.Chain.chainParams.CRAssetsAddress = *randomUint168()
+	s.Chain.chainParams.CRExpensesAddress = *randomUint168()
+
+	// Set CR assets and CRC committee amount.
+	s.Chain.crCommittee.CRCFoundationBalance = common.Fixed64(900 * 1e8)
+	s.Chain.crCommittee.AppropriationAmount = common.Fixed64(90 * 1e8)
+	s.Chain.crCommittee.CRCCommitteeUsedAmount = common.Fixed64(0 * 1e8)
+
+	// Create reference.
+	reference := make(map[*types.Input]types.Output)
+	input := &types.Input{
+		Previous: types.OutPoint{
+			TxID:  *randomUint256(),
+			Index: 0,
+		},
+	}
+	refOutput := types.Output{
+		Value:       900 * 1e8,
+		ProgramHash: s.Chain.chainParams.CRAssetsAddress,
+	}
+	refOutputErr := types.Output{
+		Value:       900 * 1e8,
+		ProgramHash: *randomUint168(),
+	}
+	reference[input] = refOutput
+
+	// Create CRC appropriation transaction.
+	output1 := &types.Output{
+		Value:       90 * 1e8,
+		ProgramHash: s.Chain.chainParams.CRExpensesAddress,
+	}
+	output2 := &types.Output{
+		Value:       810 * 1e8,
+		ProgramHash: s.Chain.chainParams.CRAssetsAddress,
+	}
+	output1Err := &types.Output{
+		Value:       91 * 1e8,
+		ProgramHash: s.Chain.chainParams.CRExpensesAddress,
+	}
+	output2Err := &types.Output{
+		Value:       809 * 1e8,
+		ProgramHash: s.Chain.chainParams.CRAssetsAddress,
+	}
+
+	// Check correct transaction.
+	s.Chain.crCommittee.NeedAppropriation = true
+	txn := s.getCRCAppropriationTx(input, output1, output2)
+	err := s.Chain.checkCRCAppropriationTransaction(txn, reference)
+	s.NoError(err)
+
+	// Appropriation transaction already exist.
+	s.Chain.crCommittee.NeedAppropriation = false
+	err = s.Chain.checkCRCAppropriationTransaction(txn, reference)
+	s.EqualError(err, "should have no appropriation transaction")
+
+	// Input does not from CR assets address
+	s.Chain.crCommittee.NeedAppropriation = true
+	reference[input] = refOutputErr
+	txn = s.getCRCAppropriationTx(input, output1, output2)
+	err = s.Chain.checkCRCAppropriationTransaction(txn, reference)
+	s.EqualError(err, "input does not from CR assets address")
+
+	// Inputs total amount does not equal to outputs total amount.
+	reference[input] = refOutput
+	txn = s.getCRCAppropriationTx(input, output1, output2Err)
+	err = s.Chain.checkCRCAppropriationTransaction(txn, reference)
+	s.EqualError(err, "inputs does not equal to outputs "+
+		"amount, inputs:900 outputs:899")
+
+	// Invalid CRC appropriation amount.
+	txn = s.getCRCAppropriationTx(input, output1Err, output2Err)
+	err = s.Chain.checkCRCAppropriationTransaction(txn, reference)
+	s.EqualError(err, "invalid appropriation amount 91, need to be 90")
+}
+
+func (s *txValidatorTestSuite) getCRCAppropriationTx(input *types.Input,
+	output1 *types.Output, output2 *types.Output) *types.Transaction {
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCAppropriation
+	txn.Version = types.TxVersion09
+	cPayload := &payload.CRCAppropriation{}
+	txn.Payload = cPayload
+	txn.Inputs = []*types.Input{input}
+	txn.Outputs = []*types.Output{output1, output2}
+
+	return txn
+}
+
+func (s *txValidatorTestSuite) getCRCProposalRealWithdrawTx(input *types.Input,
+	hashes []common.Uint256, outputs []*types.Output) *types.Transaction {
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposalRealWithdraw
+	txn.Version = types.TxVersion09
+	cPayload := &payload.CRCProposalRealWithdraw{WithdrawTransactionHashes: hashes}
+	txn.Payload = cPayload
+	txn.Inputs = []*types.Input{input}
+	txn.Outputs = outputs
 	return txn
 }
 
@@ -1538,7 +2195,7 @@ func (s *txValidatorTestSuite) TestCrInfoSanityCheck() {
 
 	rcPayload := &payload.CRInfo{
 		Code:     ct1.Code,
-		DID:      *hash1,
+		CID:      *hash1,
 		NickName: "nickname 1",
 		Url:      "http://www.elastos_test.com",
 		Location: 1,
@@ -1555,12 +2212,12 @@ func (s *txValidatorTestSuite) TestCrInfoSanityCheck() {
 
 	//test ok
 	rcPayload.Signature = rcSig1
-	err = s.Chain.crInfoSanityCheck(rcPayload)
+	err = s.Chain.crInfoSanityCheck(rcPayload, payload.CRInfoVersion)
 	s.NoError(err)
 
 	//invalid code
 	rcPayload.Code = []byte{1, 2, 3, 4, 5}
-	err = s.Chain.crInfoSanityCheck(rcPayload)
+	err = s.Chain.crInfoSanityCheck(rcPayload, payload.CRInfoVersion)
 	s.EqualError(err, "invalid code")
 
 	//todo CHECKMULTISIG
@@ -1585,16 +2242,27 @@ func (s *txValidatorTestSuite) TestCheckUpdateCRTransaction() {
 	votingHeight := config.DefaultParams.CRVotingStartHeight
 	//
 	//registe an cr to update
-	registerCRTxn1 := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1)
-	registerCRTxn2 := s.getRegisterCRTx(publicKeyStr2, privateKeyStr2, nickName2)
+	registerCRTxn1 := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1,
+		nickName1, payload.CRInfoVersion, &common.Uint168{})
+	registerCRTxn2 := s.getRegisterCRTx(publicKeyStr2, privateKeyStr2,
+		nickName2, payload.CRInfoDIDVersion, &common.Uint168{})
 
+	s.CurrentHeight = s.Chain.chainParams.CRVotingStartHeight + 1
+	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
 	block := &types.Block{
 		Transactions: []*types.Transaction{
 			registerCRTxn1,
 			registerCRTxn2,
 		},
+		Header: types.Header{Height: s.CurrentHeight},
 	}
-	s.Chain.crCommittee.GetState().ProcessBlock(block, nil)
+	s.Chain.crCommittee.ProcessBlock(block, nil)
 
 	//ok nothing wrong
 	hash2, err := getDepositAddress(publicKeyStr2)
@@ -1633,20 +2301,20 @@ func (s *txValidatorTestSuite) TestCheckUpdateCRTransaction() {
 	txn.Payload.(*payload.CRInfo).Code = []byte{1, 2, 3, 4, 5}
 	err = s.Chain.checkUpdateCRTransaction(txn, votingHeight)
 	txn.Payload.(*payload.CRInfo).Code = code
-	s.EqualError(err, "invalid did address")
+	s.EqualError(err, "invalid cid address")
 
-	// Give an invalid DID in payload
-	did := txn.Payload.(*payload.CRInfo).DID
-	txn.Payload.(*payload.CRInfo).DID = common.Uint168{1, 2, 3}
+	// Give an invalid CID in payload
+	cid := txn.Payload.(*payload.CRInfo).CID
+	txn.Payload.(*payload.CRInfo).CID = common.Uint168{1, 2, 3}
 	err = s.Chain.checkUpdateCRTransaction(txn, votingHeight)
-	txn.Payload.(*payload.CRInfo).DID = did
-	s.EqualError(err, "invalid did address")
+	txn.Payload.(*payload.CRInfo).CID = cid
+	s.EqualError(err, "invalid cid address")
 
-	// Give a mismatching code and DID in payload
-	txn.Payload.(*payload.CRInfo).DID = *hash2
+	// Give a mismatching code and CID in payload
+	txn.Payload.(*payload.CRInfo).CID = *hash2
 	err = s.Chain.checkUpdateCRTransaction(txn, votingHeight)
-	txn.Payload.(*payload.CRInfo).DID = did
-	s.EqualError(err, "invalid did address")
+	txn.Payload.(*payload.CRInfo).CID = cid
+	s.EqualError(err, "invalid cid address")
 
 	// Invalidates the signature in payload
 	signatur := txn.Payload.(*payload.CRInfo).Signature
@@ -1659,7 +2327,11 @@ func (s *txValidatorTestSuite) TestCheckUpdateCRTransaction() {
 	err = s.Chain.checkUpdateCRTransaction(txn, config.DefaultParams.CRVotingStartHeight-1)
 	s.EqualError(err, "should create tx during voting period")
 
+	// set RegisterCRByDIDHeight after CRCommitteeStartHeight
+	s.Chain.chainParams.RegisterCRByDIDHeight = config.DefaultParams.CRCommitteeStartHeight + 10
+
 	//not in vote Period lower upper c.params.CRCommitteeStartHeight
+	s.Chain.crCommittee.InElectionPeriod = true
 	err = s.Chain.checkUpdateCRTransaction(txn, config.DefaultParams.CRCommitteeStartHeight+1)
 	s.EqualError(err, "should create tx during voting period")
 
@@ -1676,6 +2348,104 @@ func (s *txValidatorTestSuite) TestCheckUpdateCRTransaction() {
 
 }
 
+func (s *txValidatorTestSuite) TestCheckCRCProposalRealWithdrawTransaction() {
+	// Set CR expenses address.
+	s.Chain.chainParams.CRExpensesAddress = *randomUint168()
+
+	// Set WithdrawableTxInfo
+	withdrawTransactionHash1 := *randomUint256()
+	recipient1 := *randomUint168()
+	withdrawTransactionHash2 := *randomUint256()
+	recipient2 := *randomUint168()
+	wtHashes := make(map[common.Uint256]types.OutputInfo, 0)
+	wtHashes[withdrawTransactionHash1] = types.OutputInfo{
+		Recipient: recipient1,
+		Amount:    10 * 1e8,
+	}
+	wtHashes[withdrawTransactionHash2] = types.OutputInfo{
+		Recipient: recipient2,
+		Amount:    9 * 1e8,
+	}
+	s.Chain.crCommittee.GetProposalManager().WithdrawableTxInfo = wtHashes
+
+	// Create reference.
+	reference := make(map[*types.Input]types.Output)
+	input := &types.Input{
+		Previous: types.OutPoint{
+			TxID:  *randomUint256(),
+			Index: 0,
+		},
+	}
+	refOutput := types.Output{
+		Value:       20 * 1e8,
+		ProgramHash: s.Chain.chainParams.CRExpensesAddress,
+	}
+	reference[input] = refOutput
+
+	// create outputs
+	output1 := &types.Output{
+		Value:       10*1e8 - 10000,
+		ProgramHash: recipient1,
+	}
+	output2 := &types.Output{
+		Value:       9*1e8 - 10000,
+		ProgramHash: recipient2,
+	}
+	output3 := &types.Output{
+		Value:       1 * 1e8,
+		ProgramHash: s.Chain.chainParams.CRExpensesAddress,
+	}
+	output1Err := &types.Output{
+		Value:       10 * 1e8,
+		ProgramHash: recipient1,
+	}
+	output2Err := &types.Output{
+		Value:       9*1e8 - 10000,
+		ProgramHash: recipient1,
+	}
+	output3Err := &types.Output{
+		Value:       1 * 1e8,
+		ProgramHash: recipient1,
+	}
+
+	// check transaction
+	txn := s.getCRCProposalRealWithdrawTx(input,
+		[]common.Uint256{},
+		[]*types.Output{output1, output2})
+	err := s.Chain.checkCRCProposalRealWithdrawTransaction(txn, reference)
+	s.EqualError(err, "invalid real withdraw transaction hashes count")
+
+	txn = s.getCRCProposalRealWithdrawTx(input,
+		[]common.Uint256{withdrawTransactionHash1, withdrawTransactionHash2},
+		[]*types.Output{output1Err, output2, output3})
+	err = s.Chain.checkCRCProposalRealWithdrawTransaction(txn, reference)
+	s.EqualError(err, "invalid real withdraw output amount:10, need to be:9.99990000")
+
+	txn = s.getCRCProposalRealWithdrawTx(input,
+		[]common.Uint256{withdrawTransactionHash1, withdrawTransactionHash2},
+		[]*types.Output{output1, output2Err, output3})
+	err = s.Chain.checkCRCProposalRealWithdrawTransaction(txn, reference)
+	s.EqualError(err, "invalid real withdraw output address")
+
+	txn = s.getCRCProposalRealWithdrawTx(input,
+		[]common.Uint256{withdrawTransactionHash1, withdrawTransactionHash2},
+		[]*types.Output{output1, output1, output3Err})
+	err = s.Chain.checkCRCProposalRealWithdrawTransaction(txn, reference)
+	s.EqualError(err, "last output is invalid")
+
+	txn = s.getCRCProposalRealWithdrawTx(input,
+		[]common.Uint256{withdrawTransactionHash1, withdrawTransactionHash1},
+		[]*types.Output{output1, output1, output3})
+	err = s.Chain.checkCRCProposalRealWithdrawTransaction(txn, reference)
+	s.EqualError(err, "duplicated real withdraw transactions hash")
+
+	txn = s.getCRCProposalRealWithdrawTx(input,
+		[]common.Uint256{withdrawTransactionHash1, withdrawTransactionHash2},
+		[]*types.Output{output1, output2, output3})
+	err = s.Chain.checkCRCProposalRealWithdrawTransaction(txn, reference)
+	s.NoError(err)
+}
+
 func (s *txValidatorTestSuite) TestCheckUnregisterCRTransaction() {
 
 	publicKeyStr1 := "02f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5"
@@ -1687,21 +2457,32 @@ func (s *txValidatorTestSuite) TestCheckUnregisterCRTransaction() {
 	votingHeight := config.DefaultParams.CRVotingStartHeight
 	nickName1 := "nickname 1"
 
-	//registe an cr to unregister
-	registerCRTxn := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1)
+	//register a cr to unregister
+	registerCRTxn := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1,
+		nickName1, payload.CRInfoVersion, &common.Uint168{})
+	s.CurrentHeight = 1
+	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
 	block := &types.Block{
 		Transactions: []*types.Transaction{
 			registerCRTxn,
 		},
+		Header: types.Header{Height: s.CurrentHeight},
 	}
-	s.Chain.crCommittee.GetState().ProcessBlock(block, nil)
+	s.Chain.crCommittee.ProcessBlock(block, nil)
 	//ok
 	txn := s.getUnregisterCRTx(publicKeyStr1, privateKeyStr1)
 	err := s.Chain.checkUnRegisterCRTransaction(txn, votingHeight)
 	s.NoError(err)
 
 	//invalid payload need unregisterCR pass registerCr
-	registerTx := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1, nickName1)
+	registerTx := s.getRegisterCRTx(publicKeyStr1, privateKeyStr1,
+		nickName1, payload.CRInfoVersion, &common.Uint168{})
 	err = s.Chain.checkUnRegisterCRTransaction(registerTx, votingHeight)
 	s.EqualError(err, "invalid payload")
 
@@ -1710,6 +2491,7 @@ func (s *txValidatorTestSuite) TestCheckUnregisterCRTransaction() {
 	s.EqualError(err, "should create tx during voting period")
 
 	//not in vote Period lower upper c.params.CRCommitteeStartHeight
+	s.Chain.crCommittee.InElectionPeriod = true
 	err = s.Chain.checkUnRegisterCRTransaction(txn, config.DefaultParams.CRCommitteeStartHeight+1)
 	s.EqualError(err, "should create tx during voting period")
 
@@ -1724,6 +2506,681 @@ func (s *txValidatorTestSuite) TestCheckUnregisterCRTransaction() {
 	s.EqualError(err, "[Validation], Verify failed.")
 }
 
+func (s *txValidatorTestSuite) getCRCProposalReviewTx(crPublicKeyStr,
+	crPrivateKeyStr string) *types.Transaction {
+
+	privateKey1, _ := common.HexStringToBytes(crPrivateKeyStr)
+	code := getCodeByPubKeyStr(crPublicKeyStr)
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposalReview
+	txn.Version = types.TxVersion09
+	did, _ := getDIDFromCode(code)
+	crcProposalReviewPayload := &payload.CRCProposalReview{
+		ProposalHash: *randomUint256(),
+		VoteResult:   payload.Approve,
+		DID:          *did,
+	}
+
+	signBuf := new(bytes.Buffer)
+	crcProposalReviewPayload.SerializeUnsigned(signBuf, payload.CRCProposalReviewVersion)
+	sig, _ := crypto.Sign(privateKey1, signBuf.Bytes())
+	crcProposalReviewPayload.Signature = sig
+
+	txn.Payload = crcProposalReviewPayload
+	txn.Programs = []*program.Program{&program.Program{
+		Code:      getCodeByPubKeyStr(crPublicKeyStr),
+		Parameter: nil,
+	}}
+	return txn
+}
+
+func (s *txValidatorTestSuite) TestCheckCRCProposalReviewTransaction() {
+	publicKeyStr1 := "02f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5"
+	privateKeyStr1 := "15e0947580575a9b6729570bed6360a890f84a07dc837922fe92275feec837d4"
+	publicKeyStr2 := "036db5984e709d2e0ec62fd974283e9a18e7b87e8403cc784baf1f61f775926535"
+	privateKeyStr2 := "b2c25e877c8a87d54e8a20a902d27c7f24ed52810813ba175ca4e8d3036d130e"
+	tenureHeight := config.DefaultParams.CRCommitteeStartHeight
+	nickName1 := "nickname 1"
+
+	fmt.Println("getcode ", getCodeHexStr("02e23f70b9b967af35571c32b1442d787c180753bbed5cd6e7d5a5cfe75c7fc1ff"))
+
+	member1 := s.getCRMember(publicKeyStr1, privateKeyStr1, nickName1)
+	s.Chain.crCommittee.Members[member1.Info.DID] = member1
+
+	// ok
+	txn := s.getCRCProposalReviewTx(publicKeyStr1, privateKeyStr1)
+	crcProposalReview, _ := txn.Payload.(*payload.CRCProposalReview)
+	manager := s.Chain.crCommittee.GetProposalManager()
+	manager.Proposals[crcProposalReview.ProposalHash] = &crstate.ProposalState{
+		Status: crstate.Registered,
+	}
+	err := s.Chain.checkCRCProposalReviewTransaction(txn, tenureHeight)
+	s.NoError(err)
+
+	// member status is not elected
+	member1.MemberState = crstate.MemberImpeached
+	err = s.Chain.checkCRCProposalReviewTransaction(txn, tenureHeight)
+	s.EqualError(err, "should be an elected CR members")
+
+	// invalid payload
+	txn.Payload = &payload.CRInfo{}
+	member1.MemberState = crstate.MemberElected
+	err = s.Chain.checkCRCProposalReviewTransaction(txn, tenureHeight)
+	s.EqualError(err, "invalid payload")
+
+	// invalid content type
+	txn = s.getCRCProposalReviewTx(publicKeyStr1, privateKeyStr1)
+	txn.Payload.(*payload.CRCProposalReview).VoteResult = 0x10
+	crcProposalReview2, _ := txn.Payload.(*payload.CRCProposalReview)
+	manager.Proposals[crcProposalReview2.ProposalHash] = &crstate.ProposalState{
+		Status: crstate.Registered,
+	}
+	err = s.Chain.checkCRCProposalReviewTransaction(txn, tenureHeight)
+	s.EqualError(err, "VoteResult should be known")
+
+	// proposal reviewer is not CR member
+	txn = s.getCRCProposalReviewTx(publicKeyStr2, privateKeyStr2)
+	crcProposalReview3, _ := txn.Payload.(*payload.CRCProposalReview)
+	manager.Proposals[crcProposalReview3.ProposalHash] = &crstate.ProposalState{
+		Status: crstate.Registered,
+	}
+	err = s.Chain.checkCRCProposalReviewTransaction(txn, tenureHeight)
+	s.EqualError(err, "did correspond crMember not exists")
+
+	delete(manager.Proposals, crcProposalReview.ProposalHash)
+	// invalid CR proposal reviewer signature
+	txn = s.getCRCProposalReviewTx(publicKeyStr1, privateKeyStr1)
+	txn.Payload.(*payload.CRCProposalReview).Signature = []byte{}
+	crcProposalReview, _ = txn.Payload.(*payload.CRCProposalReview)
+	manager.Proposals[crcProposalReview.ProposalHash] = &crstate.ProposalState{
+		Status: crstate.Registered,
+	}
+	err = s.Chain.checkCRCProposalReviewTransaction(txn, tenureHeight)
+	s.EqualError(err, "invalid signature length")
+	delete(s.Chain.crCommittee.GetProposalManager().Proposals, crcProposalReview.ProposalHash)
+}
+
+func (s *txValidatorTestSuite) getCRCProposalWithdrawTx(crPublicKeyStr,
+	crPrivateKeyStr string, recipient,
+	commitee *common.Uint168, recipAmout, commiteAmout common.Fixed64, payloadVersion byte) *types.
+	Transaction {
+
+	privateKey1, _ := common.HexStringToBytes(crPrivateKeyStr)
+	pkBytes, _ := common.HexStringToBytes(crPublicKeyStr)
+
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposalWithdraw
+	txn.Version = types.TxVersionDefault
+	var crcProposalWithdraw *payload.CRCProposalWithdraw
+	switch payloadVersion {
+	case 0x00:
+		crcProposalWithdraw = &payload.CRCProposalWithdraw{
+			ProposalHash:   *randomUint256(),
+			OwnerPublicKey: pkBytes,
+		}
+	case 0x01:
+		crcProposalWithdraw = &payload.CRCProposalWithdraw{
+			ProposalHash:   *randomUint256(),
+			OwnerPublicKey: pkBytes,
+			Recipient:      *recipient,
+			Amount:         recipAmout,
+		}
+		txn.PayloadVersion = payload.CRCProposalWithdrawVersion01
+	}
+
+	signBuf := new(bytes.Buffer)
+	crcProposalWithdraw.SerializeUnsigned(signBuf, txn.PayloadVersion)
+	sig, _ := crypto.Sign(privateKey1, signBuf.Bytes())
+	crcProposalWithdraw.Signature = sig
+
+	txn.Inputs = []*types.Input{
+		{
+			Previous: types.OutPoint{
+				TxID:  common.EmptyHash,
+				Index: math.MaxUint16,
+			},
+			Sequence: math.MaxUint32,
+		},
+	}
+	txn.Outputs = []*types.Output{
+		{
+			AssetID:     config.ELAAssetID,
+			ProgramHash: *recipient,
+			Value:       recipAmout,
+		},
+		{
+			AssetID:     config.ELAAssetID,
+			ProgramHash: *commitee,
+			Value:       commiteAmout,
+		},
+	}
+
+	txn.Payload = crcProposalWithdraw
+	txn.Programs = []*program.Program{&program.Program{
+		Code:      getCodeByPubKeyStr(crPublicKeyStr),
+		Parameter: nil,
+	}}
+	return txn
+}
+
+func (s *txValidatorTestSuite) TestCheckCRCProposalWithdrawTransaction() {
+	publicKeyStr1 := "02f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5"
+	privateKeyStr1 := "15e0947580575a9b6729570bed6360a890f84a07dc837922fe92275feec837d4"
+	RecipientAddress := "ERyUmNH51roR9qfru37Kqkaok2NghR7L5U"
+	CRExpensesAddress := "8VYXVxKKSAxkmRrfmGpQR2Kc66XhG6m3ta"
+	NOCRExpensesAddress := "EWm2ZGeSyDBBAsVSsvSvspPKV4wQBKPjUk"
+	Recipient, _ := common.Uint168FromAddress(RecipientAddress)
+	tenureHeight := config.DefaultParams.CRCommitteeStartHeight
+	pk1Bytes, _ := common.HexStringToBytes(publicKeyStr1)
+	ela := common.Fixed64(100000000)
+	CRExpensesAddressU168, _ := common.Uint168FromAddress(CRExpensesAddress)
+	NOCRExpensesAddressU168, _ := common.Uint168FromAddress(NOCRExpensesAddress)
+
+	inputs := []*types.Input{
+		{
+			Previous: types.OutPoint{
+				TxID:  common.EmptyHash,
+				Index: 1,
+			},
+			Sequence: math.MaxUint32,
+		},
+	}
+	outputs := []*types.Output{
+		{
+			AssetID:     config.ELAAssetID,
+			ProgramHash: *CRExpensesAddressU168,
+			Value:       common.Fixed64(60 * ela),
+		},
+		{
+			AssetID:     config.ELAAssetID,
+			ProgramHash: *NOCRExpensesAddressU168,
+			Value:       common.Fixed64(600 * ela),
+		},
+	}
+
+	references := make(map[*types.Input]types.Output)
+	references[inputs[0]] = *outputs[0]
+
+	s.Chain.chainParams.CRExpensesAddress = *CRExpensesAddressU168
+	// stage = 1 ok
+	txn := s.getCRCProposalWithdrawTx(publicKeyStr1, privateKeyStr1,
+		Recipient, CRExpensesAddressU168, 9*ela, 50*ela, 0)
+	crcProposalWithdraw, _ := txn.Payload.(*payload.CRCProposalWithdraw)
+	propState := &crstate.ProposalState{
+		Status: crstate.VoterAgreed,
+		Proposal: payload.CRCProposal{
+			OwnerPublicKey: pk1Bytes,
+			Recipient:      *Recipient,
+			Budgets:        createBudgets(3),
+		},
+		FinalPaymentStatus:  false,
+		WithdrawableBudgets: map[uint8]common.Fixed64{0: 10 * 1e8},
+		ProposalOwner:       pk1Bytes,
+		Recipient:           *Recipient,
+	}
+	s.Chain.crCommittee.GetProposalManager().Proposals[crcProposalWithdraw.
+		ProposalHash] = propState
+	err := s.Chain.checkTransactionOutput(txn, tenureHeight)
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.NoError(err)
+
+	//CRCProposalWithdraw Stage wrong too small
+	propState.WithdrawnBudgets = map[uint8]common.Fixed64{0: 10 * 1e8}
+	err = s.Chain.checkTransactionOutput(txn, tenureHeight)
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.EqualError(err, "no need to withdraw")
+
+	//stage =2 ok
+	txn = s.getCRCProposalWithdrawTx(publicKeyStr1, privateKeyStr1,
+		Recipient, CRExpensesAddressU168, 19*ela, 40*ela, 0)
+	crcProposalWithdraw, _ = txn.Payload.(*payload.CRCProposalWithdraw)
+	propState.WithdrawableBudgets = map[uint8]common.Fixed64{0: 10 * 1e8, 1: 20 * 1e8}
+	propState.FinalPaymentStatus = false
+	s.Chain.crCommittee.GetProposalManager().Proposals[crcProposalWithdraw.
+		ProposalHash] = propState
+	err = s.Chain.checkTransactionOutput(txn, tenureHeight)
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.NoError(err)
+
+	//stage =3 ok
+	txn = s.getCRCProposalWithdrawTx(publicKeyStr1, privateKeyStr1,
+		Recipient, CRExpensesAddressU168, 29*ela, 30*ela, 0)
+	crcProposalWithdraw, _ = txn.Payload.(*payload.CRCProposalWithdraw)
+	propState.WithdrawableBudgets = map[uint8]common.Fixed64{0: 10 * 1e8, 1: 20 * 1e8, 2: 30 * 1e8}
+	propState.WithdrawnBudgets = map[uint8]common.Fixed64{0: 10 * 1e8, 1: 20 * 1e8}
+	propState.FinalPaymentStatus = true
+	s.Chain.crCommittee.GetProposalManager().Proposals[crcProposalWithdraw.
+		ProposalHash] = propState
+	err = s.Chain.checkTransactionOutput(txn, tenureHeight)
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.NoError(err)
+
+	//len(txn.Outputs) ==0 transaction has no outputs
+	txn.Outputs = []*types.Output{}
+	err = s.Chain.checkTransactionOutput(txn, tenureHeight)
+	s.EqualError(err, "transaction has no outputs")
+
+	publicKeyStr2 := "036db5984e709d2e0ec62fd974283e9a18e7b87e8403cc784baf1f61f775926535"
+	pk2Bytes, _ := common.HexStringToBytes(publicKeyStr2)
+
+	propState.ProposalOwner = pk2Bytes
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.EqualError(err, "the OwnerPublicKey is not owner of proposal")
+
+	references[inputs[0]] = *outputs[1]
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.EqualError(err, "proposal withdrawal transaction for non-crc committee address")
+
+	txn = s.getCRCProposalWithdrawTx(publicKeyStr1, privateKeyStr1,
+		Recipient, CRExpensesAddressU168, 19*ela, 40*ela, 1)
+	crcProposalWithdraw, _ = txn.Payload.(*payload.CRCProposalWithdraw)
+	propState.WithdrawableBudgets = map[uint8]common.Fixed64{0: 10 * 1e8, 1: 20 * 1e8}
+	propState.WithdrawnBudgets = map[uint8]common.Fixed64{0: 10 * 1e8}
+	propState.FinalPaymentStatus = false
+	s.Chain.crCommittee.GetProposalManager().Proposals[crcProposalWithdraw.
+		ProposalHash] = propState
+	propState.ProposalOwner = pk1Bytes
+	err = s.Chain.checkTransactionOutput(txn, tenureHeight)
+	inputs = []*types.Input{
+		{
+			Previous: types.OutPoint{
+				TxID:  common.EmptyHash,
+				Index: 1,
+			},
+			Sequence: math.MaxUint32,
+		},
+	}
+	outputs = []*types.Output{
+		{
+			AssetID:     config.ELAAssetID,
+			ProgramHash: *CRExpensesAddressU168,
+			Value:       common.Fixed64(61 * ela),
+		},
+	}
+	references = make(map[*types.Input]types.Output)
+	references[inputs[0]] = *outputs[0]
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.EqualError(err, "withdrawPayload.Amount != withdrawAmount ")
+	outputs = []*types.Output{
+		{
+			AssetID:     config.ELAAssetID,
+			ProgramHash: *CRExpensesAddressU168,
+			Value:       common.Fixed64(61 * ela),
+		},
+	}
+
+	txn = s.getCRCProposalWithdrawTx(publicKeyStr1, privateKeyStr1,
+		Recipient, CRExpensesAddressU168, 20*ela, 40*ela, 1)
+	crcProposalWithdraw, _ = txn.Payload.(*payload.CRCProposalWithdraw)
+	propState.WithdrawableBudgets = map[uint8]common.Fixed64{0: 10 * 1e8, 1: 20 * 1e8}
+	propState.WithdrawnBudgets = map[uint8]common.Fixed64{0: 10 * 1e8}
+	propState.FinalPaymentStatus = false
+	s.Chain.crCommittee.GetProposalManager().Proposals[crcProposalWithdraw.
+		ProposalHash] = propState
+	references = make(map[*types.Input]types.Output)
+	references[inputs[0]] = *outputs[0]
+	err = s.Chain.checkCRCProposalWithdrawTransaction(txn, references, tenureHeight)
+	s.NoError(err)
+
+}
+
+func (s *txValidatorTestSuite) getCRChangeProposalOwnerProposalTx(publicKeyStr, privateKeyStr,
+	crPublicKeyStr, crPrivateKeyStr, newOwnerPublicKeyStr string, targetHash common.Uint256) *types.Transaction {
+
+	privateKey, _ := common.HexStringToBytes(privateKeyStr)
+	crPrivateKey, _ := common.HexStringToBytes(crPrivateKeyStr)
+	crPublicKey, _ := common.HexStringToBytes(crPublicKeyStr)
+	crDid, _ := getDIDFromCode(getCodeByPubKeyStr(crPublicKeyStr))
+	newOwnerPublicKey, _ := common.HexStringToBytes(newOwnerPublicKeyStr)
+	draftData := randomBytes(10)
+
+	txn := new(types.Transaction)
+	txn.TxType = types.CRCProposal
+	txn.Version = types.TxVersion09
+
+	crcProposalPayload := &payload.CRCProposal{
+		ProposalType:       payload.ChangeProposalOwner,
+		OwnerPublicKey:     crPublicKey,
+		NewOwnerPublicKey:  newOwnerPublicKey,
+		TargetProposalHash: targetHash,
+		DraftHash:          common.Hash(draftData),
+		CRCouncilMemberDID: *crDid,
+	}
+
+	signBuf := new(bytes.Buffer)
+	crcProposalPayload.SerializeUnsigned(signBuf, payload.CRCProposalVersion)
+	sig, _ := crypto.Sign(privateKey, signBuf.Bytes())
+	crcProposalPayload.Signature = sig
+
+	common.WriteVarBytes(signBuf, sig)
+	crcProposalPayload.CRCouncilMemberDID.Serialize(signBuf)
+	crSig, _ := crypto.Sign(crPrivateKey, signBuf.Bytes())
+	crcProposalPayload.CRCouncilMemberSignature = crSig
+
+	txn.Payload = crcProposalPayload
+	txn.Programs = []*program.Program{&program.Program{
+		Code:      getCodeByPubKeyStr(publicKeyStr),
+		Parameter: nil,
+	}}
+	return txn
+}
+
+func (s *txValidatorTestSuite) TestGenrateTxFromRawTxStr() {
+	rawTxStr := "0925000004033131312102f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a51f06ed7688f2b6e445f6579ca802fd1b6425b1e02a1944a8df714301f629363521031e12374bae471aa09ad479f66c2306f4bcc4ca5b754609a82a1839b94b4721b967e7bbc540fab57abb2dc9ba1e6cdbf9ae3979e3cb40a83441dea2934a24287233dcbe994bc67f4b9001ccf907a04080ef7b884ff1653853c51d955c0ea7ec62f1d871e834c6da65e5863c47f67fc0fc0449c3ffefda4028d1440852764247bc90c71cb946b545501c08a4d72813b8481bb48b1f95cb6997192e463862469f1729acb403fc8f64dcee80e6dbd9d0f59a136003585a0da3670993d2b44ca80090642ab67053a90918f1dbedf24016b130872665b86dfa57500bced7bd87c1f5be313d46f49907c41e07ec032ad8c28810fc2a6564dc18d20cafb526250434f14c6359b4c060b6d5e0f7750d55a6000000000000000100232102f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5ac"
+	data, err := common.HexStringToBytes(rawTxStr)
+	if err != nil {
+		fmt.Println("err", err)
+		return
+
+	}
+	var tx types.Transaction
+	reader := bytes.NewReader(data)
+	err2 := tx.Deserialize(reader)
+	if err2 != nil {
+		fmt.Println("err2", err2)
+		return
+	}
+
+	buf2 := new(bytes.Buffer)
+	tx.Serialize(buf2)
+	rawTxStr2 := common.BytesToHexString(buf2.Bytes())
+	s.Equal(rawTxStr2, rawTxStr)
+	s.Equal("dc327a5ef958385a23082e8c73b2fa7c330793ad601587db84ecec3977989b33", tx.Hash().String())
+}
+
+func (s *txValidatorTestSuite) TestGenerateRawTransactionStr() {
+	//generate raw tx str
+	ownerPublicKeyStr1 := "02f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5"
+	ownerPrivateKeyStr1 := "15e0947580575a9b6729570bed6360a890f84a07dc837922fe92275feec837d4"
+	crPublicKeyStr := "036db5984e709d2e0ec62fd974283e9a18e7b87e8403cc784baf1f61f775926535"
+	crPrivateKeyStr := "b2c25e877c8a87d54e8a20a902d27c7f24ed52810813ba175ca4e8d3036d130e"
+	secretaryPublicKeyStr := "031e12374bae471aa09ad479f66c2306f4bcc4ca5b754609a82a1839b94b4721b9"
+	secretaryPrivateKeyStr := "94396a69462208b8fd96d83842855b867d3b0e663203cb31d0dfaec0362ec034"
+	//recipent, draftData are all random data so hash is changing all the time
+	txn := s.getSecretaryGeneralCRCProposalTx(ownerPublicKeyStr1, ownerPrivateKeyStr1, crPublicKeyStr, crPrivateKeyStr,
+		secretaryPublicKeyStr, secretaryPrivateKeyStr)
+	buf := new(bytes.Buffer)
+	txn.Serialize(buf)
+
+	rawTxStr := common.BytesToHexString(buf.Bytes())
+
+	data, err2 := common.HexStringToBytes(rawTxStr)
+	if err2 != nil {
+		fmt.Println("HexStringToBytes err2", err2)
+	}
+	var txn2 types.Transaction
+	reader2 := bytes.NewReader(data)
+	err2 = txn2.Deserialize(reader2)
+	if err2 != nil {
+		fmt.Println("txn2.Deserialize err2", err2)
+	}
+	s.Equal(txn2.Hash().String(), txn.Hash().String())
+
+}
+
+func (s *txValidatorTestSuite) TestCheckSecretaryGeneralProposalTransaction() {
+
+	ownerPublicKeyStr1 := "02f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5"
+	ownerPrivateKeyStr1 := "15e0947580575a9b6729570bed6360a890f84a07dc837922fe92275feec837d4"
+
+	crPublicKeyStr := "036db5984e709d2e0ec62fd974283e9a18e7b87e8403cc784baf1f61f775926535"
+	crPrivateKeyStr := "b2c25e877c8a87d54e8a20a902d27c7f24ed52810813ba175ca4e8d3036d130e"
+
+	secretaryPublicKeyStr := "031e12374bae471aa09ad479f66c2306f4bcc4ca5b754609a82a1839b94b4721b9"
+	secretaryPrivateKeyStr := "94396a69462208b8fd96d83842855b867d3b0e663203cb31d0dfaec0362ec034"
+
+	tenureHeight := config.DefaultParams.CRCommitteeStartHeight + 1
+	ownerNickName := "nickname owner"
+	crNickName := "nickname cr"
+
+	memberOwner := s.getCRMember(ownerPublicKeyStr1, ownerPrivateKeyStr1, ownerNickName)
+	memberCr := s.getCRMember(crPublicKeyStr, crPrivateKeyStr, crNickName)
+
+	memebers := make(map[common.Uint168]*crstate.CRMember)
+
+	s.Chain.crCommittee.Members = memebers
+	s.Chain.crCommittee.CRCCommitteeBalance = common.Fixed64(100 * 1e8)
+	s.Chain.crCommittee.CRCCurrentStageAmount = common.Fixed64(100 * 1e8)
+	s.Chain.crCommittee.InElectionPeriod = true
+	s.Chain.crCommittee.NeedAppropriation = false
+
+	//owner not elected cr
+	txn := s.getSecretaryGeneralCRCProposalTx(ownerPublicKeyStr1, ownerPrivateKeyStr1, crPublicKeyStr, crPrivateKeyStr,
+		secretaryPublicKeyStr, secretaryPrivateKeyStr)
+
+	//CRCouncilMember not elected cr
+	err := s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CR Council Member should be one of the CR members")
+	memebers[memberCr.Info.DID] = memberCr
+	memebers[memberOwner.Info.DID] = memberOwner
+
+	//owner signature check failed
+	rightSign := txn.Payload.(*payload.CRCProposal).Signature
+	txn.Payload.(*payload.CRCProposal).Signature = []byte{}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "owner signature check failed")
+	txn.Payload.(*payload.CRCProposal).Signature = rightSign
+
+	//SecretaryGeneral signature check failed
+	secretaryGeneralSign := txn.Payload.(*payload.CRCProposal).SecretaryGeneraSignature
+	txn.Payload.(*payload.CRCProposal).SecretaryGeneraSignature = []byte{}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "SecretaryGeneral signature check failed")
+	txn.Payload.(*payload.CRCProposal).SecretaryGeneraSignature = secretaryGeneralSign
+
+	//CRCouncilMemberSignature signature check failed
+	crcouncilMemberSignature := txn.Payload.(*payload.CRCProposal).CRCouncilMemberSignature
+	txn.Payload.(*payload.CRCProposal).CRCouncilMemberSignature = []byte{}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CR Council Member signature check failed")
+	txn.Payload.(*payload.CRCProposal).CRCouncilMemberSignature = crcouncilMemberSignature
+
+	//SecretaryGeneralPublicKey and SecretaryGeneralDID not match
+	secretaryGeneralPublicKey := txn.Payload.(*payload.CRCProposal).SecretaryGeneralPublicKey
+	txn.Payload.(*payload.CRCProposal).SecretaryGeneralPublicKey, _ = common.HexStringToBytes(ownerPublicKeyStr1)
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "SecretaryGeneral NodePublicKey and DID is not matching")
+	txn.Payload.(*payload.CRCProposal).SecretaryGeneralPublicKey = secretaryGeneralPublicKey
+
+	// ok
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.NoError(err)
+
+	//ChangeSecretaryGeneralProposal tx must InElectionPeriod and not during voting period
+	s.Chain.crCommittee.LastCommitteeHeight = config.DefaultParams.CRCommitteeStartHeight
+	tenureHeight = config.DefaultParams.CRCommitteeStartHeight + config.DefaultParams.CRDutyPeriod -
+		config.DefaultParams.CRVotingPeriod + 1
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "cr proposal tx must not during voting period")
+}
+
+func (s *txValidatorTestSuite) TestCheckCRCProposalTransaction() {
+	publicKeyStr1 := "02f981e4dae4983a5d284d01609ad735e3242c5672bb2c7bb0018cc36f9ab0c4a5"
+	privateKeyStr1 := "15e0947580575a9b6729570bed6360a890f84a07dc837922fe92275feec837d4"
+
+	publicKeyStr2 := "036db5984e709d2e0ec62fd974283e9a18e7b87e8403cc784baf1f61f775926535"
+	privateKeyStr2 := "b2c25e877c8a87d54e8a20a902d27c7f24ed52810813ba175ca4e8d3036d130e"
+
+	tenureHeight := config.DefaultParams.CRCommitteeStartHeight + 1
+	nickName1 := "nickname 1"
+	nickName2 := "nickname 2"
+
+	member1 := s.getCRMember(publicKeyStr1, privateKeyStr1, nickName1)
+	memebers := make(map[common.Uint168]*crstate.CRMember)
+	memebers[member1.Info.DID] = member1
+	s.Chain.crCommittee.Members = memebers
+	s.Chain.crCommittee.CRCCommitteeBalance = common.Fixed64(100 * 1e8)
+	s.Chain.crCommittee.CRCCurrentStageAmount = common.Fixed64(100 * 1e8)
+	s.Chain.crCommittee.InElectionPeriod = true
+	s.Chain.crCommittee.NeedAppropriation = false
+
+	// ok
+	txn := s.getCRCProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	err := s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.NoError(err)
+
+	// member status is not elected
+	member1.MemberState = crstate.MemberImpeached
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CR Council Member should be an elected CR members")
+
+	// register cr proposal in voting period
+	member1.MemberState = crstate.MemberElected
+	tenureHeight = config.DefaultParams.CRCommitteeStartHeight +
+		config.DefaultParams.CRDutyPeriod - config.DefaultParams.CRVotingPeriod
+	s.Chain.crCommittee.InElectionPeriod = false
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "cr proposal tx must not during voting period")
+
+	// recipient is empty
+	s.Chain.crCommittee.InElectionPeriod = true
+	tenureHeight = config.DefaultParams.CRCommitteeStartHeight + 1
+	txn.Payload.(*payload.CRCProposal).Recipient = common.Uint168{}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "recipient is empty")
+
+	// invalid payload
+	txn.Payload = &payload.CRInfo{}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "invalid payload")
+
+	// invalid proposal type
+	txn = s.getCRCProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	txn.Payload.(*payload.CRCProposal).ProposalType = 0x1000
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "type of proposal should be known")
+
+	// invalid outputs of ELIP.
+	txn.Payload.(*payload.CRCProposal).ProposalType = 0x0100
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "ELIP needs to have and only have two budget")
+
+	// invalid budgets.
+	txn.Payload.(*payload.CRCProposal).ProposalType = 0x0000
+	s.Chain.crCommittee.CRCCommitteeBalance = common.Fixed64(10 * 1e8)
+	s.Chain.crCommittee.CRCCurrentStageAmount = common.Fixed64(10 * 1e8)
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "budgets exceeds 10% of CRC committee balance")
+
+	s.Chain.crCommittee.CRCCommitteeBalance = common.Fixed64(100 * 1e8)
+	s.Chain.crCommittee.CRCCurrentStageAmount = common.Fixed64(100 * 1e8)
+	s.Chain.crCommittee.CRCCommitteeUsedAmount = common.Fixed64(99 * 1e8)
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.Error(err, "budgets exceeds the balance of CRC committee")
+
+	s.Chain.crCommittee.CRCCommitteeUsedAmount = common.Fixed64(0)
+
+	// CRCouncilMemberSignature is not signed by CR member
+	txn = s.getCRCProposalTx(publicKeyStr1, privateKeyStr1, publicKeyStr2, privateKeyStr2)
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CR Council Member should be one of the CR members")
+
+	// invalid owner
+	txn = s.getCRCProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	txn.Payload.(*payload.CRCProposal).OwnerPublicKey = []byte{}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "invalid owner")
+
+	// invalid owner signature
+	txn = s.getCRCProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	publicKey1, _ := common.HexStringToBytes(publicKeyStr1)
+	txn.Payload.(*payload.CRCProposal).OwnerPublicKey = publicKey1
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "owner signature check failed")
+
+	// invalid CR owner signature
+	txn = s.getCRCProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	txn.Payload.(*payload.CRCProposal).CRCouncilMemberSignature = []byte{}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "failed to check CR Council Member signature")
+
+	// proposal status is not VoterAgreed
+	newOwnerPublicKeyStr := publicKeyStr2
+	publicKey2, _ := hex.DecodeString(publicKeyStr2)
+	proposalState, proposal := s.createSpecificStatusProposal(publicKey1, publicKey2, tenureHeight,
+		crstate.Registered, payload.Normal)
+
+	s.Chain.crCommittee.GetProposalManager().Proposals[proposal.Hash()] = proposalState
+
+	txn = s.getCRChangeProposalOwnerProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1,
+		newOwnerPublicKeyStr, proposal.Hash())
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "proposal status is not VoterAgreed")
+
+	//proposal sponsors must be members
+	targetHash := proposal.Hash()
+	newOwnerPublicKey, _ := hex.DecodeString(newOwnerPublicKeyStr)
+	proposalState2, proposal2 := s.createSpecificStatusProposal(publicKey1, publicKey2, tenureHeight+1,
+		crstate.VoterAgreed, payload.ChangeProposalOwner)
+	proposal2.TargetProposalHash = targetHash
+	proposal2.OwnerPublicKey = newOwnerPublicKey
+	s.Chain.crCommittee.GetProposalManager().Proposals[targetHash] = proposalState2
+	txn = s.getCRChangeProposalOwnerProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1,
+		newOwnerPublicKeyStr, targetHash)
+
+	s.Chain.crCommittee.InElectionPeriod = false
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "cr proposal tx must not during voting period")
+
+	// invalid proposal owner
+	s.Chain.crCommittee.InElectionPeriod = true
+	proposalState3, proposal3 := s.createSpecificStatusProposal(publicKey1, publicKey2, tenureHeight,
+		crstate.Registered, payload.Normal)
+	s.Chain.crCommittee.GetProposalManager().Proposals[proposal3.Hash()] = proposalState3
+
+	txn = s.getCRCCloseProposalTxWithHash(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1, proposal.Hash())
+
+	// invalid closeProposalHash
+	txn = s.getCRCCloseProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CloseProposalHash does not exist")
+
+	// invalid proposal status
+	hash := proposal.Hash()
+	member2 := s.getCRMember(publicKeyStr2, privateKeyStr2, nickName2)
+	memebers[member2.Info.DID] = member2
+	txn = s.getCRCCloseProposalTxWithHash(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1, proposal.Hash())
+
+	proposalState.Status = crstate.Registered
+	s.Chain.crCommittee.GetProposalManager().Proposals[hash] = proposalState
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CloseProposalHash has to be voterAgreed")
+
+	// invalid receipt
+	proposalState, proposal = s.createSpecificStatusProposal(publicKey1, publicKey2, tenureHeight,
+		crstate.VoterAgreed, payload.Normal)
+	hash = proposal.Hash()
+	s.Chain.crCommittee.GetProposalManager().Proposals[hash] = proposalState
+	txn = s.getCRCCloseProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	txn.Payload.(*payload.CRCProposal).TargetProposalHash = hash
+	txn.Payload.(*payload.CRCProposal).Recipient = *randomUint168()
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CloseProposal recipient must be empty")
+
+	// invalid budget
+	txn = s.getCRCCloseProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	txn.Payload.(*payload.CRCProposal).TargetProposalHash = hash
+	txn.Payload.(*payload.CRCProposal).Budgets = []payload.Budget{{
+		payload.Imprest,
+		0x01,
+		common.Fixed64(10000000000),
+	}}
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "CloseProposal cannot have budget")
+
+	// proposals can not more than MaxCommitteeProposalCount
+	txn = s.getCRCProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
+	crcProposal, _ := txn.Payload.(*payload.CRCProposal)
+	proposalHashSet := crstate.NewProposalHashSet()
+	for i := 0; i < int(s.Chain.chainParams.MaxCommitteeProposalCount); i++ {
+		proposalHashSet.Add(*randomUint256())
+	}
+	s.Chain.crCommittee.GetProposalManager().ProposalHashes[crcProposal.
+		CRCouncilMemberDID] = proposalHashSet
+	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
+	s.EqualError(err, "proposal is full")
+}
+
 func (s *txValidatorTestSuite) TestCheckStringField() {
 	s.NoError(checkStringField("Normal", "test", false))
 	s.EqualError(checkStringField("", "test", false),
@@ -1735,13 +3192,13 @@ func (s *txValidatorTestSuite) TestCheckStringField() {
 }
 
 func (s *txValidatorTestSuite) TestCheckTransactionDepositUTXO() {
-	references := make(map[*types.Input]*types.Output)
+	references := make(map[*types.Input]types.Output)
 	input := &types.Input{}
 	var txn types.Transaction
 
 	// Use the deposit UTXO in a TransferAsset transaction
 	depositHash, _ := common.Uint168FromAddress("DVgnDnVfPVuPa2y2E4JitaWjWgRGJDuyrD")
-	depositOutput := &types.Output{
+	depositOutput := types.Output{
 		ProgramHash: *depositHash,
 	}
 	references[input] = depositOutput
@@ -1758,7 +3215,7 @@ func (s *txValidatorTestSuite) TestCheckTransactionDepositUTXO() {
 
 	// Use the standard UTXO in a ReturnDepositCoin transaction
 	normalHash, _ := common.Uint168FromAddress("EJMzC16Eorq9CuFCGtyMrq4Jmgw9jYCHQR")
-	normalOutput := &types.Output{
+	normalOutput := types.Output{
 		ProgramHash: *normalHash,
 	}
 	references[input] = normalOutput
@@ -1780,15 +3237,22 @@ func (s *txValidatorTestSuite) TestCheckTransactionDepositUTXO() {
 		"transaction can only use the deposit UTXO")
 }
 
-func (s txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
-	height := uint32(1)
+func (s *txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
+	s.CurrentHeight = 1
+	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
 	_, pk, _ := crypto.GenerateKeyPair()
 	depositCont, _ := contract.CreateDepositContractByPubKey(pk)
 	publicKey, _ := pk.EncodePoint(true)
 	// register CR
 	s.Chain.state.ProcessBlock(&types.Block{
 		Header: types.Header{
-			Height: height,
+			Height: s.CurrentHeight,
 		},
 		Transactions: []*types.Transaction{
 			{
@@ -1802,30 +3266,30 @@ func (s txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 				Outputs: []*types.Output{
 					{
 						ProgramHash: *depositCont.ToProgramHash(),
-						Value:       common.Fixed64(5000),
+						Value:       common.Fixed64(5000 * 1e8),
 					},
 				},
 			},
 		},
 	}, nil)
-	height++
+	s.CurrentHeight++
 	producer := s.Chain.state.GetProducer(publicKey)
 	s.True(producer.State() == state.Pending, "register producer failed")
 
 	for i := 0; i < 6; i++ {
 		s.Chain.state.ProcessBlock(&types.Block{
 			Header: types.Header{
-				Height: height,
+				Height: s.CurrentHeight,
 			},
 			Transactions: []*types.Transaction{},
 		}, nil)
-		height++
+		s.CurrentHeight++
 	}
 	s.True(producer.State() == state.Active, "active producer failed")
 
 	// check a return deposit coin transaction with wrong state.
-	references := make(map[*types.Input]*types.Output)
-	references[&types.Input{}] = &types.Output{
+	references := make(map[*types.Input]types.Output)
+	references[&types.Input{}] = types.Output{
 		ProgramHash: *randomUint168(),
 		Value:       common.Fixed64(5000 * 100000000),
 	}
@@ -1844,12 +3308,12 @@ func (s txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 	canceledHeight := uint32(8)
 	err := s.Chain.checkReturnDepositCoinTransaction(
 		rdTx, references, 2160+canceledHeight)
-	s.EqualError(err, "producer must be canceled before return deposit coin")
+	s.NoError(err)
 
 	// cancel CR
 	s.Chain.state.ProcessBlock(&types.Block{
 		Header: types.Header{
-			Height: height,
+			Height: s.CurrentHeight,
 		},
 		Transactions: []*types.Transaction{
 			{
@@ -1860,7 +3324,7 @@ func (s txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 			},
 		},
 	}, nil)
-	height++
+	s.CurrentHeight++
 	s.True(producer.State() == state.Canceled, "cancel producer failed")
 
 	// check a return deposit coin transaction with wrong code.
@@ -1878,7 +3342,7 @@ func (s txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 	rdTx.Programs[0].Code = code1
 	err = s.Chain.checkReturnDepositCoinTransaction(
 		rdTx, references, 2159+canceledHeight)
-	s.EqualError(err, "return deposit does not meet the lockup limit")
+	s.NoError(err)
 
 	// check a return deposit coin transaction with wrong output amount.
 	rdTx.Outputs[0].Value = 5000 * 100000000
@@ -1886,68 +3350,70 @@ func (s txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 		rdTx, references, 2160+canceledHeight)
 	s.EqualError(err, "overspend deposit")
 
-	// check a correct deposit coin transaction.
+	// check a correct return deposit coin transaction.
 	rdTx.Outputs[0].Value = 4999 * 100000000
 	err = s.Chain.checkReturnDepositCoinTransaction(
 		rdTx, references, 2160+canceledHeight)
 	s.NoError(err)
 }
 
-func (s txValidatorTestSuite) TestCheckReturnCRDepositCoinTransaction() {
-	height := uint32(1)
+func (s *txValidatorTestSuite) TestCheckReturnCRDepositCoinTransaction() {
+	s.CurrentHeight = 1
 	_, pk, _ := crypto.GenerateKeyPair()
 	cont, _ := contract.CreateStandardContract(pk)
 	code := cont.Code
 	depositCont, _ := contract.CreateDepositContractByPubKey(pk)
-	ct, _ := contract.CreateCRDIDContractByCode(code)
-	did := ct.ToProgramHash()
+	ct, _ := contract.CreateCRIDContractByCode(code)
+	cid := ct.ToProgramHash()
 
+	s.Chain.chainParams.CRVotingStartHeight = uint32(1)
+	s.Chain.chainParams.CRCommitteeStartHeight = uint32(3000)
+	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
 	// register CR
-	s.Chain.crCommittee.GetState().ProcessBlock(&types.Block{
+	s.Chain.crCommittee.ProcessBlock(&types.Block{
 		Header: types.Header{
-			Height: height,
+			Height: s.CurrentHeight,
 		},
 		Transactions: []*types.Transaction{
 			{
 				TxType: types.RegisterCR,
 				Payload: &payload.CRInfo{
 					Code:     code,
-					DID:      *did,
+					CID:      *cid,
 					NickName: randomString(),
 				},
 				Outputs: []*types.Output{
 					{
 						ProgramHash: *depositCont.ToProgramHash(),
-						Value:       common.Fixed64(5000),
+						Value:       common.Fixed64(5000 * 1e8),
 					},
 				},
 			},
 		},
 	}, nil)
-	height++
-	candidate := s.Chain.crCommittee.GetState().GetCandidate(code)
+	s.CurrentHeight++
+	candidate := s.Chain.crCommittee.GetCandidate(*cid)
 	s.True(candidate.State() == crstate.Pending, "register CR failed")
 
 	for i := 0; i < 6; i++ {
-		s.Chain.crCommittee.GetState().ProcessBlock(&types.Block{
+		s.Chain.crCommittee.ProcessBlock(&types.Block{
 			Header: types.Header{
-				Height: height,
+				Height: s.CurrentHeight,
 			},
 			Transactions: []*types.Transaction{},
 		}, nil)
-		height++
+		s.CurrentHeight++
 	}
 	s.True(candidate.State() == crstate.Active, "active CR failed")
 
-	isInVotingPeriod := func(height uint32) bool {
-		return true
-	}
-	notInVotingPeriod := func(height uint32) bool {
-		return false
-	}
-
-	references := make(map[*types.Input]*types.Output)
-	references[&types.Input{}] = &types.Output{
+	references := make(map[*types.Input]types.Output)
+	references[&types.Input{}] = types.Output{
 		ProgramHash: *randomUint168(),
 		Value:       common.Fixed64(5000 * 100000000),
 	}
@@ -1964,27 +3430,21 @@ func (s txValidatorTestSuite) TestCheckReturnCRDepositCoinTransaction() {
 	}
 	canceledHeight := uint32(8)
 
-	// check a return cr deposit coin transaction when not unregistered in
-	// voting period.
-	err := s.Chain.checkReturnCRDepositCoinTransaction(
-		rdTx, references, 2160+canceledHeight, isInVotingPeriod)
-	s.EqualError(err, "candidate state is not canceled")
-
 	// unregister CR
-	s.Chain.crCommittee.GetState().ProcessBlock(&types.Block{
+	s.Chain.crCommittee.ProcessBlock(&types.Block{
 		Header: types.Header{
-			Height: height,
+			Height: s.CurrentHeight,
 		},
 		Transactions: []*types.Transaction{
 			{
 				TxType: types.UnregisterCR,
 				Payload: &payload.UnregisterCR{
-					DID: *getDid(code),
+					CID: *getCID(code),
 				},
 			},
 		},
 	}, nil)
-	height++
+	s.CurrentHeight++
 	s.True(candidate.State() == crstate.Canceled, "canceled CR failed")
 
 	publicKey2 := "030a26f8b4ab0ea219eb461d1e454ce5f0bd0d289a6a64ffc0743dab7bd5be0be9"
@@ -1992,46 +3452,51 @@ func (s txValidatorTestSuite) TestCheckReturnCRDepositCoinTransaction() {
 	pubkey2, _ := crypto.DecodePoint(pubKeyBytes2)
 	code2, _ := contract.CreateStandardRedeemScript(pubkey2)
 
+	s.CurrentHeight = 2160 + canceledHeight
+	s.Chain.crCommittee.ProcessBlock(&types.Block{
+		Header: types.Header{
+			Height: s.CurrentHeight,
+		},
+		Transactions: []*types.Transaction{},
+	}, nil)
+
 	// check a return cr deposit coin transaction with wrong code in voting period.
 	rdTx.Programs[0].Code = code2
-	err = s.Chain.checkReturnCRDepositCoinTransaction(
-		rdTx, references, 2160+canceledHeight, isInVotingPeriod)
-	s.EqualError(err, "signer must be CR candidate")
-
-	// check a return cr deposit coin transaction when not reached the
-	// count of DepositLockupBlocks in voting period.
-	rdTx.Programs[0].Code = code
-	err = s.Chain.checkReturnCRDepositCoinTransaction(
-		rdTx, references, 2159+canceledHeight, isInVotingPeriod)
-	s.EqualError(err, "return CR deposit does not meet the lockup limit")
+	err := s.Chain.checkReturnCRDepositCoinTransaction(
+		rdTx, references, 2160+canceledHeight)
+	s.EqualError(err, "signer must be candidate or member")
 
 	// check a return cr deposit coin transaction with wrong output amount.
 	rdTx.Outputs[0].Value = 5000 * 100000000
+	s.CurrentHeight = 2160 + canceledHeight
 	err = s.Chain.checkReturnCRDepositCoinTransaction(
-		rdTx, references, 2160+canceledHeight, isInVotingPeriod)
-	s.EqualError(err, "candidate overspend deposit")
+		rdTx, references, 2160+canceledHeight)
+	s.EqualError(err, "signer must be candidate or member")
 
 	// check a correct return cr deposit coin transaction.
 	rdTx.Outputs[0].Value = 4999 * 100000000
+	rdTx.Programs[0].Code = code
+	s.CurrentHeight = s.Chain.chainParams.CRCommitteeStartHeight
 	err = s.Chain.checkReturnCRDepositCoinTransaction(
-		rdTx, references, 2160+canceledHeight, notInVotingPeriod)
+		rdTx, references, s.CurrentHeight)
 	s.NoError(err)
 
 	// return CR deposit coin.
-	s.Chain.crCommittee.GetState().ProcessBlock(&types.Block{
+	rdTx.Programs[0].Code = code
+	s.Chain.crCommittee.ProcessBlock(&types.Block{
 		Header: types.Header{
-			Height: height,
+			Height: s.CurrentHeight,
 		},
 		Transactions: []*types.Transaction{
 			rdTx,
 		},
 	}, nil)
-	height++
+	s.CurrentHeight++
 
 	// check a return cr deposit coin transaction with the amount has returned.
 	err = s.Chain.checkReturnCRDepositCoinTransaction(
-		rdTx, references, 2160+canceledHeight, notInVotingPeriod)
-	s.EqualError(err, "candidate is returned before")
+		rdTx, references, 2160+canceledHeight)
+	s.NoError(err)
 
 }
 
@@ -2132,7 +3597,7 @@ func (s *txValidatorTestSuite) TestCheckOutputPayload() {
 
 func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 
-	references := make(map[*types.Input]*types.Output)
+	references := make(map[*types.Input]types.Output)
 	outputs := []*types.Output{{Type: types.OTNone}}
 	s.NoError(s.Chain.checkVoteOutputs(0, outputs, references, nil, nil))
 
@@ -2143,34 +3608,46 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 	privateKeyStr2 := "b2c25e877c8a87d54e8a20a902d27c7f24ed52810813ba175ca4e8d3036d130e"
 	privateKeyStr3 := "94396a69462208b8fd96d83842855b867d3b0e663203cb31d0dfaec0362ec034"
 
-	registerCRTxn1 := s.getRegisterCRTx(publicKey1, privateKeyStr1, "nickName1")
-	registerCRTxn2 := s.getRegisterCRTx(publicKey2, privateKeyStr2, "nickName2")
-	registerCRTxn3 := s.getRegisterCRTx(publicKey3, privateKeyStr3, "nickName3")
+	registerCRTxn1 := s.getRegisterCRTx(publicKey1, privateKeyStr1,
+		"nickName1", payload.CRInfoVersion, &common.Uint168{})
+	registerCRTxn2 := s.getRegisterCRTx(publicKey2, privateKeyStr2,
+		"nickName2", payload.CRInfoVersion, &common.Uint168{})
+	registerCRTxn3 := s.getRegisterCRTx(publicKey3, privateKeyStr3,
+		"nickName3", payload.CRInfoVersion, &common.Uint168{})
 
+	s.CurrentHeight = 1
+	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
 	block := &types.Block{
 		Transactions: []*types.Transaction{
 			registerCRTxn1,
 			registerCRTxn2,
 			registerCRTxn3,
 		},
+		Header: types.Header{Height: s.CurrentHeight},
 	}
-	s.Chain.crCommittee.GetState().ProcessBlock(block, nil)
-	code1 := getCode(publicKey1)
-	code2 := getCode(publicKey2)
-	code3 := getCode(publicKey3)
+	s.Chain.crCommittee.ProcessBlock(block, nil)
+	code1 := getCodeByPubKeyStr(publicKey1)
+	code2 := getCodeByPubKeyStr(publicKey2)
+	code3 := getCodeByPubKeyStr(publicKey3)
 
 	candidate1, _ := common.HexStringToBytes(publicKey1)
 	candidate2, _ := common.HexStringToBytes(publicKey2)
-	didCandidate1 := getDid(code1)
-	didCandidate2 := getDid(code2)
-	didCandidate3 := getDid(code3)
+	candidateCID1 := getCID(code1)
+	candidateCID2 := getCID(code2)
+	candidateCID3 := getCID(code3)
 
 	producersMap := make(map[string]struct{})
 	producersMap[publicKey1] = struct{}{}
 	crsMap := make(map[common.Uint168]struct{})
 
-	crsMap[*didCandidate1] = struct{}{}
-	crsMap[*didCandidate3] = struct{}{}
+	crsMap[*candidateCID1] = struct{}{}
+	crsMap[*candidateCID3] = struct{}{}
 
 	hashStr := "21c5656c65028fe21f2222e8f0cd46a1ec734cbdb6"
 	hashByte, _ := common.HexStringToBytes(hashStr)
@@ -2193,8 +3670,8 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs1, references, producersMap,
-		crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs1, references, producersMap, crsMap),
 		"the output address of vote tx should exist in its input")
 
 	// Check vote output of v0 with crc type and with wrong output program hash
@@ -2208,14 +3685,14 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate3.Bytes(), 0},
+						{candidateCID3.Bytes(), 0},
 					},
 				},
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs2, references,
-		producersMap, crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs2, references, producersMap, crsMap),
 		"the output address of vote tx should exist in its input")
 
 	// Check vote output of v1 with wrong output program hash
@@ -2235,24 +3712,19 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate3.Bytes(), 0},
+						{candidateCID3.Bytes(), 0},
 					},
 				},
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs3, references, producersMap, crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs3, references, producersMap, crsMap),
 		"the output address of vote tx should exist in its input")
 
-	// Check vote output v0 with correct ouput program hash
-	references[&types.Input{}] = &types.Output{
+	references[&types.Input{}] = types.Output{
 		ProgramHash: *hash,
 	}
-	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
-		outputs1, references, producersMap, crsMap))
-
-	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs2, references, producersMap, crsMap))
-	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs3, references, producersMap, crsMap))
 
 	// Check vote output of v0 with delegate type and invalid candidate
 	outputs4 := []*types.Output{{Type: types.OTNone}}
@@ -2271,9 +3743,17 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs4, references, producersMap,
-		crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs4, references, producersMap, crsMap),
 		"invalid vote output payload producer candidate: "+publicKey2)
+
+	// Check vote output v0 with correct ouput program hash
+	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs1, references, producersMap, crsMap))
+	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs2, references, producersMap, crsMap))
+	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs3, references, producersMap, crsMap))
 
 	// Check vote output of v0 with crc type and invalid candidate
 	outputs5 := []*types.Output{{Type: types.OTNone}}
@@ -2286,14 +3766,14 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate2.Bytes(), 0},
+						{candidateCID2.Bytes(), 0},
 					},
 				},
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs5, references, producersMap,
-		crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs5, references, producersMap, crsMap),
 		"payload VoteProducerVersion not support vote CR")
 
 	// Check vote output of v1 with crc type and invalid candidate
@@ -2307,14 +3787,15 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate2.Bytes(), 0},
+						{candidateCID2.Bytes(), 0},
 					},
 				},
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs6, references, producersMap, crsMap),
-		"invalid vote output payload CR candidate: "+didCandidate2.String())
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs6, references, producersMap, crsMap),
+		"invalid vote output payload CR candidate: "+candidateCID2.String())
 
 	// Check vote output of v0 with invalid candidate
 	outputs7 := []*types.Output{{Type: types.OTNone}}
@@ -2327,20 +3808,21 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.Delegate,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{candidate2, 0},
+						{candidate1, 0},
 					},
 				},
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate2.Bytes(), 0},
+						{candidateCID2.Bytes(), 0},
 					},
 				},
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs7, references, producersMap, crsMap),
-		"invalid vote output payload producer candidate: "+publicKey2)
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs7, references, producersMap, crsMap),
+		"payload VoteProducerVersion not support vote CR")
 
 	// Check vote output of v1 with delegate type and wrong votes
 	outputs8 := []*types.Output{{Type: types.OTNone}}
@@ -2360,7 +3842,8 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs8, references, producersMap, crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs8, references, producersMap, crsMap),
 		"votes larger than output amount")
 
 	// Check vote output of v1 with crc type and wrong votes
@@ -2375,14 +3858,15 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate1.Bytes(), 10},
-						{didCandidate3.Bytes(), 10},
+						{candidateCID1.Bytes(), 10},
+						{candidateCID3.Bytes(), 10},
 					},
 				},
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs9, references, producersMap, crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs9, references, producersMap, crsMap),
 		"total votes larger than output amount")
 
 	// Check vote output of v1 with wrong votes
@@ -2403,13 +3887,14 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate3.Bytes(), 20},
+						{candidateCID3.Bytes(), 20},
 					},
 				},
 			},
 		},
 	})
-	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs10, references, producersMap, crsMap),
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs10, references, producersMap, crsMap),
 		"votes larger than output amount")
 
 	// Check vote output v1 with correct votes
@@ -2430,13 +3915,14 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate3.Bytes(), 10},
+						{candidateCID3.Bytes(), 10},
 					},
 				},
 			},
 		},
 	})
-	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs11, references, producersMap, crsMap))
+	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs11, references, producersMap, crsMap))
 
 	// Check vote output of v1 with wrong votes
 	outputs12 := []*types.Output{{Type: types.OTNone}}
@@ -2456,14 +3942,63 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 				{
 					VoteType: outputpayload.CRC,
 					CandidateVotes: []outputpayload.CandidateVotes{
-						{didCandidate3.Bytes(), 1},
+						{candidateCID3.Bytes(), 1},
 					},
 				},
 			},
 		},
 	})
-	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight, outputs12, references, producersMap,
-		crsMap))
+	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs12, references, producersMap, crsMap))
+
+	// Check vote output v1 with correct votes
+	proposalHashStr1 := "5df40cc0a4c6791acb5ebe89a96dd4f3fe21c94275589a65357406216a27ae36"
+	proposalHash1, _ := common.Uint256FromHexString(proposalHashStr1)
+	outputs13 := []*types.Output{{Type: types.OTNone}}
+	outputs13 = append(outputs13, &types.Output{
+		Type:        types.OTVote,
+		ProgramHash: *hash,
+		Value:       common.Fixed64(10),
+		Payload: &outputpayload.VoteOutput{
+			Version: 1,
+			Contents: []outputpayload.VoteContent{
+				{
+					VoteType: outputpayload.CRCProposal,
+					CandidateVotes: []outputpayload.CandidateVotes{
+						{proposalHash1.Bytes(), 10},
+					},
+				},
+			},
+		},
+	})
+	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash1] =
+		&crstate.ProposalState{Status: 1}
+	s.NoError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs13, references, producersMap, crsMap))
+
+	// Check vote output of v1 with wrong votes
+	proposalHashStr2 := "9c5ab8998718e0c1c405a719542879dc7553fca05b4e89132ec8d0e88551fcc0"
+	proposalHash2, _ := common.Uint256FromHexString(proposalHashStr2)
+	outputs14 := []*types.Output{{Type: types.OTNone}}
+	outputs14 = append(outputs14, &types.Output{
+		Type:        types.OTVote,
+		ProgramHash: *hash,
+		Value:       common.Fixed64(10),
+		Payload: &outputpayload.VoteOutput{
+			Version: 1,
+			Contents: []outputpayload.VoteContent{
+				{
+					VoteType: outputpayload.CRCProposal,
+					CandidateVotes: []outputpayload.CandidateVotes{
+						{proposalHash2.Bytes(), 10},
+					},
+				},
+			},
+		},
+	})
+	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
+		outputs14, references, producersMap, crsMap),
+		"invalid CRCProposal: 9c5ab8998718e0c1c405a719542879dc7553fca05b4e89132ec8d0e88551fcc0")
 }
 
 func (s *txValidatorTestSuite) TestCheckOutputProgramHash() {
@@ -2493,6 +4028,83 @@ func (s *txValidatorTestSuite) TestCheckOutputProgramHash() {
 	s.NoError(checkOutputProgramHash(88811, programHash))
 }
 
+func (s *txValidatorTestSuite) TestCreateCRCAppropriationTransaction() {
+	crAddress := "ERyUmNH51roR9qfru37Kqkaok2NghR7L5U"
+	crcFoundation, _ := common.Uint168FromAddress(crAddress)
+
+	s.Chain.chainParams.CRAssetsAddress = *crcFoundation
+	crcCommiteeAddressStr := "ESq12oQrvGqHfTkEDYJyR9MxZj1NMnonjo"
+
+	crcCommiteeAddressHash, _ := common.Uint168FromAddress(crcCommiteeAddressStr)
+	s.Chain.chainParams.CRExpensesAddress = *crcCommiteeAddressHash
+
+	s.CurrentHeight = 1
+	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
+	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
+		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
+		GetHeight:                        func() uint32 { return s.CurrentHeight },
+		CreateCRAppropriationTransaction: s.Chain.CreateCRCAppropriationTransaction,
+	})
+
+	var txOutputs []*types.Output
+	txOutput := &types.Output{
+		AssetID:     *elaact.SystemAssetID,
+		ProgramHash: *crcFoundation,
+		Value:       common.Fixed64(0),
+		OutputLock:  0,
+		Type:        types.OTNone,
+		Payload:     &outputpayload.DefaultOutput{},
+	}
+	for i := 1; i < 5; i++ {
+		txOutPutNew := *txOutput
+		txOutPutNew.Value = common.Fixed64(i * 100)
+		txOutputs = append(txOutputs, &txOutPutNew)
+	}
+
+	txn := &types.Transaction{
+		Version:    types.TxVersion09,
+		TxType:     types.TransferAsset,
+		Payload:    &payload.TransferAsset{},
+		Attributes: nil,
+		Inputs:     nil,
+		Outputs:    txOutputs,
+		Programs:   nil,
+		LockTime:   0,
+	}
+
+	txOutputs = nil
+	txOutputCoinBase := *txOutput
+	txOutputCoinBase.Value = common.Fixed64(500)
+	txOutputCoinBase.OutputLock = uint32(100)
+	txOutputs = append(txOutputs, &txOutputCoinBase)
+	txnCoinBase := &types.Transaction{
+		Version:    types.TxVersion09,
+		TxType:     types.CoinBase,
+		Payload:    &payload.TransferAsset{},
+		Attributes: nil,
+		Inputs:     nil,
+		Outputs:    txOutputs,
+		Programs:   nil,
+		LockTime:   0,
+	}
+	block := &types.Block{
+		Transactions: []*types.Transaction{
+			txn,
+			txnCoinBase,
+		},
+		Header: types.Header{
+			Height:   1,
+			Previous: s.Chain.chainParams.GenesisBlock.Hash(),
+		},
+	}
+	hash := block.Hash()
+	node, _ := s.Chain.LoadBlockNode(&block.Header, &hash)
+	s.Chain.db.SaveBlock(block, node, nil, CalcPastMedianTime(node))
+	txCrcAppropriation, _ := s.Chain.CreateCRCAppropriationTransaction()
+	s.NotNil(txCrcAppropriation)
+}
+
 func TestTxValidatorSuite(t *testing.T) {
 	suite.Run(t, new(txValidatorTestSuite))
 }
@@ -2518,3 +4130,59 @@ func newCoinBaseTransaction(coinBasePayload *payload.CoinBase,
 		Programs:   []*program.Program{},
 	}
 }
+
+func (a *txValidatorTestSuite) createNextTurnDPOSInfoTransaction(crcArbiters, normalDPOSArbiters [][]byte) *types.Transaction {
+
+	var nextTurnDPOSInfo payload.NextTurnDPOSInfo
+	for _, v := range crcArbiters {
+		nextTurnDPOSInfo.CRPublickeys = append(nextTurnDPOSInfo.CRPublickeys, v)
+	}
+	for _, v := range normalDPOSArbiters {
+		nextTurnDPOSInfo.DPOSPublicKeys = append(nextTurnDPOSInfo.DPOSPublicKeys, v)
+	}
+	return &types.Transaction{
+		Version:    types.TxVersion09,
+		TxType:     types.NextTurnDPOSInfo,
+		Payload:    &nextTurnDPOSInfo,
+		Attributes: []*types.Attribute{},
+		Programs:   []*program.Program{},
+		LockTime:   0,
+	}
+}
+
+//func (s *txValidatorTestSuite) TestCheckNextTurnDPOSInfoTx() {
+//	//var nextTurnDPOSInfo payload.NextTurnDPOSInfo
+//	crc1PubKey, _ := common.HexStringToBytes("03e435ccd6073813917c2d841a0815d21301ec3286bc1412bb5b099178c68a10b6")
+//	crc2PubKey, _ := common.HexStringToBytes("038a1829b4b2bee784a99bebabbfecfec53f33dadeeeff21b460f8b4fc7c2ca771")
+//
+//	normalArbitratorsStr := []string{
+//		"023a133480176214f88848c6eaa684a54b316849df2b8570b57f3a917f19bbc77a",
+//		"030a26f8b4ab0ea219eb461d1e454ce5f0bd0d289a6a64ffc0743dab7bd5be0be9",
+//		"0288e79636e41edce04d4fa95d8f62fed73a76164f8631ccc42f5425f960e4a0c7",
+//		"03e281f89d85b3a7de177c240c4961cb5b1f2106f09daa42d15874a38bbeae85dd",
+//		"0393e823c2087ed30871cbea9fa5121fa932550821e9f3b17acef0e581971efab0",
+//	}
+//	normal1PubKey, _ := common.HexStringToBytes(normalArbitratorsStr[0])
+//	normal2PubKey, _ := common.HexStringToBytes(normalArbitratorsStr[1])
+//
+//	crcArbiters := [][]byte{
+//		crc1PubKey,
+//		crc2PubKey,
+//	}
+//
+//	normalDPOSArbiters := [][]byte{
+//		normal1PubKey,
+//		normal2PubKey,
+//	}
+//	nextTurnDPOSInfoTx := s.createNextTurnDPOSInfoTransaction(crcArbiters, normalDPOSArbiters)
+//	// Check correct transaction.
+//	//DefaultLedger.Arbitrators.SetNeedNextTurnDPOSInfo(true)
+//	err := s.Chain.checkNextTurnDPOSInfoTransaction(nextTurnDPOSInfoTx)
+//	s.NoError(err)
+//
+//	// Appropriation transaction already exist.
+//	s.Chain.crCommittee.NeedAppropriation = false
+//	err = s.Chain.checkNextTurnDPOSInfoTransaction(nextTurnDPOSInfoTx)
+//	s.EqualError(err, "should have no appropriation transaction")
+//
+//}

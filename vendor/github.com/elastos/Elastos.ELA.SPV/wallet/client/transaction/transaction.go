@@ -95,7 +95,7 @@ func createMultiOutputTransaction(c *cli.Context, wallet *client.Wallet, path, f
 	if _, err := os.Stat(path); err != nil {
 		return nil, errors.New("invalid multi output file path")
 	}
-	file, err := os.OpenFile(path, os.O_RDONLY, 0666)
+	file, err := os.OpenFile(path, os.O_RDONLY, 0400)
 	if err != nil {
 		return nil, errors.New("open multi output file failed")
 	}
@@ -210,7 +210,7 @@ func getContent(context *cli.Context) (*string, error) {
 		if _, err := os.Stat(filePath); err != nil {
 			return nil, errors.New("invalid transaction file path")
 		}
-		file, err := os.OpenFile(filePath, os.O_RDONLY, 0666)
+		file, err := os.OpenFile(filePath, os.O_RDONLY, 0400)
 		if err != nil {
 			return nil, errors.New("open transaction file failed")
 		}
@@ -275,7 +275,7 @@ func output(tx *types.Transaction) error {
 	}
 	fileName = fileName + ".tx"
 
-	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
