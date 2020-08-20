@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 //
@@ -17,12 +17,11 @@ import (
 	. "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/common/log"
-	"github.com/elastos/Elastos.ELA/core/contract"
 	. "github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/elanet/pact"
-	. "github.com/elastos/Elastos.ELA/errors"
+	elaerr "github.com/elastos/Elastos.ELA/errors"
 )
 
 const (
@@ -58,13 +57,22 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 	}
 
 	// A block must not have more transactions than the max block payload.
-	if numTx > pact.MaxTxPerBlock {
-		return errors.New("[PowCheckBlockSanity]  block contains too many transactions")
+	if uint32(numTx) > pact.MaxTxPerBlock {
+		return errors.New("[PowCheckBlockSanity]  block contains too many" +
+			" transactions, tx count: " + strconv.FormatInt(int64(numTx), 10))
+	}
+
+	// A block header must not exceed the maximum allowed block payload when
+	//serialized.
+	headerSize := block.Header.GetSize()
+	if headerSize > int(pact.MaxBlockHeaderSize) {
+		return errors.New(
+			"[PowCheckBlockSanity] serialized block header is too big")
 	}
 
 	// A block must not exceed the maximum allowed block payload when serialized.
 	blockSize := block.GetSize()
-	if blockSize > int(pact.MaxBlockSize) {
+	if blockSize > int(pact.MaxBlockContextSize+pact.MaxBlockHeaderSize) {
 		return errors.New("[PowCheckBlockSanity] serialized block is too big")
 	}
 
@@ -93,8 +101,9 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 		existingTxIDs[txID] = struct{}{}
 
 		// Check for transaction sanity
-		if errCode := b.CheckTransactionSanity(block.Height, txn); errCode != Success {
-			return errors.New("CheckTransactionSanity failed when verifiy block")
+		if err := b.CheckTransactionSanity(block.Height, txn); err != nil {
+			return elaerr.SimpleWithMessage(elaerr.ErrBlockValidation, err,
+				"CheckTransactionSanity failed when verifiy block")
 		}
 
 		// Check for duplicate UTXO inputs in a block
@@ -121,14 +130,6 @@ func (b *BlockChain) CheckBlockSanity(block *Block) error {
 	}
 
 	return nil
-}
-
-func getDIDByCode(code []byte) (*Uint168, error) {
-	ct1, error := contract.CreateCRDIDContractByCode(code)
-	if error != nil {
-		return nil, error
-	}
-	return ct1.ToProgramHash(), error
 }
 
 func checkDuplicateTx(block *Block) error {
@@ -205,10 +206,10 @@ func checkDuplicateTx(block *Block) error {
 			}
 
 			// Check for duplicate CR in a block
-			if _, exists := existingCR[crPayload.DID]; exists {
+			if _, exists := existingCR[crPayload.CID]; exists {
 				return errors.New("[PowCheckBlockSanity] block contains duplicate CR")
 			}
-			existingCR[crPayload.DID] = struct{}{}
+			existingCR[crPayload.CID] = struct{}{}
 		case UpdateCR:
 			crPayload, ok := txn.Payload.(*payload.CRInfo)
 			if !ok {
@@ -216,42 +217,52 @@ func checkDuplicateTx(block *Block) error {
 			}
 
 			// Check for duplicate  CR in a block
-			if _, exists := existingCR[crPayload.DID]; exists {
+			if _, exists := existingCR[crPayload.CID]; exists {
 				return errors.New("[PowCheckBlockSanity] block contains duplicate CR")
 			}
-			existingCR[crPayload.DID] = struct{}{}
+			existingCR[crPayload.CID] = struct{}{}
 		case UnregisterCR:
 			unregisterCR, ok := txn.Payload.(*payload.UnregisterCR)
 			if !ok {
 				return errors.New("[PowCheckBlockSanity] invalid unregister CR payload")
 			}
 			// Check for duplicate  CR in a block
-			if _, exists := existingCR[unregisterCR.DID]; exists {
+			if _, exists := existingCR[unregisterCR.CID]; exists {
 				return errors.New("[PowCheckBlockSanity] block contains duplicate CR")
 			}
-			existingCR[unregisterCR.DID] = struct{}{}
+			existingCR[unregisterCR.CID] = struct{}{}
 		}
 	}
 	return nil
 }
 
+func RecordCRCProposalAmount(usedAmount *Fixed64, txn *Transaction) {
+	proposal, ok := txn.Payload.(*payload.CRCProposal)
+	if !ok {
+		return
+	}
+	for _, b := range proposal.Budgets {
+		*usedAmount += b.Amount
+	}
+}
+
 func (b *BlockChain) checkTxsContext(block *Block) error {
 	var totalTxFee = Fixed64(0)
 
+	var proposalsUsedAmount Fixed64
 	for i := 1; i < len(block.Transactions); i++ {
-		references, err := b.UTXOCache.GetTxReference(block.Transactions[i])
-		if err != nil {
-			log.Warn("CheckTransactionContext get transaction reference failed")
-			return ErrUnknownReferredTx
-		}
-
-		if errCode := b.CheckTransactionContext(block.Height,
-			block.Transactions[i], references); errCode != Success {
-			return errors.New("CheckTransactionContext failed when verify block")
+		references, errCode := b.CheckTransactionContext(block.Height,
+			block.Transactions[i], proposalsUsedAmount)
+		if errCode != nil {
+			return elaerr.SimpleWithMessage(elaerr.ErrBlockValidation, errCode,
+				"CheckTransactionContext failed when verify block")
 		}
 
 		// Calculate transaction fee
 		totalTxFee += GetTxFee(block.Transactions[i], config.ELAAssetID, references)
+		if block.Transactions[i].IsCRCProposalTx() {
+			RecordCRCProposalAmount(&proposalsUsedAmount, block.Transactions[i])
+		}
 	}
 
 	err := b.checkCoinbaseTransactionContext(block.Height,
@@ -297,7 +308,7 @@ func (b *BlockChain) CheckBlockContext(block *Block, prevNode *BlockNode) error 
 	// Ensure the timestamp for the block header is after the
 	// median time of the last several blocks (medianTimeBlocks).
 	medianTime := CalcPastMedianTime(prevNode)
-	tempTime := time.Unix(int64(header.Timestamp), 0)
+	tempTime := time.Unix(int64(header.Timestamp), 1)
 
 	if !tempTime.After(medianTime) {
 		return errors.New("block timestamp is not after expected")
@@ -310,6 +321,13 @@ func (b *BlockChain) CheckBlockContext(block *Block, prevNode *BlockNode) error 
 	}
 
 	if err := DefaultLedger.Arbitrators.CheckDPOSIllegalTx(block); err != nil {
+		return err
+	}
+
+	if err := DefaultLedger.Arbitrators.CheckCRCAppropriationTx(block); err != nil {
+		return err
+	}
+	if err := DefaultLedger.Arbitrators.CheckNextTurnDPOSInfoTx(block); err != nil {
 		return err
 	}
 
@@ -362,7 +380,7 @@ func IsFinalizedTransaction(msgTx *Transaction, blockHeight uint32) bool {
 	return true
 }
 
-func GetTxFee(tx *Transaction, assetId Uint256, references map[*Input]*Output) Fixed64 {
+func GetTxFee(tx *Transaction, assetId Uint256, references map[*Input]Output) Fixed64 {
 	feeMap, err := GetTxFeeMap(tx, references)
 	if err != nil {
 		return 0
@@ -371,7 +389,7 @@ func GetTxFee(tx *Transaction, assetId Uint256, references map[*Input]*Output) F
 	return feeMap[assetId]
 }
 
-func GetTxFeeMap(tx *Transaction, references map[*Input]*Output) (map[Uint256]Fixed64, error) {
+func GetTxFeeMap(tx *Transaction, references map[*Input]Output) (map[Uint256]Fixed64, error) {
 	feeMap := make(map[Uint256]Fixed64)
 	var inputs = make(map[Uint256]Fixed64)
 	var outputs = make(map[Uint256]Fixed64)

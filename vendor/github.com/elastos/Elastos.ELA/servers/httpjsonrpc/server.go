@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 //
@@ -19,8 +19,8 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/common/log"
-	elaErr "github.com/elastos/Elastos.ELA/errors"
 	. "github.com/elastos/Elastos.ELA/servers"
+	elaErr "github.com/elastos/Elastos.ELA/servers/errors"
 )
 
 //an instance of the multiplexer
@@ -80,9 +80,15 @@ func StartRPCServer() {
 	mainMux["getmininginfo"] = GetMiningInfo
 	mainMux["togglemining"] = ToggleMining
 	mainMux["discretemining"] = DiscreteMining
-	//cr interfaces
+	// cr interfaces
 	mainMux["listcrcandidates"] = ListCRCandidates
 	mainMux["listcurrentcrs"] = ListCurrentCRs
+	mainMux["listcrproposalbasestate"] = ListCRProposalBaseState
+	mainMux["getcrproposalstate"] = GetCRProposalState
+	mainMux["getsecretarygeneral"] = GetSecretaryGeneral
+	mainMux["getcrrelatedstage"] = GetCRRelatedStage
+	mainMux["getcommitteecanuseamount"] = GetCommitteeCanUseAmount
+
 	// vote interfaces
 	mainMux["listproducers"] = ListProducers
 	mainMux["producerstatus"] = ProducerStatus
@@ -90,6 +96,7 @@ func StartRPCServer() {
 	// for cross-chain arbiter
 	mainMux["submitsidechainillegaldata"] = SubmitSidechainIllegalData
 	mainMux["getarbiterpeersinfo"] = GetArbiterPeersInfo
+	mainMux["getcrcpeersinfo"] = GetCRCPeersInfo
 
 	mainMux["estimatesmartfee"] = EstimateSmartFee
 	mainMux["getdepositcoin"] = GetDepositCoin
@@ -131,8 +138,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	contentType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if contentType != "application/json" {
-		RPCError(w, http.StatusUnsupportedMediaType, InternalError, "JSON-RPC need content type to be application/json")
+	if contentType != "application/json" && contentType != "text/plain" {
+		RPCError(w, http.StatusUnsupportedMediaType, InternalError, "JSON-RPC need content type to be application/json or text/plain")
 		return
 	}
 
@@ -150,64 +157,34 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request := make(map[string]interface{})
+	var requestArray []Request
+	var request Request
+
 	err = json.Unmarshal(body, &request)
 	if err != nil {
-		log.Error("JSON-RPC request parsing error: ", err)
-		RPCError(w, http.StatusBadRequest, ParseError, "JSON-RPC request parsing error:"+err.Error())
-		return
-	}
-	//get the corresponding function
-	requestMethod, ok := request["method"].(string)
-	if !ok {
-		RPCError(w, http.StatusBadRequest, InvalidRequest, "JSON-RPC need a method")
-		return
-	}
-	method, ok := mainMux[requestMethod]
-	if !ok {
-		RPCError(w, http.StatusNotFound, MethodNotFound, "JSON-RPC method "+requestMethod+" not found")
-		return
-	}
+		log.Info("JSON-RPC request parsing error: ", err, "Try to unmarshal batches requests")
 
-	requestParams := request["params"]
-	// Json rpc 1.0 support positional parameters while json rpc 2.0 support named parameters.
-	// positional parameters: { "requestParams":[1, 2, 3....] }
-	// named parameters: { "requestParams":{ "a":1, "b":2, "c":3 } }
-	// Here we support both of them.
-	var params Params
-	switch requestParams := requestParams.(type) {
-	case nil:
-	case []interface{}:
-		params = convertParams(requestMethod, requestParams)
-	case map[string]interface{}:
-		params = Params(requestParams)
-	default:
-		RPCError(w, http.StatusBadRequest, InvalidRequest, "params format error, must be an array or a map")
-		return
+		errArray := json.Unmarshal(body, &requestArray)
+		if errArray != nil {
+			log.Error("JSON-RPC request parsing error: ", errArray)
+			RPCError(w, http.StatusBadRequest, ParseError, "JSON-RPC request parsing error:"+err.Error())
+			return
+		}
 	}
-	log.Debug("RPC method:", requestMethod)
-
-	response := method(params)
 	var data []byte
-	if response["Error"] != elaErr.ErrCode(0) {
-		data, _ = json.Marshal(map[string]interface{}{
-			"jsonrpc": "2.0",
-			"result":  nil,
-			"error": map[string]interface{}{
-				"code":    response["Error"],
-				"message": response["Result"],
-				"id":      request["id"],
-			},
-		})
-
+	if len(requestArray) == 0 {
+		response := getResponse(request)
+		data, _ = json.Marshal(response)
 	} else {
-		data, _ = json.Marshal(map[string]interface{}{
-			"jsonrpc": "2.0",
-			"result":  response["Result"],
-			"id":      request["id"],
-			"error":   nil,
-		})
+		var responseArray []Response
+		for _, req := range requestArray {
+			response := getResponse(req)
+			responseArray = append(responseArray, response)
+		}
+
+		data, _ = json.Marshal(responseArray)
 	}
+
 	w.Header().Set("Content-type", "application/json")
 	w.Write(data)
 }
@@ -270,7 +247,7 @@ func checkAuth(r *http.Request) bool {
 	return false
 }
 
-func RPCError(w http.ResponseWriter, httpStatus int, code elaErr.ErrCode, message string) {
+func RPCError(w http.ResponseWriter, httpStatus int, code elaErr.ServerErrCode, message string) {
 	data, _ := json.Marshal(map[string]interface{}{
 		"jsonrpc": "2.0",
 		"result":  nil,
@@ -283,6 +260,87 @@ func RPCError(w http.ResponseWriter, httpStatus int, code elaErr.ErrCode, messag
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(httpStatus)
 	w.Write(data)
+}
+
+func getResponse(request Request) Response {
+	var resp Response
+	requestMethod := request.Method
+	if len(requestMethod) == 0 {
+		resp = Response{
+			JSONRPC: "2.0",
+			Result:  nil,
+			ID:      request.ID,
+			Error: map[string]interface{}{
+				"id":      request.ID,
+				"code":    InvalidRequest,
+				"message": "JSON-RPC need a method",
+			},
+		}
+		return resp
+	}
+	method, ok := mainMux[requestMethod]
+	if !ok {
+		resp = Response{
+			JSONRPC: "2.0",
+			Result:  nil,
+			ID:      request.ID,
+			Error: map[string]interface{}{
+				"id":      request.ID,
+				"code":    MethodNotFound,
+				"message": "JSON-RPC method " + requestMethod + " not found",
+			},
+		}
+		return resp
+	}
+
+	requestParams := request.Params
+	// Json rpc 1.0 support positional parameters while json rpc 2.0 support named parameters.
+	// positional parameters: { "requestParams":[1, 2, 3....] }
+	// named parameters: { "requestParams":{ "a":1, "b":2, "c":3 } }
+	// Here we support both of them.
+	var params Params
+	switch requestParams := requestParams.(type) {
+	case nil:
+	case []interface{}:
+		params = convertParams(requestMethod, requestParams)
+	case map[string]interface{}:
+		params = Params(requestParams)
+	default:
+		resp = Response{
+			JSONRPC: "2.0",
+			Result:  nil,
+			ID:      request.ID,
+			Error: map[string]interface{}{
+				"id":      request.ID,
+				"code":    InvalidRequest,
+				"message": "params format error, must be an array or a map",
+			},
+		}
+		return resp
+	}
+	log.Debug("RPC method:", requestMethod)
+
+	response := method(params)
+	if response["Error"] != elaErr.ServerErrCode(0) {
+		resp = Response{
+			JSONRPC: "2.0",
+			Result:  nil,
+			ID:      request.ID,
+			Error: map[string]interface{}{
+				"id":      request.ID,
+				"code":    response["Error"],
+				"message": response["Result"],
+			},
+		}
+	} else {
+		resp = Response{
+			JSONRPC: "2.0",
+			Result:  response["Result"],
+			ID:      request.ID,
+			Error:   nil,
+		}
+	}
+	return resp
 }
 
 func convertParams(method string, params []interface{}) Params {

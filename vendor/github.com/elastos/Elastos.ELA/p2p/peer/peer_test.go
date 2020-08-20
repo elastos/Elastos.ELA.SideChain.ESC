@@ -382,6 +382,7 @@ func TestUnsupportedVersionPeer(t *testing.T) {
 			msg, err := p2p.ReadMessage(
 				remoteConn,
 				peerCfg.Magic,
+				p2p.ReadMessageTimeOut,
 				makeEmptyMessage,
 			)
 			if err == io.EOF {
@@ -409,9 +410,10 @@ func TestUnsupportedVersionPeer(t *testing.T) {
 
 	// Remote peer writes version message advertising invalid protocol version 1
 	invalidVersionMsg := msg.NewVersion(1, 0, 0, verNonce,
-		0, true)
+		0, true, "")
 
-	err = p2p.WriteMessage(remoteConn, peerCfg.Magic, invalidVersionMsg,
+	err = p2p.WriteMessage(
+		remoteConn, peerCfg.Magic, invalidVersionMsg, p2p.WriteMessageTimeOut,
 		func(m p2p.Message) (*types.DposBlock, bool) {
 			msgBlock, ok := m.(*msg.Block)
 			if !ok {

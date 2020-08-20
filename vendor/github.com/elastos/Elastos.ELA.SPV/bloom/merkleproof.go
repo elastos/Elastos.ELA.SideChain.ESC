@@ -12,7 +12,7 @@ import (
 // possibly fit into a merkle proof.  Since each transaction is represented by
 // a single bit, this is the max number of transactions per block divided by
 // 8 bits per byte.  Then an extra one to cover partials.
-const maxFlagsPerMerkleProof = pact.MaxTxPerBlock / 8
+var maxFlagsPerMerkleProof = pact.MaxTxPerBlock / 8
 
 type MerkleProof struct {
 	BlockHash    common.Uint256
@@ -25,13 +25,13 @@ type MerkleProof struct {
 func (p *MerkleProof) Serialize(w io.Writer) error {
 	// Read num transaction hashes and limit to max.
 	numHashes := len(p.Hashes)
-	if numHashes > pact.MaxTxPerBlock {
+	if numHashes > int(pact.MaxTxPerBlock) {
 		str := fmt.Sprintf("too many transaction hashes for message "+
 			"[count %v, max %v]", numHashes, pact.MaxTxPerBlock)
 		return common.FuncError("MerkleProof.Serialize", str)
 	}
 	numFlagBytes := len(p.Flags)
-	if numFlagBytes > maxFlagsPerMerkleProof {
+	if numFlagBytes > int(maxFlagsPerMerkleProof) {
 		str := fmt.Sprintf("too many flag bytes for message [count %v, "+
 			"max %v]", numFlagBytes, maxFlagsPerMerkleProof)
 		return common.FuncError("MerkleProof.Serialize", str)

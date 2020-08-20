@@ -1,7 +1,7 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package server
 
@@ -49,7 +49,8 @@ func (s *seed) GetAddress() (net.Addr, error) {
 			break
 		}
 
-		log.Debugf("seeds pick addr %v", addr.NetAddress())
+		//log.Debugf("seeds pick addr %v", addr.NetAddress())
+
 		// Address will not be invalid, local or unroutable
 		// because addrmanager rejects those on addition.
 		// Just check that we don't already have an address
@@ -92,7 +93,7 @@ func (s *seed) newConfig(addrChan chan []*p2p.NetAddress) *peer.Config {
 		MakeEmptyMessage: func(cmd string) (p2p.Message, error) {
 			return nil, fmt.Errorf("unhandled message %s from DNS", cmd)
 		},
-		BestHeight:       func() uint64 { return 0 },
+		BestHeight:       s.cfg.BestHeight,
 		IsSelfConnection: func(net.IP, int, uint64) bool { return false },
 		GetVersionNonce:  func() uint64 { return uint64(rand.Int63()) },
 		MessageFunc: func(peer *peer.Peer, m p2p.Message) {
@@ -105,6 +106,8 @@ func (s *seed) newConfig(addrChan chan []*p2p.NetAddress) *peer.Config {
 
 			}
 		},
+		NewVersionHeight: s.cfg.NewVersionHeight,
+		NodeVersion:      s.cfg.NodeVersion,
 	}
 }
 

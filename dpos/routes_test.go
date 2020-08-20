@@ -111,12 +111,12 @@ func (p *mockPeer) AddMessageFunc(messageFunc MessageFunc) {
 }
 
 func (p *mockPeer) readMessage() (p2p.Message, error) {
-	msg, err := p2p.ReadMessage(p.conn, p.magic, p.makeEmptyMessage)
+	msg, err := p2p.ReadMessage(p.conn, p.magic, p2p.ReadMessageTimeOut, p.makeEmptyMessage)
 	return msg, err
 }
 
 func (p *mockPeer) writeMessage(m p2p.Message) error {
-	return p2p.WriteMessage(p.conn, p.magic, m, func(message p2p.Message) (*types.DposBlock, bool) {
+	return p2p.WriteMessage(p.conn, p.magic, m, p2p.WriteMessageTimeOut,func(message p2p.Message) (*types.DposBlock, bool) {
 			return nil, false
 		})
 }
@@ -145,7 +145,7 @@ func (p *mockPeer) negotiateInboundProtocol() error {
 }
 
 func (p *mockPeer) writeVersionMsg() error {
-	msg := msg.NewVersion(1, p.port,0, 1, 1, false)
+	msg := msg.NewVersion(1, p.port,0, 1, 1, false,  "")
 	return p.writeMessage(msg)
 }
 

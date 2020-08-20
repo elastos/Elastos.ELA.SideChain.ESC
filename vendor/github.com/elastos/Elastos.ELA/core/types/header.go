@@ -1,7 +1,7 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package types
 
@@ -96,5 +96,14 @@ func (header *Header) DeserializeNoAux(r io.Reader) error {
 func (header *Header) Hash() common.Uint256 {
 	buf := new(bytes.Buffer)
 	header.SerializeNoAux(buf)
-	return common.Uint256(common.Sha256D(buf.Bytes()))
+	return common.Hash(buf.Bytes())
+}
+
+func (header *Header) GetSize() int {
+	buf := new(bytes.Buffer)
+	if err := header.Serialize(buf); err != nil {
+		return InvalidBlockSize
+	}
+
+	return buf.Len()
 }

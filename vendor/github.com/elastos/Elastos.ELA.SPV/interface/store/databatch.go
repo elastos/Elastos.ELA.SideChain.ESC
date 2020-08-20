@@ -32,6 +32,10 @@ func (b *dataBatch) Que() QueBatch {
 	return &queBatch{DB: b.DB, Batch: b.Batch}
 }
 
+func (b *dataBatch) GetNakedBatch() *leveldb.Batch {
+	return b.Batch
+}
+
 // Delete all transactions, ops, queued items on the given height.
 func (b *dataBatch) DelAll(height uint32) error {
 	b.mutex.Lock()

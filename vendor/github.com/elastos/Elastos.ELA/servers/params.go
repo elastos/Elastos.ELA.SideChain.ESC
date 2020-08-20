@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 // 
@@ -12,6 +12,19 @@ import (
 )
 
 type Params map[string]interface{}
+
+type Request struct {
+	Method string      `json:"method"`
+	ID     interface{} `json:"id"`
+	Params interface{} `json:"params"`
+}
+
+type Response struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Result  interface{} `json:"result"`
+	ID      interface{} `json:"id"`
+	Error   interface{} `json:"error"`
+}
 
 func FromArray(array []interface{}, fields ...string) Params {
 	params := make(Params)

@@ -2,8 +2,8 @@ package _interface
 
 import (
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
-	"github.com/elastos/Elastos.ELA.SPV/database"
-
+	"github.com/elastos/Elastos.ELA.SPV/interface/store"
+	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/core/types"
@@ -23,6 +23,9 @@ type Config struct {
 	// Rollback callbacks that, the transactions
 	// on the given height has been rollback
 	OnRollback func(height uint32)
+
+	//FilterType is the filter type .(FTBloom, FTDPOS  and so on )
+	FilterType uint8
 }
 
 /*
@@ -34,6 +37,10 @@ type SPVService interface {
 	// RegisterTransactionListener register the listener to receive transaction notifications
 	// listeners must be registered before call Start() method, or some notifications will go missing.
 	RegisterTransactionListener(TransactionListener) error
+
+	// RegisterBlockListener register the listener to receive block notifications
+	// listeners must be registered before call Start() method, or some notifications will go missing.
+	RegisterBlockListener(BlockListener) error
 
 	// After receive the transaction callback, call this method
 	// to confirm that the transaction with the given ID was handled,
@@ -54,8 +61,14 @@ type SPVService interface {
 	// GetTransactionIds query all transaction hashes on the given block height.
 	GetTransactionIds(height uint32) ([]*common.Uint256, error)
 
+	// GetArbiters Get arbiters according to height
+	GetArbiters(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error)
+
+	// GetBlockListener Get block listener
+	GetBlockListener() BlockListener
+
 	// Get headers database
-	HeaderStore() database.Headers
+	HeaderStore() store.HeaderStore
 
 	// Start the SPV service
 	Start()
@@ -94,4 +107,23 @@ type TransactionListener interface {
 	// with the merkle tree proof to verify it, the notifyId is key of this
 	// notify message and it must be submitted with the receipt together.
 	Notify(notifyId common.Uint256, proof bloom.MerkleProof, tx types.Transaction)
+}
+
+/*
+Register this listener to IService RegisterBlockListener() method
+to receive block notifications.
+*/
+type BlockListener interface {
+
+	// NotifyBlock is the method to callback the received block
+	NotifyBlock(block *util.Block)
+
+	// BlockHeight is the method to get the Current Block height
+	BlockHeight() uint32
+
+	// StoreAuxBlockParam store submitted aux block
+	StoreAuxBlock(block interface{})
+
+	// RegisterPowService register service
+	RegisterFunc(handleFunc func(block interface{}) error)
 }

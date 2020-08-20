@@ -1,7 +1,7 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package api
 
@@ -22,7 +22,7 @@ import (
 	"github.com/elastos/Elastos.ELA/servers"
 	"github.com/elastos/Elastos.ELA/utils/http"
 
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
 const luaTransactionTypeName = "transaction"
@@ -87,6 +87,16 @@ func newTransaction(L *lua.LState) int {
 		pload, _ = ud.Value.(*payload.CRInfo)
 	case *payload.UnregisterCR:
 		pload, _ = ud.Value.(*payload.UnregisterCR)
+	case *payload.CRCProposal:
+		pload, _ = ud.Value.(*payload.CRCProposal)
+	case *payload.CRCProposalReview:
+		pload, _ = ud.Value.(*payload.CRCProposalReview)
+	case *payload.CRCProposalTracking:
+		pload, _ = ud.Value.(*payload.CRCProposalTracking)
+	case *payload.CRCProposalWithdraw:
+		pload, _ = ud.Value.(*payload.CRCProposalWithdraw)
+	case *payload.CRDPOSManagement:
+		pload, _ = ud.Value.(*payload.CRDPOSManagement)
 	default:
 		fmt.Println("error: undefined payload type")
 		os.Exit(1)
@@ -104,6 +114,7 @@ func newTransaction(L *lua.LState) int {
 	}
 	udn := L.NewUserData()
 	udn.Value = txn
+
 	L.SetMetatable(udn, L.GetTypeMetatable(luaTransactionTypeName))
 	L.Push(udn)
 
@@ -300,7 +311,6 @@ func appendEnough(L *lua.LState) int {
 	txn := checkTransaction(L, 1)
 	from := L.ToString(2)
 	totalAmount := L.ToInt64(3)
-
 	result, err := cmdcom.RPCCall("listunspent", http.Params{
 		"addresses": []string{from},
 	})

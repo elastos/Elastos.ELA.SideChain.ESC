@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Elastos Foundation
+// Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
 //
@@ -46,19 +46,23 @@ const (
 		"bef97806557bdb4faec8c83a8fc557c1afb287b07bd923c589ac"
 )
 
+func init() {
+	testing.Init()
+}
+
 func TestCheckBlockSanity(t *testing.T) {
 	log.NewDefault(test.NodeLogPath, 0, 0, 0)
 	params := &config.DefaultParams
 	FoundationAddress = params.Foundation
-	chainStore, err := NewChainStore(filepath.Join(test.DataPath, "sanity"),
-		params.GenesisBlock)
+	chainStore, err := NewChainStore(filepath.Join(test.DataPath, "sanity"), params)
 	if err != nil {
 		t.Error(err.Error())
 	}
 	defer chainStore.Close()
 
 	chain, _ := New(chainStore, params, state.NewState(params,
-		nil, nil), nil)
+		nil, nil, nil, nil), nil)
+	//chain.Init(nil)
 	if DefaultLedger == nil {
 		DefaultLedger = &Ledger{
 			Blockchain: chain,
@@ -107,8 +111,8 @@ func TestCheckCoinbaseArbitratorsReward(t *testing.T) {
 		"02c8a87c076112a1b344633184673cfb0bb6bce1aca28c78986a7b1047d257a448",
 	}
 
-	arbitrators := make([][]byte, 0)
-	candidates := make([][]byte, 0)
+	arbitrators := make([]state.ArbiterMember, 0)
+	candidates := make([]state.ArbiterMember, 0)
 	arbitratorHashes := make([]*common.Uint168, 0)
 	candidateHashes := make([]*common.Uint168, 0)
 	ownerVotes := make(map[common.Uint168]common.Fixed64)
@@ -117,7 +121,8 @@ func TestCheckCoinbaseArbitratorsReward(t *testing.T) {
 	for i, v := range arbitratorsStr {
 		vote := i + 10
 		a, _ := common.HexStringToBytes(v)
-		arbitrators = append(arbitrators, a)
+		ar, _ := state.NewOriginArbiter(state.Origin, a)
+		arbitrators = append(arbitrators, ar)
 		hash, _ := contract.PublicKeyToStandardProgramHash(a)
 		arbitratorHashes = append(arbitratorHashes, hash)
 		ownerVotes[*hash] = common.Fixed64(vote)
@@ -127,7 +132,8 @@ func TestCheckCoinbaseArbitratorsReward(t *testing.T) {
 	for i, v := range candidatesStr {
 		vote := i + 1
 		a, _ := common.HexStringToBytes(v)
-		candidates = append(candidates, a)
+		ar, _ := state.NewOriginArbiter(state.Origin, a)
+		arbitrators = append(arbitrators, ar)
 		hash, _ := contract.PublicKeyToStandardProgramHash(a)
 		candidateHashes = append(candidateHashes, hash)
 		ownerVotes[*hash] = common.Fixed64(vote)
@@ -185,14 +191,14 @@ func TestCRDuplicateTx(t *testing.T) {
 	publicKeyStr1 := "03c77af162438d4b7140f8544ad6523b9734cca9c7a62476d54ed5d1bddc7a39c3"
 	code := getValideCode(publicKeyStr1)
 	nickname := randomString()
-	didPointer := getValideDID(publicKeyStr1)
-	did := *didPointer
+	cidPointer := getValideCID(publicKeyStr1)
+	cid := *cidPointer
 
 	TestRegisterCR := func(t *testing.T) {
 		OneRegisterCRTest := func() {
 			var block types.Block
 			block.Transactions = make([]*types.Transaction, 0)
-			registerCRTxPointer := generateRegisterCR(code, did, nickname)
+			registerCRTxPointer := generateRegisterCR(code, cid, nickname)
 			block.Transactions = append(block.Transactions, registerCRTxPointer)
 			err := checkDuplicateTx(&block)
 			assert.NoError(t, err)
@@ -202,7 +208,7 @@ func TestCRDuplicateTx(t *testing.T) {
 		TwoRegisterCRTest := func() {
 			var block types.Block
 			block.Transactions = make([]*types.Transaction, 0)
-			registerCRTxPointer := generateRegisterCR(code, did, nickname)
+			registerCRTxPointer := generateRegisterCR(code, cid, nickname)
 			block.Transactions = append(block.Transactions, registerCRTxPointer)
 			block.Transactions = append(block.Transactions, registerCRTxPointer)
 			err := checkDuplicateTx(&block)
@@ -216,7 +222,7 @@ func TestCRDuplicateTx(t *testing.T) {
 		OneUpdateCRTest := func(t *testing.T) {
 			var block types.Block
 			block.Transactions = make([]*types.Transaction, 0)
-			updateCRPointer := generateUpdateCR(code, did, nickname)
+			updateCRPointer := generateUpdateCR(code, cid, nickname)
 			block.Transactions = append(block.Transactions, updateCRPointer)
 			err := checkDuplicateTx(&block)
 			assert.NoError(t, err)
@@ -226,7 +232,7 @@ func TestCRDuplicateTx(t *testing.T) {
 		TwoUpdateCRTest := func(t *testing.T) {
 			var block types.Block
 			block.Transactions = make([]*types.Transaction, 0)
-			updateCRPointer := generateUpdateCR(code, did, nickname)
+			updateCRPointer := generateUpdateCR(code, cid, nickname)
 			block.Transactions = append(block.Transactions, updateCRPointer)
 			block.Transactions = append(block.Transactions, updateCRPointer)
 			err := checkDuplicateTx(&block)
@@ -263,8 +269,8 @@ func TestCRDuplicateTx(t *testing.T) {
 	OneRegisterOneUpdate := func(t *testing.T) {
 		var block types.Block
 		block.Transactions = make([]*types.Transaction, 0)
-		registerCRTxPointer := generateRegisterCR(code, did, nickname)
-		updateCRPointer := generateUpdateCR(code, did, nickname)
+		registerCRTxPointer := generateRegisterCR(code, cid, nickname)
+		updateCRPointer := generateUpdateCR(code, cid, nickname)
 		block.Transactions = append(block.Transactions, registerCRTxPointer)
 		block.Transactions = append(block.Transactions, updateCRPointer)
 		err := checkDuplicateTx(&block)
@@ -275,7 +281,7 @@ func TestCRDuplicateTx(t *testing.T) {
 	OneRegisterOneUnregister := func(t *testing.T) {
 		var block types.Block
 		block.Transactions = make([]*types.Transaction, 0)
-		registerCRTxPointer := generateRegisterCR(code, did, nickname)
+		registerCRTxPointer := generateRegisterCR(code, cid, nickname)
 		unregisterCRPointer := generateUnregisterCR(code)
 		block.Transactions = append(block.Transactions, registerCRTxPointer)
 		block.Transactions = append(block.Transactions, unregisterCRPointer)
@@ -286,7 +292,7 @@ func TestCRDuplicateTx(t *testing.T) {
 	OneUpdateOneUnregister := func(t *testing.T) {
 		var block types.Block
 		block.Transactions = make([]*types.Transaction, 0)
-		updateCRPointer := generateUpdateCR(code, did, nickname)
+		updateCRPointer := generateUpdateCR(code, cid, nickname)
 		unregisterCRPointer := generateUnregisterCR(code)
 		block.Transactions = append(block.Transactions, updateCRPointer)
 		block.Transactions = append(block.Transactions, unregisterCRPointer)
@@ -447,25 +453,25 @@ func generateCancelProducer() *types.Transaction {
 	}
 }
 
-func generateRegisterCR(code []byte, did common.Uint168,
+func generateRegisterCR(code []byte, cid common.Uint168,
 	nickname string) *types.Transaction {
 	return &types.Transaction{
 		TxType: types.RegisterCR,
 		Payload: &payload.CRInfo{
 			Code:     code,
-			DID:      did,
+			CID:      cid,
 			NickName: nickname,
 		},
 	}
 }
 
-func generateUpdateCR(code []byte, did common.Uint168,
+func generateUpdateCR(code []byte, cid common.Uint168,
 	nickname string) *types.Transaction {
 	return &types.Transaction{
 		TxType: types.UpdateCR,
 		Payload: &payload.CRInfo{
 			Code:     code,
-			DID:      did,
+			CID:      cid,
 			NickName: nickname,
 		},
 	}
@@ -475,7 +481,7 @@ func generateUnregisterCR(code []byte) *types.Transaction {
 	return &types.Transaction{
 		TxType: types.UnregisterCR,
 		Payload: &payload.UnregisterCR{
-			DID: *getDid(code),
+			CID: *getCID(code),
 		},
 	}
 }
@@ -507,7 +513,7 @@ func getValideCode(publicKeyStr string) []byte {
 	return ct1.Code
 }
 
-func getValideDID(publicKeyStr string) *common.Uint168 {
+func getValideCID(publicKeyStr string) *common.Uint168 {
 	code := getValideCode(publicKeyStr)
-	return getDid(code)
+	return getCID(code)
 }
