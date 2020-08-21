@@ -700,3 +700,13 @@ func (p *Pbft) OnViewChanged(isOnDuty bool, force bool) {
 func (p *Pbft) GetTimeSource() dtime.MedianTimeSource {
 	return p.timeSource
 }
+
+func (p *Pbft) IsBadBlock(height uint64) bool {
+	blocks := p.chain.BadBlocks()
+	for _, block := range blocks {
+		if block.GetHeight() == height {
+			return true
+		}
+	}
+	return false
+}

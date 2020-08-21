@@ -285,6 +285,12 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 
 	engine.IsCurrent = func() bool {
 		progress := eth.Downloader().Progress()
+		curHeight := eth.blockchain.CurrentHeader().Number.Uint64()
+		if engine.IsBadBlock(progress.HighestBlock) && curHeight + 1 == progress.HighestBlock {
+			log.Warn(
+				"Highest block is bad block, no sync", "currentBlock", progress.CurrentBlock, "highestBlock", progress.HighestBlock)
+			return true
+		}
 		return progress.CurrentBlock >= progress.HighestBlock
 	}
 	engine.StartMine = func() {
