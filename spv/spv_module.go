@@ -15,14 +15,15 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
+	"github.com/elastos/Elastos.ELA/elanet/filter"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb/leveldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 
 	"github.com/elastos/Elastos.ELA.SideChain/types"
@@ -120,6 +121,7 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 	}
 	spvCfg := &spv.Config{
 		DataDir:    cfg.DataDir,
+		FilterType: filter.FTNexTTurnDPOSInfo,
 		OnRollback: nil, // Not implemented yet
 	}
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
@@ -142,6 +144,10 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 	})
 	if err != nil {
 		log.Error("Spv Register Transaction Listener: ", "err", err)
+		return nil, err
+	}
+	err = service.RegisterBlockListener(&BlockListener{})
+	if err != nil {
 		return nil, err
 	}
 

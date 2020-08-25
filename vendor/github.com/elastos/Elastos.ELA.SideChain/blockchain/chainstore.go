@@ -463,7 +463,7 @@ func (s *ChainStore) GetTxReference(tx *types.Transaction) (map[*types.Input]*ty
 }
 
 func (s *ChainStore) GetBlock(hash common.Uint256) (*types.Block, error) {
-	var b = new(types.Block)
+	var b = types.NewBlock()
 	prefix := []byte{byte(DATA_Header)}
 	bHash, err := s.Get(append(prefix, hash.Bytes()...))
 	if err != nil {
@@ -498,17 +498,17 @@ func (s *ChainStore) GetBlock(hash common.Uint256) (*types.Block, error) {
 // can only be invoked by backend write goroutine
 func (s *ChainStore) addHeader(header *types.Header) {
 
-	log.Debugf("addHeader(), Height=%d", header.Height)
+	log.Debugf("addHeader(), Height=%d", header.Base.Height)
 
 	hash := header.Hash()
 
 	s.mu.Lock()
 	s.headerCache[header.Hash()] = header
-	s.headerIndex[header.Height] = hash
+	s.headerIndex[header.Base.Height] = hash
 	s.headerIdx.PushBack(*header)
 	s.mu.Unlock()
 
-	log.Debug("[addHeader]: finish, header height:", header.Height)
+	log.Debug("[addHeader]: finish, header height:", header.Base.Height)
 }
 
 func (s *ChainStore) SaveBlock(b *types.Block) error {
@@ -520,7 +520,7 @@ func (s *ChainStore) SaveBlock(b *types.Block) error {
 }
 
 func (s *ChainStore) handlePersistBlockTask(block *types.Block) error {
-	if block.Header.Height <= s.currentBlockHeight {
+	if block.Header.GetHeight() <= s.currentBlockHeight {
 		return nil
 	}
 
@@ -529,7 +529,7 @@ func (s *ChainStore) handlePersistBlockTask(block *types.Block) error {
 	}
 
 	s.mu.Lock()
-	s.currentBlockHeight = block.Header.Height
+	s.currentBlockHeight = block.Header.GetHeight()
 	s.mu.Unlock()
 
 	s.clearCache(block)
@@ -557,7 +557,7 @@ func (s *ChainStore) handleRollbackBlockTask(blockHash common.Uint256) error {
 	}
 
 	s.mu.Lock()
-	s.currentBlockHeight = block.Header.Height - 1
+	s.currentBlockHeight = block.Header.GetHeight() - 1
 	s.mu.Unlock()
 
 	return nil
@@ -614,7 +614,7 @@ func (s *ChainStore) GetHeight() uint32 {
 }
 
 func (s *ChainStore) IsBlockInStore(hash *common.Uint256) bool {
-	var b = new(types.Block)
+	var b = types.NewBlock()
 	prefix := []byte{byte(DATA_Header)}
 	blockData, err := s.Get(append(prefix, hash.Bytes()...))
 	if err != nil {
@@ -637,8 +637,8 @@ func (s *ChainStore) IsBlockInStore(hash *common.Uint256) bool {
 		return false
 	}
 
-	if b.Header.Height > s.currentBlockHeight {
-		log.Error("Header height", b.Header.Height, "greater than current height:", s.currentBlockHeight)
+	if b.Header.GetHeight() > s.currentBlockHeight {
+		log.Error("Header height", b.Header.GetHeight(), "greater than current height:", s.currentBlockHeight)
 		return false
 	}
 
