@@ -569,6 +569,13 @@ func (s *Ethereum) shouldPreserve(block *types.Block) bool {
 	if _, ok := s.engine.(*clique.Clique); ok {
 		return false
 	}
+	if _, ok := s.engine.(*pbft.Pbft); ok {
+		if oldBlock := s.blockchain.GetBlockByNumber(block.NumberU64()); oldBlock != nil {
+			log.Info("detected chain fork", "old block", oldBlock.Hash().String(), "new block", block.Hash().String(),
+				"oldBlock time", oldBlock.Time(), "newBlock time", block.Time())
+			return block.Time() > oldBlock.Time()
+		}
+	}
 	return s.isLocalBlock(block)
 }
 
