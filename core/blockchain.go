@@ -1430,7 +1430,11 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			if bc.shouldPreserve != nil {
 				currentPreserve, blockPreserve = bc.shouldPreserve(currentBlock), bc.shouldPreserve(block)
 			}
-			reorg = !currentPreserve && (blockPreserve || mrand.Float64() < 0.5)
+			if bc.engine == bc.pbftEngine {
+				reorg = !currentPreserve && (blockPreserve)
+			} else {
+				reorg = !currentPreserve && (blockPreserve || mrand.Float64() < 0.5)
+			}
 		}
 	}
 	if reorg {
