@@ -394,6 +394,8 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		SpvDataDir = filepath.Join(node.DefaultDataDir(), "testnet")
 	case ctx.GlobalBool(utils.RinkebyFlag.Name):
 		SpvDataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+		SpvDataDir = filepath.Join(node.DefaultDataDir(), "goerli")
 	default:
 		SpvDataDir = node.DefaultDataDir()
 	}
@@ -408,7 +410,8 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 
 	case ctx.GlobalBool(utils.RinkebyFlag.Name):
 		spvCfg.ActiveNet = "r"
-
+	case ctx.GlobalBool(utils.GoerliFlag.Name):
+		spvCfg.ActiveNet = "g"
 	}
 
 	// prepare to start the SPV module
