@@ -115,6 +115,9 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 		chainParams = config.DefaultParams.TestNet()
 	case "regnet", "reg", "r":
 		chainParams = config.DefaultParams.RegNet()
+	case "goreli", "g":
+		chainParams = config.DefaultParams.RegNet()
+		chainParams.Magic = 0//fixed goerli no magic
 	default:
 		chainParams = &config.DefaultParams
 

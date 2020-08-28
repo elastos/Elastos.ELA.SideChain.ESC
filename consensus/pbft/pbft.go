@@ -273,7 +273,7 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 		return consensus.ErrUnknownAncestor
 	}
-	log.Info("verify header HashConfirmed", "seal:", seal, "height", header.Number)
+	log.Info("verify header HasConfirmed", "seal:", seal, "height", header.Number)
 	if !seal && p.dispatcher.GetFinishedHeight() == number {
 		log.Info("verify header already confirm block")
 		return ErrAlreadyConfirmedBlock
