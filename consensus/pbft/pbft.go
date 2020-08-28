@@ -35,9 +35,9 @@ import (
 )
 
 var (
-	extraVanity = 32 // Fixed number of extra-data prefix bytes
-	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
-
+	extraVanity = 32            // Fixed number of extra-data prefix bytes
+	extraSeal   = 65            // Fixed number of extra-data suffix bytes reserved for signer seal
+	diffInTurn  = big.NewInt(2) // Block difficulty for in-turn signatures
 )
 
 const (
@@ -68,6 +68,9 @@ var (
 	ErrWaitSyncBlock = errors.New("has confirmed, wait sync block")
 
 	ErrInvalidConfirm = errors.New("invalid confirm")
+
+	// errInvalidDifficulty is returned if the difficulty of a block neither 2.
+	errInvalidDifficulty = errors.New("invalid difficulty")
 )
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
@@ -127,7 +130,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		datadir:            dataDir,
 		cfg:                *cfg,
 		confirmCh:          make(chan *payload.Confirm),
-		unConfirmCh:		make(chan *payload.Confirm),
+		unConfirmCh:        make(chan *payload.Confirm),
 		account:            account,
 		requestedBlocks:    make(map[common.Hash]struct{}),
 		requestedProposals: make(map[ecom.Uint256]struct{}),
@@ -174,7 +177,7 @@ func (p *Pbft) subscribeEvent() {
 			go p.network.UpdatePeers(e.Data.([]peer.PID))
 		case dpos.ETNewPeer:
 			count := len(p.network.GetActivePeers())
-			log.Info("new peer accept","active peer count", count)
+			log.Info("new peer accept", "active peer count", count)
 			if p.chain.Engine() == p && !p.dispatcher.GetConsensusView().HasProducerMajorityCount(count) {
 				go p.AnnounceDAddr()
 			}
@@ -280,6 +283,12 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 		return ErrInvalidTimestamp
 	}
 
+	if number > 0 {
+		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0) {
+			return errInvalidDifficulty
+		}
+	}
+
 	if seal {
 		return p.verifySeal(chain, header, parents)
 	}
@@ -345,7 +354,7 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 		log.Info("already confirm block")
 		return ErrAlreadyConfirmedBlock
 	}
-	header.Difficulty = parent.Difficulty
+	header.Difficulty = diffInTurn
 	header.Time = parent.Time + p.period
 	if header.Time < nowTime {
 		header.Time = nowTime
@@ -405,7 +414,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		p.addConfirmToBlock(header, confirm)
 		p.isSealOver = true
 		break
-	case <- p.unConfirmCh:
+	case <-p.unConfirmCh:
 		log.Warn("proposal is rejected")
 		p.isSealOver = true
 		return nil
@@ -418,7 +427,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		p.isSealOver = true
 		return nil
 	}
-	finalBlock  := block.WithSeal(header)
+	finalBlock := block.WithSeal(header)
 	go func() {
 		select {
 		case results <- finalBlock:
@@ -484,7 +493,7 @@ func (p *Pbft) SealHash(header *types.Header) common.Hash {
 
 func (p *Pbft) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
 	dpos.Info("Pbft CalcDifficulty")
-	return big.NewInt(1)
+	return diffInTurn
 }
 
 func (p *Pbft) APIs(chain consensus.ChainReader) []rpc.API {
