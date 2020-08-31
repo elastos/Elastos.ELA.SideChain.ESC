@@ -1,3 +1,8 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package pbft
 
 import (
@@ -298,7 +303,9 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 
 func (p *Pbft) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 	dpos.Info("Pbft VerifyUncles")
-	// TODO panic("implement me")
+	if len(block.Uncles()) > 0 {
+		return errors.New("uncles not allowed")
+	}
 	return nil
 }
 

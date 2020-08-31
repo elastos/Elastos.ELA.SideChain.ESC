@@ -179,23 +179,23 @@ func (r *Routes) ElaMsg(msgEvent *MsgEvent) {
 	case Inv:
 		var inv msg.Inv
 		if err := inv.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
-			fmt.Println("ElaMsg error,", err)
+			Error("ElaMsg error,", err)
 		}
 		r.queue <- invMsg{peer: msgEvent.Peer, msg: &inv}
 	case GetData:
 		var getData msg.GetData
 		if err := getData.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
-			fmt.Println("ElaMsg error,", err)
+			Error("ElaMsg error,", err)
 		}
 		r.OnGetData(msgEvent.Peer, &getData)
 	case DAddr:
 		var dAddr msg.DAddr
 		if err := dAddr.Deserialize(bytes.NewReader(msgEvent.ElaMsg.Msg)); err != nil {
-			fmt.Println("ElaMsg error,", err)
+			Error("ElaMsg error,", err)
 		}
 		r.queue <- dAddrMsg{peer: msgEvent.Peer, msg: &dAddr}
 	default:
-		fmt.Println("Invalid ElaMsg type")
+		Warn("Invalid ElaMsg type")
 	}
 }
 

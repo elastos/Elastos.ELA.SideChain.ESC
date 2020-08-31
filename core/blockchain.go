@@ -2421,6 +2421,10 @@ func (bc *BlockChain) isToManyEvilSigners(header *types.Header) bool {
 	if headerOld == nil {
 		return false
 	}
+	if bc.chainConfig.IsPBFTFork(header.Number) {
+		//TODO dpos double sign verify
+		return false
+	}
 	return IsNeedStopChain(header, headerOld, bc.engine, bc.evilSigners, bc.journal)
 }
 

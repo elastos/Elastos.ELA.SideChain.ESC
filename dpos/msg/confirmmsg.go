@@ -1,11 +1,17 @@
+// Copyright (c) 2017-2019 The Elastos Foundation
+// Use of this source code is governed by an MIT
+// license that can be found in the LICENSE file.
+//
+
 package msg
 
 import (
+	"bytes"
+	"io"
+
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
-	"github.com/elastos/Elastos.ELA/elanet/pact"
 	"github.com/elastos/Elastos.ELA/p2p"
-	"io"
 )
 
 // Ensure BlockMsg implement p2p.Message interface.
@@ -26,8 +32,11 @@ func (msg *ConfirmMsg) CMD() string {
 }
 
 func (msg *ConfirmMsg) MaxLength() uint32 {
-	//TODO use real data size
-	return pact.MaxBlockContextSize
+	buffer := new(bytes.Buffer)
+	if err := msg.Serialize(buffer); err != nil {
+		return 0
+	}
+	return uint32(buffer.Len())
 }
 
 func (msg *ConfirmMsg) Serialize(w io.Writer) error {
