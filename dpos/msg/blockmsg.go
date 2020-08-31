@@ -28,7 +28,6 @@ func (msg *BlockMsg) CMD() string {
 }
 
 func (msg *BlockMsg) MaxLength() uint32 {
-	//TODO use real data size
 	return pact.MaxBlockContextSize
 }
 
