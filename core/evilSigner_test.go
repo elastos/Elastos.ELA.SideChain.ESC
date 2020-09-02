@@ -181,7 +181,7 @@ func TestEvilSigners(t *testing.T)  {
 		accounts.sign(header, signerKeys[index], engine.SealHash)
 		blocksevil[i] = block.WithSeal(header)
 	}
-
+	config.PBFTBlock = big.NewInt(100000)
 	dangerouChainSideCh := make(chan DangerousChainSideEvent , 1)
 	chain, err := NewBlockChain(db, nil, &config, engine, engine, vm.Config{}, nil)
 	if err != nil {

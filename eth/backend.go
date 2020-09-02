@@ -21,6 +21,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
+	"runtime"
+	"sync"
+	"sync/atomic"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi/bind"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -50,12 +55,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+
+	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elapeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
-	"math/big"
-	"runtime"
-	"sync"
-	"sync/atomic"
 )
 
 type LesServer interface {
@@ -571,9 +574,36 @@ func (s *Ethereum) shouldPreserve(block *types.Block) bool {
 	}
 	if _, ok := s.engine.(*pbft.Pbft); ok {
 		if oldBlock := s.blockchain.GetBlockByNumber(block.NumberU64()); oldBlock != nil {
+			if oldBlock.Hash() == block.Hash() {
+				return false
+			}
 			log.Info("detected chain fork", "old block", oldBlock.Hash().String(), "new block", block.Hash().String(),
 				"oldBlock time", oldBlock.Time(), "newBlock time", block.Time())
-			return block.Time() > oldBlock.Time()
+			var oldConfirm payload.Confirm
+			oldErr := oldConfirm.Deserialize(bytes.NewReader(oldBlock.Extra()))
+			if oldErr != nil {
+				log.Error("old Block is error confirm")
+			}
+			var newConfirm payload.Confirm
+			newErr := newConfirm.Deserialize(bytes.NewReader(block.Extra()))
+			if newErr != nil {
+				log.Error("new Block is error confirm")
+				return false
+			}
+			if newErr != nil {
+				return true
+			}
+
+			oldViewOffset := oldConfirm.Proposal.ViewOffset
+			newViewOffset := newConfirm.Proposal.ViewOffset
+			log.Info("detected chain fork", "oldViewOffset", oldViewOffset, "newViewOffset", newViewOffset, "SignersCount", s.engine.SignersCount())
+			if oldViewOffset == 0 && newViewOffset == uint32(s.engine.SignersCount() - 1) {
+					return false
+			}
+			if newViewOffset == 0 && oldViewOffset == uint32(s.engine.SignersCount() - 1) {
+				return true
+			}
+			return newViewOffset > oldViewOffset
 		}
 	}
 	return s.isLocalBlock(block)
