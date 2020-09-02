@@ -2384,6 +2384,7 @@ func TestToManySigners(t *testing.T)  {
 func testToManySigners(t *testing.T, first, second []int64) {
 	// Create a pristine chain and database
 	db, blockchain, err := newCanonical(ethash.NewFaker(), 0, true)
+	blockchain.chainConfig.PBFTBlock = big.NewInt(100000)
 	if err != nil {
 		t.Fatalf("failed to create pristine chain: %v", err)
 	}
