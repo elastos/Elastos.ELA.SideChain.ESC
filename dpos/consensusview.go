@@ -76,26 +76,32 @@ func (v *ConsensusView) calculateOffsetTime(startTime time.Time,
 	return uint32(offset), offsetTime
 }
 
+func (v *ConsensusView) UpdateDutyIndex(height uint64) {
+	v.producers.UpdateDutyIndex(height)
+
+	currentProducer := v.producers.GetNextOnDutyProducer(v.viewOffset)
+	v.isDposOnDuty = bytes.Equal(currentProducer, v.publicKey)
+}
+
 func (v *ConsensusView) ChangeView(now time.Time, force bool, parentTime uint64) {
 	offset, offsetTime := v.calculateOffsetTime(v.viewStartTime, now)
 	if offset > 0 {
 		v.viewStartTime = now.Add(-offsetTime)
 		v.ResetView(uint64(v.viewStartTime.Unix()))
 	}
+	v.viewOffset += offset
 	if force {
 		offset = 1
+		v.resetViewOffset()
 		v.ResetView(parentTime)
 	}
-	v.viewOffset += offset
 
 	if offset > 0 {
 		Info("\n\n\n--------------------Change View---------------------")
-		Info("viewStartTime:", v.viewStartTime, "changeViewTime",v.viewChangeTime, "nowTime:", now, "offset:", offset, "offsetTime:", offsetTime, "force:", force)
+		Info("viewStartTime:", v.viewStartTime, "changeViewTime", v.viewChangeTime, "nowTime:", now, "offset:", offset, "offsetTime:", offsetTime, "force:", force,
+			"viewOffset", v.viewOffset, "dutyIndex", v.producers.dutyIndex)
 		currentProducer := v.producers.GetNextOnDutyProducer(v.viewOffset)
 		v.isDposOnDuty = bytes.Equal(currentProducer, v.publicKey)
-		if bytes.Equal(currentProducer, v.producers.producers[0]) {
-			v.resetViewOffset()//Prevent viewOffset overflow
-		}
 		v.DumpInfo()
 		Info("\n\n\n")
 		if v.listener != nil {
@@ -186,8 +192,7 @@ func NewConsensusView(tolerance time.Duration, account []byte,
 		signTolerance:   tolerance,
 		producers:       producers,
 		listener:        viewListener,
+		isDposOnDuty:    false,
 	}
-	c.isDposOnDuty = c.ProducerIsOnDuty(account)
-
 	return c
 }

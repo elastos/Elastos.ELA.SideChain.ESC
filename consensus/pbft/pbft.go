@@ -76,6 +76,10 @@ var (
 
 	// errInvalidDifficulty is returned if the difficulty of a block neither 2.
 	errInvalidDifficulty = errors.New("invalid difficulty")
+
+	errChainForkBlock = errors.New("chain fork block")
+
+	errDoubleSignBlock = errors.New("double sign block")
 )
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
@@ -108,7 +112,7 @@ type Pbft struct {
 	isRecovering   bool
 }
 
-func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string) *Pbft {
+func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string, dposStartHeight uint64) *Pbft {
 	logpath := filepath.Join(dataDir, "/logs/dpos")
 	dposPath := filepath.Join(dataDir, "/network/dpos")
 	if strings.LastIndex(dataDir, "/") == len(dataDir)-1 {
@@ -171,7 +175,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		pbft.subscribeEvent()
 	}
 	pbft.dispatcher = dpos.NewDispatcher(producers, pbft.onConfirm, pbft.onUnConfirm,
-		10*time.Second, accpubkey, medianTimeSouce, pbft)
+		10*time.Second, accpubkey, medianTimeSouce, pbft, dposStartHeight)
 	return pbft
 }
 
@@ -331,6 +335,23 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 	if err != nil {
 		return err
 	}
+
+	if oldHeader := chain.GetHeaderByNumber(number); oldHeader != nil {
+		var oldConfirm payload.Confirm
+		err := oldConfirm.Deserialize(bytes.NewReader(oldHeader.Extra))
+		if err != nil {
+			return nil
+		}
+
+		log.Info("verify seal chain fork", "oldViewOffset", oldConfirm.Proposal.ViewOffset, "newViewOffset", confirm.Proposal.ViewOffset, "height", number)
+		if confirm.Proposal.ViewOffset < oldConfirm.Proposal.ViewOffset {
+			return errChainForkBlock
+		}
+		if confirm.Proposal.ViewOffset == oldConfirm.Proposal.ViewOffset && oldHeader.Hash() != header.Hash() {
+			return errDoubleSignBlock
+		}
+	}
+
 	return nil
 }
 
@@ -348,11 +369,7 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 		return consensus.ErrUnknownAncestor
 	}
 	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
-	if header.Number.Cmp(p.chain.Config().PBFTBlock) == 0 {
-		p.Start(nowTime)
-	} else {
-		p.Start(parent.Time)
-	}
+	p.Start(parent.Time)
 	if !p.IsOnduty() {
 		return errors.New("local singer is not on duty")
 	}
@@ -543,12 +560,6 @@ func DBlockSealHash(block dpos.DBlock) (hash ecom.Uint256, err error) {
 	}
 }
 
-func PbftRLP(header *types.Header) []byte {
-	b := new(bytes.Buffer)
-	encodeSigHeader(b, header)
-	return b.Bytes()
-}
-
 func encodeSigHeader(w io.Writer, header *types.Header) {
 	err := rlp.Encode(w, []interface{}{
 		header.ParentHash,
@@ -603,6 +614,7 @@ func (p *Pbft) Start(headerTime uint64) {
 	if !p.enableViewLoop {
 		p.enableViewLoop = true
 		p.dispatcher.GetConsensusView().SetChangViewTime(headerTime)
+		p.dispatcher.GetConsensusView().UpdateDutyIndex(p.chain.CurrentBlock().NumberU64())
 		go p.changeViewLoop()
 	} else {
 		p.dispatcher.ResetView(headerTime)

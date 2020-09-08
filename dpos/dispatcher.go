@@ -181,6 +181,7 @@ func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256,
 
 	d.consensusView.SetReady()
 	d.CleanProposals(false)
+	d.consensusView.UpdateDutyIndex(height)
 	d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true, headerTime)
 }
 func (d *Dispatcher) CleanProposals(changeView bool) {
@@ -404,13 +405,13 @@ func (d *Dispatcher) GetNowTime() time.Time {
 
 func NewDispatcher(producers [][]byte, onConfirm func(confirm *payload.Confirm) error,
 	unConfirm func(confirm *payload.Confirm) error, tolerance time.Duration, publicKey []byte,
-	medianTime dtime.MedianTimeSource, viewListener ViewListener) *Dispatcher {
+	medianTime dtime.MedianTimeSource, viewListener ViewListener, dposStartHeight uint64) *Dispatcher {
 	return &Dispatcher{
 		acceptVotes:         make(map[common.Uint256]*payload.DPOSProposalVote),
 		rejectedVotes:       make(map[common.Uint256]*payload.DPOSProposalVote),
 		pendingVotes:        make(map[common.Uint256]*payload.DPOSProposalVote),
 		precociousProposals: make(map[common.Uint256]*payload.DPOSProposal),
-		consensusView:       NewConsensusView(tolerance, publicKey, NewProducers(producers), viewListener),
+		consensusView:       NewConsensusView(tolerance, publicKey, NewProducers(producers, dposStartHeight), viewListener),
 		onConfirm:           onConfirm,
 		unConfirm:           unConfirm,
 		timeSource:          medianTime,

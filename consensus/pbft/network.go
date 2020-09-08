@@ -127,7 +127,7 @@ func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
 	}
 
 	if b.NumberU64() <= p.chain.CurrentHeader().Number.Uint64() ||
-		b.NumberU64() <= p.dispatcher.GetFinishedHeight() { //old height block coming
+		b.NumberU64() <= p.dispatcher.GetFinishedHeight() {
 		p.blockPool.AddBadBlock(b)
 		log.Warn("old height block coming  blockchain.Height", "chain height",p.chain.CurrentHeader().Number.Uint64(), "b.Height", b.NumberU64(), "finishedHeight", p.dispatcher.GetFinishedHeight())
 		return
@@ -251,6 +251,10 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 	if _, ok := p.requestedProposals[proposal.Hash()]; ok {
 		delete(p.requestedProposals, proposal.Hash())
 	}
+	if p.dispatcher.GetProcessingProposal() != nil && p.dispatcher.GetProcessingProposal().Hash().IsEqual(proposal.Hash()) {
+		log.Info("is processing this proposal")
+		return
+	}
 	if !p.dispatcher.GetConsensusView().IsRunning() {
 		log.Info("consensus is not running")
 		return
@@ -264,6 +268,10 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 
 	isBadProposal := p.blockPool.IsBadBlockProposal(proposal)
 	if _, ok := p.blockPool.GetBlock(proposal.BlockHash); !ok && !isBadProposal {
+		if p.blockPool.IsFutureBlock(proposal.BlockHash) {
+			log.Info("future propsal, wait syncing block")
+			return
+		}
 		log.Info("not have preBlock, request it", "hash:", proposal.BlockHash.String())
 		p.OnInv(id, proposal.BlockHash)
 		return

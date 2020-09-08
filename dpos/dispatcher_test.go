@@ -68,7 +68,7 @@ func TestExampleNormalVote(t *testing.T) {
 		Info("node0 unconfirm", confirm.Proposal.BlockHash)
 		return nil
 	}
-	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil)
+	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil, 0)
 
 	// Assume that there are Node0 and Node1 in the p2p network.
 	// Node0 is sponsor, Node1 is normal producer.
@@ -152,7 +152,7 @@ func Node1ProcessProposal(proposal *payload.DPOSProposal) {
 		Info("node1 unconfirm", confirm.Proposal.BlockHash)
 		return nil
 	}
-	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil)
+	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil, 0)
 	node1Wallet, err := getTestWallet(key1, "node1")
 	if err != nil {
 		fmt.Println("node1 create account error:", err)
@@ -184,7 +184,7 @@ func TestProcessVote(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	wallet, _ := getTestWallet(key1, "node1")
-	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil)
+	dispatcher := NewDispatcher(getProducerList(), onConfirm, unconfirm, 5 * time.Second, []byte{}, dtime.NewMedianTime(), nil, 0)
 	go func() {
 		for i := 0; i < 1000; i++{
 			proposal, _ := StartProposal(wallet, *randomUint256(), rand.Uint32())

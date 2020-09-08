@@ -25,7 +25,7 @@ func getRandProducers() [][]byte {
 
 func TestNewProducers(t *testing.T) {
 	signers := getRandProducers()
-	p := NewProducers(signers)
+	p := NewProducers(signers, 0)
 	producers := p.GetProducers()
 	for i, v := range signers {
 		assert.Equal(t, producers[i], v)

@@ -181,7 +181,7 @@ func New(ctx *node.ServiceContext, config *eth.Config, node *node.Node) (*LightE
 		gpoParams.Default = config.Miner.GasPrice
 	}
 	leth.ApiBackend.gpo = gasprice.NewOracle(leth.ApiBackend, gpoParams)
-	engine := pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""))
+	engine := pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""), chainConfig.GetPbftBlock())
 	if leth.blockchain.Config().IsPBFTFork(leth.blockchain.CurrentHeader().Number) {
 		leth.SetEngine(engine)
 	}

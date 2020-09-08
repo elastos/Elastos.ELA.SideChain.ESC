@@ -246,7 +246,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			TrieTimeLimit:       config.TrieTimeout,
 		}
 	)
-	engine := pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""))
+	engine := pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""), chainConfig.GetPbftBlock())
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, engine, vmConfig, eth.shouldPreserve)
 	if err != nil {
 		return nil, err
@@ -597,12 +597,6 @@ func (s *Ethereum) shouldPreserve(block *types.Block) bool {
 			oldViewOffset := oldConfirm.Proposal.ViewOffset
 			newViewOffset := newConfirm.Proposal.ViewOffset
 			log.Info("detected chain fork", "oldViewOffset", oldViewOffset, "newViewOffset", newViewOffset, "SignersCount", s.engine.SignersCount())
-			if oldViewOffset == 0 && newViewOffset == uint32(s.engine.SignersCount() - 1) {
-					return false
-			}
-			if newViewOffset == 0 && oldViewOffset == uint32(s.engine.SignersCount() - 1) {
-				return true
-			}
 			return newViewOffset > oldViewOffset
 		}
 	}
