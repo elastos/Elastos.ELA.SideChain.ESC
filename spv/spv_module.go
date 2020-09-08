@@ -113,11 +113,12 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 	switch strings.ToLower(cfg.ActiveNet) {
 	case "testnet", "test", "t":
 		chainParams = config.DefaultParams.TestNet()
+		chainParams.Magic = 2018111
 	case "regnet", "reg", "r":
 		chainParams = config.DefaultParams.RegNet()
 	case "goreli", "g":
 		chainParams = config.DefaultParams.RegNet()
-		chainParams.Magic = 0//fixed goerli no magic
+		chainParams.Magic = 2018211
 	default:
 		chainParams = &config.DefaultParams
 

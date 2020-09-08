@@ -11,12 +11,17 @@ import (
 )
 
 type Producers struct {
-	producers [][]byte
-	mtx       sync.Mutex
+	producers   [][]byte
+	dutyIndex   uint32
+	startHeight uint64
+
+	mtx        sync.Mutex
 }
 
-func NewProducers(producers [][]byte) *Producers {
+func NewProducers(producers [][]byte, startHeight uint64) *Producers {
 	producer := &Producers{
+		dutyIndex:   0,
+		startHeight: startHeight,
 	}
 	producer.UpdateProducers(producers)
 	return producer
@@ -28,6 +33,14 @@ func (p *Producers) UpdateProducers(producers [][]byte) error {
 	p.producers = make([][]byte, len(producers))
 	copy(p.producers, producers)
 	return nil
+}
+
+func (p *Producers) UpdateDutyIndex(height uint64) uint32 {
+	p.mtx.Lock()
+	index := (height + 1 - p.startHeight) % uint64(len(p.producers))
+	p.dutyIndex = uint32(index)
+	p.mtx.Unlock()
+	return uint32(index)
 }
 
 func (p *Producers) GetProducers() [][]byte {
@@ -67,11 +80,12 @@ func (p *Producers) GetProducersCount() int {
 func (p *Producers) GetNextOnDutyProducer(offset uint32) []byte {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+
+	index := (p.dutyIndex + offset) % uint32(len(p.producers))
 	producers := p.producers
 	if len(producers) == 0 {
 		return nil
 	}
-	index := int(offset) % len(producers)
 	producer := producers[index]
 
 	return producer

@@ -67,7 +67,7 @@ var (
 		ChainIDBlock:        big.NewInt(10000000),
 		ConstantinopleBlock: big.NewInt(10000000),
 		PetersburgBlock:     big.NewInt(10000000),
-		IstanbulBlock:       nil,
+		IstanbulBlock:       big.NewInt(10000000),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -122,7 +122,7 @@ var (
 		ChainIDBlock:       big.NewInt(10000000),
 		ConstantinopleBlock: big.NewInt(10000000),
 		PetersburgBlock:     big.NewInt(10000000),
-		IstanbulBlock:       nil,
+		IstanbulBlock:       big.NewInt(10000000),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -176,7 +176,7 @@ var (
 		ByzantiumBlock:      big.NewInt(4),
 		ConstantinopleBlock: big.NewInt(10000000),
 		PetersburgBlock:     big.NewInt(10000000),
-		IstanbulBlock:       nil,
+		IstanbulBlock:       big.NewInt(10000000),
 		ChainIDBlock:        big.NewInt(100),
 		Clique: &CliqueConfig{
 			Period: 15,
@@ -227,9 +227,9 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ConstantinopleBlock: big.NewInt(10000000),
-		PetersburgBlock:     big.NewInt(10000000),
-		IstanbulBlock:       nil,
+		ConstantinopleBlock: big.NewInt(184110),
+		PetersburgBlock:     big.NewInt(184110),
+		IstanbulBlock:       big.NewInt(184110),
 		ChainIDBlock:        big.NewInt(5),
 		Clique: &CliqueConfig{
 			Period: 15,
@@ -508,6 +508,13 @@ func (c *ChainConfig) IsChainIDFork(num *big.Int) bool {
 
 func (c *ChainConfig) IsPBFTFork(num *big.Int) bool {
 	return isForked(c.PBFTBlock, num)
+}
+
+func (c *ChainConfig) GetPbftBlock() uint64 {
+	if c.PBFTBlock == nil {
+		return 0
+	}
+	return c.PBFTBlock.Uint64()
 }
 
 // GetChainIDByHeight returns ChainID by current blockNumber

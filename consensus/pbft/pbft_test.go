@@ -36,12 +36,12 @@ func TestReimportMirroredState(t *testing.T) {
 			"03bfd8bd2b10e887ec785360f9b329c2ae567975c784daca2f223cb19840b51914",
 		},
 	}
-	PbftProtocolChanges := &params.ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, cfg, "", 0, "", 1, "test/keystore.dat", "123"}
+	PbftProtocolChanges := &params.ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0), nil, nil, cfg, "", 0, "", 1, "test/keystore.dat", "123"}
 	var (
 		db     = rawdb.NewMemoryDatabase()
 		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr   = crypto.PubkeyToAddress(key.PublicKey)
-		engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "")
+		engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "", PbftProtocolChanges.PBFTBlock.Uint64())
 		signer = new(types.HomesteadSigner)
 	)
 	engine.IsCurrent = func() bool {
@@ -102,7 +102,7 @@ func TestReimportMirroredState(t *testing.T) {
 	// Simulate a crash by creating a new chain on top of the database, without
 	// flushing the dirty states out. Insert the last block, trigerring a sidechain
 	// reimport.
-	engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "")
+	engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "", PbftProtocolChanges.PBFTBlock.Uint64())
 	chain, _ = core.NewBlockChain(db, nil, PbftProtocolChanges, engine, engine, vm.Config{}, nil)
 	defer chain.Stop()
 

@@ -613,6 +613,9 @@ func (c *Clique) Authorize(signer common.Address, signFn SignerFn) {
 
 func (c *Clique) isBeforeChangeEngine(chain consensus.ChainReader,
 	header *types.Header) bool {
+	if chain.Config().PBFTBlock == nil {
+		return false
+	}
 	return chain.Config().PBFTBlock.Uint64() - 1 == header.Number.Uint64()
 }
 

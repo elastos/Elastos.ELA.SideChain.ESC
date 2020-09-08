@@ -73,6 +73,22 @@ func (bm *BlockPool) HandleParentBlock(parent DBlock) bool {
 	return false
 }
 
+func (bm *BlockPool) IsFutureBlock(hash common.Uint256) bool {
+	bm.Lock()
+	defer bm.Unlock()
+
+	for _, block := range bm.futureBlocks {
+		sealHash, err := bm.SealHash(block)
+		if err != nil {
+			return false
+		}
+		if sealHash.IsEqual(hash) {
+			return true
+		}
+	}
+	return false
+}
+
 func (bm *BlockPool) AddBadBlock(block DBlock) error {
 	bm.Lock()
 	defer bm.Unlock()
