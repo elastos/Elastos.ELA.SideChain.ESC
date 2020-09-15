@@ -1,6 +1,13 @@
 Decentralised Hacks 2020 for the Elastos Track Submission
 
-# Progress
+## Integration
+
+The Time Series Data is the Fusion Oracle Contract in contract subdirectory implements the Fusion Oracle; they're used in tests, and can be used to deploy these contracts for your own purposes.The go bindings for ENS contracts are generated using abigen via the go generator:
+
+go generate ./contracts/ens
+
+
+# Context
 We have demonstrated an on-chain ZK Rollup together with Onchain Randomness of VDF for Random Oracles Proof of Concept and Random DAOs. This is the first implementation of RANDAO + VDF as per the Justin Drake model. We have also implemented an Atomic Token Swap between two Tokens - Fusion Token and Fractal Token. Fusion Ledger is thus a combination of Fusion Oracles and Fractal DAOs.Lack of a secure and scalable end to end integrated frameworks in smart contract-based blockchain protocols and platforms to integrate Cryptographically Verified Ranomness powered Oracles and DAOs into Tokens, Token Swaps, and DApps. Thus our FusionLedger framework is designed for On-chain and Off-chain interaction between real work data and digital world institutions. FusionOracles will represent the real-world data and FractalDAOs represent the digital world institutions like Banks, Treasuries, Markets, etc.Our approach is a workflow from Fusion Oracles to Fractal DAOs. We are tokenizing Fusion Oracles. We are also tokenizing Fractal DAO. We have tokenized Oracles by applying VDF. Thus they are technically random oracles in the cryptographic sense. We have also tokenized DAOs by applying VDF. We can term them Random DAOs. Now we would like to demonstrate how an Auction App powered by Portis SDK can benefit from this Fractal DAO and Fusion Oracles. We also would like to convert the Fusion Rollup Contract to a Matic Child Chain demonstrating the combined scalability architecture of ZK RollUps and Matic Network.
 
 # Challenges
