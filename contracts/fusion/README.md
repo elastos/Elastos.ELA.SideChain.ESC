@@ -2,9 +2,7 @@ Decentralised Hacks 2020 for the Elastos Track Submission
 
 ## Integration
 
-The Time Series Data is the Fusion Oracle Contract in contract subdirectory implements the Fusion Oracle; they're used in tests, and can be used to deploy these contracts for your own purposes.The go bindings for ENS contracts are generated using abigen via the go generator:
-
-go generate ./contracts/ens
+The Time Series Data is the Fusion Oracle Contract in contract subdirectory implements the Fusion Oracle; they're used in tests, and can be used to deploy these contracts for your own purposes.The go bindings for ENS contracts are generated using abigen via the go generator: >> go generate ./contracts/ens
 
 
 # Context
