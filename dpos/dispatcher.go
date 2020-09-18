@@ -325,7 +325,7 @@ func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHe
 	Info("[HelpToRecoverAbnormal] peer id:", common.BytesToHexString(id[:]))
 
 	if height > currentHeight {
-		Error("Requesting height greater than current processing height")
+		Warn("Requesting height greater than current processing height")
 		return nil
 	}
 	status := &msg.ConsensusStatus{}
