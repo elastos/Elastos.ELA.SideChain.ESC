@@ -75,6 +75,11 @@ geth-linux-amd64:
 	@echo "Linux amd64 cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep amd64
 
+bootnode-linux-amd64:
+	build/env.sh go run build/ci.go xgo -- --go=$(GO) --targets=linux/amd64 -v ./cmd/bootnode
+	@echo "Linux amd64 cross compilation done:"
+	@ls -ld $(GOBIN)/bootnode-linux-* | grep amd64
+
 geth-linux-arm: geth-linux-arm-5 geth-linux-arm-6 geth-linux-arm-7 geth-linux-arm64
 	@echo "Linux ARM cross compilation done:"
 	@ls -ld $(GOBIN)/geth-linux-* | grep arm
