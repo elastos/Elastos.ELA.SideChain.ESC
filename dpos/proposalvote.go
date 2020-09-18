@@ -34,12 +34,12 @@ func StartVote(ProposalHash *common.Uint256, isAcceipt bool, ac account.Account)
 func CheckVote(vote *payload.DPOSProposalVote) error {
 	pk, err := crypto.DecodePoint(vote.Signer)
 	if err != nil {
-		Error("[CheckProposal] decode signer " + "error, details: ", err)
+		Error("[CheckVote] decode signer " + "error, details: ", err)
 		return err
 	}
 
 	if err := crypto.Verify(*pk, vote.Data(), vote.Sign); err != nil {
-		Error("[CheckProposal] sign verify " + "error, details: ", err)
+		Error("[CheckVote] sign verify " + "error, details: ", err)
 		return err
 	}
 	return nil
