@@ -473,7 +473,8 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		utils.Fatalf("SPV service init error: %v", err)
 	} else {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})
-		go spv.MinedBroadcastLoop(MinedBlockSub)
+		OnDutySub := stack.EventMux().Subscribe(events.OnDutyEvent{})
+		go spv.MinedBroadcastLoop(MinedBlockSub, OnDutySub)
 		spvService.Start()
 	}
 }

@@ -5,18 +5,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"golang.org/x/net/context"
 	"math/big"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
-	"github.com/elastos/Elastos.ELA/elanet/filter"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ETH"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -27,11 +23,13 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 
 	"github.com/elastos/Elastos.ELA.SideChain/types"
+	"golang.org/x/net/context"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	core "github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/elanet/filter"
 )
 
 var (
@@ -181,7 +179,7 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 }
 
 //minedBroadcastLoop Mining awareness, eth can initiate a recharge transaction after the block
-func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription) {
+func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *event.TypeMuxSubscription) {
 	var i = 0
 
 	for {
@@ -190,15 +188,17 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription) {
 			i++
 			if i >= 2 {
 				atomic.StoreInt32(&candSend, 1)
+				log.Info("seal new block, IteratorUnTransaction")
 				IteratorUnTransaction(GetDefaultSingerAddr())
 			}
-
-		case <-time.After(3 * time.Minute):
-			i = 0
-			atomic.StoreInt32(&candSend, 0)
+		case <-ondutySub.Chan():
+			if i >= 2 {
+				i = 0
+				log.Info("receive onduty event")
+				atomic.StoreInt32(&candSend, 0)
+			}
 		}
 	}
-
 }
 
 func (s *Service) GetDatabase() *leveldb.Database {
@@ -319,6 +319,7 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 		log.Error("SpvServicedb Put Output: ", "err", err, "elaHash", elaTx.Hash().String())
 	}
 	if atomic.LoadInt32(&candSend) == 1 {
+		log.Info("receive new recharge tx, IteratorUnTransaction")
 		from := GetDefaultSingerAddr()
 		IteratorUnTransaction(from)
 		f, err := common.StringToFixed64(fees[0])
@@ -379,9 +380,11 @@ func IteratorUnTransaction(from ethCommon.Address) {
 	}
 	atomic.StoreInt32(&candIterator, 1)
 	go func(addr ethCommon.Address) {
+		defer atomic.StoreInt32(&candIterator, 0)
 		for {
 			// stop send tx if candSend == 0
 			if atomic.LoadInt32(&candSend) == 0 {
+				log.Info("stop send tx, canSend is 0")
 				break
 			}
 			index := GetUnTransactionNum(spvTransactiondb, UnTransactionIndex)
@@ -392,61 +395,76 @@ func IteratorUnTransaction(from ethCommon.Address) {
 			if seek == missingNumber {
 				seek = 1
 			}
+			log.Info("get recharge tx", "seek", seek)
 			if seek == index {
+				log.Info("send over recharge", "seek", seek, "index", index)
 				break
 			}
 			txHash, err := spvTransactiondb.Get(append([]byte(UnTransaction), encodeUnTransactionNumber(seek)...))
 			if err != nil {
 				log.Error("get UnTransaction ", "err", err, "seek", seek)
+				setNextSeek(seek)
 				break
 			}
 			fee, _, _ := FindOutputFeeAndaddressByTxHash(string(txHash))
 			if fee.Uint64() <= 0 {
 				break
 			}
-			SendTransaction(from, string(txHash), fee)
-			err = spvTransactiondb.Put([]byte(UnTransactionSeek), encodeUnTransactionNumber(seek+1))
-			log.Info(UnTransactionSeek+"put", "seek", seek+1)
+			err, finished := SendTransaction(from, string(txHash), fee)
+			log.Info("send Transaction end", "finished", finished)
 			if err != nil {
-				log.Error("UnTransactionIndexPutSeek ", err, seek+1)
-				break
+				log.Info("SendTransaction failed", "error", err.Error())
 			}
-			err = spvTransactiondb.Delete(append([]byte(UnTransaction), encodeUnTransactionNumber(seek)...))
-			log.Info(UnTransaction+"delete", "seek", seek)
-			if err != nil {
-				log.Error("UnTransactionIndexDeleteSeek ", "err", err, "seek", seek)
-				break
+			if finished {
+				setNextSeek(seek)
 			}
 		}
-		atomic.StoreInt32(&candIterator, 0)
+
 	}(from)
 }
 
+func setNextSeek(seek uint64) {
+	err := spvTransactiondb.Delete(append([]byte(UnTransaction), encodeUnTransactionNumber(seek)...))
+	log.Info(UnTransaction+"delete", "seek", seek)
+	if err != nil {
+		log.Error("UnTransactionIndexDeleteSeek ", "err", err, "seek", seek)
+	}
+
+	err = spvTransactiondb.Put([]byte(UnTransactionSeek), encodeUnTransactionNumber(seek+1))
+	log.Info(UnTransactionSeek+"put", "seek", seek+1)
+	if err != nil {
+		log.Error("UnTransactionIndexPutSeek ", err, seek+1)
+		return
+	}
+}
+
 //SendTransaction sends a reload transaction to txpool
-func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int) {
+func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err error, finished bool){
+	defer log.Info("SendTransaction finished", "elaTx", elaTx)
 	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
 	if err != nil {
 		log.Error(fmt.Sprintf("IpcClient StorageAt: %v", err))
-		return
+		return err, true
 	}
 	h := ethCommon.Hash{}
 	if ethCommon.BytesToHash(ethTx) != h {
-		log.Warn("Cross-chain transactions have been processed", "elaHash", elaTx)
-		return
+		err = errors.New("Cross-chain transactions have been processed")
+		return err, true
 	}
 	data, err := common.HexStringToBytes(elaTx)
 	if err != nil {
 		log.Error("elaTx HexStringToBytes: "+elaTx, "err", err)
-		return
+		return err, true
 	}
 	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data}
 	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
 	if err != nil {
 		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
-		return
+		return err, false
 	}
 	if gasLimit == 0 {
-		return
+		err = errors.New("EstimateGas is zero")
+		return err, false
 	}
 
 	price := new(big.Int).Quo(fee, new(big.Int).SetUint64(gasLimit))
@@ -454,9 +472,10 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int) {
 	hash, err := ipcClient.SendPublicTransaction(context.Background(), callmsg)
 	if err != nil {
 		log.Error("IpcClient SendPublicTransaction: ", "err", err)
-		return
+		return err, true
 	}
 	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String())
+	return nil, true
 }
 
 func encodeUnTransactionNumber(number uint64) []byte {

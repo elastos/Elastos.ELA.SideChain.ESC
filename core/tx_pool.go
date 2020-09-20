@@ -963,7 +963,7 @@ func UptxhashIndex(pool *TxPool, tx *types.Transaction) bool {
 		if len(tx.Data()) == 32 && to == blackaddr {
 			txhash := hexutil.Encode(tx.Data())
 			completetxhash := pool.currentState.GetState(blackaddr, common.HexToHash(txhash))
-			if (completetxhash != common.Hash{}) {
+			if (completetxhash == common.Hash{}) {
 				spv.UpTransactionIndex(string(txhash))
 				return true
 			} else {
