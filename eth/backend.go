@@ -36,6 +36,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/bloombits"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
@@ -301,6 +302,11 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			eth.StopMining()
 		}
 		eth.StartMining(0)
+	}
+
+	engine.OnDuty = func() {
+		log.Info("change view broad on duty event")
+		eth.eventMux.Post(events.OnDutyEvent{})
 	}
 
 	engine.SetBlockChain(eth.blockchain)

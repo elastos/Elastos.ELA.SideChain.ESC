@@ -98,6 +98,7 @@ type Pbft struct {
 	// IsCurrent returns whether BlockChain synced to best height.
 	IsCurrent func() bool
 	StartMine func()
+	OnDuty func()
 
 	requestedBlocks    map[common.Hash]struct{}
 	requestedProposals map[ecom.Uint256]struct{}
@@ -203,7 +204,7 @@ func (p *Pbft) GetPbftConfig() params.PbftConfig {
 }
 
 func (p *Pbft) Author(header *types.Header) (common.Address, error) {
-	dpos.Info("Pbft Author")
+	//dpos.Info("Pbft Author")
 	// TODO panic("implement me")
 	return header.Coinbase, nil
 }
@@ -709,6 +710,9 @@ func (p *Pbft) CleanFinalConfirmedBlock(height uint64) {
 }
 
 func (p *Pbft) OnViewChanged(isOnDuty bool, force bool) {
+	if isOnDuty && p.OnDuty != nil {
+		p.OnDuty()
+	}
 	proposal := p.dispatcher.UpdatePrecociousProposals()
 	if proposal != nil {
 		log.Info("UpdatePrecociousProposals process proposal")

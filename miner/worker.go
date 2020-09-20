@@ -19,6 +19,7 @@ package miner
 import (
 	"bytes"
 	"errors"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -884,6 +885,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
 	}
+	_, isPOA := w.engine.(*clique.Clique)
+	if isPOA {
+		log.Info("prepare broad onduty event")
+		w.mux.Post(events.OnDutyEvent{})
+	}
+
 	// If we are care about TheDAO hard-fork check whether to override the extra-data or not
 	if daoBlock := w.chainConfig.DAOForkBlock; daoBlock != nil {
 		// Check whether the block is among the fork extra-override range
