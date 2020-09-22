@@ -99,6 +99,7 @@ type Pbft struct {
 	IsCurrent func() bool
 	StartMine func()
 	OnDuty func()
+	OnInsertChainError func(id peer.PID, block *types.Block, err error)
 
 	requestedBlocks    map[common.Hash]struct{}
 	requestedProposals map[ecom.Uint256]struct{}

@@ -25,9 +25,11 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi/bind"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
@@ -309,6 +311,39 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		eth.eventMux.Post(events.OnDutyEvent{})
 	}
 
+	engine.OnInsertChainError = func(id elapeer.PID, block *types.Block, err error) {
+		newHeight := block.NumberU64()
+		if err != consensus.ErrFutureBlock {
+			eth.protocolManager.BroadcastBlock(block, true)
+			 go func() {
+				 for {
+					 nowBlock := eth.blockchain.CurrentBlock()
+					 if newHeight <= nowBlock.NumberU64() {
+						break
+					 }
+					 peer := eth.protocolManager.peers.BestPeer()
+					 if peer == nil {
+						 return
+					 }
+					 localTd := eth.blockchain.GetTd(nowBlock.Hash(), nowBlock.NumberU64())
+					 if localTd.Cmp(peer.td) >= 0 {
+					 	log.Info("remove not best peer")
+						 eth.protocolManager.removePeer(peer.id)
+						 peer = eth.protocolManager.peers.BestPeer()
+					 }
+
+					 if peer != nil  && localTd.Cmp(peer.td) < 0 {
+						 go eth.protocolManager.synchronise(peer)
+						 log.Info("synchronise from ", "peer", peer.id, "td", peer.td.Uint64(), "localTd", localTd.Uint64())
+					 }
+					 time.Sleep(10 * time.Second)
+				 }
+
+			 }()
+
+		}
+	}
+
 	engine.SetBlockChain(eth.blockchain)
 
 	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
@@ -348,6 +383,8 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		routes := dpos.New(&routeCfg)
 		go routes.Start()
 		go engine.StartServer()
+
+		blocksigner.SelfIsProducer = engine.IsProducer()
 	}
 
 	return eth, nil

@@ -481,7 +481,11 @@ func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
 	blocks := types.Blocks{}
 	blocks = append(blocks, block)
 	log.Info("InsertChain", "height", block.GetHeight())
-	p.chain.InsertChain(blocks)
+	if _, err := p.chain.InsertChain(blocks); err != nil {
+		if p.OnInsertChainError != nil {
+			p.OnInsertChainError(id, block, err)
+		}
+	}
 }
 
 func (p *Pbft) OnConfirmReceived(pid peer.PID, c *payload.Confirm, height uint64) {
