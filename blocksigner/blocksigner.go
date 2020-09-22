@@ -10,6 +10,7 @@ const defaultTestSignerNumber = 12
 
 var (
 	Signers map[common.Address]struct{}
+	SelfIsProducer bool
 )
 
 func GetBlockSignerMaps(elaHeight uint64) *map[common.Address]struct{} {

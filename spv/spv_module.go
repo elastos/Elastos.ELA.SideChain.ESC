@@ -21,7 +21,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
-
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"golang.org/x/net/context"
 
@@ -188,7 +187,6 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *eve
 			i++
 			if i >= 2 {
 				atomic.StoreInt32(&candSend, 1)
-				log.Info("seal new block, IteratorUnTransaction")
 				IteratorUnTransaction(GetDefaultSingerAddr())
 			}
 		case <-ondutySub.Chan():
@@ -319,7 +317,6 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 		log.Error("SpvServicedb Put Output: ", "err", err, "elaHash", elaTx.Hash().String())
 	}
 	if atomic.LoadInt32(&candSend) == 1 {
-		log.Info("receive new recharge tx, IteratorUnTransaction")
 		from := GetDefaultSingerAddr()
 		IteratorUnTransaction(from)
 		f, err := common.StringToFixed64(fees[0])
@@ -354,13 +351,13 @@ func UpTransactionIndex(elaTx string) {
 	if err != nil {
 		log.Error(fmt.Sprintf("SpvServicedb Put UnTransaction: %v", err), "elaHash", elaTx)
 	}
-	log.Info(UnTransaction+"put", "index", index, "elaTx", elaTx)
+	log.Trace(UnTransaction+"put", "index", index, "elaTx", elaTx)
 	err = spvTransactiondb.Put([]byte(UnTransactionIndex), encodeUnTransactionNumber(index+1))
 	if err != nil {
 		log.Error("UnTransactionIndexPut", err, index+1)
 		return
 	}
-	log.Info(UnTransactionIndex+"put", "index", index+1)
+	log.Trace(UnTransactionIndex+"put", "index", index+1)
 
 }
 
@@ -370,7 +367,7 @@ func IteratorUnTransaction(from ethCommon.Address) {
 	defer muiterator.Unlock()
 
 	_, ok := blocksigner.Signers[from]
-	if !ok {
+	if !ok && !blocksigner.SelfIsProducer {
 		log.Error("error signers", "signer", from.String())
 		return
 	}
@@ -411,7 +408,6 @@ func IteratorUnTransaction(from ethCommon.Address) {
 				break
 			}
 			err, finished := SendTransaction(from, string(txHash), fee)
-			log.Info("send Transaction end", "finished", finished)
 			if err != nil {
 				log.Info("SendTransaction failed", "error", err.Error())
 			}
@@ -425,13 +421,13 @@ func IteratorUnTransaction(from ethCommon.Address) {
 
 func setNextSeek(seek uint64) {
 	err := spvTransactiondb.Delete(append([]byte(UnTransaction), encodeUnTransactionNumber(seek)...))
-	log.Info(UnTransaction+"delete", "seek", seek)
+	log.Trace(UnTransaction+"delete", "seek", seek)
 	if err != nil {
 		log.Error("UnTransactionIndexDeleteSeek ", "err", err, "seek", seek)
 	}
 
 	err = spvTransactiondb.Put([]byte(UnTransactionSeek), encodeUnTransactionNumber(seek+1))
-	log.Info(UnTransactionSeek+"put", "seek", seek+1)
+	log.Trace(UnTransactionSeek+"put", "seek", seek+1)
 	if err != nil {
 		log.Error("UnTransactionIndexPutSeek ", err, seek+1)
 		return
@@ -440,7 +436,6 @@ func setNextSeek(seek uint64) {
 
 //SendTransaction sends a reload transaction to txpool
 func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err error, finished bool){
-	defer log.Info("SendTransaction finished", "elaTx", elaTx)
 	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
 	if err != nil {
 		log.Error(fmt.Sprintf("IpcClient StorageAt: %v", err))
@@ -467,11 +462,14 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		return err, false
 	}
 
+	if atomic.LoadInt32(&candSend) == 0 {
+		err = errors.New("canSend is 0")
+		return err, false
+	}
 	price := new(big.Int).Quo(fee, new(big.Int).SetUint64(gasLimit))
 	callmsg := ethereum.TXMsg{From: from, To: &ethCommon.Address{}, Gas: gasLimit, Data: data, GasPrice: price}
 	hash, err := ipcClient.SendPublicTransaction(context.Background(), callmsg)
 	if err != nil {
-		log.Error("IpcClient SendPublicTransaction: ", "err", err)
 		return err, true
 	}
 	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String())
