@@ -786,7 +786,7 @@ var (
 	PbftKeystorePassWord = cli.StringFlag{
 		Name:  "pbft.keystore.password",
 		Usage: "pbft keystore password",
-		Value: "123",
+		Value: "",
 	}
 	PbftIPAddress = cli.StringFlag{
 		Name: "pbft.net.address",
@@ -1136,6 +1136,20 @@ func MakePasswordList(ctx *cli.Context) []string {
 		lines[i] = strings.TrimRight(lines[i], "\r")
 	}
 	return lines
+}
+
+// MakeDposPasswordList reads password lines from the file specified by the global --password flag.
+func MakeDposPasswordList(ctx *cli.Context) string {
+	path := ctx.GlobalString(PbftKeystorePassWord.Name)
+	if path == "" {
+		return ""
+	}
+	text, err := ioutil.ReadFile(path)
+	if err != nil {
+		Fatalf("Failed to read password file: %v", err)
+	}
+	password := strings.TrimRight(string(text), "\r")
+	return password
 }
 
 func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
@@ -1535,7 +1549,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	}
 	cfg.PreConnectOffset = ctx.GlobalUint64(PreConnectOffset.Name)
 	cfg.PbftKeyStore = ctx.GlobalString(PbftKeyStore.Name)
-	cfg.PbftKeyStorePassWord = ctx.GlobalString(PbftKeystorePassWord.Name)
+	cfg.PbftKeyStorePassWord = MakeDposPasswordList(ctx)
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
 	// Override any default configs for hard coded networks.
