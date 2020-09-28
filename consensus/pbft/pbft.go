@@ -132,7 +132,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 	}
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
 	if err != nil {
-		fmt.Println("create dpos account error:", err.Error(), "pbftKeystore:", pbftKeystore, "password")
+		fmt.Println("create dpos account error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
 		//can't return, because common node need verify use this engine
 	}
 	medianTimeSouce := dtime.NewMedianTime()
