@@ -1149,6 +1149,7 @@ func MakeDposPasswordList(ctx *cli.Context) string {
 		Fatalf("Failed to read password file: %v", err)
 	}
 	password := strings.TrimRight(string(text), "\r")
+	password = strings.TrimRight(string(text), "\n")
 	return password
 }
 
