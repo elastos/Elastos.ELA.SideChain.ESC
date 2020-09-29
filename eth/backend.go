@@ -384,6 +384,12 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		go routes.Start()
 		go engine.StartServer()
 
+		height := big.NewInt(0).Add(eth.blockchain.CurrentHeader().Number, big.NewInt(1))
+		if eth.blockchain.Engine() != engine && eth.blockchain.Config().IsPBFTFork(height) {
+			log.Info("before change engine")
+			eth.SetEngine(engine)
+		}
+
 		blocksigner.SelfIsProducer = engine.IsProducer()
 	}
 

@@ -121,6 +121,10 @@ web3._extend({
 			name: 'announceDAddr',
 			call: 'pbft_announceDAddr',
 		}),
+	    new web3._extend.Method({
+			name: 'getArbiterPeersInfo',
+			call: 'pbft_getAtbiterPeersInfo',
+		}),
 	],
 	properties: [
 		new web3._extend.Property({

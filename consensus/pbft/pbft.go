@@ -189,7 +189,15 @@ func (p *Pbft) subscribeEvent() {
 		case dpos.ETNewPeer:
 			count := len(p.network.GetActivePeers())
 			log.Info("new peer accept", "active peer count", count)
+			height := p.chain.CurrentHeader().Number.Uint64()
+			cfg := p.chain.Config()
+			if height >= cfg.PBFTBlock.Uint64() -cfg.PreConnectOffset && height < cfg.PBFTBlock.Uint64() {
+				log.Info("before change engine AnnounceDAddr")
+				go p.AnnounceDAddr()
+			}
+
 			if p.chain.Engine() == p && !p.dispatcher.GetConsensusView().HasProducerMajorityCount(count) {
+				log.Info("end change engine AnnounceDAddr")
 				go p.AnnounceDAddr()
 			}
 		}

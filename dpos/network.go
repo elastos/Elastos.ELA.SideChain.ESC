@@ -240,6 +240,7 @@ func (n *Network) changeView() {
 }
 
 func (n *Network) UpdatePeers(peers []peer.PID) {
+	Info("[UpdatePeers]", "self account:", common.BytesToHexString(n.publicKey))
 	for _, p := range peers {
 		if bytes.Equal(n.publicKey, p[:]) {
 			n.p2pServer.ConnectPeers(peers)
@@ -276,6 +277,14 @@ func (n *Network) SendMessageToPeer(id peer.PID, msg elap2p.Message) error {
 func (n *Network) BroadcastMessage(msg elap2p.Message) {
 	Info("[BroadcastMessage] msg:", msg.CMD())
 	n.p2pServer.BroadcastMessage(msg)
+}
+
+// DumpPeersInfo returns an array consisting of all peers state in connect list.
+//
+// This function is safe for concurrent access and is part of the
+// IServer interface implementation.
+func (s *Network) DumpPeersInfo() []*p2p.PeerInfo {
+	return s.p2pServer.DumpPeersInfo()
 }
 
 func NewNetwork(cfg *NetworkConfig) (*Network, error) {
@@ -357,3 +366,4 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 	}
 	return message, nil
 }
+
