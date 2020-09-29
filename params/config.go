@@ -72,7 +72,7 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(2398000),
+		PBFTBlock: big.NewInt(2403000),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -139,7 +139,7 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(2331000),
+		PBFTBlock: big.NewInt(2430000),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
