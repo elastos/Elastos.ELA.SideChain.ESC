@@ -61,6 +61,36 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 	return nil
 }
 
+type peerInfo struct {
+	OwnerPublicKey string `json:"ownerpublickey"`
+	NodePublicKey  string `json:"nodepublickey"`
+	IP             string `json:"ip"`
+	ConnState      string `json:"connstate"`
+}
+
+func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
+	if p.account == nil {
+		return nil
+	}
+
+	peers :=  p.network.DumpPeersInfo()
+
+	result := make([]peerInfo, 0)
+	for _, peer := range peers {
+		pid := peer.PID[:]
+		producer := p.dispatcher.GetConsensusView().IsProducers(pid)
+		if producer == false {
+			continue
+		}
+		result = append(result, peerInfo{
+			NodePublicKey: common.Bytes2Hex(pid),
+			IP:       peer.Addr,
+			ConnState: peer.State.String(),
+		})
+	}
+	return result
+}
+
 func (p *Pbft) AnnounceDAddr() bool {
 	if p.account == nil {
 		log.Error("is not a super node")
