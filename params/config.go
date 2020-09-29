@@ -64,15 +64,15 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:        big.NewInt(2398000),
-		ConstantinopleBlock: big.NewInt(2398000),
-		PetersburgBlock:     big.NewInt(2398000),
-		IstanbulBlock:       big.NewInt(2398000),
+		ChainIDBlock:        big.NewInt(2426880),
+		ConstantinopleBlock: big.NewInt(2426880),
+		PetersburgBlock:     big.NewInt(2426880),
+		IstanbulBlock:       big.NewInt(2426880),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(2403000),
+		PBFTBlock: big.NewInt(2426880),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -131,15 +131,15 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:       big.NewInt(2331000),
-		ConstantinopleBlock: big.NewInt(2331000),
-		PetersburgBlock:     big.NewInt(2331000),
-		IstanbulBlock:       big.NewInt(2331000),
+		ChainIDBlock:       big.NewInt(2333460),
+		ConstantinopleBlock: big.NewInt(2333460),
+		PetersburgBlock:     big.NewInt(2333460),
+		IstanbulBlock:       big.NewInt(2333460),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(2430000),
+		PBFTBlock: big.NewInt(2333460),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
