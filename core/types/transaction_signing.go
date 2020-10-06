@@ -42,6 +42,9 @@ type sigCache struct {
 func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 	var signer Signer
 	switch {
+	case !config.IsChainIDFork(blockNumber) && config.IsEIP155(blockNumber) && config.IsPBFTFork(blockNumber):
+		signer = NewEIP155Signer(config.GetChainIDByHeight(blockNumber))
+		signer.(EIP155Signer).SetForkData(config, blockNumber)
 	case config.IsEIP155(blockNumber):
 		signer = NewEIP155Signer(config.GetChainIDByHeight(blockNumber))
 	case config.IsHomestead(blockNumber):
@@ -105,6 +108,8 @@ type Signer interface {
 // EIP155Transaction implements Signer using the EIP155 rules.
 type EIP155Signer struct {
 	chainId, chainIdMul *big.Int
+	config              *params.ChainConfig
+	blockNumber         *big.Int
 }
 
 func NewEIP155Signer(chainId *big.Int) EIP155Signer {
@@ -112,9 +117,19 @@ func NewEIP155Signer(chainId *big.Int) EIP155Signer {
 		chainId = new(big.Int)
 	}
 	return EIP155Signer{
-		chainId:    chainId,
-		chainIdMul: new(big.Int).Mul(chainId, big.NewInt(2)),
+		chainId:     chainId,
+		chainIdMul:  new(big.Int).Mul(chainId, big.NewInt(2)),
+		blockNumber: big.NewInt(0),
+		config:      &params.ChainConfig{},
 	}
+}
+
+func (s EIP155Signer) SetForkData(config *params.ChainConfig, blockNumber *big.Int) {
+	s.config.PBFTBlock = config.PBFTBlock
+	s.config.ChainIDBlock = config.ChainIDBlock
+	s.config.ChainID = config.ChainID
+	s.config.OldChainID = config.OldChainID
+	s.blockNumber.SetBytes(blockNumber.Bytes())
 }
 
 func (s EIP155Signer) Equal(s2 Signer) bool {
@@ -129,7 +144,16 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 		return HomesteadSigner{}.Sender(tx)
 	}
 	if tx.ChainId().Cmp(s.chainId) != 0 {
-		return common.Address{}, ErrInvalidChainId
+		if s.config.PBFTBlock != nil && s.blockNumber.Cmp(s.config.PBFTBlock) >= 0 && s.blockNumber.Cmp(s.config.ChainIDBlock) < 0 {
+			if tx.ChainId().Cmp(s.config.ChainID) != 0 && tx.ChainId().Cmp(s.config.OldChainID) != 0 {
+				return common.Address{}, ErrInvalidChainId
+			} else {
+				s.chainId = tx.ChainId()
+				s.chainIdMul = new(big.Int).Mul(s.chainId, big.NewInt(2))
+			}
+		} else {
+			return common.Address{}, ErrInvalidChainId
+		}
 	}
 	V := new(big.Int).Sub(tx.data.V, s.chainIdMul)
 	V.Sub(V, big8)

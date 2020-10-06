@@ -64,7 +64,7 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:        big.NewInt(2426880),
+		ChainIDBlock:        big.NewInt(2987400),
 		ConstantinopleBlock: big.NewInt(2426880),
 		PetersburgBlock:     big.NewInt(2426880),
 		IstanbulBlock:       big.NewInt(2426880),
@@ -131,7 +131,7 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:       big.NewInt(2333460),
+		ChainIDBlock:       big.NewInt(2556480),
 		ConstantinopleBlock: big.NewInt(2333460),
 		PetersburgBlock:     big.NewInt(2333460),
 		IstanbulBlock:       big.NewInt(2333460),
@@ -201,7 +201,7 @@ var (
 		ConstantinopleBlock: big.NewInt(2208900),
 		PetersburgBlock:     big.NewInt(2208900),
 		IstanbulBlock:       big.NewInt(2208900),
-		ChainIDBlock:        big.NewInt(2208900),
+		ChainIDBlock:        big.NewInt(2337660),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -323,7 +323,7 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0),new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
+	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0),new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
@@ -597,10 +597,10 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{"eip155Block", c.EIP155Block},
 		{"eip158Block", c.EIP158Block},
 		{"byzantiumBlock", c.ByzantiumBlock},
-		{"chainIdBlock", c.ChainIDBlock},
 		{"constantinopleBlock", c.ConstantinopleBlock},
 		{"petersburgBlock", c.PetersburgBlock},
 		{"istanbulBlock", c.IstanbulBlock},
+		{"chainIdBlock", c.ChainIDBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
