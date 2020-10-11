@@ -43,6 +43,7 @@ var (
 	extraVanity = 32            // Fixed number of extra-data prefix bytes
 	extraSeal   = 65            // Fixed number of extra-data suffix bytes reserved for signer seal
 	diffInTurn  = big.NewInt(2) // Block difficulty for in-turn signatures
+	diffNoTurn  = big.NewInt(1) // Block difficulty for in-turn signatures
 )
 
 const (
@@ -73,6 +74,12 @@ var (
 	ErrWaitSyncBlock = errors.New("has confirmed, wait sync block")
 
 	ErrInvalidConfirm = errors.New("invalid confirm")
+
+	ErrSignerNotOnduty = errors.New("singer is not on duty")
+
+	ErrConsensusIsRunning = errors.New("current consensus is running")
+
+	ErrWaitRecoverStatus = errors.New("wait for recoved states")
 
 	// errInvalidDifficulty is returned if the difficulty of a block neither 2.
 	errInvalidDifficulty = errors.New("invalid difficulty")
@@ -372,27 +379,25 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
 	log.Info("Pbft Prepare:", "height;", header.Number.Uint64(), "parent", header.ParentHash.String())
 	p.isSealOver = false
-	if !p.isRecoved {
-		return errors.New("wait for recoved states")
-	}
-	if p.dispatcher.GetConsensusView().IsRunning() && p.enableViewLoop {
-		return errors.New("current consensus is running")
-	}
+	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
+	header.Difficulty = p.CalcDifficulty(chain, nowTime, nil)
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
+	if !p.isRecoved {
+		return ErrWaitRecoverStatus
+	}
+	if p.dispatcher.GetConsensusView().IsRunning() && p.enableViewLoop {
+		return ErrConsensusIsRunning
+	}
 	p.Start(parent.Time)
 	if !p.IsOnduty() {
-		return errors.New("local singer is not on duty")
+		return ErrSignerNotOnduty
 	}
-
 	if header.Number.Uint64() <= p.dispatcher.GetFinishedHeight() {
-		log.Info("already confirm block")
 		return ErrAlreadyConfirmedBlock
 	}
-	header.Difficulty = diffInTurn
 	header.Time = parent.Time + p.period
 	if header.Time < nowTime {
 		header.Time = nowTime
@@ -429,8 +434,22 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if p.account == nil {
 		return errors.New("no signer inited")
 	}
+
+	if !p.isRecoved {
+		return ErrWaitRecoverStatus
+	}
+
+	parent := chain.GetHeader(block.ParentHash(), block.NumberU64() - 1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+
+	if block.NumberU64() <= p.dispatcher.GetFinishedHeight() {
+		return ErrAlreadyConfirmedBlock
+	}
+
 	if !p.IsOnduty() {
-		return errors.New("local singer is not on duty")
+		return ErrSignerNotOnduty
 	}
 	p.BroadBlockMsg(block)
 
@@ -531,7 +550,10 @@ func (p *Pbft) SealHash(header *types.Header) common.Hash {
 
 func (p *Pbft) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
 	dpos.Info("Pbft CalcDifficulty")
-	return diffInTurn
+	if p.IsOnduty() {
+		return diffInTurn
+	}
+	return diffNoTurn
 }
 
 func (p *Pbft) APIs(chain consensus.ChainReader) []rpc.API {
@@ -625,6 +647,9 @@ func (p *Pbft) StopServer() {
 }
 
 func (p *Pbft) Start(headerTime uint64) {
+	if p.account == nil {
+		return
+	}
 	if !p.enableViewLoop {
 		p.enableViewLoop = true
 		p.dispatcher.GetConsensusView().SetChangViewTime(headerTime)
