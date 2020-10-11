@@ -883,7 +883,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
-		return
+		if err != pbft.ErrSignerNotOnduty && err != pbft.ErrWaitRecoverStatus {
+			return
+		}
 	}
 	_, isPOA := w.engine.(*clique.Clique)
 	if isPOA {

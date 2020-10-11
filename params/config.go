@@ -254,7 +254,7 @@ var (
 	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
 	GoerliChainConfig = &ChainConfig{
 		OldChainID:          big.NewInt(23),
-		ChainID:             big.NewInt(23),
+		ChainID:             big.NewInt(24),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -266,7 +266,7 @@ var (
 		ConstantinopleBlock: big.NewInt(184110),
 		PetersburgBlock:     big.NewInt(184110),
 		IstanbulBlock:       big.NewInt(184110),
-		ChainIDBlock:        big.NewInt(5),
+		ChainIDBlock:        big.NewInt(184110),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
