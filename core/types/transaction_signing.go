@@ -151,6 +151,9 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 				s.chainId = tx.ChainId()
 				s.chainIdMul = new(big.Int).Mul(s.chainId, big.NewInt(2))
 			}
+		} else if s.config.PBFTBlock == nil || s.config.ChainIDBlock == nil {
+			s.chainId = tx.ChainId()
+			s.chainIdMul = new(big.Int).Mul(s.chainId, big.NewInt(2))
 		} else {
 			return common.Address{}, ErrInvalidChainId
 		}
