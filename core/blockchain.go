@@ -1564,7 +1564,11 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 		return 0, nil, nil, nil
 	}
 	// Start a parallel signature recovery (signer will fluke on fork transition, minimal perf loss)
-	senderCacher.recoverFromBlocks(types.MakeSigner(bc.chainConfig, chain[0].Number()), chain)
+	signer := types.MakeSigner(bc.chainConfig, chain[0].Number())
+	if _, ok := signer.(types.EIP155Signer); ok {
+		signer.(types.EIP155Signer).SetForkData(bc.chainConfig, chain[0].Number())
+	}
+	senderCacher.recoverFromBlocks(signer, chain)
 
 	// A queued approach to delivering events. This is generally
 	// faster than direct delivery and requires much less mutex

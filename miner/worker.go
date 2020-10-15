@@ -636,7 +636,7 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 		uncles:    mapset.NewSet(),
 		header:    header,
 	}
-
+	env.signer.(types.EIP155Signer).SetForkData(w.chainConfig, header.Number)
 	// when 08 is processed ancestors contain 07 (quick block)
 	for _, ancestor := range w.chain.GetBlocksFromHash(parent.Hash(), 7) {
 		for _, uncle := range ancestor.Uncles() {
