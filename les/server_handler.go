@@ -160,7 +160,7 @@ func (h *serverHandler) handle(p *peer) error {
 		default:
 		}
 		if err := h.handleMsg(p, &wg); err != nil {
-			p.Log().Debug("Light Ethereum message handling failed", "err", err)
+			p.Log().Info("Light Ethereum message handling failed", "err", err)
 			return err
 		}
 	}
