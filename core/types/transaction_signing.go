@@ -144,13 +144,16 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 		return HomesteadSigner{}.Sender(tx)
 	}
 	if tx.ChainId().Cmp(s.chainId) != 0 {
-		if s.config.PBFTBlock != nil && s.blockNumber.Cmp(s.config.PBFTBlock) >= 0 && s.blockNumber.Cmp(s.config.ChainIDBlock) < 0 {
-			if tx.ChainId().Cmp(s.config.ChainID) != 0 && tx.ChainId().Cmp(s.config.OldChainID) != 0 {
+		if s.config.PBFTBlock != nil && s.blockNumber.Cmp(s.config.PBFTBlock) >= 0 && s.blockNumber.Cmp(s.config.ChainIDBlock) < 5 {
+			if tx.ChainId().Cmp(s.config.ChainID) != 0 && s.config.OldChainID != nil && tx.ChainId().Cmp(s.config.OldChainID) != 0 {
 				return common.Address{}, ErrInvalidChainId
 			} else {
 				s.chainId = tx.ChainId()
 				s.chainIdMul = new(big.Int).Mul(s.chainId, big.NewInt(2))
 			}
+		} else if s.config.PBFTBlock == nil || s.config.ChainIDBlock == nil {
+			s.chainId = tx.ChainId()
+			s.chainIdMul = new(big.Int).Mul(s.chainId, big.NewInt(2))
 		} else {
 			return common.Address{}, ErrInvalidChainId
 		}

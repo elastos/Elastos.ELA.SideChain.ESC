@@ -22,6 +22,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 )
 
@@ -125,8 +126,10 @@ func TestChainId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	_, err = Sender(NewEIP155Signer(big.NewInt(2)), tx)
+	config := &params.ChainConfig{ChainID: big.NewInt(2), OldChainID: big.NewInt(2), EIP150Block: big.NewInt(0), EIP155Block: big.NewInt(2), HomesteadBlock: new(big.Int), PBFTBlock: big.NewInt(0), ChainIDBlock: big.NewInt(0)}
+	signer := NewEIP155Signer(big.NewInt(2))
+	signer.SetForkData(config, big.NewInt(1))
+	_, err = Sender(signer, tx)
 	if err != ErrInvalidChainId {
 		t.Error("expected error:", ErrInvalidChainId)
 	}
