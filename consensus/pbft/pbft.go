@@ -377,9 +377,12 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 }
 
 func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	log.Info("Pbft Prepare:", "height;", header.Number.Uint64(), "parent", header.ParentHash.String())
+	log.Info("Pbft Prepare:", "height:", header.Number.Uint64(), "parent", header.ParentHash.String())
 	p.isSealOver = false
-	nowTime := uint64(p.dispatcher.GetNowTime().Unix())
+	nowTime := uint64(time.Now().Unix())
+	if p.dispatcher != nil {
+		nowTime = uint64(p.dispatcher.GetNowTime().Unix())
+	}
 	header.Difficulty = p.CalcDifficulty(chain, nowTime, nil)
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
