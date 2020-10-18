@@ -64,7 +64,7 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:        big.NewInt(2987400),
+		ChainIDBlock:        big.NewInt(2687340),
 		ConstantinopleBlock: big.NewInt(2426880),
 		PetersburgBlock:     big.NewInt(2426880),
 		IstanbulBlock:       big.NewInt(2426880),
