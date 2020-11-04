@@ -310,16 +310,22 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		log.Info("change view broad on duty event")
 		eth.eventMux.Post(events.OnDutyEvent{})
 	}
-
+	var issync int32
 	engine.OnInsertChainError = func(id elapeer.PID, block *types.Block, err error) {
 		newHeight := block.NumberU64()
+		if atomic.LoadInt32(&issync) == 1 {
+			return
+		}
 		if err != consensus.ErrFutureBlock {
+			atomic.StoreInt32(&issync, 1)
 			eth.protocolManager.BroadcastBlock(block, true)
+			initTime := time.Now()
 			 go func() {
+				 defer atomic.StoreInt32(&issync, 0)
 				 for {
 					 nowBlock := eth.blockchain.CurrentBlock()
-					 if newHeight <= nowBlock.NumberU64() {
-						break
+					 if newHeight <= nowBlock.NumberU64() || time.Now().Sub(initTime) > 50 * time.Second {
+					 	break
 					 }
 					 peer := eth.protocolManager.peers.BestPeer()
 					 if peer == nil {
@@ -336,9 +342,8 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 						 go eth.protocolManager.synchronise(peer)
 						 log.Info("synchronise from ", "peer", peer.id, "td", peer.td.Uint64(), "localTd", localTd.Uint64())
 					 }
-					 time.Sleep(10 * time.Second)
+					 time.Sleep(5 * time.Second)
 				 }
-
 			 }()
 
 		}
