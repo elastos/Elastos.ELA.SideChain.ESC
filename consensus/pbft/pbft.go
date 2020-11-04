@@ -251,7 +251,7 @@ func (p *Pbft) VerifyHeaders(chain consensus.ChainReader, headers []*types.Heade
 			}
 			if err == nil && !p.IsInBlockPool(p.SealHash(header)) {
 				err = p.verifyHeader(chain, header, headers[:i], seals[i])
-			} else {
+			} else if err == nil {
 				err = p.verifySeal(chain, header, headers[:i])
 			}
 
