@@ -246,7 +246,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 	// Hard disconnect at the networking layer
 	if peer != nil {
-		events.Notify(dpos.ETDonePeer, peer)
+		go events.Notify(dpos.ETDonePeer, peer)
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
 	}
 }
@@ -328,7 +328,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	defer pm.removePeer(p.id)
 
-	events.Notify(dpos.ETNewPeer, p)
+	go events.Notify(dpos.ETNewPeer, p)
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
