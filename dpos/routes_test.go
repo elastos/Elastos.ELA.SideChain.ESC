@@ -398,3 +398,17 @@ func TestRoutes_AppendAddr(t *testing.T) {
 		}
 	}
 }
+
+func TestEventNotify(t *testing.T) {
+	const ET_TEST_EVENT = 10000
+	events.Subscribe(func(e *events.Event) {
+		switch e.Type {
+		case ET_TEST_EVENT:
+			fmt.Println("receive test event")
+			go events.Notify(ET_TEST_EVENT, nil)
+		}
+	})
+
+	go events.Notify(ET_TEST_EVENT, nil)
+	time.Sleep(1 * time.Second)
+}
