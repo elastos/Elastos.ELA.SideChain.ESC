@@ -382,20 +382,23 @@ func IteratorUnTransaction(from ethCommon.Address) {
 	atomic.StoreInt32(&candIterator, 1)
 	go func(addr ethCommon.Address) {
 		defer atomic.StoreInt32(&candIterator, 0)
+
+		index := GetUnTransactionNum(spvTransactiondb, UnTransactionIndex)
+		if index == missingNumber {
+			return
+		}
+		seek := GetUnTransactionNum(spvTransactiondb, UnTransactionSeek)
+		if seek == missingNumber {
+			seek = 1
+		}
+
 		for {
 			// stop send tx if candSend == 0
 			if atomic.LoadInt32(&candSend) == 0 {
 				log.Info("stop send tx, canSend is 0")
 				break
 			}
-			index := GetUnTransactionNum(spvTransactiondb, UnTransactionIndex)
-			if index == missingNumber {
-				break
-			}
-			seek := GetUnTransactionNum(spvTransactiondb, UnTransactionSeek)
-			if seek == missingNumber {
-				seek = 1
-			}
+
 			log.Info("get recharge tx", "seek", seek)
 			if seek == index {
 				log.Info("send over recharge", "seek", seek, "index", index)
@@ -405,6 +408,7 @@ func IteratorUnTransaction(from ethCommon.Address) {
 			if err != nil {
 				log.Error("get UnTransaction ", "err", err, "seek", seek)
 				setNextSeek(seek)
+				seek++
 				break
 			}
 			fee, _, _ := FindOutputFeeAndaddressByTxHash(string(txHash))
@@ -417,6 +421,7 @@ func IteratorUnTransaction(from ethCommon.Address) {
 			}
 			if finished {
 				setNextSeek(seek)
+				seek++
 			}
 		}
 
