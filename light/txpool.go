@@ -382,7 +382,13 @@ func (pool *TxPool) validateTx(ctx context.Context, tx *types.Transaction) error
 	}
 
 	// Should supply enough intrinsic gas
-	gas, err := core.IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+	var blackAddr common.Address
+	gas := uint64(0)
+	if len(tx.Data()) == 32 && tx.To() != nil && *tx.To() == blackAddr {
+		gas, err = core.IntrinsicGas([]byte{}, tx.To() == nil, true, pool.istanbul)
+	} else {
+		gas, err = core.IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+	}
 	if err != nil {
 		return err
 	}

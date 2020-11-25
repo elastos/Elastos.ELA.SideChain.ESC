@@ -547,11 +547,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
-
+	var blackAddr common.Address
 	if tx.To() != nil {
 		to := *tx.To()
-		var addr common.Address
-		if len(tx.Data()) != 32 || to != addr {
+		if len(tx.Data()) != 32 || to != blackAddr {
 			// Transactor should have enough funds to cover the costs
 			// cost == V + GP * GL
 			if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
@@ -567,8 +566,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		}
 	}
 
+	intrGas := uint64(0)
 	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+	if len(tx.Data()) == 32 && tx.To() != nil && *tx.To() == blackAddr {
+		//recharge tx, Data should be nil, because some contract addresses require no data
+		intrGas, err = IntrinsicGas([]byte{}, tx.To() == nil, true, pool.istanbul)
+	} else {
+		intrGas, err = IntrinsicGas(tx.Data(), tx.To() == nil, true, pool.istanbul)
+	}
 	if err != nil {
 		return err
 	}

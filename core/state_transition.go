@@ -24,10 +24,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 )
 
 var (
@@ -204,11 +204,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	contractCreation := msg.To() == nil
 	txhash := hexutil.Encode(msg.Data())
 	//recharge tx
+	isRechargeTx := false
 	if len(msg.Data()) == 32 && msg.To() != nil && *msg.To() == blackaddr {
 		fee, toaddr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
 		completetxhash := evm.StateDB.GetState(blackaddr, common.HexToHash(txhash))
 		if toaddr != blackaddr {
 			if (completetxhash == common.Hash{}) && output.Cmp(fee) > 0 {
+				isRechargeTx = true
 				st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
 				defer func() {
 					ethfee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
@@ -217,6 +219,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 						usedGas = 0
 						failed = false
 						if err == nil {
+							log.Error("fee is not enough ：", "fee", fee.String(), "need",ethfee.String(), "vmerr", vmerr)
 							err = ErrGasLimitReached
 						}
 						evm.StateDB.RevertToSnapshot(snapshot)
@@ -272,7 +275,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.BlockNumber)
 
 	// Pay intrinsic gas
-	gas, err := IntrinsicGas(st.data, contractCreation, homestead, istanbul)
+	gas := uint64(0)
+	if isRechargeTx {
+		//recharge tx, Data should be nil, because some contract addresses require no data
+		gas, err = IntrinsicGas([]byte{}, contractCreation, homestead, istanbul)
+	} else {
+		gas, err = IntrinsicGas(st.data, contractCreation, homestead, istanbul)
+	}
 	if err != nil {
 		return nil, 0, false, err
 	}
