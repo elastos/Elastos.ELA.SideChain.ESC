@@ -112,9 +112,11 @@ func (s *Ethereum) SetEngine(engine consensus.Engine) {
 	if s.engine == engine {
 		return
 	}
+	isMining := false
 	log.Info("-----------------[SWITCH ENGINE TO DPOS!]-----------------")
 	pbftEngine := engine.(*pbft.Pbft)
 	if s.miner != nil {
+		isMining = s.miner.Mining()
 		s.StopMining()
 	}
 	s.engine.Close()
@@ -122,7 +124,7 @@ func (s *Ethereum) SetEngine(engine consensus.Engine) {
 	s.blockchain.SetEngine(engine)
 	if s.miner != nil {
 		s.miner.SetEngine(engine)
-		if pbftEngine != nil {
+		if pbftEngine != nil && isMining {
 			s.miner.Start(s.etherbase)
 		}
 	}
