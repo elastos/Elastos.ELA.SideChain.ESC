@@ -205,6 +205,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		blackAddr common.Address
 		txHash    string
 	)
+	isRechargeTx := false
 	//this is recharge tx
 	if blackAddr == addr && len(input) == 32 {
 		txHash = hexutil.Encode(input)
@@ -212,6 +213,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		fee, address, output :=  spv.FindOutputFeeAndaddressByTxHash(txHash)
 		addr = address
 		if (completeTxHash == common.Hash{} && addr != blackAddr && output.Cmp(fee) > 0) {
+			isRechargeTx = true
 			to = AccountRef(addr)
 			value = new(big.Int).Sub(output, fee)
 			topics := make([]common.Hash, 5)
@@ -271,7 +273,11 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			evm.vmConfig.Tracer.CaptureEnd(ret, gas-contract.Gas, time.Since(start), err)
 		}()
 	}
-	ret, err = run(evm, contract, input, false)
+	if isRechargeTx {
+		ret, err = run(evm, contract, []byte{}, false)
+	} else {
+		ret, err = run(evm, contract, input, false)
+	}
 	//if is withdraw tx, reduce the contract eth. Because the withdrawal transaction is to transfer ETH token to the black contract, the black contract broadcast event
 	if to.Address().String() == evm.ChainConfig().BlackContractAddr && err == nil {
 		evm.StateDB.SubBalance(to.Address(), value)

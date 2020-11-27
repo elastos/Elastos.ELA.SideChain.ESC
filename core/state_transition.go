@@ -24,10 +24,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 )
 
 var (
@@ -217,6 +217,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 						usedGas = 0
 						failed = false
 						if err == nil {
+							log.Error("fee is not enough ：", "fee", fee.String(), "need",ethfee.String(), "vmerr", vmerr)
 							err = ErrGasLimitReached
 						}
 						evm.StateDB.RevertToSnapshot(snapshot)

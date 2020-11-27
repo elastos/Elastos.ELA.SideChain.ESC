@@ -75,6 +75,8 @@ const (
 
 	// Fixed height of ela chain height with LitterEnd encode
 	ExtraElaHeight = 8
+
+	GASLimtScale = 10
 )
 
 //type MinedBlockEvent struct{}
@@ -451,16 +453,20 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		log.Error("elaTx HexStringToBytes: "+elaTx, "err", err)
 		return err, true
 	}
-	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data}
+	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: []byte{}}
 	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
 	if err != nil {
 		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
-		return err, false
+		UpTransactionIndex(elaTx)
+		return err, true
 	}
+
 	if gasLimit == 0 {
-		err = errors.New("EstimateGas is zero")
-		return err, false
+		log.Error("gasLimit is zero:","main txhash", elaTx)
+		UpTransactionIndex(elaTx)
+		return err, true
 	}
+	gasLimit = gasLimit * GASLimtScale
 
 	if atomic.LoadInt32(&candSend) == 0 {
 		err = errors.New("canSend is 0")
