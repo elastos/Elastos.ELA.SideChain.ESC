@@ -28,6 +28,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto/blake2b"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto/bn256"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -51,28 +52,30 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
 var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{},
-	common.BytesToAddress([]byte{6}): &bn256AddByzantium{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulByzantium{},
-	common.BytesToAddress([]byte{8}): &bn256PairingByzantium{},
+	common.BytesToAddress([]byte{1}):  &ecrecover{},
+	common.BytesToAddress([]byte{2}):  &sha256hash{},
+	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):  &dataCopy{},
+	common.BytesToAddress([]byte{5}):  &bigModExp{},
+	common.BytesToAddress([]byte{6}):  &bn256AddByzantium{},
+	common.BytesToAddress([]byte{7}):  &bn256ScalarMulByzantium{},
+	common.BytesToAddress([]byte{8}):  &bn256PairingByzantium{},
+	common.BytesToAddress([]byte{20}): &arbiters{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
 // contracts used in the Istanbul release.
 var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
+	common.BytesToAddress([]byte{1}):  &ecrecover{},
+	common.BytesToAddress([]byte{2}):  &sha256hash{},
+	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):  &dataCopy{},
+	common.BytesToAddress([]byte{5}):  &bigModExp{},
+	common.BytesToAddress([]byte{6}):  &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):  &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):  &blake2F{},
+	common.BytesToAddress([]byte{20}): &arbiters{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -499,4 +502,20 @@ func (c *blake2F) Run(input []byte) ([]byte, error) {
 		binary.LittleEndian.PutUint64(output[offset:offset+8], h[i])
 	}
 	return output, nil
+}
+
+type arbiters struct{}
+
+func (c *arbiters) RequiredGas(input []byte) uint64 {
+	return params.ArbitersBaseGas
+}
+
+func (c *arbiters) Run(input []byte) ([]byte, error) {
+	arbiters := spv.GetArbiters()
+	ret := make([]byte, 0)
+	for _, address := range arbiters {
+		ret = append(ret, common.LeftPadBytes(address[:], 32)...)
+	}
+
+	return ret, nil
 }
