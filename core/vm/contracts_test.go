@@ -19,6 +19,8 @@ package vm
 import (
 	"bytes"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"math/big"
 	"reflect"
 	"testing"
@@ -635,5 +637,22 @@ func TestPrecompiledEcrecover(t *testing.T) {
 	for _, test := range ecRecoverTests {
 		testPrecompiled("01", test, t)
 	}
+}
 
+func TestArbiters(t *testing.T) {
+	arbiters := spv.GetArbiters()
+	fmt.Printf("%v\n", arbiters)
+
+	ret := make([]byte, 0)
+	for _, arbiter := range arbiters {
+		ecdsaKey, err := crypto.ToECDSA(arbiter)
+		if err != nil {
+			t.Error(err)
+		}
+		address := crypto.PubkeyToAddress(ecdsaKey.PublicKey)
+
+		ret = append(ret, common.LeftPadBytes(address[:], 32)...)
+	}
+
+	fmt.Printf("%v\n", ret)
 }

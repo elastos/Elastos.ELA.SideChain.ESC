@@ -512,8 +512,15 @@ func (c *arbiters) RequiredGas(input []byte) uint64 {
 
 func (c *arbiters) Run(input []byte) ([]byte, error) {
 	arbiters := spv.GetArbiters()
+
 	ret := make([]byte, 0)
-	for _, address := range arbiters {
+	for _, arbiter := range arbiters {
+		ecdsaKey, err := crypto.ToECDSA(arbiter)
+		if err != nil {
+			return nil, err
+		}
+		address := crypto.PubkeyToAddress(ecdsaKey.PublicKey)
+
 		ret = append(ret, common.LeftPadBytes(address[:], 32)...)
 	}
 

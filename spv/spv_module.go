@@ -558,13 +558,13 @@ func SendEvilProof(addr ethCommon.Address, info interface{}) {
 
 }
 
-func GetArbiters() []ethCommon.Address {
-	addr1 := ethCommon.HexToAddress("0x384A8a20a8d911B547bEA6Ddd5B1934774A51869")
-	addr2 := ethCommon.HexToAddress("0xA662E47b0cA3821cdEFEEBCC065835d4a96B6EA4")
-	addr3 := ethCommon.HexToAddress("0x87dc4c0411f6aFF995d9E4F0D01e2db1d73DBfe2")
-	addr4 := ethCommon.HexToAddress("0x893d9bB8b95Dc87498EE7Df7D09eA9CddF624429")
-	addr5 := ethCommon.HexToAddress("0x8f2b3d31F63c2d8e537044df8b06e085057D6D83")
+func GetArbiters() [][]byte {
+	publicKey1 := ethCommon.Hex2Bytes("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	publicKey2 := ethCommon.Hex2Bytes("68214956b8421c0621d62cf2f0b20a02c2dc8c2cc89528aff9bd43b45ed34b9f")
+	publicKey3 := ethCommon.Hex2Bytes("cce325c55057d2c8e3fb03fb5871794e73b85821e8d0f96a7e4510b4a922fad5")
+	publicKey4 := ethCommon.Hex2Bytes("661637ae97c3af0580e1954ee80a7323973b256ca862cfcf01b4a18432670db4")
+	publicKey5 := ethCommon.Hex2Bytes("7d816821705e425415eb64a9704f25b4cd7eaca79616b0881fc92ac44ff8a46b")
 
-	ret := make([]ethCommon.Address, 0)
-	return append(ret, addr1, addr2, addr3, addr4, addr5)
+	ret := make([][]byte, 0)
+	return append(ret, publicKey1, publicKey2, publicKey3, publicKey4, publicKey5)
 }
