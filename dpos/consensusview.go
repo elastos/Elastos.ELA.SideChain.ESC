@@ -67,6 +67,10 @@ func (v *ConsensusView) GetProducers() [][]byte {
 	return v.producers.GetProducers()
 }
 
+func (v *ConsensusView) UpdateProducers(producers [][]byte) {
+	v.producers.UpdateProducers(producers)
+}
+
 func (v *ConsensusView) calculateOffsetTime(startTime time.Time,
 	now time.Time) (uint32, time.Duration) {
 	duration := now.Sub(startTime)
