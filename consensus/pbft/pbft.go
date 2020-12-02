@@ -211,6 +211,10 @@ func (p *Pbft) subscribeEvent() {
 				log.Info("end change engine AnnounceDAddr")
 				go p.AnnounceDAddr()
 			}
+		case dpos.ETUpSuperNode:
+			producers := e.Data.([][]byte)
+			go p.dispatcher.GetConsensusView().UpdateProducers(producers)
+			go events.Notify(events.ETDirectPeersChanged, producers)
 		}
 	})
 }

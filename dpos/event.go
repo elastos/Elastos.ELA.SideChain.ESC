@@ -14,4 +14,5 @@ const (
 	ETStopRoutes   events.EventType = 1002
 	ETElaMsg       events.EventType = 1003
 	ETAnnounceAddr events.EventType = 1004
+	ETUpSuperNode  events.EventType = 1005
 )
