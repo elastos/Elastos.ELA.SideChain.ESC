@@ -29,6 +29,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto/bn256"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -61,6 +62,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{7}):  &bn256ScalarMulByzantium{},
 	common.BytesToAddress([]byte{8}):  &bn256PairingByzantium{},
 	common.BytesToAddress([]byte{20}): &arbiters{},
+	common.BytesToAddress([]byte{21}): &p256Verify{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
@@ -76,6 +78,7 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):  &blake2F{},
 	common.BytesToAddress([]byte{20}): &arbiters{},
+	common.BytesToAddress([]byte{21}): &p256Verify{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -512,17 +515,45 @@ func (c *arbiters) RequiredGas(input []byte) uint64 {
 
 func (c *arbiters) Run(input []byte) ([]byte, error) {
 	arbiters := spv.GetArbiters()
-
 	ret := make([]byte, 0)
-	for _, arbiter := range arbiters {
-		ecdsaKey, err := crypto.ToECDSA(arbiter)
-		if err != nil {
-			return nil, err
-		}
-		address := crypto.PubkeyToAddress(ecdsaKey.PublicKey)
-
+	for _, address := range arbiters {
 		ret = append(ret, common.LeftPadBytes(address[:], 32)...)
 	}
 
 	return ret, nil
+}
+
+const (
+	p256VerifyInputLength = 193
+)
+
+var (
+	errP256VerifyInvalidInputLength = errors.New("invalid input length")
+	errP256VerifyInvalidPublicKey = errors.New("invalid public key")
+)
+
+type p256Verify struct{}
+
+func (c *p256Verify) RequiredGas(input []byte) uint64 {
+	return params.P256VerifyBaseGas
+}
+
+func (c *p256Verify) Run(input []byte) ([]byte, error) {
+	// Make sure the input is valid (correct length)
+	if len(input) != p256VerifyInputLength {
+		return nil, errP256VerifyInvalidInputLength
+	}
+	//length := getData(input, 0, 32)
+	pubkey := getData(input, 32, 33)
+	data := getData(input, 65, 64)
+	sig := getData(input, 129, 64)
+	publicKey, err := elaCrypto.DecodePoint(pubkey)
+	if err != nil {
+		return nil, errP256VerifyInvalidPublicKey
+	}
+	err = elaCrypto.Verify(*publicKey, data, sig)
+	if err != nil {
+		return false32Byte, nil
+	}
+	return true32Byte, nil
 }
