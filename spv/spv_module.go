@@ -555,8 +555,3 @@ func SendEvilProof(addr ethCommon.Address, info interface{}) {
 	//ToDO connect ela chain
 
 }
-
-func GetElaHeight() uint64 {
-	//ToDO
-	return 0
-}

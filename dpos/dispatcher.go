@@ -8,6 +8,7 @@ package dpos
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"sync"
 	"time"
@@ -63,7 +64,8 @@ func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal
 	}
 
 	if !d.consensusView.IsProducers(proposal.Sponsor) {
-		return errors.New("current signer is not producer"), true, true
+		str := fmt.Sprintf("%s proposal signer is not producer", common.BytesToHexString(proposal.Sponsor))
+		return errors.New(str), true, true
 	}
 	err = CheckProposal(proposal)
 	if err != nil {
@@ -137,7 +139,8 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	}
 
 	if !d.consensusView.IsProducers(vote.Signer) {
-		err = errors.New("current signer is not producer")
+		str := fmt.Sprintf("%s vote signer is not producer", common.BytesToHexString(vote.Signer))
+		err = errors.New(str)
 		return false, false, err
 	}
 
@@ -300,13 +303,7 @@ func (d *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
 }
 
 func (d *Dispatcher) GetNeedConnectProducers() []peer.PID {
-	peers := make([]peer.PID, len(d.consensusView.producers.producers))
-	for i, p := range d.consensusView.producers.producers {
-		var pid peer.PID
-		copy(pid[:], p)
-		peers[i] = pid
-	}
-	return peers
+	return d.consensusView.GetNeedConnectArbiters()
 }
 
 func (d *Dispatcher) OnChangeView() {
