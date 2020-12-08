@@ -7,10 +7,12 @@ package dpos
 
 import (
 	"bytes"
+	"sort"
 	"time"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/log"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
 type ViewListener interface {
@@ -67,8 +69,48 @@ func (v *ConsensusView) GetProducers() [][]byte {
 	return v.producers.GetProducers()
 }
 
-func (v *ConsensusView) UpdateProducers(producers [][]byte) {
-	v.producers.UpdateProducers(producers)
+func (v *ConsensusView) GetSpvHeight() uint64 {
+	return v.producers.spvHeight
+}
+
+func (v *ConsensusView) UpdateProducers(producers [][]byte, totalCount int, spvHeight uint64) {
+	v.producers.UpdateProducers(producers, totalCount, spvHeight)
+}
+
+func (v *ConsensusView) ChangeCurrentProducers(changeHeight uint64, spvHeight uint64) {
+	v.producers.ChangeCurrentProducers(changeHeight, spvHeight)
+}
+
+func (v *ConsensusView) GetNeedConnectArbiters() []peer.PID {
+	return v.producers.GetNeedConnectArbiters()
+}
+
+func (v *ConsensusView) UpdateNextProducers(producers []peer.PID, totalCount int){
+	v.producers.UpdateNextProducers(producers, totalCount)
+}
+
+func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
+	nextProducers := v.producers.nextProducers
+	if len(nextProducers) <= 0 {
+		return true
+	}
+	if len(curProducers) != len(nextProducers) {
+		return false
+	}
+	sort.Slice(nextProducers, func(i, j int) bool {
+		return bytes.Compare(nextProducers[i][:], nextProducers[j][:]) < 0
+	})
+
+	sort.Slice(curProducers, func(i, j int) bool {
+		return bytes.Compare(curProducers[i], curProducers[j]) < 0
+	})
+
+	for index, v := range curProducers {
+		if !bytes.Equal(v, nextProducers[index][:]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (v *ConsensusView) calculateOffsetTime(startTime time.Time,
@@ -139,6 +181,10 @@ func (v *ConsensusView) GetChangeViewTime() time.Time {
 	return v.viewChangeTime
 }
 
+func (v *ConsensusView) GetDutyIndex() uint32 {
+	return v.producers.dutyIndex
+}
+
 func (v *ConsensusView) GetViewOffset() uint32 {
 	return v.viewOffset
 }
@@ -184,6 +230,14 @@ func (v *ConsensusView) HasProducerMajorityCount(count int) bool {
 
 func (v *ConsensusView) GetMajorityCount() int {
 	return v.producers.GetMajorityCount()
+}
+
+func (v *ConsensusView) GetCRMajorityCount() int {
+	return v.producers.GetCRMajorityCount()
+}
+
+func (v *ConsensusView) GetMajorityCountByTotalSigners(totalSigner int) int {
+	return v.producers.GetMajorityCountByTotalSigners(totalSigner)
 }
 
 func NewConsensusView(tolerance time.Duration, account []byte,

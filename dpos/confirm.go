@@ -7,6 +7,7 @@ package dpos
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
@@ -17,7 +18,8 @@ func CheckConfirm(confirm *payload.Confirm, minSignCount int) error {
 		return err
 	}
 	if len(confirm.Votes) < minSignCount {
-		return errors.New("[CheckConfirm] error, there are not enough votes")
+		str := fmt.Sprintf("[CheckConfirm] error, need %d votes", minSignCount)
+		return errors.New(str)
 	}
 	proposalHash := confirm.Proposal.Hash()
 	for _, vote := range confirm.Votes {

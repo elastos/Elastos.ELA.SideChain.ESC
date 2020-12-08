@@ -26,6 +26,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
 	ecom "github.com/elastos/Elastos.ELA/common"
@@ -211,10 +212,17 @@ func (p *Pbft) subscribeEvent() {
 				log.Info("end change engine AnnounceDAddr")
 				go p.AnnounceDAddr()
 			}
-		case dpos.ETUpSuperNode:
-			producers := e.Data.([][]byte)
-			go p.dispatcher.GetConsensusView().UpdateProducers(producers)
-			go events.Notify(events.ETDirectPeersChanged, producers)
+		case dpos.ETNextProducers:
+			producers := e.Data.([]peer.PID)
+			log.Info("update next producers", "totalCount", spv.GetTotalProducersCount())
+			go p.dispatcher.GetConsensusView().UpdateNextProducers(producers, spv.GetTotalProducersCount())
+		case dpos.ETOnSPVHeight:
+			height := e.Data.(uint32)
+			if spv.GetWorkingHeight() >= height {
+				if uint64(spv.GetWorkingHeight() - height) <= p.chain.Config().PreConnectOffset {
+					go p.AnnounceDAddr()
+				}
+			}
 		}
 	})
 }
@@ -356,7 +364,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 	if err != nil {
 		return err
 	}
-	err = p.verifyConfirm(&confirm)
+	err = p.verifyConfirm(&confirm, header)
 	if err != nil {
 		return err
 	}
@@ -388,6 +396,7 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 		nowTime = uint64(p.dispatcher.GetNowTime().Unix())
 	}
 	header.Difficulty = p.CalcDifficulty(chain, nowTime, nil)
+	header.Nonce = types.EncodeNonce(p.dispatcher.GetConsensusView().GetSpvHeight())
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
@@ -454,7 +463,9 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if block.NumberU64() <= p.dispatcher.GetFinishedHeight() {
 		return ErrAlreadyConfirmedBlock
 	}
-
+	if !p.IsProducer() {
+		return errUnauthorizedSigner
+	}
 	if !p.IsOnduty() {
 		return ErrSignerNotOnduty
 	}
@@ -716,8 +727,16 @@ func (p *Pbft) broadConfirmMsg(confirm *payload.Confirm, height uint64) {
 	p.network.BroadcastMessage(msg)
 }
 
-func (p *Pbft) verifyConfirm(confirm *payload.Confirm) error {
-	err := dpos.CheckConfirm(confirm, p.dispatcher.GetConsensusView().GetMajorityCount())
+func (p *Pbft) verifyConfirm(confirm *payload.Confirm, header *types.Header) error {
+	elaHeight := header.Nonce.Uint64()
+	minSignCount := 0
+	if elaHeight == 0 {
+		minSignCount = p.dispatcher.GetConsensusView().GetCRMajorityCount()
+	} else {
+		count := spv.GetArbitersCount(elaHeight)
+		minSignCount = p.dispatcher.GetConsensusView().GetMajorityCountByTotalSigners(count)
+	}
+	err := dpos.CheckConfirm(confirm, minSignCount)
 	return err
 }
 

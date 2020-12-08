@@ -9,6 +9,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -34,14 +35,14 @@ type BlockPool struct {
 	heightConfirms map[uint64]*payload.Confirm
 	badBlocks      map[common.Uint256]DBlock
 
-	VerifyConfirm  func(confirm *payload.Confirm) error
+	VerifyConfirm  func(confirm *payload.Confirm, header *types.Header) error
 	VerifyBlock    func(block DBlock) error
 	SealHash       func(block DBlock) (common.Uint256, error)
 
 	futureBlocks map[common.Uint256]DBlock
 }
 
-func NewBlockPool(verifyConfirm func(confirm *payload.Confirm) error,
+func NewBlockPool(verifyConfirm func(confirm *payload.Confirm, header *types.Header) error,
 	verifyBlock func(block DBlock) error,
 	sealHash func(block DBlock) (common.Uint256, error)) *BlockPool {
 	return &BlockPool{
@@ -176,7 +177,11 @@ func (bm *BlockPool) appendConfirm(confirm *payload.Confirm) error {
 	log.Info("[appendConfirm] start")
 	defer Info("[appendConfirm] end")
 	// verify confirmation
-	if err := bm.VerifyConfirm(confirm); err != nil {
+	dblock, ok := bm.GetBlock(confirm.Proposal.BlockHash)
+	if !ok {
+		return errors.New("appennd confirm error, not have DBlock")
+	}
+	if err := bm.VerifyConfirm(confirm, (dblock.(*types.Block)).Header()); err != nil {
 		return err
 	}
 	bm.Lock()

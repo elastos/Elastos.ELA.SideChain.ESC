@@ -8,14 +8,24 @@ package dpos
 import (
 	"bytes"
 	"sync"
+
+	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
-type Producers struct {
-	producers   [][]byte
-	dutyIndex   uint32
-	startHeight uint64
+//TODO is test value,should be 12
+const defaultCRCSignerNumber = 6
 
-	mtx        sync.Mutex
+type Producers struct {
+	totalProducers int
+	producers      [][]byte
+	dutyIndex      uint32
+	startHeight    uint64
+	spvHeight      uint64
+
+	nextTotalProducers int
+	nextProducers      []peer.PID
+	mtx                sync.Mutex
 }
 
 func NewProducers(producers [][]byte, startHeight uint64) *Producers {
@@ -23,16 +33,65 @@ func NewProducers(producers [][]byte, startHeight uint64) *Producers {
 		dutyIndex:   0,
 		startHeight: startHeight,
 	}
-	producer.UpdateProducers(producers)
+	producer.UpdateProducers(producers, len(producers), 0)
 	return producer
 }
 
-func (p *Producers) UpdateProducers(producers [][]byte) error {
+func (p *Producers) UpdateProducers(producers [][]byte, totalCount int, spvHeight uint64) error {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.producers = make([][]byte, len(producers))
 	copy(p.producers, producers)
+	p.totalProducers = totalCount
+	p.spvHeight = spvHeight
 	return nil
+}
+
+func (p *Producers) ChangeCurrentProducers(changeHeight uint64, spvHeight uint64) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.producers = make([][]byte, len(p.nextProducers))
+	for i, signer := range p.nextProducers {
+		p.producers[i] = make([]byte, len(signer))
+		copy(p.producers[i][:], signer[:])
+	}
+	p.startHeight = changeHeight
+	p.totalProducers = p.nextTotalProducers
+	p.spvHeight = spvHeight
+}
+
+func (p *Producers) UpdateNextProducers(producers []peer.PID, totalCount int) error {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.nextProducers = make([]peer.PID, len(producers))
+	copy(p.nextProducers[:], producers[:])
+	p.nextTotalProducers = totalCount
+	return nil
+}
+
+func (p *Producers) GetNeedConnectArbiters() []peer.PID {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	pids := make(map[string]peer.PID)
+	for _, producer := range p.producers {
+		key := common.BytesToHexString(producer)
+		var pid peer.PID
+		copy(pid[:], producer)
+		pids[key] = pid
+	}
+
+	for _, producer := range p.nextProducers {
+		key := common.BytesToHexString(producer[:])
+		var pid peer.PID
+		copy(pid[:], producer[:])
+		pids[key] = pid
+	}
+
+	peers := make([]peer.PID, 0, len(pids))
+	for _, pid := range pids {
+		peers = append(peers, pid)
+	}
+	return peers
 }
 
 func (p *Producers) UpdateDutyIndex(height uint64) uint32 {
@@ -64,10 +123,21 @@ func (p *Producers) IsProducers(signer []byte) bool {
 
 func (p *Producers) GetMajorityCount() int {
 	p.mtx.Lock()
-	minSignCount := int(float64(len(p.producers)) * 2 / 3)
+	minSignCount := int(float64(p.totalProducers) * 2 / 3)
 	p.mtx.Unlock()
 	return minSignCount
 
+}
+
+func (p *Producers) GetCRMajorityCount() int {
+	return p.GetMajorityCountByTotalSigners(defaultCRCSignerNumber)
+}
+
+func (p *Producers) GetMajorityCountByTotalSigners(totalSigner int) int {
+	p.mtx.Lock()
+	minSignCount := int(float64(totalSigner) * 2 / 3)
+	p.mtx.Unlock()
+	return minSignCount
 }
 
 func (p *Producers) GetProducersCount() int {

@@ -353,6 +353,10 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 
 	engine.SetBlockChain(eth.blockchain)
 
+	if eth.blockchain.Engine() == engine {
+		InitCurrentProducers(engine, eth.blockchain.Config(), eth.blockchain.CurrentHeader())
+	}
+
 	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
 	if err != nil {
 		return eth, nil
@@ -403,6 +407,25 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	return eth, nil
 }
 
+func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, currentHeader *types.Header) {
+	if currentHeader == nil {
+		return
+	}
+	if currentHeader.Number.Uint64() == 0 {
+		return
+	}
+	if !config.IsPBFTFork(currentHeader.Number) {
+		return
+	}
+	spvHeight := currentHeader.Nonce.Uint64()
+	if spvHeight <= 0 {
+		return
+	}
+
+	producers, totalProducers := spv.GetProducers(spvHeight)
+	engine.UpdateCurrentProducers(producers, totalProducers, spvHeight)
+}
+
 func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 	//dynamic switch dpos engine
 	if !eth.blockchain.Config().IsPBFTFork(eth.blockchain.CurrentHeader().Number) {
@@ -430,6 +453,7 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 			case b := <-blockEvent:
 				pbftEngine := engine.(*pbft.Pbft)
 				pbftEngine.AccessFutureBlock(b.Block)
+				pbftEngine.OnInsertBlock(b.Block)
 			}
 		}
 	}()

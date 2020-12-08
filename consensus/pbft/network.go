@@ -18,6 +18,7 @@ import (
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"github.com/elastos/Elastos.ELA/events"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
@@ -100,6 +101,10 @@ func (p *Pbft) AnnounceDAddr() bool {
 	log.Info("Announce DAddr ", "Producers:", producers)
 	events.Notify(events.ETDirectPeersChanged, producers)
 	return true
+}
+
+func (p *Pbft) UpdateCurrentProducers(producers [][]byte, totalCount int, spvHeight uint64) {
+	p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, spvHeight)
 }
 
 func (p *Pbft) BroadBlockMsg(block *types.Block) error {
@@ -187,6 +192,20 @@ func (p *Pbft) AccessFutureBlock(parent *types.Block) {
 		log.Info("----[Send RequestProposal]-----")
 		requestProposal := &msg.RequestProposal{ProposalHash: elacom.EmptyHash}
 		go p.network.BroadcastMessage(requestProposal)
+	}
+}
+
+func (p *Pbft) OnInsertBlock(block *types.Block) {
+	dutyIndex := p.dispatcher.GetConsensusView().GetDutyIndex()
+	isWorkingHeight := spv.SpvIsWorkingHeight()
+	if dutyIndex == 0 && isWorkingHeight {
+		curProducers := p.dispatcher.GetConsensusView().GetProducers()
+		isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+		if !isSame {
+			p.dispatcher.GetConsensusView().ChangeCurrentProducers(block.NumberU64() + 1, spv.GetSpvHeight())
+			go p.Recover()
+			p.dispatcher.GetConsensusView().DumpInfo()
+		}
 	}
 }
 
