@@ -556,11 +556,11 @@ func GetElaHeight() uint64 {
 }
 
 func GetArbiters() [][]byte {
-	publicKey1 := ethCommon.Hex2Bytes("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-	publicKey2 := ethCommon.Hex2Bytes("68214956b8421c0621d62cf2f0b20a02c2dc8c2cc89528aff9bd43b45ed34b9f")
-	publicKey3 := ethCommon.Hex2Bytes("cce325c55057d2c8e3fb03fb5871794e73b85821e8d0f96a7e4510b4a922fad5")
-	publicKey4 := ethCommon.Hex2Bytes("661637ae97c3af0580e1954ee80a7323973b256ca862cfcf01b4a18432670db4")
-	publicKey5 := ethCommon.Hex2Bytes("7d816821705e425415eb64a9704f25b4cd7eaca79616b0881fc92ac44ff8a46b")
+	publicKey1 := ethCommon.Hex2Bytes("022d7ca190f5785be72005a1f2f223121e50c07253a773504dacb42ff6b4b86aee")
+	publicKey2 := ethCommon.Hex2Bytes("03585451831671d32c12da70f009adb6e423dfbfdd012368d9038c8b896918a62a")
+	publicKey3 := ethCommon.Hex2Bytes("025321ed6ff0618808f8cbd5d4b89845e0898865ee68ba88e335c90401b186660c")
+	publicKey4 := ethCommon.Hex2Bytes("02a1957b44be3531cf90760a28c7fb8e0ce66b40ae82432e2bb68f35ddfc8557f7")
+	publicKey5 := ethCommon.Hex2Bytes("0325ed89042b4a2e3df0c273faf8db95ea678d2010cdb71b0591675d5cf08c282c")
 
 	ret := make([][]byte, 0)
 	return append(ret, publicKey1, publicKey2, publicKey3, publicKey4, publicKey5)
