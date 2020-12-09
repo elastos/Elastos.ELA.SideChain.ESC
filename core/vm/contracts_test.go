@@ -681,10 +681,17 @@ func TestP256Verify_Run(t *testing.T) {
 	length := common.Hex2Bytes("00000000000000000000000000000000000000000000000000000000000000a1")
 	private := common.Hex2Bytes("41f8a791476092cb3bbd632dcbf5217ff0f6107bc76e322f8159a1fb63d9670d")
 	pubkey := common.Hex2Bytes("03585451831671d32c12da70f009adb6e423dfbfdd012368d9038c8b896918a62a")
-	data := common.LeftPadBytes(common.Hex2Bytes("010203"), 64)
+	//data := common.LeftPadBytes(common.Hex2Bytes("010203"), 64)
+	convert := common.HexToAddress("0x5b4A755b609bca3CAFb48bA893973ef6Fa146554")
+	first := crypto.Keccak256(convert.Bytes())
+	second := crypto.Keccak256([]byte("asdfasfd"))
+	data := merge(first,second)
 
 	signature, err := elaCrypto.Sign(private, data)
 	assert.NoError(t, err)
+
+	fmt.Println(common.Bytes2Hex(data))
+	fmt.Println(common.Bytes2Hex(signature))
 
 	var verify p256Verify
 	input := append(length, pubkey...)
@@ -707,4 +714,19 @@ func getP256Keypair()  {
 	fmt.Println(common.Bytes2Hex(a))
 	bb, _ := b.EncodePoint(true)
 	fmt.Println(common.Bytes2Hex(bb))
+}
+
+func merge(first , second []byte) []byte{
+	var merged []byte
+	k := 0
+	for i := 0; i < len(first); i++ {
+		merged = append(merged ,first[i])
+		k++
+	}
+
+	for i := 0; i < len(second); i++ {
+		merged = append(merged ,second[i])
+		k++
+	}
+	return merged
 }
