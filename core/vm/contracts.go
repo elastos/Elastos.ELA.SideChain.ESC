@@ -516,8 +516,9 @@ func (c *arbiters) RequiredGas(input []byte) uint64 {
 func (c *arbiters) Run(input []byte) ([]byte, error) {
 	arbiters := spv.GetArbiters()
 	ret := make([]byte, 0)
-	for _, address := range arbiters {
-		ret = append(ret, common.LeftPadBytes(address[:], 32)...)
+	for _, pubkey := range arbiters {
+		hash := crypto.Keccak256(pubkey)
+		ret = append(ret, common.LeftPadBytes(hash[:], 32)...)
 	}
 
 	return ret, nil
