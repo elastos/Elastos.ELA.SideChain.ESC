@@ -744,7 +744,7 @@ func (p *Pbft) verifyConfirm(confirm *payload.Confirm, header *types.Header) err
 	if elaHeight == 0 {
 		minSignCount = p.dispatcher.GetConsensusView().GetCRMajorityCount()
 	} else {
-		count, err := spv.GetArbitersCount(elaHeight)
+		_, count, err := spv.GetProducers(elaHeight)
 		if err != nil {
 			return err
 		}

@@ -2,7 +2,6 @@ package spv
 
 import (
 	"errors"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
@@ -25,28 +24,15 @@ func SpvIsWorkingHeight() bool {
 	return false
 }
 
-func GetArbitersCount(elaHeight uint64) (int, error) {
-	if SpvService == nil {
-		return 0, errors.New("spv is not start")
-	}
-	crcArbiters, normalArbitrs, err := SpvService.GetArbiters(uint32(elaHeight))
-	if err != nil {
-		log.Error("GetArbiters error", "error", err.Error())
-		return 0, err
-	}
-	return len(crcArbiters) + len(normalArbitrs), nil
-}
-
-func GetProducers(elaHeight uint64) ([][]byte, int) {
+func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	producers := make([][]byte, 0)
 	totalCount := 0
 	if SpvService == nil {
-		return producers, totalCount
+		return producers, totalCount,  errors.New("spv is not start")
 	}
 	crcArbiters, normalArbitrs, err := SpvService.GetArbiters(uint32(elaHeight))
 	if err != nil {
-		log.Error("GetProducers error", "error", err.Error())
-		return producers, totalCount
+		return producers, totalCount, err
 	}
 	for _, arbiter := range crcArbiters {
 		if len(arbiter) > 0 {
@@ -59,7 +45,7 @@ func GetProducers(elaHeight uint64) ([][]byte, int) {
 		}
 	}
 	totalCount = len(crcArbiters) + len(normalArbitrs)
-	return producers, totalCount
+	return producers, totalCount, nil
 }
 
 func GetSpvHeight() uint64  {

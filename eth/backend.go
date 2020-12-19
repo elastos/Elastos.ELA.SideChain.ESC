@@ -418,7 +418,11 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		return
 	}
 
-	producers, totalProducers := spv.GetProducers(spvHeight)
+	producers, totalProducers, err := spv.GetProducers(spvHeight)
+	if err != nil {
+		log.Info("GetProducers error", "error", err)
+		return
+	}
 	if engine.IsCurrentProducers(producers) {
 		log.Info("is current producers, do not need update", "totalProducers", totalProducers)
 		if engine.IsProducer() {

@@ -7,6 +7,7 @@ package dpos
 
 import (
 	"bytes"
+	"sort"
 	"sync"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -67,6 +68,11 @@ func (p *Producers) SetWorkingHeight(changeHeight uint64) {
 func (p *Producers) UpdateNextProducers(producers []peer.PID, totalCount int) error {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+
+	sort.Slice(producers, func(i, j int) bool {
+		return bytes.Compare(producers[i][:], producers[j][:]) < 0
+	})
+
 	p.nextProducers = make([]peer.PID, len(producers))
 	copy(p.nextProducers[:], producers[:])
 	p.nextTotalProducers = totalCount
