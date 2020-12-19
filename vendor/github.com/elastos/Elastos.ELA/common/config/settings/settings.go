@@ -491,7 +491,11 @@ func NewSettings() *Settings {
 		DefaultValue: uint32(0),
 		ConfigPath:   "PublicDPOSHeight",
 		ParamName:    "PublicDPOSHeight"})
-
+	result.Add(&settingItem{
+		Flag:         cmdcom.IllegalPenaltyFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.IllegalPenalty",
+		ParamName:    "IllegalPenalty"})
 	result.Add(&settingItem{
 		Flag:         cmdcom.CRCommitteeStartHeightFlag,
 		DefaultValue: uint32(0),
@@ -569,6 +573,12 @@ func NewSettings() *Settings {
 		DefaultValue: false,
 		ConfigPath:   "EnableUtxoDB",
 		ParamName:    "EnableUtxoDB"})
+
+	result.Add(&settingItem{
+		Flag:         nil,
+		DefaultValue: false,
+		ConfigPath:   "EnableCORS",
+		ParamName:    "EnableCORS"})
 
 	result.Add(&settingItem{
 		Flag:         cmdcom.AutoMiningFlag,
@@ -893,6 +903,12 @@ func NewSettings() *Settings {
 		ParamName:    "CRCProposalWithdrawPayloadV1Height"})
 
 	result.Add(&settingItem{
+		Flag:         cmdcom.CRCProposalV1Height,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CRConfiguration.CRCProposalV1Height",
+		ParamName:    "CRCProposalV1Height"})
+
+	result.Add(&settingItem{
 		Flag:         cmdcom.RectifyTxFee,
 		DefaultValue: common.Fixed64(0),
 		ConfigPath:   "CRConfiguration.RectifyTxFee",
@@ -909,6 +925,42 @@ func NewSettings() *Settings {
 		DefaultValue: uint64(0),
 		ConfigPath:   "CRConfiguration.NewP2PProtocolVersionHeight",
 		ParamName:    "NewP2PProtocolVersionHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.ChangeCommitteeNewCRHeight,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CRConfiguration.ChangeCommitteeNewCRHeight",
+		ParamName:    "ChangeCommitteeNewCRHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.MaxReservedCustomIDListCount,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CRConfiguration.MaxReservedCustomIDListCount",
+		ParamName:    "MaxReservedCustomIDListCount"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.NoCRCDPOSNodeHeight,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.NoCRCDPOSNodeHeight",
+		ParamName:    "NoCRCDPOSNodeHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.RandomCandidatePeriod,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.RandomCandidatePeriod",
+		ParamName:    "RandomCandidatePeriod"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.MaxInactiveRoundsOfRandomNode,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.MaxInactiveRoundsOfRandomNode",
+		ParamName:    "MaxInactiveRoundsOfRandomNode"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.DPOSNodeCrossChainHeight,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.DPOSNodeCrossChainHeight",
+		ParamName:    "DPOSNodeCrossChainHeight"})
 
 	return result
 }

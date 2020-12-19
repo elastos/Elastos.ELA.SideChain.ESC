@@ -17,13 +17,15 @@ type Arbitrators interface {
 	ProcessSpecialTxPayload(p types.Payload, height uint32) error
 	CheckCRCAppropriationTx(block *types.Block) error
 	CheckNextTurnDPOSInfoTx(block *types.Block) error
+	CheckCustomIDResultsTx(block *types.Block) error
 
 	IsArbitrator(pk []byte) bool
 	IsNextCRCArbitrator(pk []byte) bool
 	IsMemberElectedNextCRCArbitrator(pk []byte) bool
 	GetArbitrators() []*ArbiterInfo
 	GetCandidates() [][]byte
-	GetNextArbitrators() [][]byte
+	GetAllProducersPublicKey() []string
+	GetNextArbitrators() []*ArbiterInfo
 	GetNextCandidates() [][]byte
 	GetNeedConnectArbiters() []peer.PID
 	GetDutyIndexByHeight(height uint32) int

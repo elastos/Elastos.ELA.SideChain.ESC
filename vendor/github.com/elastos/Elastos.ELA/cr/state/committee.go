@@ -12,9 +12,11 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
+	"github.com/elastos/Elastos.ELA/core/contract/program"
 	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaerr "github.com/elastos/Elastos.ELA/errors"
@@ -23,6 +25,8 @@ import (
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 	"github.com/elastos/Elastos.ELA/utils"
 )
+
+const CRAssetsRectifyInterval = time.Minute
 
 type Committee struct {
 	KeyFrame
@@ -158,6 +162,18 @@ func (c *Committee) IsAppropriationNeeded() bool {
 	return c.NeedAppropriation
 }
 
+func (c *Committee) IsCustomIDResultNeeded() bool {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	return c.NeedCIDProposalResult
+}
+
+func (c *Committee) GetCustomIDResults() []payload.ProposalResult {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	return c.CustomIDProposalResults
+}
+
 func (c *Committee) GetMembersDIDs() []common.Uint168 {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
@@ -175,6 +191,18 @@ func (c *Committee) GetAllMembers() []*CRMember {
 	defer c.mtx.RUnlock()
 
 	result := getCRMembers(c.Members)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Info.DID.Compare(result[j].Info.DID) <= 0
+	})
+	return result
+}
+
+// copy all CRMembers ordered by CID
+func (c *Committee) GetAllMembersCopy() []*CRMember {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	result := getCRMembersCopy(c.Members)
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Info.DID.Compare(result[j].Info.DID) <= 0
 	})
@@ -201,14 +229,6 @@ func (c *Committee) GetImpeachableMembers() []*CRMember {
 	return getImpeachableCRMembers(c.Members)
 }
 
-// get all history CRMembers
-func (c *Committee) GetAllHistoryMembers() []*CRMember {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-
-	return getHistoryMembers(c.HistoryMembers)
-}
-
 func (c *Committee) GetMembersCodes() [][]byte {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
@@ -225,6 +245,39 @@ func (c *Committee) GetMember(did common.Uint168) *CRMember {
 	defer c.mtx.RUnlock()
 
 	return c.getMember(did)
+}
+
+func (c *Committee) GetReservedCustomIDLists() [][]string {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	return c.getReservedCustomIDLists()
+}
+
+func (c *Committee) getReservedCustomIDLists() [][]string {
+	return c.manager.ReservedCustomIDLists
+}
+
+func (c *Committee) GetBannedCustomIDLists() [][]string {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	return c.getBannedCustomIDLists()
+}
+
+func (c *Committee) getBannedCustomIDLists() [][]string {
+	return c.manager.BannedCustomIDLists
+}
+
+func (c *Committee) GetReceivedCustomIDLists() [][]string {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	return c.getReceivedCustomIDLists()
+}
+
+func (c *Committee) getReceivedCustomIDLists() [][]string {
+	return c.manager.ReceivedCustomIDLists
 }
 
 func (c *Committee) getMember(did common.Uint168) *CRMember {
@@ -281,14 +334,11 @@ func (c *Committee) updateVotingCandidatesState(height uint32) {
 // update Candidates deposit coin
 func (c *Committee) updateCandidatesDepositCoin(height uint32) {
 	updateDepositCoin := func(key common.Uint168, candidate *Candidate) {
-		oriRefundable := c.state.depositInfo[key].Refundable
 		oriDepositAmount := c.state.depositInfo[key].DepositAmount
 		c.state.history.Append(height, func() {
 			c.state.depositInfo[key].DepositAmount -= MinDepositAmount
-			c.state.depositInfo[key].Refundable = true
 		}, func() {
 			c.state.depositInfo[key].DepositAmount = oriDepositAmount
-			c.state.depositInfo[key].Refundable = oriRefundable
 		})
 	}
 
@@ -302,9 +352,8 @@ func (c *Committee) updateCandidatesDepositCoin(height uint32) {
 
 func (c *Committee) ProcessBlock(block *types.Block, confirm *payload.Confirm) {
 	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
 	if block.Height < c.params.CRVotingStartHeight {
+		c.mtx.Unlock()
 		return
 	}
 
@@ -321,7 +370,7 @@ func (c *Committee) ProcessBlock(block *types.Block, confirm *payload.Confirm) {
 
 	inElectionPeriod := c.tryStartVotingPeriod(block.Height)
 	c.updateProposals(block.Height, inElectionPeriod)
-	c.freshCirculationAmount(c.lastHistory, block.Height)
+	c.updateCirculationAmount(c.lastHistory, block.Height)
 	c.updateCRInactivePeriod(c.lastHistory, block.Height)
 	c.updateCRInactiveStatus(c.lastHistory, block.Height)
 	needChg := false
@@ -330,17 +379,18 @@ func (c *Committee) ProcessBlock(block *types.Block, confirm *payload.Confirm) {
 	}
 	c.lastHistory.Commit(block.Height)
 
-	if block.Height >= c.params.CRAssetsRectifyTransactionHeight &&
+	if block.Height >= c.params.CRCProposalWithdrawPayloadV1Height &&
 		len(c.manager.WithdrawableTxInfo) != 0 {
 		c.createRealWithdrawTransaction(block.Height)
 	}
 
+	if c.NeedCIDProposalResult {
+		c.createCustomIDResultTransaction(block.Height)
+	}
 	if needChg {
 		c.createAppropriationTransaction(block.Height)
 		c.recordCurrentStageAmount(block.Height)
 		c.appropriationHistory.Commit(block.Height)
-		go events.Notify(events.ETCRCChangeCommittee, block)
-
 	} else {
 		if c.CRAssetsAddressUTXOCount >=
 			c.params.MaxCRAssetsAddressUTXOCount+c.params.CoinbaseMaturity &&
@@ -348,7 +398,11 @@ func (c *Committee) ProcessBlock(block *types.Block, confirm *payload.Confirm) {
 			c.createRectifyCRAssetsTransaction(block.Height)
 		}
 	}
+	c.mtx.Unlock()
 
+	if needChg {
+		events.Notify(events.ETCRCChangeCommittee, block)
+	}
 }
 
 func (c *Committee) updateCRInactivePeriod(history *utils.History, height uint32) {
@@ -372,6 +426,9 @@ func (c *Committee) checkAndSetMemberToInactive(history *utils.History, height u
 				m.MemberState = MemberInactive
 			}, func() {
 				m.MemberState = MemberElected
+				if height >= c.params.ChangeCommitteeNewCRHeight {
+					c.state.RevertUpdateCRInactivePenalty(m.Info.CID)
+				}
 			})
 		}
 	}
@@ -394,22 +451,32 @@ func (c *Committee) updateCRInactiveStatus(history *utils.History, height uint32
 }
 
 func (c *Committee) updateProposals(height uint32, inElectionPeriod bool) {
-	unusedAmount := c.manager.updateProposals(
+	unusedAmount, results := c.manager.updateProposals(
 		height, c.CirculationAmount, inElectionPeriod)
+	oriLastCIDProposalResults := c.CustomIDProposalResults
+	oriNeedCIDProposalResult := c.NeedCIDProposalResult
+	var needCIDProposalResult bool
+	if len(results) != 0 {
+		needCIDProposalResult = true
+	}
 	c.manager.history.Append(height, func() {
 		c.CRCCommitteeUsedAmount -= unusedAmount
+		c.CustomIDProposalResults = results
+		c.NeedCIDProposalResult = needCIDProposalResult
 	}, func() {
 		c.CRCCommitteeUsedAmount += unusedAmount
+		c.CustomIDProposalResults = oriLastCIDProposalResults
+		c.NeedCIDProposalResult = oriNeedCIDProposalResult
 	})
 	c.manager.history.Commit(height)
 }
 
-func (c *Committee) updateCRMembers(height uint32, inElectionPeriod bool) uint32 {
+func (c *Committee) updateCRMembers(
+	height uint32, inElectionPeriod bool) (newImpeachedCount uint32) {
 	if !inElectionPeriod {
-		return 0
+		return
 	}
 	circulation := c.CirculationAmount
-	var count uint32
 	for _, v := range c.Members {
 		if v.MemberState != MemberElected && v.MemberState != MemberInactive {
 			continue
@@ -418,15 +485,14 @@ func (c *Committee) updateCRMembers(height uint32, inElectionPeriod bool) uint32
 		if v.ImpeachmentVotes >= common.Fixed64(float64(circulation)*
 			c.params.VoterRejectPercentage/100.0) {
 			c.transferCRMemberState(v, height)
-			count++
+			newImpeachedCount++
 		}
 	}
-	return count
+	return
 }
 
 func (c *Committee) transferCRMemberState(crMember *CRMember, height uint32) {
 	oriPenalty := c.state.depositInfo[crMember.Info.CID].Penalty
-	oriRefundable := c.state.depositInfo[crMember.Info.CID].Refundable
 	oriDepositAmount := c.state.depositInfo[crMember.Info.CID].DepositAmount
 	oriMemberState := crMember.MemberState
 	penalty := c.getMemberPenalty(height, crMember, true)
@@ -434,11 +500,9 @@ func (c *Committee) transferCRMemberState(crMember *CRMember, height uint32) {
 		crMember.MemberState = MemberImpeached
 		c.state.depositInfo[crMember.Info.CID].Penalty = penalty
 		c.state.depositInfo[crMember.Info.CID].DepositAmount -= MinDepositAmount
-		c.state.depositInfo[crMember.Info.CID].Refundable = true
 	}, func() {
 		crMember.MemberState = oriMemberState
 		c.state.depositInfo[crMember.Info.CID].Penalty = oriPenalty
-		c.state.depositInfo[crMember.Info.CID].Refundable = oriRefundable
 		c.state.depositInfo[crMember.Info.CID].DepositAmount = oriDepositAmount
 	})
 	return
@@ -464,6 +528,36 @@ func (c *Committee) changeCommittee(height uint32) bool {
 	c.resetCRCCommitteeUsedAmount(height)
 	c.resetProposalHashesSet(height)
 	return true
+}
+
+func (c *Committee) createCustomIDResultTransaction(height uint32) {
+	if height == c.getHeight() {
+		tx := &types.Transaction{
+			Version: types.TxVersion09,
+			TxType:  types.CustomIDResult,
+			Payload: &payload.CustomIDProposalResult{
+				ProposalResults: c.CustomIDProposalResults,
+			},
+			Attributes: []*types.Attribute{},
+			Programs:   []*program.Program{},
+			LockTime:   0,
+		}
+		log.Info("create custom ID result transaction:", tx.Hash())
+		if c.isCurrent != nil && c.broadcast != nil && c.
+			appendToTxpool != nil {
+			go func() {
+				if c.isCurrent() {
+					if err := c.appendToTxpool(tx); err == nil {
+						c.broadcast(msg.NewTx(tx))
+					} else {
+						log.Warn("create custom ID result transaction"+
+							" append to tx pool err ", err)
+					}
+				}
+			}()
+		}
+	}
+	return
 }
 
 func (c *Committee) createAppropriationTransaction(height uint32) {
@@ -502,16 +596,16 @@ func (c *Committee) createAppropriationTransaction(height uint32) {
 
 func (c *Committee) createRectifyCRAssetsTransaction(height uint32) {
 	if c.createCRAssetsRectifyTransaction != nil && height == c.getHeight() {
-		tx, err := c.createCRAssetsRectifyTransaction()
-		if err != nil {
-			log.Error("create rectify UTXOs tx failed:", err.Error())
-			return
-		}
-
-		log.Info("create rectify UTXOs transaction:", tx.Hash())
 		if c.isCurrent != nil && c.broadcast != nil && c.
 			appendToTxpool != nil {
 			go func() {
+				time.Sleep(CRAssetsRectifyInterval)
+				tx, err := c.createCRAssetsRectifyTransaction()
+				if err != nil {
+					log.Error("create rectify UTXOs tx failed:", err.Error())
+					return
+				}
+				log.Info("create rectify UTXOs transaction:", tx.Hash())
 				if c.isCurrent() {
 					if err := c.appendToTxpool(tx); err == nil {
 						c.broadcast(msg.NewTx(tx))
@@ -669,7 +763,7 @@ func (c *Committee) recordCRCRelatedAddressOutputs(block *types.Block) {
 	c.firstHistory.Commit(block.Height)
 }
 
-func (c *Committee) freshCirculationAmount(history *utils.History, height uint32) {
+func (c *Committee) updateCirculationAmount(history *utils.History, height uint32) {
 	circulationAmount := common.Fixed64(config.OriginIssuanceAmount) +
 		common.Fixed64(height)*c.params.RewardPerBlock -
 		c.CRCFoundationBalance - c.CRCCommitteeBalance - c.DestroyedAmount
@@ -705,13 +799,14 @@ func (c *Committee) tryStartVotingPeriod(height uint32) (inElection bool) {
 
 	newImpeachedCount := c.updateCRMembers(height, inElection)
 
-	var normalCount uint32
+	var impeachedCount uint32
 	for _, m := range c.Members {
-		if m.MemberState == MemberElected {
-			normalCount++
+		if m.MemberState == MemberImpeached {
+			impeachedCount++
 		}
 	}
-	if normalCount-newImpeachedCount < c.params.CRAgreementCount {
+	if impeachedCount+newImpeachedCount >
+		c.params.CRMemberCount-c.params.CRAgreementCount {
 		lastVotingStartHeight := c.LastVotingStartHeight
 		inElectionPeriod := c.InElectionPeriod
 		c.lastHistory.Append(height, func() {
@@ -741,7 +836,6 @@ func (c *Committee) tryStartVotingPeriod(height uint32) (inElection bool) {
 
 func (c *Committee) terminateCRMember(crMember *CRMember, height uint32) {
 	oriPenalty := c.state.depositInfo[crMember.Info.CID].Penalty
-	oriRefundable := c.state.depositInfo[crMember.Info.CID].Refundable
 	oriDepositAmount := c.state.depositInfo[crMember.Info.CID].DepositAmount
 	oriMemberState := crMember.MemberState
 	penalty := c.getMemberPenalty(height, crMember, false)
@@ -749,11 +843,9 @@ func (c *Committee) terminateCRMember(crMember *CRMember, height uint32) {
 		crMember.MemberState = MemberTerminated
 		c.state.depositInfo[crMember.Info.CID].Penalty = penalty
 		c.state.depositInfo[crMember.Info.CID].DepositAmount -= MinDepositAmount
-		c.state.depositInfo[crMember.Info.CID].Refundable = true
 	}, func() {
 		crMember.MemberState = oriMemberState
 		c.state.depositInfo[crMember.Info.CID].Penalty = oriPenalty
-		c.state.depositInfo[crMember.Info.CID].Refundable = oriRefundable
 		c.state.depositInfo[crMember.Info.CID].DepositAmount = oriDepositAmount
 	})
 }
@@ -817,17 +909,17 @@ func (c *Committee) activateProducer(tx *types.Transaction,
 	}
 }
 
-func (c *Committee) processCRDPOSManagement(tx *types.Transaction,
+func (c *Committee) processCRCouncilMemberClaimNode(tx *types.Transaction,
 	height uint32, history *utils.History) {
-	dposManagementPayload := tx.Payload.(*payload.CRDPOSManagement)
-	cr := c.getMember(dposManagementPayload.CRCommitteeDID)
+	claimNodePayload := tx.Payload.(*payload.CRCouncilMemberClaimNode)
+	cr := c.getMember(claimNodePayload.CRCouncilCommitteeDID)
 	if cr == nil {
 		return
 	}
 	oriPublicKey := cr.DPOSPublicKey
 	oriMemberState := cr.MemberState
 	history.Append(height, func() {
-		cr.DPOSPublicKey = dposManagementPayload.CRManagementPublicKey
+		cr.DPOSPublicKey = claimNodePayload.NodePublicKey
 		if cr.MemberState == MemberInactive {
 			cr.MemberState = MemberElected
 		}
@@ -838,26 +930,26 @@ func (c *Committee) processCRDPOSManagement(tx *types.Transaction,
 }
 
 func (c *Committee) GetDepositAmountByPublicKey(
-	publicKey string) (common.Fixed64, common.Fixed64, error) {
+	publicKey string) (common.Fixed64, common.Fixed64, common.Fixed64, common.Fixed64, error) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 	pubkey, err := common.HexStringToBytes(publicKey)
 	if err != nil {
-		return 0, 0, errors.New("invalid public key")
+		return 0, 0, 0, 0, errors.New("invalid public key")
 	}
-	return c.state.getDepositAmountByPublicKey(pubkey)
+	return c.state.getDepositInfoByPublicKey(pubkey)
 }
 
 func (c *Committee) GetDepositAmountByID(
-	id common.Uint168) (common.Fixed64, common.Fixed64, error) {
+	id common.Uint168) (common.Fixed64, common.Fixed64, common.Fixed64, common.Fixed64, error) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
 	cid, exist := c.state.getExistCIDByID(id)
 	if !exist {
-		return 0, 0, errors.New("ID does not exist")
+		return 0, 0, 0, 0, errors.New("ID does not exist")
 	}
-	return c.state.getDepositAmountByCID(*cid)
+	return c.state.getDepositInfoByCID(*cid)
 }
 
 func (c *Committee) GetAvailableDepositAmount(cid common.Uint168) common.Fixed64 {
@@ -1045,18 +1137,15 @@ func (c *Committee) processCurrentMembersDepositInfo(height uint32) {
 				continue
 			}
 			oriPenalty := c.state.depositInfo[m.Info.CID].Penalty
-			oriRefundable := c.state.depositInfo[m.Info.CID].Refundable
 			oriDepositAmount := c.state.depositInfo[m.Info.CID].DepositAmount
 			var dpositAmount common.Fixed64
 			dpositAmount = MinDepositAmount
 			penalty := c.getMemberPenalty(height, &member, false)
 			c.lastHistory.Append(height, func() {
 				c.state.depositInfo[member.Info.CID].Penalty = penalty
-				c.state.depositInfo[member.Info.CID].Refundable = true
 				c.state.depositInfo[member.Info.CID].DepositAmount -= dpositAmount
 			}, func() {
 				c.state.depositInfo[member.Info.CID].Penalty = oriPenalty
-				c.state.depositInfo[member.Info.CID].Refundable = oriRefundable
 				c.state.depositInfo[member.Info.CID].DepositAmount = oriDepositAmount
 			})
 		}
@@ -1096,12 +1185,9 @@ func (c *Committee) processCurrentCandidates(height uint32,
 		if ca.state == Returned {
 			continue
 		}
-		oriRefundable := c.state.depositInfo[ca.info.CID].Refundable
 		c.lastHistory.Append(height, func() {
-			c.state.depositInfo[ca.info.CID].Refundable = true
 			c.state.depositInfo[ca.info.CID].DepositAmount -= MinDepositAmount
 		}, func() {
-			c.state.depositInfo[ca.info.CID].Refundable = oriRefundable
 			c.state.depositInfo[ca.info.CID].DepositAmount += MinDepositAmount
 		})
 	}
@@ -1116,23 +1202,27 @@ func (c *Committee) processCurrentCandidates(height uint32,
 
 func (c *Committee) generateMember(candidate *Candidate) *CRMember {
 	return &CRMember{
-		Info:             candidate.info,
-		ImpeachmentVotes: 0,
-		DepositHash:      candidate.depositHash,
-		MemberState:      MemberElected,
+		Info:                  candidate.info,
+		ImpeachmentVotes:      0,
+		DepositHash:           candidate.depositHash,
+		MemberState:           MemberElected,
+		ActivateRequestHeight: math.MaxUint32,
 	}
 }
 
 func (c *Committee) getMemberPenalty(height uint32, member *CRMember, impeached bool) common.Fixed64 {
 	// Calculate penalty by election block count.
-	electionCount := height - c.LastCommitteeHeight - member.InactiveCount
-	var electionRate float64
+	var electionCount uint32
 	if impeached {
-		electionRate = float64(electionCount) / float64(c.params.CRDutyPeriod)
+		electionCount = height - c.LastCommitteeHeight - member.InactiveCount
 	} else {
-		electionRate = 1
+		electionCount = c.params.CRDutyPeriod - member.InactiveCount
 	}
-
+	if member.MemberState == MemberInactive {
+		electionCount -= 1
+	}
+	var electionRate float64
+	electionRate = float64(electionCount) / float64(c.params.CRDutyPeriod)
 	// Calculate penalty by vote proposal count.
 	var voteCount int
 	for _, v := range c.manager.ProposalSession[c.state.CurrentSession] {
@@ -1159,8 +1249,9 @@ func (c *Committee) getMemberPenalty(height uint32, member *CRMember, impeached 
 		" penalty: %s, old penalty: %s, final penalty: %s",
 		height, member.Info.NickName, currentPenalty, penalty, finalPenalty)
 	log.Info("electionRate:", electionRate, "voteRate:", voteRate,
-		"electionCount:", electionCount, "dutyPeriod:", c.params.CRDutyPeriod,
-		"voteCount:", voteCount, "proposalsCount:", proposalsCount)
+		"electionCount:", electionCount, "inactiveCount:", member.InactiveCount,
+		"dutyPeriod:", c.params.CRDutyPeriod, "voteCount:", voteCount,
+		"proposalsCount:", proposalsCount)
 
 	return finalPenalty
 }
@@ -1348,6 +1439,83 @@ func (c *Committee) RegisterFuncitons(cfg *CommitteeFuncsConfig) {
 	})
 	c.getUTXO = cfg.GetUTXO
 	c.getHeight = cfg.GetHeight
+}
+
+func (c *Committee) TryUpdateCRMemberInactivity(did common.Uint168,
+	needReset bool, height uint32) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	crMember := c.getMember(did)
+	if crMember == nil {
+		log.Error("tryUpdateCRMemberInactivity did %+v not exist", did.String())
+		return
+	}
+
+	if crMember.InactiveCountingEndHeight != height-1 {
+		crMember.InactiveCountingHeight = 0
+	}
+	crMember.InactiveCountingEndHeight = height
+
+	if needReset {
+		crMember.InactiveCountingHeight = 0
+		return
+	}
+
+	if crMember.InactiveCountingHeight == 0 {
+		crMember.InactiveCountingHeight = height
+	}
+
+	if height-crMember.InactiveCountingHeight >= c.params.MaxInactiveRounds {
+		crMember.MemberState = MemberInactive
+		log.Info("at height", height, crMember.Info.NickName,
+			"changed to inactive", "InactiveCountingHeight:", crMember.InactiveCountingHeight,
+			"MaxInactiveRounds:", c.params.MaxInactiveRounds)
+		crMember.InactiveCountingHeight = 0
+	}
+}
+
+func (c *Committee) TryRevertCRMemberInactivity(did common.Uint168,
+	oriState MemberState, oriInactiveCountingHeight uint32, height uint32) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	crMember := c.getMember(did)
+	if crMember == nil {
+		log.Error("tryRevertCRMemberInactivity did %+v not exist", did.String())
+		return
+	}
+	crMember.MemberState = oriState
+	crMember.InactiveCountingHeight = oriInactiveCountingHeight
+	if height-crMember.InactiveCountingHeight >= c.params.MaxInactiveRounds && height >= c.params.ChangeCommitteeNewCRHeight {
+		c.state.RevertUpdateCRInactivePenalty(crMember.Info.CID)
+	}
+}
+
+func (c *Committee) TryUpdateCRMemberIllegal(did common.Uint168, height uint32) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	crMember := c.getMember(did)
+	if crMember == nil {
+		log.Error("TryUpdateCRMemberIllegal did %+v not exist", did.String())
+		return
+	}
+	crMember.MemberState = MemberIllegal
+	if height >= c.params.ChangeCommitteeNewCRHeight {
+		c.state.UpdateCRIllegalPenalty(crMember.Info.CID)
+	}
+}
+
+func (c *Committee) TryRevertCRMemberIllegal(did common.Uint168, oriState MemberState, height uint32) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	crMember := c.getMember(did)
+	if crMember == nil {
+		log.Error("TryRevertCRMemberIllegal did %+v not exist", did.String())
+		return
+	}
+	crMember.MemberState = oriState
+	if height >= c.params.ChangeCommitteeNewCRHeight {
+		c.state.RevertUpdateCRIllegalPenalty(crMember.Info.CID)
+	}
 }
 
 func (c *Committee) Snapshot() *CommitteeKeyFrame {

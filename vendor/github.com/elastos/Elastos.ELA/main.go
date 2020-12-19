@@ -52,8 +52,11 @@ const (
 	// logPath indicates the path storing the node log.
 	nodeLogPath = "logs/node"
 
-	// checkpointPath indicates the path storing the checkpoint data
+	// checkpointPath indicates the path storing the checkpoint data.
 	checkpointPath = "checkpoints"
+
+	// nodePrefix indicates the prefix of node version.
+	nodePrefix = "ela-"
 )
 
 var (
@@ -186,7 +189,11 @@ func startNode(c *cli.Context, st *settings.Settings) {
 				amount += utxo.Value
 			}
 			return amount, nil
-		})
+		},
+		committee.TryUpdateCRMemberInactivity,
+		committee.TryRevertCRMemberInactivity,
+		committee.TryUpdateCRMemberIllegal,
+		committee.TryRevertCRMemberIllegal)
 	if err != nil {
 		printErrorAndExit(err)
 	}
@@ -206,7 +213,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 	pgBar.Stop()
 	ledger.Blockchain = chain // fixme
 	blockMemPool.Chain = chain
-	arbiters.RegisterFunction(chain.GetHeight,
+	arbiters.RegisterFunction(chain.GetHeight, chain.GetBestBlockHash,
 		func(height uint32) (*types.Block, error) {
 			hash, err := chain.GetBlockHash(height)
 			if err != nil {
@@ -237,7 +244,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 		TxMemPool:      txMemPool,
 		BlockMemPool:   blockMemPool,
 		Routes:         route,
-	}, Version)
+	}, nodePrefix+Version)
 	if err != nil {
 		printErrorAndExit(err)
 	}

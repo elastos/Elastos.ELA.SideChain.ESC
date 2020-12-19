@@ -59,7 +59,7 @@ type StatusSyncEventListener interface {
 	OnGetBlocks(id dpeer.PID, startBlockHeight, endBlockHeight uint32)
 	OnResponseBlocks(id dpeer.PID, blockConfirms []*dmsg.BlockMsg)
 	OnRequestConsensus(id dpeer.PID, height uint64)
-	OnResponseConsensus(id dpeer.PID, status *msg.ConsensusStatus)
+	OnResponseConsensus(id dpeer.PID, status *dmsg.ConsensusStatus)
 	OnRequestProposal(id dpeer.PID, hash common.Uint256)
 	OnIllegalProposalReceived(id dpeer.PID, proposals *payload.DPOSIllegalProposals)
 	OnIllegalVotesReceived(id dpeer.PID, votes *payload.DPOSIllegalVotes)
@@ -208,7 +208,7 @@ func (n *Network) processMessage(msgItem *messageItem) {
 			n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
 		}
 	case msg.CmdResponseConsensus:
-		msgResponseConsensus, processed := m.(*msg.ResponseConsensus)
+		msgResponseConsensus, processed := m.(*dmsg.ResponseConsensus)
 		if processed {
 			n.listener.OnResponseConsensus(msgItem.ID, &msgResponseConsensus.Consensus)
 		}
@@ -348,7 +348,7 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 	case msg.CmdRequestConsensus:
 		message = &dmsg.RequestConsensus{}
 	case msg.CmdResponseConsensus:
-		message = &msg.ResponseConsensus{}
+		message = &dmsg.ResponseConsensus{}
 	case msg.CmdRequestProposal:
 		message = &msg.RequestProposal{}
 	case msg.CmdIllegalProposals:

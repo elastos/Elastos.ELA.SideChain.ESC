@@ -352,11 +352,6 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 
 	engine.SetBlockChain(eth.blockchain)
-
-	if eth.blockchain.Engine() == engine {
-		InitCurrentProducers(engine, eth.blockchain.Config(), eth.blockchain.CurrentHeader())
-	}
-
 	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
 	if err != nil {
 		return eth, nil
@@ -408,6 +403,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 }
 
 func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, currentHeader *types.Header) {
+	log.Info("InitCurrentProducers", "nonce", currentHeader.Nonce.Uint64(), "height", currentHeader.Height())
 	if currentHeader == nil {
 		return
 	}
@@ -423,7 +419,21 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	}
 
 	producers, totalProducers := spv.GetProducers(spvHeight)
+	if engine.IsCurrentProducers(producers) {
+		log.Info("is current producers, do not need update", "totalProducers", totalProducers)
+		if engine.IsProducer() {
+			engine.Recover()
+		}
+		return
+	}
 	engine.UpdateCurrentProducers(producers, totalProducers, spvHeight)
+	go func() {
+		if engine.AnnounceDAddr() {
+			if engine.IsProducer() {
+				engine.Recover()
+			}
+		}
+	}()
 }
 
 func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
@@ -446,14 +456,23 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 	}
 	var blockEvent = make(chan core.ChainEvent)
 	chainSub := eth.blockchain.SubscribeChainEvent(blockEvent)
+	initProducersSub := eth.EventMux().Subscribe(events.InitCurrentProducers{})
 	go func() {
-		defer chainSub.Unsubscribe()
+		defer func() {
+			chainSub.Unsubscribe()
+			initProducersSub.Unsubscribe()
+		}()
+
 		for  {
 			select {
 			case b := <-blockEvent:
 				pbftEngine := engine.(*pbft.Pbft)
 				pbftEngine.AccessFutureBlock(b.Block)
 				pbftEngine.OnInsertBlock(b.Block)
+			case <-initProducersSub.Chan():
+				pbftEngine := engine.(*pbft.Pbft)
+				currentHeader := eth.blockchain.CurrentHeader()
+				InitCurrentProducers(pbftEngine, eth.blockchain.Config(), currentHeader)
 			}
 		}
 	}()

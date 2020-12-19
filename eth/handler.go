@@ -825,6 +825,8 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 
 // BroadcastDAddr will propagate a ip address of dpos node to all peers.
 func (pm *ProtocolManager) BroadcastDAddr(elaMsg *dpos.ElaMsg) {
+	pm.peers.lock.Lock()
+	defer pm.peers.lock.Unlock()
 	for _, peer := range pm.peers.peers {
 		peer.SendELAMessage(elaMsg)
 	}

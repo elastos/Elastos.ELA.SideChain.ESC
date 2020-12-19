@@ -599,14 +599,35 @@ func unregisterCRPayloadEqual(payload1 *payload.UnregisterCR, payload2 *payload.
 	return true
 }
 
+func randomName(length int) string {
+	charset := "abcdefghijklmnopqrstuvwxyz" +
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
 func (s *transactionSuite) TestCRCProposal_Deserialize() {
 
 	proposalTypes := []payload.CRCProposalType{payload.Normal, payload.ELIP,
-		payload.CloseProposal, payload.ChangeProposalOwner}
+		payload.CloseProposal, payload.ChangeProposalOwner, payload.ReserveCustomID, payload.ReceiveCustomID}
 
 	for _, proposalType := range proposalTypes {
 
 		crpPayload1 := createCRCProposalPayload(proposalType)
+
+		if proposalType == payload.ReserveCustomID {
+			crpPayload1.ReservedCustomIDList = []string{randomName(3), randomName(3), randomName(3)}
+			crpPayload1.BannedCustomIDList = []string{randomName(3), randomName(3), randomName(3)}
+		}
+
+		if proposalType == payload.ReserveCustomID {
+			crpPayload1.ReceivedCustomIDList = []string{randomName(3), randomName(3), randomName(3)}
+			crpPayload1.ReceiverDID = *randomUint168()
+		}
 
 		buf := new(bytes.Buffer)
 		crpPayload1.Serialize(buf, payload.CRCProposalVersion)
@@ -620,23 +641,27 @@ func (s *transactionSuite) TestCRCProposal_Deserialize() {
 			s.True(crpPayloadCloseProposalEqual(crpPayload1, crpPayload2))
 		} else if proposalType == payload.ChangeProposalOwner {
 			s.True(crpPayloadChangeProposalOwnerEqual(crpPayload1, crpPayload2))
+		} else if proposalType == payload.ReserveCustomID {
+			s.True(crpPayloadReservedCustomIDEqual(crpPayload1, crpPayload2))
+		} else if proposalType == payload.ReceiveCustomID {
+			s.True(crpPayloadReceivedCustomIDEqual(crpPayload1, crpPayload2))
 		}
 
 	}
 
 }
 
-func (s *transactionSuite) TestCRDPOSManagement_SerializeDeserialize() {
-	crDPOSManagementPayload1 := createCRDPOSManagementPayload()
+func (s *transactionSuite) TestCRCouncilMemberClaimNode_SerializeDeserialize() {
+	crClaimNodePayload1 := createClaimNodePayload()
 	buf := new(bytes.Buffer)
-	crDPOSManagementPayload1.Serialize(buf, payload.CRManagementVersion)
-	fmt.Printf("crDPOSManagementPayload1: %v\n", crDPOSManagementPayload1)
+	crClaimNodePayload1.Serialize(buf, payload.CRManagementVersion)
+	fmt.Printf("crClaimNodePayload1: %v\n", crClaimNodePayload1)
 
-	crDPOSManagementPayload2 := &payload.CRDPOSManagement{}
-	crDPOSManagementPayload2.Deserialize(buf, payload.CRManagementVersion)
-	fmt.Printf("crDPOSManagementPayload2: %v\n", crDPOSManagementPayload2)
+	crClaimNodePayload2 := &payload.CRCouncilMemberClaimNode{}
+	crClaimNodePayload2.Deserialize(buf, payload.CRManagementVersion)
+	fmt.Printf("crClaimNodePayload2: %v\n", crClaimNodePayload2)
 
-	s.True(crDPOSManagementEqual(crDPOSManagementPayload1, crDPOSManagementPayload2))
+	s.True(crClaimNodeEqual(crClaimNodePayload1, crClaimNodePayload2))
 }
 
 func crpPayloadEqual(payload1 *payload.CRCProposal, payload2 *payload.CRCProposal) bool {
@@ -670,10 +695,47 @@ func crpPayloadCloseProposalEqual(payload1 *payload.CRCProposal, payload2 *paylo
 		bytes.Equal(payload1.CRCouncilMemberSignature, payload2.CRCouncilMemberSignature)
 }
 
-func crDPOSManagementEqual(payload1 *payload.CRDPOSManagement, payload2 *payload.CRDPOSManagement) bool {
-	return bytes.Equal(payload1.CRManagementPublicKey, payload2.CRManagementPublicKey) &&
-		payload1.CRCommitteeDID.IsEqual(payload2.CRCommitteeDID) &&
-		bytes.Equal(payload1.Signature, payload2.Signature)
+func crpPayloadReservedCustomIDEqual(payload1 *payload.CRCProposal, payload2 *payload.CRCProposal) bool {
+	for i, v := range payload1.ReservedCustomIDList {
+		if v != payload2.ReservedCustomIDList[i] {
+			return false
+		}
+	}
+
+	for i, v := range payload1.BannedCustomIDList {
+		if v != payload2.BannedCustomIDList[i] {
+			return false
+		}
+	}
+
+	return payload1.ProposalType == payload2.ProposalType &&
+		bytes.Equal(payload1.OwnerPublicKey, payload2.OwnerPublicKey) &&
+		payload1.CRCouncilMemberDID.IsEqual(payload2.CRCouncilMemberDID) &&
+		payload1.DraftHash.IsEqual(payload2.DraftHash) &&
+		bytes.Equal(payload1.Signature, payload2.Signature) &&
+		bytes.Equal(payload1.CRCouncilMemberSignature, payload2.CRCouncilMemberSignature)
+}
+
+func crpPayloadReceivedCustomIDEqual(payload1 *payload.CRCProposal, payload2 *payload.CRCProposal) bool {
+	for i, v := range payload1.ReservedCustomIDList {
+		if v != payload2.ReservedCustomIDList[i] {
+			return false
+		}
+	}
+
+	return payload1.ProposalType == payload2.ProposalType &&
+		bytes.Equal(payload1.OwnerPublicKey, payload2.OwnerPublicKey) &&
+		payload1.CRCouncilMemberDID.IsEqual(payload2.CRCouncilMemberDID) &&
+		payload1.DraftHash.IsEqual(payload2.DraftHash) &&
+		bytes.Equal(payload1.Signature, payload2.Signature) &&
+		bytes.Equal(payload1.CRCouncilMemberSignature, payload2.CRCouncilMemberSignature) &&
+		payload1.ReceiverDID.IsEqual(payload2.ReceiverDID)
+}
+
+func crClaimNodeEqual(payload1 *payload.CRCouncilMemberClaimNode, payload2 *payload.CRCouncilMemberClaimNode) bool {
+	return bytes.Equal(payload1.NodePublicKey, payload2.NodePublicKey) &&
+		payload1.CRCouncilCommitteeDID.IsEqual(payload2.CRCouncilCommitteeDID) &&
+		bytes.Equal(payload1.CRCouncilCommitteeSignature, payload2.CRCouncilCommitteeSignature)
 }
 
 func budgetsEqual(budgets1 []common.Fixed64, budgets2 []common.Fixed64) bool {
@@ -902,11 +964,11 @@ func createCRCProposalPayload(proposalType payload.CRCProposalType) *payload.CRC
 	}
 }
 
-func createCRDPOSManagementPayload() *payload.CRDPOSManagement {
-	return &payload.CRDPOSManagement{
-		CRManagementPublicKey: randomBytes(33),
-		CRCommitteeDID:        *randomUint168(),
-		Signature:             randomBytes(64),
+func createClaimNodePayload() *payload.CRCouncilMemberClaimNode {
+	return &payload.CRCouncilMemberClaimNode{
+		NodePublicKey:               randomBytes(33),
+		CRCouncilCommitteeDID:       *randomUint168(),
+		CRCouncilCommitteeSignature: randomBytes(64),
 	}
 }
 

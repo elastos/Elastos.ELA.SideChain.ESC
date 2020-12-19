@@ -15,8 +15,8 @@
 *.tgz
 /vendor/*
 elastos*/
-/ela*
 /bin
+/tmp
 /go.sum
 keystore
 *.out

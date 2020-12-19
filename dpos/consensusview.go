@@ -81,6 +81,10 @@ func (v *ConsensusView) ChangeCurrentProducers(changeHeight uint64, spvHeight ui
 	v.producers.ChangeCurrentProducers(changeHeight, spvHeight)
 }
 
+func (v *ConsensusView) SetWorkingHeight(workingHeight uint64) {
+	v.producers.SetWorkingHeight(workingHeight)
+}
+
 func (v *ConsensusView) GetNeedConnectArbiters() []peer.PID {
 	return v.producers.GetNeedConnectArbiters()
 }
@@ -107,6 +111,30 @@ func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 
 	for index, v := range curProducers {
 		if !bytes.Equal(v, nextProducers[index][:]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *ConsensusView) IsCurrentProducers(curProducers[][]byte) bool {
+	producers := v.producers.producers
+	if len(producers) <= 0 {
+		return false
+	}
+	if len(curProducers) != len(producers) {
+		return false
+	}
+	sort.Slice(producers, func(i, j int) bool {
+		return bytes.Compare(producers[i][:], producers[j][:]) < 0
+	})
+
+	sort.Slice(curProducers, func(i, j int) bool {
+		return bytes.Compare(curProducers[i], curProducers[j]) < 0
+	})
+
+	for index, v := range curProducers {
+		if !bytes.Equal(v, producers[index][:]) {
 			return false
 		}
 	}

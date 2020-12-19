@@ -476,6 +476,8 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		OnDutySub := stack.EventMux().Subscribe(events.OnDutyEvent{})
 		go spv.MinedBroadcastLoop(MinedBlockSub, OnDutySub)
 		spvService.Start()
+		stack.EventMux().Post(events.InitCurrentProducers{})
+		spv.InitNextTurnDposInfo()
 	}
 }
 

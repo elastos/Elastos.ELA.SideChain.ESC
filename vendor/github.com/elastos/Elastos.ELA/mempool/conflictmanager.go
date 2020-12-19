@@ -28,11 +28,13 @@ const (
 	slotCRCProposalRealWithdrawKey            = "CRCProposalRealWithdrawKey"
 	slotCloseProposalTargetProposalHash       = "CloseProposalTargetProposalHash"
 	slotChangeProposalOwnerTargetProposalHash = "ChangeProposalOwnerTargetProposalHash"
+	slotChangeCustomIDFee                     = "slotChangeCustomIDFee"
 	slotSpecialTxHash                         = "SpecialTxHash"
 	slotSidechainTxHashes                     = "SidechainTxHashes"
+	slotCustomIDProposalResult                = "CustomIDProposalResult"
 	slotTxInputsReferKeys                     = "TxInputsReferKeys"
-	slotCRManagementPublicKey                 = "CRManagementPublicKey"
-	slotCRManagementDID                       = "CRCommitteeDID"
+	slotCRCouncilMemberNodePublicKey          = "CRCouncilMemberNodePublicKey"
+	slotCRCouncilMemberDID                    = "CRCouncilMemberDID"
 	slotCRCSecretaryGeneral                   = "CRCSecretaryGeneral"
 )
 
@@ -161,27 +163,27 @@ func newConflictManager() conflictManager {
 						Func: strRegisterCRPublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.CRDPOSManagement,
+						Type: types.CRCouncilMemberClaimNode,
 						Func: strCRManagementPublicKey,
 					},
 				),
 			},
 			// CR claim DPOS node public key
 			{
-				name: slotCRManagementPublicKey,
+				name: slotCRCouncilMemberNodePublicKey,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRDPOSManagement,
+						Type: types.CRCouncilMemberClaimNode,
 						Func: strCRManagementPublicKey,
 					},
 				),
 			},
 			// CR claim DPOS node did
 			{
-				name: slotCRManagementDID,
+				name: slotCRCouncilMemberDID,
 				slot: newConflictSlot(programHash,
 					keyTypeFuncPair{
-						Type: types.CRDPOSManagement,
+						Type: types.CRCouncilMemberClaimNode,
 						Func: strCRManagementDID,
 					},
 				),
@@ -243,6 +245,16 @@ func newConflictManager() conflictManager {
 					keyTypeFuncPair{
 						Type: types.ReturnCRDepositCoin,
 						Func: strTxProgramCode,
+					},
+				),
+			},
+			// Proposal change custom ID fee.
+			{
+				name: slotChangeCustomIDFee,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.CRCProposal,
+						Func: strChangeCustomIDFee,
 					},
 				),
 			},
@@ -372,6 +384,16 @@ func newConflictManager() conflictManager {
 					keyTypeFuncPair{
 						Type: types.NextTurnDPOSInfo,
 						Func: hashNextTurnDPOSInfoTxPayloadHash,
+					},
+				),
+			},
+			// custom id proposal result.
+			{
+				name: slotCustomIDProposalResult,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.CustomIDResult,
+						Func: hashCustomIDProposalResultTxPayloadHash,
 					},
 				),
 			},

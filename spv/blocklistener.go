@@ -1,12 +1,10 @@
 package spv
 
 import (
-	"bytes"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
@@ -26,7 +24,6 @@ type BlockListener struct {
 	blockNumber uint32
 	param       auxParam
 	handle      func(block interface{}) error
-
 }
 
 func (l *BlockListener) NotifyBlock(block *util.Block) {
@@ -59,48 +56,47 @@ func (l *BlockListener) RegisterFunc(handleFunc func(block interface{}) error) {
 	l.handle = handleFunc
 }
 
-func (l *BlockListener) onBlockHandled(block interface{}) {
-		b := block.(*util.Block)
-		var tx types.Transaction
-		for _, t := range b.Transactions {
-			buf := new(bytes.Buffer)
-			t.Serialize(buf)
-			r := bytes.NewReader(buf.Bytes())
-			tx = types.Transaction{}
-			tx.Deserialize(r)
-			if tx.TxType == types.NextTurnDPOSInfo {
-				break
-			}
-		}
+func (l *BlockListener) onBlockHandled(block interface{})  {
+	if nextTurnDposInfo == nil {
+		InitNextTurnDposInfo()
+	}
+}
+func InitNextTurnDposInfo() {
+	workingHeight, crcArbiters, normalArbiters, err := SpvService.GetNextArbiters()
+	if err != nil {
+		log.Error("GetNextArbiters error", "err", err.Error())
+		return
+	}
+	nextTurnDposInfo = &payload.NextTurnDPOSInfo{
+		WorkingHeight: workingHeight,
+		CRPublicKeys: crcArbiters,
+		DPOSPublicKeys: normalArbiters,
+	}
+	peers := DumpNextDposInfo()
+	go events.Notify(dpos.ETNextProducers, peers)
+}
 
-		if  tx.TxType != types.NextTurnDPOSInfo {
-			log.Error("received error block", "height", b.Height)
-			return
+func DumpNextDposInfo() []peer.PID {
+	log.Info("-------------------dump next turn aribiters---------------")
+	log.Info("-------------------CRPublicKeys---------------")
+	peers := make([]peer.PID, 0)
+	for _, arbiter := range nextTurnDposInfo.CRPublicKeys {
+		if len(arbiter) > 0 {
+			var pid peer.PID
+			copy(pid[:], arbiter)
+			peers = append(peers, pid)
 		}
-
-		log.Info("========================================================================================")
-		log.Info("mainchain change arbiter received:")
-		log.Info("----------------------------------------------------------------------------------------")
-		peers := make([]peer.PID, 0)
-		nextTurnDposInfo = tx.Payload.(* payload.NextTurnDPOSInfo)
-		log.Info("------------------------CRC ARbiters--------------------------\n")
-		for _, arbiter := range nextTurnDposInfo.CRPublickeys {
-			if len(arbiter) > 0 {
-				var pid peer.PID
-				copy(pid[:], arbiter)
-				peers = append(peers, pid)
-			}
-			log.Info(common.Bytes2Hex(arbiter) + "\n")
+		log.Info(common.Bytes2Hex(arbiter) + "\n")
+	}
+	log.Info("-------------------DPOSPublicKeys---------------")
+	for _, arbiter := range nextTurnDposInfo.DPOSPublicKeys {
+		if len(arbiter) > 0 {
+			var pid peer.PID
+			copy(pid[:], arbiter)
+			peers = append(peers, pid)
 		}
-		log.Info("-----------------------DPOSPublicKeys---------------------------\n")
-		for _, arbiter := range nextTurnDposInfo.DPOSPublicKeys {
-			if len(arbiter) > 0 {
-				var pid peer.PID
-				copy(pid[:], arbiter)
-				peers = append(peers, pid)
-			}
-			log.Info(common.Bytes2Hex(arbiter) + "\n")
-		}
-		log.Info("work height", "height", nextTurnDposInfo.WorkingHeight, "count", GetTotalProducersCount())
-		go events.Notify(dpos.ETNextProducers, peers)
+		log.Info(common.Bytes2Hex(arbiter) + "\n")
+	}
+	log.Info("work height", "height", nextTurnDposInfo.WorkingHeight, "activeCount", len(peers), "count", GetTotalProducersCount())
+	return peers
 }

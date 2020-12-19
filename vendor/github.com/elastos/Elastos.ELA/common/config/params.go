@@ -165,6 +165,7 @@ var DefaultParams = Params{
 		"02b95b000f087a97e988c24331bf6769b4a75e4b7d5d2a38105092a3aa841be33b",
 		"02a0aa9eac0e168f3474c2a0d04e50130833905740a5270e8a44d6c6e85cf6d98c",
 	},
+
 	SecretaryGeneral:            "02712da531804d1c38d159a901313239d2100dfb5b693d71a2f76b15dec3f8fc32",
 	MaxProposalTrackingCount:    128,
 	PowLimit:                    powLimit,
@@ -183,15 +184,16 @@ var DefaultParams = Params{
 	EnableActivateIllegalHeight: 439000,
 	CRVotingStartHeight:         537670,
 	CRCommitteeStartHeight:      658930,
-	CRClaimDPOSNodeStartHeight:  1000000, // todo complete me later
-	CRClaimDPOSNodePeriod:       720 * 7, // todo complete me later
+	CRClaimDPOSNodeStartHeight:  751400,
+	CRClaimDPOSNodePeriod:       720 * 14,
 	CheckRewardHeight:           436812,
 	VoteStatisticsHeight:        512881,
 	RegisterCRByDIDHeight:       598000,
 	ToleranceDuration:           5 * time.Second,
 	MaxInactiveRounds:           720 * 2,
-	InactivePenalty:             0, //there will be no penalty in this version
-	EmergencyInactivePenalty:    0, //there will be no penalty in this version
+	InactivePenalty:             0,    //there will be no penalty in this version
+	IllegalPenalty:              5000, //there will be no penalty in this version
+	EmergencyInactivePenalty:    0,    //there will be no penalty in this version
 	GeneralArbiters:             24,
 	CandidateArbiters:           72,
 	PreConnectOffset:            360,
@@ -206,6 +208,7 @@ var DefaultParams = Params{
 	CRCAppropriatePercentage:    10,
 	MaxCommitteeProposalCount:   128,
 	EnableUtxoDB:                true,
+	EnableCORS:                  false,
 	WalletPath:                  "keystore.dat",
 	RPCServiceLevel:             ConfigurationPermitted.String(),
 	NodeProfileStrategy:         Balanced.String(),
@@ -217,13 +220,19 @@ var DefaultParams = Params{
 	}),
 	TxCacheVolume:                      100000,
 	CheckVoteCRCountHeight:             658930,
-	MaxCRAssetsAddressUTXOCount:        1440,    // todo correct me later
-	MinCRAssetsAddressUTXOCount:        720,     // todo correct me later
-	CRAssetsRectifyTransactionHeight:   1000000, // todo correct me later
-	CRCProposalWithdrawPayloadV1Height: 1000000, // todo correct me later
+	MaxCRAssetsAddressUTXOCount:        800,
+	MinCRAssetsAddressUTXOCount:        720,
+	CRAssetsRectifyTransactionHeight:   751400,
+	CRCProposalWithdrawPayloadV1Height: 751400,
+	CRCProposalV1Height:                751400,
 	RectifyTxFee:                       10000,
 	RealWithdrawSingleFee:              10000,
-	NewP2PProtocolVersionHeight:        1000000,
+	NewP2PProtocolVersionHeight:        751400,
+	ChangeCommitteeNewCRHeight:         1000000, //TODO reset latter
+	NoCRCDPOSNodeHeight:                1000000, //TODO reset latter
+	RandomCandidatePeriod:              36 * 10, //TODO reset latter
+	MaxInactiveRoundsOfRandomNode:      36 * 8,  //TODO reset latter
+	MaxReservedCustomIDListCount:       255,     //TODO reset latter
 }
 
 // TestNet returns the network parameters for the test network.
@@ -275,18 +284,30 @@ func (p *Params) TestNet() *Params {
 	copy.PublicDPOSHeight = 300000
 	copy.CRVotingStartHeight = 436900
 	copy.CRCommitteeStartHeight = 546500
-	copy.CRClaimDPOSNodeStartHeight = 1000000 // todo complete me later
-	copy.CRClaimDPOSNodePeriod = 720 * 7      // todo complete me later
+	copy.CRClaimDPOSNodeStartHeight = 646700
+	copy.CRClaimDPOSNodePeriod = 720 * 7
+	copy.CRCProposalV1Height = 646700
+	copy.NewP2PProtocolVersionHeight = 646700
+	copy.CRAssetsRectifyTransactionHeight = 646700
+	copy.CRCProposalWithdrawPayloadV1Height = 646700
 	copy.EnableActivateIllegalHeight = 546500
 	copy.CheckRewardHeight = 100
 	copy.VoteStatisticsHeight = 0
 	copy.RegisterCRByDIDHeight = 483500
 	copy.EnableUtxoDB = true
+	copy.EnableCORS = false
 	copy.VoterRejectPercentage = 10
 	copy.CRCAppropriatePercentage = 10
 	copy.MaxCommitteeProposalCount = 128
 	copy.MaxNodePerHost = 10
 	copy.CheckVoteCRCountHeight = 546500
+	copy.MaxCRAssetsAddressUTXOCount = 800
+	copy.ChangeCommitteeNewCRHeight = 1000000   //TODO reset latter
+	copy.IllegalPenalty = 5000                  //TODO reset latter
+	copy.NoCRCDPOSNodeHeight = 1000000          //TODO reset latter
+	copy.RandomCandidatePeriod = 36 * 10        //TODO reset latter
+	copy.MaxInactiveRoundsOfRandomNode = 36 * 8 //TODO reset latter
+	copy.MaxReservedCustomIDListCount = 255     //TODO reset latter
 
 	return &copy
 }
@@ -340,18 +361,30 @@ func (p *Params) RegNet() *Params {
 	copy.PublicDPOSHeight = 231500
 	copy.CRVotingStartHeight = 292000
 	copy.CRCommitteeStartHeight = 442000
-	copy.CRClaimDPOSNodeStartHeight = 1000000 // todo complete me later
-	copy.CRClaimDPOSNodePeriod = 720 * 7      // todo complete me later
+	copy.CRClaimDPOSNodeStartHeight = 532650
+	copy.CRClaimDPOSNodePeriod = 720
+	copy.CRCProposalV1Height = 530000
+	copy.NewP2PProtocolVersionHeight = 531030
+	copy.CRAssetsRectifyTransactionHeight = 532650
+	copy.CRCProposalWithdrawPayloadV1Height = 532650
 	copy.EnableActivateIllegalHeight = 256000
 	copy.CheckRewardHeight = 280000
 	copy.VoteStatisticsHeight = 0
 	copy.RegisterCRByDIDHeight = 393000
 	copy.EnableUtxoDB = true
+	copy.EnableCORS = false
 	copy.VoterRejectPercentage = 10
 	copy.CRCAppropriatePercentage = 10
 	copy.MaxCommitteeProposalCount = 128
 	copy.MaxNodePerHost = 10
 	copy.CheckVoteCRCountHeight = 435000
+	copy.MaxCRAssetsAddressUTXOCount = 1440
+	copy.ChangeCommitteeNewCRHeight = 1000000   //TODO reset latter
+	copy.IllegalPenalty = 5000                  //TODO reset latter
+	copy.NoCRCDPOSNodeHeight = 1000000          //TODO reset latter
+	copy.RandomCandidatePeriod = 36 * 10        //TODO reset latter
+	copy.MaxInactiveRoundsOfRandomNode = 36 * 8 //TODO reset latter
+	copy.MaxReservedCustomIDListCount = 255     //TODO reset latter
 
 	return &copy
 }
@@ -462,6 +495,9 @@ type Params struct {
 	// elected producers participate in DPOS consensus.
 	PublicDPOSHeight uint32
 
+	// NoCRCDPOSNodeHeight indicates the height when there is no DPOS node of CRC.
+	NoCRCDPOSNodeHeight uint32
+
 	// CRVotingStartHeight defines the height of CR voting started.
 	CRVotingStartHeight uint32
 
@@ -479,7 +515,6 @@ type Params struct {
 	EnableActivateIllegalHeight uint32
 
 	// CheckRewardHeight defines the height to check reward in coin base
-
 	// with new check function.
 	CheckRewardHeight uint32
 
@@ -520,8 +555,19 @@ type Params struct {
 	// takes penalty.
 	MaxInactiveRounds uint32
 
+	// MaxInactiveRoundsOfRandomNode defines the maximum inactive rounds before
+	// the producer at random takes penalty.
+	MaxInactiveRoundsOfRandomNode uint32
+
+	// DPOSNodeCrossChainHeight defines the height at which not only CR members
+	// are responsible for working across the chain.
+	DPOSNodeCrossChainHeight uint32
+
 	// InactivePenalty defines the penalty amount the producer takes.
 	InactivePenalty common.Fixed64
+
+	// InactivePenalty defines the penalty amount the producer takes.
+	IllegalPenalty common.Fixed64
 
 	// EmergencyInactivePenalty defines the penalty amount the emergency
 	// producer takes.
@@ -575,6 +621,9 @@ type Params struct {
 	// EnableUtxoDB indicate whether to enable utxo database.
 	EnableUtxoDB bool
 
+	// Enable cors for http server.
+	EnableCORS bool
+
 	// WalletPath defines the wallet path used by DPoS arbiters and CR members.
 	WalletPath string
 
@@ -607,14 +656,27 @@ type Params struct {
 	// CRCProposalWithdrawPayloadV1Height defines the CRC proposal withdraw payload height
 	CRCProposalWithdrawPayloadV1Height uint32
 
-	// RectifyTxFee defines the fee of cr rectify transaction
+	// CRCProposalV1Height defines the height to support ChangeProposalOwner,
+	// CloseProposal and SecretaryGeneral proposal.
+	CRCProposalV1Height uint32
+
+	// RectifyTxFee defines the fee of cr rectify transaction.
 	RectifyTxFee common.Fixed64
 
-	// RealWithdrawSingleFee defines the single fee of cr real proposal withdraw transaction
+	// RealWithdrawSingleFee defines the single fee of cr real proposal withdraw transaction.
 	RealWithdrawSingleFee common.Fixed64
 
-	// NewP2PProtocolVersionHeight defines the new p2p protocol version message height
+	// NewP2PProtocolVersionHeight defines the new p2p protocol version message height.
 	NewP2PProtocolVersionHeight uint64
+
+	// ChangeCommitteeNewCRHeight defines the new arbiter logic after change committee.
+	ChangeCommitteeNewCRHeight uint32
+
+	// RandomCandidatePeriod defines the period to get a candidate as DPOS node at random.
+	RandomCandidatePeriod uint32
+
+	//MaxReservedCustomIDListCount defines the max count of reserved custom iid list per tx.
+	MaxReservedCustomIDListCount uint32
 }
 
 // rewardPerBlock calculates the reward for each block by a specified time

@@ -19,6 +19,7 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/elanet/bloom"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
+	"github.com/elastos/Elastos.ELA/elanet/filter/customidfilter"
 	"github.com/elastos/Elastos.ELA/elanet/filter/nextturndposfilter"
 	"github.com/elastos/Elastos.ELA/elanet/filter/sidefilter"
 	"github.com/elastos/Elastos.ELA/elanet/netsync"
@@ -110,7 +111,9 @@ func newServerPeer(s *server) *serverPeer {
 		case filter.FTDPOS:
 			return sidefilter.New(s.chain.GetState())
 		case filter.FTNexTTurnDPOSInfo:
-			return nextturndposfilter.New()
+			return customidfilter.New()
+		case filter.FTCustomID:
+			return customidfilter.New()
 		}
 		return nil
 	})
@@ -611,7 +614,7 @@ func (s *server) pushBlockMsg(sp *serverPeer, hash *common.Uint256, doneChan cha
 	// to trigger it to issue another getblocks message for the next
 	// batch of inventory.
 	if sendInv {
-		best := sp.server.chain.BestChain
+		best := sp.server.chain.GetBestChain()
 		invMsg := msg.NewInvSize(1)
 		iv := msg.NewInvVect(msg.InvTypeBlock, best.Hash)
 		invMsg.AddInvVect(iv)
@@ -660,7 +663,7 @@ func (s *server) pushConfirmedBlockMsg(sp *serverPeer, hash *common.Uint256, don
 	// to trigger it to issue another getblocks message for the next
 	// batch of inventory.
 	if sendInv {
-		best := sp.server.chain.BestChain
+		best := sp.server.chain.GetBestChain()
 		invMsg := msg.NewInvSize(1)
 		iv := msg.NewInvVect(msg.InvTypeConfirmedBlock, best.Hash)
 		invMsg.AddInvVect(iv)
@@ -717,6 +720,8 @@ func (s *server) pushMerkleBlockMsg(sp *serverPeer, hash *common.Uint256,
 			Confirm:     confirm,
 		}
 	case *nextturndposfilter.NextTurnDPOSInfoFilter:
+		merkle.Header = &blk.Header
+	case *customidfilter.CustomIdFilter:
 		merkle.Header = &blk.Header
 	}
 	// Once we have fetched data wait for any previous operation to finish.

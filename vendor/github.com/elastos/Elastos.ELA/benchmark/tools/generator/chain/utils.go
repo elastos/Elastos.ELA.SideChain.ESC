@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package chain
 
@@ -31,7 +31,8 @@ func newBlockChain(path string, params *config.Params,
 
 	committee := crstate.NewCommittee(params)
 	arbiters, err := state.NewArbitrators(
-		params, committee, nil)
+		params, committee, nil, nil,
+		nil, nil, nil)
 
 	chainStore, err := blockchain.NewChainStore(path, params)
 	if err != nil {
@@ -51,6 +52,7 @@ func newBlockChain(path string, params *config.Params,
 	}
 
 	arbiters.RegisterFunction(chain.GetHeight,
+		func() *common.Uint256 { return &common.Uint256{} },
 		func(height uint32) (*types.Block, error) {
 			hash, err := chain.GetBlockHash(height)
 			if err != nil {

@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -37,6 +38,35 @@ func ConfirmSanityCheck(confirm *payload.Confirm) error {
 
 		if err := VoteSanityCheck(&vote); err != nil {
 			return errors.New("[ConfirmSanityCheck] confirm contain invalid " +
+				"vote: " + err.Error())
+		}
+	}
+
+	return nil
+}
+
+func IllegalConfirmContextCheck(confirm *payload.Confirm) error {
+	signers := make(map[string]struct{})
+	for _, vote := range confirm.Votes {
+		if !vote.Accept {
+			continue
+		}
+		signers[common.BytesToHexString(vote.Signer)] = struct{}{}
+	}
+
+	if len(signers) <= DefaultLedger.Arbitrators.GetArbitersMajorityCount() {
+		return errors.New("[IllegalConfirmContextCheck] signers less than " +
+			"majority count")
+	}
+
+	if err := IllegalProposalContextCheck(&confirm.Proposal); err != nil {
+		return errors.New("[IllegalConfirmContextCheck] confirm contain invalid " +
+			"proposal: " + err.Error())
+	}
+
+	for _, vote := range confirm.Votes {
+		if err := IllegalVoteContextCheck(&vote); err != nil {
+			return errors.New("[IllegalConfirmContextCheck] confirm contain invalid " +
 				"vote: " + err.Error())
 		}
 	}
@@ -179,6 +209,27 @@ func ProposalSanityCheck(proposal *payload.DPOSProposal) error {
 	return nil
 }
 
+func IllegalProposalContextCheck(proposal *payload.DPOSProposal) error {
+	arbiters := DefaultLedger.Arbitrators.GetAllProducersPublicKey()
+	var isArbiter bool
+	for _, a := range arbiters {
+		pk, err := hex.DecodeString(a)
+		if err != nil {
+			continue
+		}
+		if bytes.Equal(pk, proposal.Sponsor) {
+			isArbiter = true
+			break
+		}
+	}
+	if !isArbiter {
+		return errors.New("current arbitrators verify error, sponsor:" +
+			common.BytesToHexString(proposal.Sponsor))
+	}
+
+	return nil
+}
+
 func ProposalContextCheck(proposal *payload.DPOSProposal) error {
 	arbiters := DefaultLedger.Arbitrators.GetArbitrators()
 	var isArbiter bool
@@ -188,6 +239,7 @@ func ProposalContextCheck(proposal *payload.DPOSProposal) error {
 		}
 		if bytes.Equal(a.NodePublicKey, proposal.Sponsor) {
 			isArbiter = true
+			break
 		}
 	}
 	if !isArbiter {
@@ -256,6 +308,26 @@ func VoteSanityCheck(vote *payload.DPOSProposalVote) error {
 	return nil
 }
 
+func IllegalVoteContextCheck(vote *payload.DPOSProposalVote) error {
+	arbiters := DefaultLedger.Arbitrators.GetAllProducersPublicKey()
+	var isArbiter bool
+	for _, a := range arbiters {
+		pk, err := hex.DecodeString(a)
+		if err != nil {
+			continue
+		}
+		if bytes.Equal(pk, vote.Signer) {
+			isArbiter = true
+			break
+		}
+	}
+	if !isArbiter {
+		return errors.New("current arbitrators verify error")
+	}
+
+	return nil
+}
+
 func VoteContextCheck(vote *payload.DPOSProposalVote) error {
 	arbiters := DefaultLedger.Arbitrators.GetArbitrators()
 	var isArbiter bool
@@ -265,6 +337,7 @@ func VoteContextCheck(vote *payload.DPOSProposalVote) error {
 		}
 		if bytes.Equal(a.NodePublicKey, vote.Signer) {
 			isArbiter = true
+			break
 		}
 	}
 	if !isArbiter {

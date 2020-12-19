@@ -103,26 +103,29 @@ func (s *BudgetStatus) Name() string {
 
 // CRMember defines CR committee member related info.
 type CRMember struct {
-	Info                   payload.CRInfo
-	ImpeachmentVotes       common.Fixed64
-	DepositHash            common.Uint168
-	MemberState            MemberState
-	DPOSPublicKey          []byte
-	InactiveSince          uint32
-	InactiveCountingHeight uint32
-	ActivateRequestHeight  uint32
-	InactiveCount          uint32
+	Info                      payload.CRInfo
+	ImpeachmentVotes          common.Fixed64
+	DepositHash               common.Uint168
+	MemberState               MemberState
+	DPOSPublicKey             []byte
+	InactiveSince             uint32
+	InactiveCountingHeight    uint32
+	InactiveCountingEndHeight uint32
+	ActivateRequestHeight     uint32
+	InactiveCount             uint32
 }
 
 // StateKeyFrame holds necessary state about CR committee.
 type KeyFrame struct {
 	Members                    map[common.Uint168]*CRMember
 	HistoryMembers             map[uint64]map[common.Uint168]*CRMember
+	CRCFoundationLockedAmounts []common.Fixed64
+	CustomIDProposalResults    []payload.ProposalResult
 	LastCommitteeHeight        uint32
 	LastVotingStartHeight      uint32
 	InElectionPeriod           bool
 	NeedAppropriation          bool
-	CRCFoundationLockedAmounts []common.Fixed64
+	NeedCIDProposalResult      bool
 	CRCFoundationBalance       common.Fixed64
 	CRCCommitteeBalance        common.Fixed64
 	CRCCommitteeUsedAmount     common.Fixed64
@@ -136,7 +139,6 @@ type KeyFrame struct {
 }
 
 type DepositInfo struct {
-	Refundable    bool
 	DepositAmount common.Fixed64
 	Penalty       common.Fixed64
 	TotalAmount   common.Fixed64
@@ -159,10 +161,10 @@ type StateKeyFrame struct {
 
 // ProposalState defines necessary state about an CR proposals.
 type ProposalState struct {
-	Status   ProposalStatus
-	Proposal payload.CRCProposal
-	TxHash   common.Uint256
-
+	Status             ProposalStatus
+	Proposal           payload.CRCProposal
+	TxHash             common.Uint256
+	TxPayloadVer       byte
 	CRVotes            map[common.Uint168]payload.VoteResult
 	VotersRejectAmount common.Fixed64
 	RegisterHeight     uint32
@@ -230,13 +232,19 @@ type ProposalsMap map[common.Uint256]*ProposalState
 // ProposalKeyFrame holds all runtime state about CR proposals.
 type ProposalKeyFrame struct {
 	Proposals ProposalsMap
-	//key is did value is proposalhash set
+	// key is did value is proposalhash set
 	ProposalHashes  map[common.Uint168]ProposalHashSet
 	ProposalSession map[uint64][]common.Uint256
 	// proposalWithdraw info
 	WithdrawableTxInfo map[common.Uint256]types.OutputInfo
-	//publicKey of SecretaryGeneral
+	// publicKey of SecretaryGeneral
 	SecretaryGeneralPublicKey string
+	// reserved custom id list
+	ReservedCustomIDLists [][]string
+	// banned custom id list
+	BannedCustomIDLists [][]string
+	// received custom id list
+	ReceivedCustomIDLists [][]string
 }
 
 func NewProposalMap() ProposalsMap {
@@ -269,6 +277,10 @@ func (c *CRMember) Serialize(w io.Writer) (err error) {
 	}
 
 	if err = common.WriteUint32(w, c.InactiveCountingHeight); err != nil {
+		return
+	}
+
+	if err = common.WriteUint32(w, c.InactiveCountingEndHeight); err != nil {
 		return
 	}
 
@@ -307,7 +319,9 @@ func (c *CRMember) Deserialize(r io.Reader) (err error) {
 	if c.InactiveCountingHeight, err = common.ReadUint32(r); err != nil {
 		return
 	}
-
+	if c.InactiveCountingEndHeight, err = common.ReadUint32(r); err != nil {
+		return
+	}
 	if c.ActivateRequestHeight, err = common.ReadUint32(r); err != nil {
 		return
 	}
@@ -331,10 +345,16 @@ func (kf *KeyFrame) Serialize(w io.Writer) (err error) {
 		return
 	}
 
+	if err = kf.serializeProposalResultList(w, kf.CustomIDProposalResults); err != nil {
+		return
+	}
+
 	return common.WriteElements(w, kf.LastCommitteeHeight,
 		kf.LastVotingStartHeight, kf.InElectionPeriod, kf.NeedAppropriation,
-		kf.CRCFoundationBalance, kf.CRCCommitteeBalance, kf.CRCCommitteeUsedAmount,
-		kf.DestroyedAmount, kf.CirculationAmount, kf.AppropriationAmount, kf.CommitteeUsedAmount)
+		kf.NeedCIDProposalResult, kf.CRCFoundationBalance,
+		kf.CRCCommitteeBalance, kf.CRCCommitteeUsedAmount,
+		kf.DestroyedAmount, kf.CirculationAmount, kf.AppropriationAmount,
+		kf.CommitteeUsedAmount, kf.CRAssetsAddressUTXOCount)
 }
 
 func (kf *KeyFrame) Deserialize(r io.Reader) (err error) {
@@ -350,11 +370,15 @@ func (kf *KeyFrame) Deserialize(r io.Reader) (err error) {
 		return
 	}
 
+	if kf.CustomIDProposalResults, err = kf.deserializeProposalResultList(r); err != nil {
+		return
+	}
+
 	err = common.ReadElements(r, &kf.LastCommitteeHeight,
 		&kf.LastVotingStartHeight, &kf.InElectionPeriod, &kf.NeedAppropriation,
-		&kf.CRCFoundationBalance, &kf.CRCCommitteeBalance,
+		&kf.NeedCIDProposalResult, &kf.CRCFoundationBalance, &kf.CRCCommitteeBalance,
 		&kf.CRCCommitteeUsedAmount, &kf.DestroyedAmount, &kf.CirculationAmount,
-		&kf.AppropriationAmount, &kf.CommitteeUsedAmount)
+		&kf.AppropriationAmount, &kf.CommitteeUsedAmount, &kf.CRAssetsAddressUTXOCount)
 	return
 }
 
@@ -402,6 +426,36 @@ func (kf *KeyFrame) serializeAmountList(w io.Writer,
 		if err = a.Serialize(w); err != nil {
 			return err
 		}
+	}
+	return
+}
+
+func (kf *KeyFrame) serializeProposalResultList(w io.Writer,
+	results []payload.ProposalResult) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(results))); err != nil {
+		return
+	}
+	for _, a := range results {
+		if err = a.Serialize(w, payload.CustomIDResultVersion); err != nil {
+			return err
+		}
+	}
+	return
+}
+
+func (kf *KeyFrame) deserializeProposalResultList(
+	r io.Reader) (results []payload.ProposalResult, err error) {
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	results = make([]payload.ProposalResult, 0)
+	for i := uint64(0); i < count; i++ {
+		var amount payload.ProposalResult
+		if err = amount.Deserialize(r, payload.CustomIDResultVersion); err != nil {
+			return
+		}
+		results = append(results, amount)
 	}
 	return
 }
@@ -496,10 +550,6 @@ func NewKeyFrame() *KeyFrame {
 }
 
 func (d *DepositInfo) Serialize(w io.Writer) (err error) {
-	if err = common.WriteElement(w, d.Refundable); err != nil {
-		return
-	}
-
 	if err = d.DepositAmount.Serialize(w); err != nil {
 		return
 	}
@@ -516,10 +566,6 @@ func (d *DepositInfo) Serialize(w io.Writer) (err error) {
 }
 
 func (d *DepositInfo) Deserialize(r io.Reader) (err error) {
-	if err = common.ReadElement(r, &d.Refundable); err != nil {
-		return
-	}
-
 	if err = d.DepositAmount.Deserialize(r); err != nil {
 		return
 	}
@@ -1380,6 +1426,14 @@ func copyFixed64Map(src map[string]common.Fixed64) (dst map[string]common.Fixed6
 }
 
 func getCRMembers(src map[common.Uint168]*CRMember) []*CRMember {
+	dst := make([]*CRMember, 0, len(src))
+	for _, v := range src {
+		dst = append(dst, v)
+	}
+	return dst
+}
+
+func getCRMembersCopy(src map[common.Uint168]*CRMember) []*CRMember {
 	dst := make([]*CRMember, 0, len(src))
 	for _, v := range src {
 		m := *v

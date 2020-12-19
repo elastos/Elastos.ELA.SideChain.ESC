@@ -53,6 +53,40 @@ type FunctionsConfig struct {
 		map[*types.Input]types.Output, error)
 }
 
+func (s *State) RevertUpdateCRInactivePenalty(cid common.Uint168) {
+	depositInfo, ok := s.depositInfo[cid]
+	if !ok {
+		return
+	}
+	var penalty = s.params.InactivePenalty
+	if depositInfo.Penalty < penalty {
+		depositInfo.Penalty = common.Fixed64(0)
+	} else {
+		depositInfo.Penalty -= penalty
+	}
+}
+
+func (s *State) UpdateCRIllegalPenalty(cid common.Uint168) {
+	depositInfo, ok := s.depositInfo[cid]
+	if !ok {
+		return
+	}
+	depositInfo.Penalty += s.params.IllegalPenalty
+}
+
+func (s *State) RevertUpdateCRIllegalPenalty(cid common.Uint168) {
+	depositInfo, ok := s.depositInfo[cid]
+	if !ok {
+		return
+	}
+	var penalty = s.params.IllegalPenalty
+	if depositInfo.Penalty < penalty {
+		depositInfo.Penalty = common.Fixed64(0)
+	} else {
+		depositInfo.Penalty -= penalty
+	}
+}
+
 // registerFunctions set the tryStartVotingPeriod and processImpeachment function
 // to change member state.
 func (s *State) registerFunctions(cfg *FunctionsConfig) {
@@ -96,32 +130,32 @@ func (s *State) getAvailableDepositAmount(cid common.Uint168) common.Fixed64 {
 		depositInfo.Penalty
 }
 
-// getDepositAmountByCID returns available deposit amount and penalty with
+// getDepositInfoByCID returns available Penalty DepositAmount and TotalAmount with
 // specified cid.
-func (s *State) getDepositAmountByCID(
-	cid common.Uint168) (common.Fixed64, common.Fixed64, error) {
+func (s *State) getDepositInfoByCID(
+	cid common.Uint168) (common.Fixed64, common.Fixed64, common.Fixed64, common.Fixed64, error) {
 	depositInfo, ok := s.depositInfo[cid]
 	if !ok {
-		return 0, 0, errors.New("deposit information does not exist")
+		return 0, 0, 0, 0, errors.New("deposit information does not exist")
 	}
-	return depositInfo.TotalAmount - depositInfo.DepositAmount -
-		depositInfo.Penalty, depositInfo.Penalty, nil
+	return depositInfo.TotalAmount - depositInfo.DepositAmount - depositInfo.Penalty,
+		depositInfo.Penalty, depositInfo.DepositAmount, depositInfo.TotalAmount, nil
 }
 
-// getDepositAmountByPublicKey return available deposit amount and
-// penalty by the given public key.
-func (s *State) getDepositAmountByPublicKey(
-	publicKey []byte) (common.Fixed64, common.Fixed64, error) {
+// getDepositInfoByPublicKey return available Penalty DepositAmount and TotalAmount
+// by the given public key.
+func (s *State) getDepositInfoByPublicKey(
+	publicKey []byte) (common.Fixed64, common.Fixed64, common.Fixed64, common.Fixed64, error) {
 	cid, err := getCIDByPublicKey(publicKey)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 	depositInfo, ok := s.depositInfo[*cid]
 	if !ok {
-		return 0, 0, errors.New("CID does not exist")
+		return 0, 0, 0, 0, errors.New("CID does not exist")
 	}
 	return depositInfo.TotalAmount - depositInfo.DepositAmount -
-		depositInfo.Penalty, depositInfo.Penalty, nil
+		depositInfo.Penalty, depositInfo.Penalty, depositInfo.DepositAmount, depositInfo.TotalAmount, nil
 }
 
 // existCandidate judges if there is a candidate with specified program code.
@@ -328,10 +362,8 @@ func (s *State) returnDeposit(tx *types.Transaction, height uint32) {
 	updateAmountAction := func(cid common.Uint168) {
 		s.history.Append(height, func() {
 			s.depositInfo[cid].TotalAmount -= inputValue
-			s.depositInfo[cid].Refundable = false
 		}, func() {
 			s.depositInfo[cid].TotalAmount += inputValue
-			s.depositInfo[cid].Refundable = true
 		})
 	}
 
@@ -339,10 +371,20 @@ func (s *State) returnDeposit(tx *types.Transaction, height uint32) {
 		cid, _ := getCIDByCode(program.Code)
 
 		if candidate := s.getCandidate(*cid); candidate != nil {
-			if candidate.state == Canceled {
-				if height-candidate.cancelHeight > s.params.CRDepositLockupBlocks {
-					returnCandidateAction(candidate, candidate.state)
+			var changeValue common.Fixed64
+			for _, o := range tx.Outputs {
+				if candidate.depositHash.IsEqual(o.ProgramHash) {
+					changeValue += o.Value
 				}
+			}
+			balance := s.depositInfo[*cid].TotalAmount - inputValue + changeValue -
+				s.depositInfo[*cid].Penalty -
+				s.depositInfo[*cid].DepositAmount
+
+			if candidate.state == Canceled &&
+				height-candidate.cancelHeight > s.params.CRDepositLockupBlocks &&
+				balance <= s.params.MinTransactionFee {
+				returnCandidateAction(candidate, candidate.state)
 			}
 		}
 		if candidates := s.getHistoryCandidate(*cid); len(candidates) != 0 {

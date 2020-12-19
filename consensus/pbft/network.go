@@ -131,6 +131,10 @@ func (p *Pbft) RequestAbnormalRecovering() {
 func (p *Pbft) tryGetCurrentProposal(id peer.PID, v *payload.DPOSProposalVote) (elacom.Uint256, bool) {
 	currentProposal := p.dispatcher.GetProcessingProposal()
 	if currentProposal == nil {
+		if v.ProposalHash.IsEqual(p.dispatcher.GetFinishedProposal()) {
+			log.Info("received finished proposal vote")
+			return elacom.EmptyHash, true
+		}
 		if _, ok := p.requestedProposals[v.ProposalHash]; !ok {
 			requestProposal := &msg.RequestProposal{ProposalHash: v.ProposalHash}
 			go p.network.SendMessageToPeer(id, requestProposal)
@@ -203,9 +207,13 @@ func (p *Pbft) OnInsertBlock(block *types.Block) {
 		isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
 		if !isSame {
 			p.dispatcher.GetConsensusView().ChangeCurrentProducers(block.NumberU64() + 1, spv.GetSpvHeight())
+			go p.AnnounceDAddr()
 			go p.Recover()
 			p.dispatcher.GetConsensusView().DumpInfo()
+		} else {
+			log.Info("For the same batch of producers, no need to change current producers")
 		}
+		spv.InitNextTurnDposInfo()
 	}
 }
 
@@ -260,12 +268,12 @@ func (p *Pbft) OnRequestConsensus(id peer.PID, height uint64) {
 
 	status := p.dispatcher.HelpToRecoverAbnormal(id, height, p.chain.CurrentHeader().Height())
 	if status != nil {
-		msg := &msg.ResponseConsensus{Consensus: *status}
+		msg := &dmsg.ResponseConsensus{Consensus: *status}
 		go p.network.SendMessageToPeer(id, msg)
 	}
 }
 
-func (p *Pbft) OnResponseConsensus(id peer.PID, status *msg.ConsensusStatus) {
+func (p *Pbft) OnResponseConsensus(id peer.PID, status *dmsg.ConsensusStatus) {
 	log.Info("---------[OnResponseConsensus]------------")
 	if !p.IsProducer() {
 		return
@@ -274,7 +282,7 @@ func (p *Pbft) OnResponseConsensus(id peer.PID, status *msg.ConsensusStatus) {
 		return
 	}
 	if _, ok := p.statusMap[status.ViewOffset]; !ok {
-		p.statusMap[status.ViewOffset] = make(map[string]*msg.ConsensusStatus)
+		p.statusMap[status.ViewOffset] = make(map[string]*dmsg.ConsensusStatus)
 	}
 	p.statusMap[status.ViewOffset][common.Bytes2Hex(id[:])] = status
 }
@@ -384,7 +392,7 @@ func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 	}
 	currentProposal, ok := p.tryGetCurrentProposal(id, vote)
 	if !ok {
-		log.Info("not have proposal, get it and push vote into pending vote")
+		log.Info("not have proposal, get it and push vote into pending vote", "proposal", vote.ProposalHash.String())
 		p.dispatcher.AddPendingVote(vote)
 	} else if currentProposal.IsEqual(vote.ProposalHash) {
 		if p.dispatcher.GetProcessingProposal() == nil {
@@ -452,7 +460,7 @@ func (p *Pbft) OnRecoverTimeout() {
 			p.DoRecover()
 		}
 		p.recoverStarted = false
-		p.statusMap = make(map[uint32]map[string]*msg.ConsensusStatus)
+		p.statusMap = make(map[uint32]map[string]*dmsg.ConsensusStatus)
 	}
 }
 
@@ -467,7 +475,7 @@ func (p *Pbft) DoRecover() {
 			maxCountMaxViewOffset = k
 		}
 	}
-	var status *msg.ConsensusStatus
+	var status *dmsg.ConsensusStatus
 	startTimes := make([]int64, 0)
 	for _, v := range p.statusMap[maxCountMaxViewOffset] {
 		if status == nil {

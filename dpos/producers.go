@@ -20,7 +20,7 @@ type Producers struct {
 	totalProducers int
 	producers      [][]byte
 	dutyIndex      uint32
-	startHeight    uint64
+	workingHeight  uint64
 	spvHeight      uint64
 
 	nextTotalProducers int
@@ -31,7 +31,7 @@ type Producers struct {
 func NewProducers(producers [][]byte, startHeight uint64) *Producers {
 	producer := &Producers{
 		dutyIndex:   0,
-		startHeight: startHeight,
+		workingHeight: startHeight,
 	}
 	producer.UpdateProducers(producers, len(producers), 0)
 	return producer
@@ -55,9 +55,13 @@ func (p *Producers) ChangeCurrentProducers(changeHeight uint64, spvHeight uint64
 		p.producers[i] = make([]byte, len(signer))
 		copy(p.producers[i][:], signer[:])
 	}
-	p.startHeight = changeHeight
+	p.SetWorkingHeight(changeHeight)
 	p.totalProducers = p.nextTotalProducers
 	p.spvHeight = spvHeight
+}
+
+func (p *Producers) SetWorkingHeight(changeHeight uint64) {
+	p.workingHeight = changeHeight
 }
 
 func (p *Producers) UpdateNextProducers(producers []peer.PID, totalCount int) error {
@@ -96,9 +100,12 @@ func (p *Producers) GetNeedConnectArbiters() []peer.PID {
 
 func (p *Producers) UpdateDutyIndex(height uint64) uint32 {
 	p.mtx.Lock()
-	index := (height + 1 - p.startHeight) % uint64(len(p.producers))
+	defer p.mtx.Unlock()
+	if len(p.producers) <= 0 {
+		return 0
+	}
+	index := (height + 1 - p.workingHeight) % uint64(len(p.producers))
 	p.dutyIndex = uint32(index)
-	p.mtx.Unlock()
 	return uint32(index)
 }
 
@@ -150,12 +157,11 @@ func (p *Producers) GetProducersCount() int {
 func (p *Producers) GetNextOnDutyProducer(offset uint32) []byte {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
-
-	index := (p.dutyIndex + offset) % uint32(len(p.producers))
 	producers := p.producers
 	if len(producers) == 0 {
 		return nil
 	}
+	index := (p.dutyIndex + offset) % uint32(len(producers))
 	producer := producers[index]
 
 	return producer

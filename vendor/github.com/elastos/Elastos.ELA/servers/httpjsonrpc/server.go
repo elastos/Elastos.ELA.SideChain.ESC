@@ -10,6 +10,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/rs/cors"
 	"io/ioutil"
 	"mime"
 	"net"
@@ -97,15 +98,23 @@ func StartRPCServer() {
 	mainMux["submitsidechainillegaldata"] = SubmitSidechainIllegalData
 	mainMux["getarbiterpeersinfo"] = GetArbiterPeersInfo
 	mainMux["getcrcpeersinfo"] = GetCRCPeersInfo
+	mainMux["getcrosschainpeersinfo"] = GetCrossChainPeersInfo
 
 	mainMux["estimatesmartfee"] = EstimateSmartFee
 	mainMux["getdepositcoin"] = GetDepositCoin
 	mainMux["getcrdepositcoin"] = GetCRDepositCoin
 	mainMux["getarbitersinfo"] = GetArbitersInfo
 
+	var handler http.Handler
 	rpcServeMux := http.NewServeMux()
+	if config.Parameters.EnableCORS {
+		c := cors.New(cors.Options{})
+		handler = c.Handler(rpcServeMux)
+	} else {
+		handler = rpcServeMux
+	}
 	server := http.Server{
-		Handler:      rpcServeMux,
+		Handler:      handler,
 		ReadTimeout:  IOTimeout,
 		WriteTimeout: IOTimeout,
 	}
@@ -373,6 +382,8 @@ func convertParams(method string, params []interface{}) Params {
 		return FromArray(params, "height")
 	case "estimatesmartfee":
 		return FromArray(params, "confirmations")
+	case "getrawmempool":
+		return FromArray(params, "state")
 	default:
 		return Params{}
 	}

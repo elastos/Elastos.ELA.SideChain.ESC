@@ -571,6 +571,15 @@ func (b *BlockChain) GetCRCommittee() *crstate.Committee {
 	return b.crCommittee
 }
 
+func (b *BlockChain) GetBestBlockHash() *Uint256 {
+	b.IndexLock.RLock()
+	defer b.IndexLock.RUnlock()
+	if len(b.Nodes) == 0 {
+		return nil
+	}
+	return b.Nodes[len(b.Nodes)-1].Hash
+}
+
 func (b *BlockChain) GetHeight() uint32 {
 	b.IndexLock.RLock()
 	defer b.IndexLock.RUnlock()
@@ -1367,6 +1376,13 @@ func (b *BlockChain) connectBlock(node *BlockNode, block *Block, confirm *payloa
 	events.Notify(events.ETBlockConnected, block)
 
 	return nil
+}
+
+func (b *BlockChain) GetBestChain() *BlockNode {
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+	chain := b.BestChain
+	return chain
 }
 
 func (b *BlockChain) HaveBlock(hash *Uint256) (bool, error) {
