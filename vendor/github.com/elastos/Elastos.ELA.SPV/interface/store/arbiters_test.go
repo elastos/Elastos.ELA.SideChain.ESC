@@ -38,7 +38,7 @@ func TestArbiters(t *testing.T) {
 		crc, _ := hex.DecodeString(v)
 		origincrcs = append(origincrcs, crc)
 	}
-	arbiters := NewArbiters(db, origincrcs)
+	arbiters := NewArbiters(db, origincrcs, 36)
 	crcPublicKey := []string{
 		"03C3A4A137EB63B05E9F14070639E680DF78616D70EE1BA52B0759236B4B698CDB",
 		"03B97154758B8B1A044DB774A4A19E1591DC165A0FA24F74388FBDF0EFDB919CFA",

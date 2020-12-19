@@ -147,6 +147,10 @@ func (a *ArbitratorsMock) CheckNextTurnDPOSInfoTx(block *types.Block) error {
 	return nil
 }
 
+func (a *ArbitratorsMock) CheckCustomIDResultsTx(block *types.Block) error {
+	return nil
+}
+
 func (a *ArbitratorsMock) GetNeedConnectArbiters() []peer.PID {
 	panic("implement me")
 }
@@ -234,6 +238,14 @@ func (a *ArbitratorsMock) GetArbitrators() []*ArbiterInfo {
 	return result
 }
 
+func (a *ArbitratorsMock) GetAllProducersPublicKey() []string {
+	result := make([]string, 0, len(a.CurrentArbitrators))
+	for _, v := range a.CurrentArbitrators {
+		result = append(result, common.BytesToHexString(v.GetNodePublicKey()))
+	}
+	return result
+}
+
 func (a *ArbitratorsMock) GetNormalArbitrators() ([][]byte, error) {
 	result := make([][]byte, 0, len(a.CurrentArbitrators))
 	for _, v := range a.CurrentArbitrators {
@@ -250,10 +262,19 @@ func (a *ArbitratorsMock) GetCandidates() [][]byte {
 	return result
 }
 
-func (a *ArbitratorsMock) GetNextArbitrators() [][]byte {
-	result := make([][]byte, 0, len(a.NextArbitrators))
+func (a *ArbitratorsMock) GetNextArbitrators() []*ArbiterInfo {
+	result := make([]*ArbiterInfo, 0, len(a.NextArbitrators))
 	for _, v := range a.NextArbitrators {
-		result = append(result, v.GetNodePublicKey())
+		isNormal := true
+		abt, ok := v.(*crcArbiter)
+		if ok && !abt.isNormal {
+			isNormal = false
+			continue
+		}
+		result = append(result, &ArbiterInfo{
+			NodePublicKey: v.GetNodePublicKey(),
+			IsNormal:      isNormal,
+		})
 	}
 	return result
 }

@@ -72,6 +72,7 @@ type Configuration struct {
 	EnableHistory               bool              `json:"EnableHistory"`
 	HistoryStartHeight          uint32            `json:"HistoryStartHeight"`
 	EnableUtxoDB                bool              `json:"EnableUtxoDB"`
+	EnableCORS                  bool              `json:"EnableCORS"`
 	WalletPath                  string            `json:"WalletPath"`
 	RPCServiceLevel             string            `json:"RPCServiceLevel"`
 	NodeProfileStrategy         string            `json:"NodeProfileStrategy"`
@@ -81,19 +82,24 @@ type Configuration struct {
 
 // DPoSConfiguration defines the DPoS consensus parameters.
 type DPoSConfiguration struct {
-	EnableArbiter            bool           `json:"EnableArbiter"`
-	Magic                    uint32         `json:"Magic"`
-	IPAddress                string         `json:"IPAddress"`
-	DPoSPort                 uint16         `json:"DPoSPort"`
-	SignTolerance            time.Duration  `json:"SignTolerance"`
-	OriginArbiters           []string       `json:"OriginArbiters"`
-	CRCArbiters              []string       `json:"CRCArbiters"`
-	NormalArbitratorsCount   int            `json:"NormalArbitratorsCount"`
-	CandidatesCount          int            `json:"CandidatesCount"`
-	EmergencyInactivePenalty common.Fixed64 `json:"EmergencyInactivePenalty"`
-	MaxInactiveRounds        uint32         `json:"MaxInactiveRounds"`
-	InactivePenalty          common.Fixed64 `json:"InactivePenalty"`
-	PreConnectOffset         uint32         `json:"PreConnectOffset"`
+	EnableArbiter                 bool           `json:"EnableArbiter"`
+	Magic                         uint32         `json:"Magic"`
+	IPAddress                     string         `json:"IPAddress"`
+	DPoSPort                      uint16         `json:"DPoSPort"`
+	SignTolerance                 time.Duration  `json:"SignTolerance"`
+	OriginArbiters                []string       `json:"OriginArbiters"`
+	CRCArbiters                   []string       `json:"CRCArbiters"`
+	NormalArbitratorsCount        int            `json:"NormalArbitratorsCount"`
+	CandidatesCount               int            `json:"CandidatesCount"`
+	EmergencyInactivePenalty      common.Fixed64 `json:"EmergencyInactivePenalty"`
+	MaxInactiveRounds             uint32         `json:"MaxInactiveRounds"`
+	InactivePenalty               common.Fixed64 `json:"InactivePenalty"`
+	IllegalPenalty                common.Fixed64 `json:"IllegalPenalty"`
+	PreConnectOffset              uint32         `json:"PreConnectOffset"`
+	NoCRCDPOSNodeHeight           uint32         `json:"NoCRCDPOSNodeHeight"`
+	RandomCandidatePeriod         uint32         `json:"RandomCandidatePeriod"`
+	MaxInactiveRoundsOfRandomNode uint32         `json:"MaxInactiveRoundsOfRandomNode"`
+	DPOSNodeCrossChainHeight      uint32         `json:"DPOSNodeCrossChainHeight"`
 }
 
 type CRConfiguration struct {
@@ -114,6 +120,7 @@ type CRConfiguration struct {
 	MinCRAssetsAddressUTXOCount        uint32         `json:"MinCRAssetsAddressUTXOCount"`
 	CRAssetsRectifyTransactionHeight   uint32         `json:"CRAssetsRectifyTransactionHeight"`
 	CRCProposalWithdrawPayloadV1Height uint32         `json:"CRCProposalWithdrawPayloadV1Height"`
+	CRCProposalV1Height                uint32         `json:"CRCProposalV1Height"`
 	CRCAddress                         string         `json:"CRCAddress"`
 	CRAssetsAddress                    string         `json:"CRAssetsAddress"`
 	CRExpensesAddress                  string         `json:"CRExpensesAddress"`
@@ -124,6 +131,8 @@ type CRConfiguration struct {
 	RectifyTxFee                       common.Fixed64 `json:"RectifyTxFee"`
 	RealWithdrawSingleFee              common.Fixed64 `json:"RealWithdrawSingleFee"`
 	NewP2PProtocolVersionHeight        uint64         `json:"NewP2PProtocolVersionHeight"`
+	ChangeCommitteeNewCRHeight         uint32         `json:"ChangeCommitteeNewCRHeight"`
+	MaxReservedCustomIDListCount       uint32         `json:"MaxReservedCustomIDListCount"`
 }
 
 type RPCServiceLevel byte

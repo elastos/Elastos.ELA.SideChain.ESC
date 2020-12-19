@@ -21,7 +21,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
-	emsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
+	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
@@ -32,7 +32,6 @@ import (
 	ecom "github.com/elastos/Elastos.ELA/common"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
-	dmsg "github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
@@ -220,11 +219,25 @@ func (p *Pbft) subscribeEvent() {
 			height := e.Data.(uint32)
 			if spv.GetWorkingHeight() >= height {
 				if uint64(spv.GetWorkingHeight() - height) <= p.chain.Config().PreConnectOffset {
-					go p.AnnounceDAddr()
+					curProducers := p.dispatcher.GetConsensusView().GetProducers()
+					isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+					if !isSame {
+						go p.AnnounceDAddr()
+					} else {
+						log.Info("For the same batch of aribters, no need to re-connect direct net")
+					}
 				}
 			}
 		}
 	})
+}
+
+func (p *Pbft) IsSameProducers(curProducers[][]byte) bool {
+	return p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+}
+
+func (p *Pbft) IsCurrentProducers(curProducers[][]byte) bool {
+	return p.dispatcher.GetConsensusView().IsCurrentProducers(curProducers)
 }
 
 func (p *Pbft) GetDataDir() string {
@@ -236,8 +249,6 @@ func (p *Pbft) GetPbftConfig() params.PbftConfig {
 }
 
 func (p *Pbft) Author(header *types.Header) (common.Address, error) {
-	//dpos.Info("Pbft Author")
-	// TODO panic("implement me")
 	return header.Coinbase, nil
 }
 
@@ -723,7 +734,7 @@ func (p *Pbft) SetBlockChain(chain *core.BlockChain) {
 }
 
 func (p *Pbft) broadConfirmMsg(confirm *payload.Confirm, height uint64) {
-	msg := emsg.NewConfirmMsg(confirm, height)
+	msg := dmsg.NewConfirmMsg(confirm, height)
 	p.network.BroadcastMessage(msg)
 }
 
@@ -733,7 +744,10 @@ func (p *Pbft) verifyConfirm(confirm *payload.Confirm, header *types.Header) err
 	if elaHeight == 0 {
 		minSignCount = p.dispatcher.GetConsensusView().GetCRMajorityCount()
 	} else {
-		count := spv.GetArbitersCount(elaHeight)
+		count, err := spv.GetArbitersCount(elaHeight)
+		if err != nil {
+			return err
+		}
 		minSignCount = p.dispatcher.GetConsensusView().GetMajorityCountByTotalSigners(count)
 	}
 	err := dpos.CheckConfirm(confirm, minSignCount)

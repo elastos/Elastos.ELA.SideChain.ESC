@@ -41,6 +41,8 @@ type spvservice struct {
 	blockListener BlockListener
 	//FilterType is the filter type .(FTBloom, FTDPOS  and so on )
 	filterType uint8
+	// p2p  Protocol version height  use to change version msg content
+	NewP2PProtocolVersionHeight uint64
 }
 
 // NewSPVService creates a new SPV service instance.
@@ -70,17 +72,19 @@ func NewSPVService(cfg *Config) (*spvservice, error) {
 		}
 		originArbiters = append(originArbiters, v)
 	}
-	dataStore, err := store.NewDataStore(dataDir, originArbiters)
+	dataStore, err := store.NewDataStore(dataDir, originArbiters,
+		len(cfg.ChainParams.CRCArbiters)*3)
 	if err != nil {
 		return nil, err
 	}
 
 	service := &spvservice{
-		headers:    headerStore,
-		db:         dataStore,
-		rollback:   cfg.OnRollback,
-		listeners:  make(map[common.Uint256]TransactionListener),
-		filterType: cfg.FilterType,
+		headers:                     headerStore,
+		db:                          dataStore,
+		rollback:                    cfg.OnRollback,
+		listeners:                   make(map[common.Uint256]TransactionListener),
+		filterType:                  cfg.FilterType,
+		NewP2PProtocolVersionHeight: cfg.ChainParams.NewP2PProtocolVersionHeight,
 	}
 
 	chainStore := database.NewChainDB(headerStore, service)
@@ -99,6 +103,7 @@ func NewSPVService(cfg *Config) (*spvservice, error) {
 		NewBlockHeader: newBlockHeader,
 		GetTxFilter:    service.GetFilter,
 		StateNotifier:  service,
+		NodeVersion:    cfg.NodeVersion,
 	}
 
 	service.IService, err = sdk.NewService(serviceCfg)
@@ -188,9 +193,29 @@ func (s *spvservice) GetTransaction(txId *common.Uint256) (*types.Transaction, e
 	return &tx, nil
 }
 
-//Get arbiters according to height
+// Get arbiters according to height
 func (s *spvservice) GetArbiters(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error) {
 	return s.db.Arbiters().GetByHeight(height)
+}
+
+// Get next turn arbiters according to height
+func (s *spvservice) GetNextArbiters() (workingHeight uint32, crcArbiters [][]byte, normalArbiters [][]byte, err error) {
+	return s.db.Arbiters().GetNext()
+}
+
+// Get reserved custom ID.
+func (s *spvservice) GetReservedCustomIDs() (map[string]struct{}, error) {
+	return s.db.CID().GetReservedCustomIDs()
+}
+
+// Get received custom ID.
+func (s *spvservice) GeReceivedCustomIDs() (map[string]common.Uint168, error) {
+	return s.db.CID().GetReceivedCustomIDs()
+}
+
+// Get rate of custom ID fee.
+func (s *spvservice) GetRateOfCustomIDFee() (common.Fixed64, error) {
+	return s.db.CID().GetCustomIDFeeRate()
 }
 
 func (s *spvservice) GetTransactionIds(height uint32) ([]*common.Uint256, error) {
@@ -236,10 +261,47 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 		}
 	}
 
-	if tx.TxType == types.NextTurnDPOSInfo {
+	switch tx.TxType {
+	case types.NextTurnDPOSInfo:
 		nextTurnDposInfo := tx.Payload.(*payload.NextTurnDPOSInfo)
 		nakedBatch := batch.GetNakedBatch()
-		err := s.db.Arbiters().BatchPut(nextTurnDposInfo.WorkingHeight, nextTurnDposInfo.CRPublickeys, nextTurnDposInfo.DPOSPublicKeys, nakedBatch)
+		err := s.db.Arbiters().BatchPut(nextTurnDposInfo.WorkingHeight,
+			nextTurnDposInfo.CRPublicKeys, nextTurnDposInfo.DPOSPublicKeys, nakedBatch)
+		if err != nil {
+			return false, err
+		}
+	case types.CRCProposal:
+		p, ok := tx.Payload.(*payload.CRCProposal)
+		if !ok {
+			return false, errors.New("invalid crc proposal tx")
+		}
+		nakedBatch := batch.GetNakedBatch()
+		switch p.ProposalType {
+		case payload.ReserveCustomID:
+			err := s.db.CID().BatchPutControversialReservedCustomIDs(
+				p.ReservedCustomIDList, p.Hash(tx.PayloadVersion), nakedBatch)
+			if err != nil {
+				return false, err
+			}
+		case payload.ReceiveCustomID:
+			err := s.db.CID().BatchPutControversialReceivedCustomIDs(
+				p.ReceivedCustomIDList, p.ReceiverDID, p.Hash(tx.PayloadVersion), nakedBatch)
+			if err != nil {
+				return false, err
+			}
+		case payload.ChangeCustomIDFee:
+			if err := s.db.CID().BatchPutControversialChangeCustomIDFee(
+				p.RateOfCustomIDFee, p.Hash(tx.PayloadVersion), nakedBatch); err != nil {
+				return false, err
+			}
+		}
+	case types.CustomIDResult:
+		p, ok := tx.Payload.(*payload.CustomIDProposalResult)
+		if !ok {
+			return false, errors.New("invalid custom ID result tx")
+		}
+		nakedBatch := batch.GetNakedBatch()
+		err := s.db.CID().BatchPutCustomIDProposalResults(p.ProposalResults, nakedBatch)
 		if err != nil {
 			return false, err
 		}

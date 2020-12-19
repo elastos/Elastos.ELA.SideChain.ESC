@@ -226,6 +226,10 @@ var (
 		Usage: "(H2) indicates the height when public registered and elected " +
 			"producers participate in DPOS consensus",
 	}
+	IllegalPenaltyFlag = cli.StringFlag{
+		Name:  "illegalpenalty",
+		Usage: "defines the num of illegal penalty should be punished ",
+	}
 	CRCommitteeStartHeightFlag = cli.StringFlag{
 		Name:  "crcommitteestartheight",
 		Usage: "defines the height of CR Committee started",
@@ -391,6 +395,11 @@ var (
 		Name:  "crcproposalwithdrawpayloadv1height",
 		Usage: "defines the crc withdraw proposal payload type v1 accept height",
 	}
+	CRCProposalV1Height = cli.StringFlag{
+		Name: "crcproposalv1height",
+		Usage: "defines the ChangeProposalOwner，CloseProposal and " +
+			"SecretaryGeneral crc proposal type accept height",
+	}
 	RectifyTxFee = cli.StringFlag{
 		Name:  "rectifytxfee",
 		Usage: "defines the fee of cr rectify transaction",
@@ -402,6 +411,36 @@ var (
 	NewVersionHeight = cli.StringFlag{
 		Name:  "newversionheight",
 		Usage: "defines the new version message height",
+	}
+
+	ChangeCommitteeNewCRHeight = cli.StringFlag{
+		Name:  "changecommitteenewcrheight",
+		Usage: "defines the change committee new cr height",
+	}
+
+	MaxReservedCustomIDListCount = cli.StringFlag{
+		Name:  "maxreservedcustomidlistcount",
+		Usage: "defines the max count of reserved custom iid list per tx",
+	}
+
+	NoCRCDPOSNodeHeight = cli.StringFlag{
+		Name:  "nocrcdposnodeheight",
+		Usage: "defines the height when there is no DPOS node of CRC",
+	}
+
+	RandomCandidatePeriod = cli.StringFlag{
+		Name:  "randomcandidateperiod",
+		Usage: "defines the period to get a candidate as DPOS node at random",
+	}
+
+	MaxInactiveRoundsOfRandomNode = cli.StringFlag{
+		Name:  "maxinactiveroundsofrandomnode",
+		Usage: "defines the maximum inactive rounds before the random producer takes penalty",
+	}
+
+	DPOSNodeCrossChainHeight = cli.StringFlag{
+		Name:  "dposnodecrosschainheight",
+		Usage: "defines the height at which not only CR members are responsible for working across the chain",
 	}
 )
 
