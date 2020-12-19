@@ -138,6 +138,7 @@ func (p *Pbft) tryGetCurrentProposal(id peer.PID, v *payload.DPOSProposalVote) (
 		if _, ok := p.requestedProposals[v.ProposalHash]; !ok {
 			requestProposal := &msg.RequestProposal{ProposalHash: v.ProposalHash}
 			go p.network.SendMessageToPeer(id, requestProposal)
+			p.requestedProposals[v.ProposalHash] = struct{}{}
 		}
 		return elacom.EmptyHash, false
 	}
@@ -214,6 +215,17 @@ func (p *Pbft) OnInsertBlock(block *types.Block) {
 			log.Info("For the same batch of producers, no need to change current producers")
 		}
 		spv.InitNextTurnDposInfo()
+	} else if block.Nonce() > 0 {
+		producers, totalCount, err := spv.GetProducers(block.Nonce())
+		if err != nil {
+			log.Error("OnInsertBlock error", "GetProducers", err)
+			return
+		}
+		if !p.IsCurrentProducers(producers) {
+			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
+			go p.AnnounceDAddr()
+			go p.Recover()
+		}
 	}
 }
 
