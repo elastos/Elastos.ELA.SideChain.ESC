@@ -395,8 +395,6 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			log.Info("before change engine")
 			eth.SetEngine(engine)
 		}
-
-		blocksigner.SelfIsProducer = engine.IsProducer()
 	}
 
 	return eth, nil
@@ -430,10 +428,12 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		}
 		return
 	}
+	blocksigner.SelfIsProducer = false
 	engine.UpdateCurrentProducers(producers, totalProducers, spvHeight)
 	go func() {
 		if engine.AnnounceDAddr() {
 			if engine.IsProducer() {
+				blocksigner.SelfIsProducer = true
 				engine.Recover()
 			}
 		}
@@ -470,9 +470,13 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 		for  {
 			select {
 			case b := <-blockEvent:
-				pbftEngine := engine.(*pbft.Pbft)
-				pbftEngine.AccessFutureBlock(b.Block)
-				pbftEngine.OnInsertBlock(b.Block)
+				if eth.blockchain.Config().IsPBFTFork(b.Block.Number()) {
+					pbftEngine := engine.(*pbft.Pbft)
+					pbftEngine.AccessFutureBlock(b.Block)
+					if pbftEngine.OnInsertBlock(b.Block) {
+						blocksigner.SelfIsProducer = pbftEngine.IsProducer()
+					}
+				}
 			case <-initProducersSub.Chan():
 				pbftEngine := engine.(*pbft.Pbft)
 				currentHeader := eth.blockchain.CurrentHeader()

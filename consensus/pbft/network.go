@@ -200,7 +200,7 @@ func (p *Pbft) AccessFutureBlock(parent *types.Block) {
 	}
 }
 
-func (p *Pbft) OnInsertBlock(block *types.Block) {
+func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 	dutyIndex := p.dispatcher.GetConsensusView().GetDutyIndex()
 	isWorkingHeight := spv.SpvIsWorkingHeight()
 	if dutyIndex == 0 && isWorkingHeight {
@@ -215,18 +215,21 @@ func (p *Pbft) OnInsertBlock(block *types.Block) {
 			log.Info("For the same batch of producers, no need to change current producers")
 		}
 		spv.InitNextTurnDposInfo()
+		return !isSame
 	} else if block.Nonce() > 0 {
 		producers, totalCount, err := spv.GetProducers(block.Nonce())
 		if err != nil {
 			log.Error("OnInsertBlock error", "GetProducers", err)
-			return
+			return false
 		}
 		if !p.IsCurrentProducers(producers) {
 			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
 			go p.AnnounceDAddr()
 			go p.Recover()
+			return true
 		}
 	}
+	return false
 }
 
 func (p *Pbft) OnInv(id peer.PID, blockHash elacom.Uint256) {
