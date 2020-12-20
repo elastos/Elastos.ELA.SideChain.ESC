@@ -175,7 +175,8 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 			blocksigner.Signers[signer] = struct{}{}
 		}
 	}
-
+	addr :=  GetDefaultSingerAddr()
+	_, blocksigner.SelfIsProducer = blocksigner.Signers[addr]
 	return SpvService, nil
 }
 
@@ -278,6 +279,9 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	log.Info("----------------------------------------------------------------------------------------")
 	log.Info(string(tx.String()))
 	log.Info("----------------------------------------------------------------------------------------")
+	if !blocksigner.SelfIsProducer {
+		atomic.StoreInt32(&candSend, 0)
+	}
 	savePayloadInfo(tx, l)
 	l.service.SubmitTransactionReceipt(id, tx.Hash())// give spv service a receipt, Indicates receipt of notice
 }
@@ -367,9 +371,7 @@ func UpTransactionIndex(elaTx string) {
 func IteratorUnTransaction(from ethCommon.Address) {
 	muiterator.Lock()
 	defer muiterator.Unlock()
-
-	_, ok := blocksigner.Signers[from]
-	if !ok && !blocksigner.SelfIsProducer {
+	if !blocksigner.SelfIsProducer {
 		log.Error("error signers", "signer", from.String())
 		return
 	}

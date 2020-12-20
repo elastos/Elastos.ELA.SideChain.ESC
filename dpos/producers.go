@@ -14,8 +14,7 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
-//TODO is test value,should be 12
-const defaultCRCSignerNumber = 6
+const defaultCRCSignerNumber = 12
 
 type Producers struct {
 	totalProducers int
