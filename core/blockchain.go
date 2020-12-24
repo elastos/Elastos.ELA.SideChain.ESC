@@ -1856,6 +1856,7 @@ func (bc *BlockChain) OnSyncHeader(header *types.Header) {
 			producer := common.Hex2Bytes(v)
 			copy(producers[i][:], producer[:])
 		}
+		log.Info("OnSyncHeader ETDirectPeersChanged Notify")
 		go events.Notify(events.ETDirectPeersChanged, producers)
 	}
 	if height >= cfg.PBFTBlock.Uint64() && bc.engine != bc.pbftEngine {

@@ -29,6 +29,7 @@ type BlockListener struct {
 func (l *BlockListener) NotifyBlock(block *util.Block) {
 	l.blockNumber = block.Height
 	if l.blockNumber >= l.param.height {
+		log.Info("NotifyBlock ETOnSPVHeight Notify", "l.blockNumber", l.blockNumber)
 		go events.Notify(dpos.ETOnSPVHeight, l.blockNumber)
 		l.StoreAuxBlock(block)
 		log.Info("BlockListener handle block ", "height", block.Height)
@@ -73,6 +74,7 @@ func InitNextTurnDposInfo() {
 		DPOSPublicKeys: normalArbiters,
 	}
 	peers := DumpNextDposInfo()
+	log.Info("InitNextTurnDposInfo ETNextProducers Notify")
 	go events.Notify(dpos.ETNextProducers, peers)
 }
 
