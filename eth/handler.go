@@ -246,6 +246,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 	// Hard disconnect at the networking layer
 	if peer != nil {
+		log.Info("removePeer ETDonePeer Notify")
 		go events.Notify(dpos.ETDonePeer, peer)
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
 	}
@@ -327,7 +328,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 		return err
 	}
 	defer pm.removePeer(p.id)
-
+	log.Info("handle ETNewPeer Notify")
 	go events.Notify(dpos.ETNewPeer, p)
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
@@ -748,6 +749,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&elaMsg); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
+		log.Info("handle Msg ETElaMsg Notify")
 		events.Notify(dpos.ETElaMsg, &dpos.MsgEvent{
 			ElaMsg: elaMsg,
 			Peer:  	p,
