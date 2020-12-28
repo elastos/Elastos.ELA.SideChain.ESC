@@ -408,7 +408,9 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 		nowTime = uint64(p.dispatcher.GetNowTime().Unix())
 	}
 	header.Difficulty = p.CalcDifficulty(chain, nowTime, nil)
-	header.Nonce = types.EncodeNonce(p.dispatcher.GetConsensusView().GetSpvHeight())
+	if p.dispatcher != nil {
+		header.Nonce = types.EncodeNonce(p.dispatcher.GetConsensusView().GetSpvHeight())
+	}
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
