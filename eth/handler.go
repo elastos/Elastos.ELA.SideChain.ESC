@@ -749,7 +749,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&elaMsg); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
-		log.Info("handle Msg ETElaMsg Notify")
+		log.Info("handle Msg ETElaMsg Notify", "Type", elaMsg.Type, "peer", p.id)
 		events.Notify(dpos.ETElaMsg, &dpos.MsgEvent{
 			ElaMsg: elaMsg,
 			Peer:  	p,
