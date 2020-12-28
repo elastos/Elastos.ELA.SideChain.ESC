@@ -122,13 +122,14 @@ func createConfirm(block *types.Block, ac account.Account) *payload.Confirm {
 	proposal, _ := dpos.StartProposal(ac, *sealHash, 0)
 
 	proposalHash := proposal.Hash()
-	vote, _ := dpos.StartVote(&proposalHash, true, ac)
-
 	confirm := &payload.Confirm{
 		Proposal: *proposal,
 		Votes:    make([]payload.DPOSProposalVote, 0),
 	}
-	confirm.Votes = append(confirm.Votes, *vote)
+	for i := 1; i <= 8; i++ {
+		vote, _ := dpos.StartVote(&proposalHash, true, ac)
+		confirm.Votes = append(confirm.Votes, *vote)
+	}
 	return confirm
 }
 
