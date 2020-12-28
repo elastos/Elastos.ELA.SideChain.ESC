@@ -376,7 +376,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 	if err != nil {
 		return err
 	}
-	err = p.verifyConfirm(&confirm, header)
+	err = p.verifyConfirm(&confirm, header.Nonce.Uint64())
 	if err != nil {
 		return err
 	}
@@ -739,8 +739,7 @@ func (p *Pbft) broadConfirmMsg(confirm *payload.Confirm, height uint64) {
 	p.network.BroadcastMessage(msg)
 }
 
-func (p *Pbft) verifyConfirm(confirm *payload.Confirm, header *types.Header) error {
-	elaHeight := header.Nonce.Uint64()
+func (p *Pbft) verifyConfirm(confirm *payload.Confirm, elaHeight uint64) error {
 	minSignCount := 0
 	if elaHeight == 0 {
 		minSignCount = p.dispatcher.GetConsensusView().GetCRMajorityCount()

@@ -7,6 +7,7 @@ package dpos
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"math/rand"
 	"testing"
@@ -17,11 +18,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type BlockNonce [8]byte
+// Uint64 returns the integer value of a block nonce.
+func (n BlockNonce) Uint64() uint64 {
+	return binary.BigEndian.Uint64(n[:])
+}
+
+
 type mockHeader struct {
 	ParentHash common.Uint256
 	Root       common.Uint256
 	Timestamp  uint32
 	Height     uint64
+	Nonce      BlockNonce
 }
 
 func (h *mockHeader) Serialize(w io.Writer) error {
@@ -57,6 +66,10 @@ type mockBlock struct {
 	txs    []*mockTransaction
 }
 
+func (b *mockBlock) Nonce() uint64 {
+	return binary.BigEndian.Uint64(b.header.Nonce[:])
+}
+
 func (b *mockBlock) GetHash() common.Uint256 {
 	buf := new(bytes.Buffer)
 	b.header.Serialize(buf)
@@ -67,7 +80,7 @@ func (b *mockBlock) GetHeight() uint64 {
 	return b.header.Height
 }
 
-func verifyConfirm(confirm *payload.Confirm) error {
+func verifyConfirm(confirm *payload.Confirm, elaHeight uint64) error {
 	return nil
 }
 
