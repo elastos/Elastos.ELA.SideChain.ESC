@@ -178,7 +178,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 			PublicKey:   accpubkey,
 			AnnounceAddr: func() {
 				log.Info("pbft New ETAnnounceAddr Notify")
-				events.Notify(dpos.ETAnnounceAddr, nil)
+				go events.Notify(dpos.ETAnnounceAddr, nil)
 			},
 		})
 		if err != nil {
