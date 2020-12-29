@@ -99,7 +99,7 @@ func (p *Pbft) AnnounceDAddr() bool {
 	}
 	producers := p.dispatcher.GetNeedConnectProducers()
 	log.Info("Announce DAddr ", "Producers:", producers)
-	events.Notify(events.ETDirectPeersChanged, producers)
+	go events.Notify(events.ETDirectPeersChanged, producers)
 	return true
 }
 
