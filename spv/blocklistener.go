@@ -3,11 +3,11 @@ package spv
 import (
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
-	"github.com/elastos/Elastos.ELA/events"
 )
 
 type auxParam struct {
@@ -30,7 +30,7 @@ func (l *BlockListener) NotifyBlock(block *util.Block) {
 	l.blockNumber = block.Height
 	if l.blockNumber >= l.param.height {
 		log.Info("NotifyBlock ETOnSPVHeight Notify", "l.blockNumber", l.blockNumber)
-		go events.Notify(dpos.ETOnSPVHeight, l.blockNumber)
+		go events.Notify(events.ETOnSPVHeight, l.blockNumber)
 		l.StoreAuxBlock(block)
 		log.Info("BlockListener handle block ", "height", block.Height)
 		l.onBlockHandled(l.param.block)
@@ -75,7 +75,7 @@ func InitNextTurnDposInfo() {
 	}
 	peers := DumpNextDposInfo()
 	log.Info("InitNextTurnDposInfo ETNextProducers Notify")
-	go events.Notify(dpos.ETNextProducers, peers)
+	go events.Notify(events.ETNextProducers, peers)
 }
 
 func DumpNextDposInfo() []peer.PID {

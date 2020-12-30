@@ -133,7 +133,6 @@ func (p *peer) broadcast() {
 				return
 			}
 			p.Log().Trace("Announced block", "number", block.Number(), "hash", block.Hash())
-			p.Log().Info("Announced block", "number", block.Number(), "hash", block.Hash())
 		case <-p.term:
 			return
 		}

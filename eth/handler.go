@@ -32,6 +32,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/forkid"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/downloader"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/fetcher"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
@@ -42,8 +43,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
-
-	"github.com/elastos/Elastos.ELA/events"
 )
 
 const (
@@ -247,7 +246,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	// Hard disconnect at the networking layer
 	if peer != nil {
 		log.Info("removePeer ETDonePeer Notify")
-		go events.Notify(dpos.ETDonePeer, peer)
+		go events.Notify(events.ETDonePeer, peer)
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
 	}
 }
@@ -329,7 +328,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	}
 	defer pm.removePeer(p.id)
 	log.Info("handle ETNewPeer Notify")
-	go events.Notify(dpos.ETNewPeer, p)
+	go events.Notify(events.ETNewPeer, p)
 
 	// Register the peer in the downloader. If the downloader considers it banned, we disconnect
 	if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
@@ -749,7 +748,7 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		if err := msg.Decode(&elaMsg); err != nil {
 			return errResp(ErrDecode, "%v: %v", msg, err)
 		}
-		go events.Notify(dpos.ETElaMsg, &dpos.MsgEvent{
+		events.Notify(events.ETElaMsg, &dpos.MsgEvent{
 			ElaMsg: elaMsg,
 			Peer:  	p,
 		})
@@ -787,7 +786,6 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 		for _, peer := range transfer {
 			peer.AsyncSendNewBlock(block, td)
 		}
-		log.Info("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 		return
 	}
 	// Otherwise if the block is indeed in out own chain, announce it
@@ -796,7 +794,6 @@ func (pm *ProtocolManager) BroadcastBlock(block *types.Block, propagate bool) {
 			peer.AsyncSendNewBlockHash(block)
 		}
 		log.Trace("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
-		log.Info("Announced block", "hash", hash, "recipients", len(peers), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 	}
 }
 
