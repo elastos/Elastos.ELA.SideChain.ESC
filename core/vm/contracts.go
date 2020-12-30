@@ -507,6 +507,10 @@ func (c *blake2F) Run(input []byte) ([]byte, error) {
 	return output, nil
 }
 
+var (
+	errGettingArbitersFailed = errors.New("getting arbiters failed")
+)
+
 type arbiters struct{}
 
 func (c *arbiters) RequiredGas(input []byte) uint64 {
@@ -514,7 +518,10 @@ func (c *arbiters) RequiredGas(input []byte) uint64 {
 }
 
 func (c *arbiters) Run(input []byte) ([]byte, error) {
-	arbiters := spv.GetArbiters()
+	arbiters, err := spv.GetArbiters()
+	if err != nil {
+		return nil, errGettingArbitersFailed
+	}
 	ret := make([]byte, 0)
 	for _, pubkey := range arbiters {
 		hash := crypto.Keccak256(pubkey)

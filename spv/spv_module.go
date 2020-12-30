@@ -558,13 +558,11 @@ func SendEvilProof(addr ethCommon.Address, info interface{}) {
 
 }
 
-func GetArbiters() [][]byte {
-	publicKey1 := ethCommon.Hex2Bytes("022d7ca190f5785be72005a1f2f223121e50c07253a773504dacb42ff6b4b86aee")
-	publicKey2 := ethCommon.Hex2Bytes("03585451831671d32c12da70f009adb6e423dfbfdd012368d9038c8b896918a62a")
-	publicKey3 := ethCommon.Hex2Bytes("025321ed6ff0618808f8cbd5d4b89845e0898865ee68ba88e335c90401b186660c")
-	publicKey4 := ethCommon.Hex2Bytes("02a1957b44be3531cf90760a28c7fb8e0ce66b40ae82432e2bb68f35ddfc8557f7")
-	publicKey5 := ethCommon.Hex2Bytes("0325ed89042b4a2e3df0c273faf8db95ea678d2010cdb71b0591675d5cf08c282c")
-
-	ret := make([][]byte, 0)
-	return append(ret, publicKey1, publicKey2, publicKey3, publicKey4, publicKey5)
+func GetArbiters() ([][]byte, error) {
+	height := SpvService.GetBlockListener().BlockHeight()
+	producers, _, err := GetProducers(uint64(height))
+	if err != nil {
+		return nil, err
+	}
+	return producers, nil
 }
