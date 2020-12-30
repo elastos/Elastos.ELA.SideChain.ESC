@@ -21,6 +21,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/events"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
@@ -33,7 +34,6 @@ import (
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
-	"github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 
 	"golang.org/x/crypto/sha3"
@@ -178,7 +178,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 			PublicKey:   accpubkey,
 			AnnounceAddr: func() {
 				log.Info("pbft New ETAnnounceAddr Notify")
-				go events.Notify(dpos.ETAnnounceAddr, nil)
+				go events.Notify(events.ETAnnounceAddr, nil)
 			},
 		})
 		if err != nil {
@@ -198,7 +198,7 @@ func (p *Pbft) subscribeEvent() {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
 			go p.network.UpdatePeers(e.Data.([]peer.PID))
-		case dpos.ETNewPeer:
+		case events.ETNewPeer:
 			count := len(p.network.GetActivePeers())
 			log.Info("new peer accept", "active peer count", count)
 			height := p.chain.CurrentHeader().Number.Uint64()
@@ -212,11 +212,11 @@ func (p *Pbft) subscribeEvent() {
 				log.Info("end change engine AnnounceDAddr")
 				go p.AnnounceDAddr()
 			}
-		case dpos.ETNextProducers:
+		case events.ETNextProducers:
 			producers := e.Data.([]peer.PID)
 			log.Info("update next producers", "totalCount", spv.GetTotalProducersCount())
 			go p.dispatcher.GetConsensusView().UpdateNextProducers(producers, spv.GetTotalProducersCount())
-		case dpos.ETOnSPVHeight:
+		case events.ETOnSPVHeight:
 			height := e.Data.(uint32)
 			if spv.GetWorkingHeight() >= height {
 				if uint64(spv.GetWorkingHeight() - height) <= p.chain.Config().PreConnectOffset {
