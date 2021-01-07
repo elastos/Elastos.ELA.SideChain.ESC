@@ -17,9 +17,8 @@ import (
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
-
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/events"
 )
 
 type IPeer interface {
@@ -146,15 +145,15 @@ func New(cfg *Config) *Routes {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
 			go r.PeersChanged(e.Data.([]peer.PID))
-		case events.ETElaMsg:
+		case ETElaMsg:
 			go r.ElaMsg(e.Data.(*MsgEvent))
-		case events.ETNewPeer:
+		case ETNewPeer:
 			go r.NewPeer(e.Data.(IPeer))
-		case events.ETDonePeer:
+		case ETDonePeer:
 			go r.DonePeer(e.Data.(IPeer))
-		case events.ETStopRoutes:
+		case ETStopRoutes:
 			go r.Stop()
-		case events.ETAnnounceAddr:
+		case ETAnnounceAddr:
 			go r.AnnounceAddr()
 		}
 	})
