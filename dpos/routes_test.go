@@ -17,10 +17,9 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/crypto"
 	dp "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/p2p"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
-
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/events"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -299,17 +298,17 @@ func TestRouteMsg(t *testing.T)  {
 	}()
 
 	go func() {
-		events.Notify(events.ETNewPeer, p1)
+		events.Notify(ETNewPeer, p1)
 		active <- struct{}{}
-		events.Notify(events.ETNewPeer, p2)
+		events.Notify(ETNewPeer, p2)
 		active <- struct{}{}
 
 		for i := 0; true; i++ {
 			p := newMockPeer()
-			events.Notify(events.ETNewPeer, p)
+			events.Notify(ETNewPeer, p)
 			active <- struct{}{}
 			if i > 5 {
-				events.Notify(events.ETDonePeer, p)
+				events.Notify(ETDonePeer, p)
 				active <- struct{}{}
 			}
 		}
