@@ -36,7 +36,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
@@ -46,6 +45,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/trie"
 
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/events"
 
 	"github.com/hashicorp/golang-lru"
 )
@@ -1856,7 +1856,6 @@ func (bc *BlockChain) OnSyncHeader(header *types.Header) {
 			producer := common.Hex2Bytes(v)
 			copy(producers[i][:], producer[:])
 		}
-		log.Info("OnSyncHeader ETDirectPeersChanged Notify")
 		go events.Notify(events.ETDirectPeersChanged, producers)
 	}
 	if height >= cfg.PBFTBlock.Uint64() && bc.engine != bc.pbftEngine {

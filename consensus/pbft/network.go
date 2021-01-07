@@ -15,7 +15,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/events"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
@@ -25,6 +24,7 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/events"
 )
 
 func (p *Pbft) StartProposal(block *types.Block) error {
@@ -99,7 +99,7 @@ func (p *Pbft) AnnounceDAddr() bool {
 	}
 	producers := p.dispatcher.GetNeedConnectProducers()
 	log.Info("Announce DAddr ", "Producers:", producers)
-	go events.Notify(events.ETDirectPeersChanged, producers)
+	events.Notify(events.ETDirectPeersChanged, producers)
 	return true
 }
 
