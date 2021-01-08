@@ -14,7 +14,7 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
-const defaultCRCSignerNumber = 12
+var defaultCRCSignerNumber = 12
 
 type Producers struct {
 	totalProducers int
@@ -33,6 +33,7 @@ func NewProducers(producers [][]byte, startHeight uint64) *Producers {
 		dutyIndex:   0,
 		workingHeight: startHeight,
 	}
+	defaultCRCSignerNumber = len(producers)
 	producer.UpdateProducers(producers, len(producers), 0)
 	return producer
 }
