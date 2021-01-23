@@ -26,15 +26,15 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/prque"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 )
 
@@ -944,11 +944,12 @@ func RemoveLocalTx(pool *TxPool, hash common.Hash, outofbound bool, removetx boo
 	// Transaction is in the future queue
 	if future := pool.queue[addr]; future != nil {
 		queuetxs := future.Flatten()
-		for _, tx := range queuetxs {
-			if UptxhashIndex(pool, tx) {
-				future.Remove(tx)
+		for _, queue := range queuetxs {
+			var blackaddr common.Address
+			if len(queue.Data()) == 32 && *queue.To() == blackaddr {
+				UptxhashIndex(pool, queue)
+				future.Remove(queue)
 			}
-
 		}
 
 		if future.Empty() {

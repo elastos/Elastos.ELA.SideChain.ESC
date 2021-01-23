@@ -787,7 +787,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if tx.To() != nil {
 				to := *tx.To()
 				if len(tx.Data()) == 32 && to == addr {
-					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
+					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
 				}
 			}
 		case core.ErrMainTxHashPresence:
@@ -797,7 +797,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			if tx.To() != nil {
 				to := *tx.To()
 				if len(tx.Data()) == 32 && to == addr {
-					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
+					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
 				}
 			}
 		case core.ErrNonceTooLow:
