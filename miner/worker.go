@@ -781,7 +781,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
-			log.Trace("Gas limit exceeded for current block", "sender", from)
+			log.Error("Gas limit exceeded for current block", "sender", from, "tx", tx.Hash().String())
 			txs.Pop()
 			var addr common.Address
 			if tx.To() != nil {

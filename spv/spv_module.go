@@ -320,6 +320,13 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 	if err != nil {
 		log.Error("SpvServicedb Put Output: ", "err", err, "elaHash", elaTx.Hash().String())
 	}
+
+	//TODO test data,will get from spv tx
+	input  := []byte("")
+	err = spvTransactiondb.Put([]byte(elaTx.Hash().String()+"Input"), input)
+	if err != nil {
+		log.Error("SpvServicedb Put Input: ", "err", err, "elaHash", elaTx.Hash().String())
+	}
 	if atomic.LoadInt32(&candSend) == 1 {
 		from := GetDefaultSingerAddr()
 		IteratorUnTransaction(from)
@@ -501,7 +508,9 @@ type DatabaseReader interface {
 //FindOutputFeeAndaddressByTxHash Finds the eth recharge address, recharge amount, and transaction fee based on the main chain hash.
 func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommon.Address, *big.Int) {
 	var emptyaddr ethCommon.Address
-	transactionHash = strings.Replace(transactionHash, "0x", "", 1)
+	if transactionHash[0:2] == "0x" {
+		transactionHash = transactionHash[2:]
+	}
 	if spvTransactiondb == nil {
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
@@ -545,6 +554,21 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	}
 	op := new(big.Int).SetInt64(o.IntValue())
 	return new(big.Int).Mul(fe, y), ethCommon.HexToAddress(addrs[0]), new(big.Int).Mul(op, y)
+}
+
+func FindOutRechargeInput(transactionHash string) []byte {
+	if spvTransactiondb == nil {
+		return []byte{}
+	}
+	if transactionHash[0:2] == "0x" {
+		transactionHash = transactionHash[2:]
+	}
+
+	input, err := spvTransactiondb.Get([]byte(transactionHash + "Input"))
+	if err != nil {
+		input = []byte{}
+	}
+	return input
 }
 
 func SendEvilProof(addr ethCommon.Address, info interface{}) {
