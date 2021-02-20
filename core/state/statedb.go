@@ -88,6 +88,10 @@ type StateDB struct {
 
 	preimages map[common.Hash][]byte
 
+	didimages map[string][]byte
+
+	deactivateimages map[string]bool
+
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
 	journal        *journal
@@ -119,6 +123,8 @@ func New(root common.Hash, db Database) (*StateDB, error) {
 		stateObjectsDirty:   make(map[common.Address]struct{}),
 		logs:                make(map[common.Hash][]*types.Log),
 		preimages:           make(map[common.Hash][]byte),
+		didimages: 			 make(map[string][]byte),
+		deactivateimages:    make(map[string]bool),
 		journal:             newJournal(),
 	}, nil
 }
@@ -151,6 +157,8 @@ func (self *StateDB) Reset(root common.Hash) error {
 	self.logs = make(map[common.Hash][]*types.Log)
 	self.logSize = 0
 	self.preimages = make(map[common.Hash][]byte)
+	self.didimages = make(map[string][]byte)
+	self.deactivateimages = make(map[string]bool)
 	self.clearJournalAndRefund()
 	return nil
 }
@@ -579,6 +587,8 @@ func (self *StateDB) Copy() *StateDB {
 		logs:                make(map[common.Hash][]*types.Log, len(self.logs)),
 		logSize:             self.logSize,
 		preimages:           make(map[common.Hash][]byte, len(self.preimages)),
+		didimages:           make(map[string][]byte, len(self.didimages)),
+		deactivateimages:    make(map[string]bool, len(self.deactivateimages)),
 		journal:             newJournal(),
 	}
 	// Copy the dirty states, logs, and preimages
@@ -622,6 +632,12 @@ func (self *StateDB) Copy() *StateDB {
 	}
 	for hash, preimage := range self.preimages {
 		state.preimages[hash] = preimage
+	}
+	for id, image := range self.didimages {
+		state.didimages[id] = image
+	}
+	for id, res := range self.deactivateimages {
+		state.deactivateimages[id] = res
 	}
 	return state
 }

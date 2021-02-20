@@ -57,6 +57,11 @@ func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, err
 		if p := precompiles[*contract.CodeAddr]; p != nil {
 			return RunPrecompiledContract(p, input, contract)
 		}
+
+		precompilesdid := PrecompileContractsDID
+		if p := precompilesdid[*contract.CodeAddr]; p != nil {
+			return RunPrecompiledContractDID(evm, p, input, contract)
+		}
 	}
 	for _, interpreter := range evm.interpreters {
 		if interpreter.CanRun(contract.Code) {

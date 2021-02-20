@@ -124,7 +124,7 @@ import:
   version: ~1.20.0
 - package: github.com/AlexpanXX/fsnotify
 #- package: github.com/elastos/Elastos.ELA.SideChain
-#  version: v0.1.7
+#  version: v0.1.8
 - package: github.com/elastos/Elastos.ELA.SPV
   version: 43c1c435450135e5ebe677dc108d601e9413eb8d #feature_register_sidechain
 - package: github.com/elastos/Elastos.ELA
