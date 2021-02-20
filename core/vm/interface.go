@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
@@ -64,6 +65,14 @@ type StateDB interface {
 	AddPreimage(common.Hash, []byte)
 
 	ForEachStorage(common.Address, func(common.Hash, common.Hash) bool) error
+
+	CreateDID(did string, value []byte)
+
+	GetDID(did string) ([]byte, error)
+
+	IsDIDDeactivated(did string) bool
+
+	GetLastDIDTxData(idKey []byte) (*did.TranasactionData, error)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

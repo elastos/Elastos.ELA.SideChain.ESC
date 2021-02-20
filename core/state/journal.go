@@ -131,6 +131,12 @@ type (
 		prev      bool
 		prevDirty bool
 	}
+	createDIDChange struct {
+		did string
+	}
+	deactivateChange struct {
+		did string
+	}
 )
 
 func (ch createObjectChange) revert(s *StateDB) {
@@ -230,5 +236,13 @@ func (ch addPreimageChange) revert(s *StateDB) {
 }
 
 func (ch addPreimageChange) dirtied() *common.Address {
+	return nil
+}
+
+func (cd createDIDChange) revert(s *StateDB) {
+	delete(s.didimages, cd.did)
+}
+
+func (cd createDIDChange) dirtied() *common.Address {
 	return nil
 }
