@@ -10,6 +10,7 @@ import (
 )
 
 type EntryPrefix byte
+
 const (
 	IX_DeactivateCustomizedDID           EntryPrefix = 0x89
 	IX_VerifiableCredentialExpiresHeight EntryPrefix = 0x90
@@ -29,7 +30,7 @@ func (self *StateDB) DIDChange() map[string][]byte {
 }
 
 func (self *StateDB) CreateDID(did string, doc []byte) {
-	self.journal.append(createDIDChange{did:did})
+	self.journal.append(createDIDChange{did: did})
 	pi := make([]byte, len(doc))
 	copy(pi, doc)
 	self.didimages[did] = pi
@@ -103,6 +104,51 @@ func (self *StateDB) GetLastDIDTxData(idKey []byte) (*did.TranasactionData, erro
 	tempTxData.TXID = txHash.String()
 	tempTxData.Operation = *tempOperation
 	tempTxData.Timestamp = tempOperation.PayloadInfo.Expires
+
+	return tempTxData, nil
+}
+
+func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDIDTranasactionData, error) {
+	key := []byte{byte(IX_CUSTOMIZEDDIDTXHash)}
+	key = append(key, idKey...)
+
+	data, err := self.db.TrieDB().DiskDB().Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	r := bytes.NewReader(data)
+	count, err := common.ReadVarUint(r, 0)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, errors.New("not exist")
+	}
+	var txHash common.Uint256
+	if err := txHash.Deserialize(r); err != nil {
+		return nil, err
+	}
+
+	keyPayload := []byte{byte(IX_CUSTOMIZEDDIDPayload)}
+	keyPayload = append(keyPayload, txHash.Bytes()...)
+
+	dataPayload, err := self.db.TrieDB().DiskDB().Get(keyPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	tempOperation := new(did.CustomizedDIDOperation)
+	r = bytes.NewReader(dataPayload)
+	err = tempOperation.Deserialize(r, did.CustomizedDIDVersion)
+	if err != nil {
+		return nil, http.NewError(int(service.ResolverInternalError),
+			"CustomizedDIDOperation Deserialize failed")
+	}
+	tempTxData := new(did.CustomizedDIDTranasactionData)
+	tempTxData.TXID = txHash.String()
+	tempTxData.Operation = *tempOperation
+	tempTxData.Timestamp = tempOperation.GetPayloadInfo().Expires
 
 	return tempTxData, nil
 }
