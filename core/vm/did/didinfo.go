@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
 
@@ -128,6 +129,36 @@ type VerifiableCredentialData struct {
 	CredentialSubject interface{} `json:"credentialSubject,omitempty"`
 }
 
+
+func (p *VerifiableCredentialData) GetData() []byte {
+	data, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func (p *VerifiableCredentialData) CompleteCompact(did string) {
+	if IsCompact(p.Issuer) {
+		p.Issuer = did + p.Issuer
+	}
+	if IsCompact(p.ID) {
+		p.ID = did + p.ID
+	}
+
+	creSub := p.CredentialSubject.(map[string]interface{})
+	realIssuer := ""
+	for k, v := range creSub {
+		if k == ID_STRING {
+			realIssuer = v.(string)
+			break
+		}
+	}
+	if realIssuer == "" {
+		creSub[ID_STRING] = did
+	}
+}
+
 // Proof of DID transaction payload
 type InnerDIDProofInfo struct {
 	Type               string `json:"type,omitempty"`
@@ -136,9 +167,17 @@ type InnerDIDProofInfo struct {
 	Signature          string `json:"signature"`
 }
 
+type VerifiableCredentialDoc struct {
+	*VerifiableCredential `json:"verifiableCredential,omitempty"`
+}
+
 type VerifiableCredential struct {
 	*VerifiableCredentialData
 	Proof InnerDIDProofInfo `json:"proof,omitempty"`
+}
+
+func (p *VerifiableCredential) GetDIDProofInfo() *InnerDIDProofInfo {
+	return &p.Proof
 }
 
 // payload in DID transaction payload
@@ -240,4 +279,11 @@ func (p *TranasactionData) Serialize(w io.Writer, version byte) error {
 	}
 
 	return nil
+}
+
+func IsCompact(target string) bool {
+	if !strings.HasPrefix(target, DID_ELASTOS_PREFIX) {
+		return true
+	}
+	return false
 }
