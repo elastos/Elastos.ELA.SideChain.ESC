@@ -17,11 +17,11 @@
 package vm
 
 import (
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did"
 )
 
 // StateDB is an EVM database for full state querying.
@@ -73,6 +73,8 @@ type StateDB interface {
 	IsDIDDeactivated(did string) bool
 
 	GetLastDIDTxData(idKey []byte) (*did.TranasactionData, error)
+
+	GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDIDTranasactionData, error)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

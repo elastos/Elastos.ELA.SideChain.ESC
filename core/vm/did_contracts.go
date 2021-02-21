@@ -3,11 +3,11 @@ package vm
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 )
 
 // PrecompiledContract is the basic interface for native Go contracts. The implementation
@@ -50,14 +50,18 @@ func (j *operationDID) Run(evm *EVM, input []byte) ([]byte, error) {
 	}
 	doc.PayloadInfo = payloadInfo
 
-	id := GetDIDFromUri(payloadInfo.ID)
-	fmt.Println("opeation DID ==========", id)
-
 	switch doc.Header.Operation {
 	case did.Create_DID_Operation:
+		err := checkRegisterDID(evm, doc)
+		if err != nil {
+			log.Error("checkRegisterDID error", "error", err)
+			return false32Byte, err
+		}
 	case did.Update_DID_Operation:
 	case did.Deactivate_DID_Operation:
 	case did.Transfer_DID_Operation:
+	default:
+		return false32Byte, errors.New("error operation:" + doc.Header.Operation)
 	}
 
 	//buf := new(bytes.Buffer)

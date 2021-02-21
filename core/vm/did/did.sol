@@ -4,8 +4,7 @@ contract DID {
     
     constructor() {}
 
-    function operationDID(string memory operation) public view {
-        uint256 useGas = 20000;
+    function operationDID(uint256 useGas, string memory operation) public view {
         uint method = 22;
         uint offSet = 32;
         uint outputSize = 32;
