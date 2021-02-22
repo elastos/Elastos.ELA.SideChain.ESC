@@ -165,7 +165,6 @@ var DefaultParams = Params{
 		"02b95b000f087a97e988c24331bf6769b4a75e4b7d5d2a38105092a3aa841be33b",
 		"02a0aa9eac0e168f3474c2a0d04e50130833905740a5270e8a44d6c6e85cf6d98c",
 	},
-
 	SecretaryGeneral:            "02712da531804d1c38d159a901313239d2100dfb5b693d71a2f76b15dec3f8fc32",
 	MaxProposalTrackingCount:    128,
 	PowLimit:                    powLimit,
@@ -191,9 +190,9 @@ var DefaultParams = Params{
 	RegisterCRByDIDHeight:       598000,
 	ToleranceDuration:           5 * time.Second,
 	MaxInactiveRounds:           720 * 2,
-	InactivePenalty:             0,    //there will be no penalty in this version
-	IllegalPenalty:              5000, //there will be no penalty in this version
-	EmergencyInactivePenalty:    0,    //there will be no penalty in this version
+	InactivePenalty:             0, //there will be no penalty in this version
+	IllegalPenalty:              5000,
+	EmergencyInactivePenalty:    0, //there will be no penalty in this version
 	GeneralArbiters:             24,
 	CandidateArbiters:           72,
 	PreConnectOffset:            360,
@@ -228,11 +227,16 @@ var DefaultParams = Params{
 	RectifyTxFee:                       10000,
 	RealWithdrawSingleFee:              10000,
 	NewP2PProtocolVersionHeight:        751400,
-	ChangeCommitteeNewCRHeight:         1000000, //TODO reset latter
-	NoCRCDPOSNodeHeight:                1000000, //TODO reset latter
-	RandomCandidatePeriod:              36 * 10, //TODO reset latter
-	MaxInactiveRoundsOfRandomNode:      36 * 8,  //TODO reset latter
-	MaxReservedCustomIDListCount:       255,     //TODO reset latter
+	ChangeCommitteeNewCRHeight:         1000000,   //TODO reset latter
+	CustomIDProposalStartHeight:        1000000,   //TODO reset latter
+	NoCRCDPOSNodeHeight:                1000000,   //TODO reset latter
+	RandomCandidatePeriod:              36 * 10,   //TODO reset latter
+	MaxInactiveRoundsOfRandomNode:      36 * 8,    //TODO reset latter
+	MaxReservedCustomIDListCount:       255,       //TODO reset latter
+	DPOSNodeCrossChainHeight:           1000000,   //TODO reset latter
+	RevertToPOWNoBlockTime:             12 * 3600, //TODO reset latter
+	StopConfirmBlockTime:               11 * 3600, //TODO reset latter
+	RevertToPOWStartHeight:             1000000,   //TODO reset latter
 }
 
 // TestNet returns the network parameters for the test network.
@@ -303,11 +307,16 @@ func (p *Params) TestNet() *Params {
 	copy.CheckVoteCRCountHeight = 546500
 	copy.MaxCRAssetsAddressUTXOCount = 800
 	copy.ChangeCommitteeNewCRHeight = 1000000   //TODO reset latter
+	copy.CustomIDProposalStartHeight = 1000000  //TODO reset latter
 	copy.IllegalPenalty = 5000                  //TODO reset latter
 	copy.NoCRCDPOSNodeHeight = 1000000          //TODO reset latter
 	copy.RandomCandidatePeriod = 36 * 10        //TODO reset latter
 	copy.MaxInactiveRoundsOfRandomNode = 36 * 8 //TODO reset latter
+	copy.DPOSNodeCrossChainHeight = 1000000     //TODO reset latter
 	copy.MaxReservedCustomIDListCount = 255     //TODO reset latter
+	copy.RevertToPOWNoBlockTime = 12 * 3600     //TODO reset latter
+	copy.StopConfirmBlockTime = 11 * 3600       //TODO reset latter
+	copy.RevertToPOWStartHeight = 1000000       //TODO reset latter
 
 	return &copy
 }
@@ -380,11 +389,16 @@ func (p *Params) RegNet() *Params {
 	copy.CheckVoteCRCountHeight = 435000
 	copy.MaxCRAssetsAddressUTXOCount = 1440
 	copy.ChangeCommitteeNewCRHeight = 1000000   //TODO reset latter
+	copy.CustomIDProposalStartHeight = 1000000  //TODO reset latter
 	copy.IllegalPenalty = 5000                  //TODO reset latter
 	copy.NoCRCDPOSNodeHeight = 1000000          //TODO reset latter
 	copy.RandomCandidatePeriod = 36 * 10        //TODO reset latter
 	copy.MaxInactiveRoundsOfRandomNode = 36 * 8 //TODO reset latter
+	copy.DPOSNodeCrossChainHeight = 1000000     //TODO reset latter
 	copy.MaxReservedCustomIDListCount = 255     //TODO reset latter
+	copy.RevertToPOWNoBlockTime = 12 * 3600     //TODO reset latter
+	copy.StopConfirmBlockTime = 11 * 3600       //TODO reset latter
+	copy.RevertToPOWStartHeight = 1000000       //TODO reset latter
 
 	return &copy
 }
@@ -672,11 +686,23 @@ type Params struct {
 	// ChangeCommitteeNewCRHeight defines the new arbiter logic after change committee.
 	ChangeCommitteeNewCRHeight uint32
 
+	// CustomIDProposalStartHeight defines the height to allow custom ID related transaction.
+	CustomIDProposalStartHeight uint32
+
 	// RandomCandidatePeriod defines the period to get a candidate as DPOS node at random.
 	RandomCandidatePeriod uint32
 
-	//MaxReservedCustomIDListCount defines the max count of reserved custom iid list per tx.
+	// MaxReservedCustomIDListCount defines the max count of reserved custom iid list per tx.
 	MaxReservedCustomIDListCount uint32
+
+	// RevertToPOWInterval defines how long time does it take to revert to POW mode.
+	RevertToPOWNoBlockTime int64
+
+	// StopConfirmBlockTime defines how long time dose it take before stop confirm block.
+	StopConfirmBlockTime int64
+
+	// RevertToPOWStartHeight defines the start height to allow to revert to POW mode.
+	RevertToPOWStartHeight uint32
 }
 
 // rewardPerBlock calculates the reward for each block by a specified time

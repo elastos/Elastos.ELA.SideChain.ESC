@@ -9,6 +9,7 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/didjson"
 
 )
 
@@ -239,7 +240,7 @@ type CustomizedDIDVerifiableCredentialData struct {
 }
 
 func (p *CustomizedDIDVerifiableCredentialData) GetData() []byte {
-	data, err := json.Marshal(p)
+	data, err := didjson.Marshal(p)
 	if err != nil {
 		return nil
 	}
@@ -277,7 +278,7 @@ func (p *CustomizedDIDVerifiableCredential) GetDIDProofInfo() *CustomizedDIDProo
 }
 
 func (p *CustomizedDIDVerifiableCredential) GetData() []byte {
-	data, err := json.Marshal(p)
+	data, err := didjson.Marshal(p)
 	if err != nil {
 		return nil
 	}
@@ -292,11 +293,10 @@ type CustomIDTicket struct {
 }
 
 func (c *CustomIDTicket) GetData() []byte {
-	data, err := json.Marshal(c)
+	data, err := didjson.Marshal(c)
 	if err != nil {
 		return nil
 	}
-	//fmt.Println(" data ", string(data))
 	return data
 }
 
@@ -311,7 +311,7 @@ type CustomizedDIDPayloadData struct {
 }
 
 func (c *CustomizedDIDPayloadData) GetData() []byte {
-	data, err := json.Marshal(c)
+	data, err := didjson.Marshal(c)
 	if err != nil {
 		return nil
 	}
@@ -325,7 +325,7 @@ type CustomizedDIDPayload struct {
 }
 
 func (c *CustomizedDIDPayload) GetData() []byte {
-	data, err := json.Marshal(c)
+	data, err := didjson.Marshal(c)
 	if err != nil {
 		return nil
 	}

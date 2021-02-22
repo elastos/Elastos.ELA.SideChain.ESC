@@ -591,3 +591,92 @@ func getParameterBySignature(signature []byte) []byte {
 	buf.Write(signature)
 	return buf.Bytes()
 }
+
+func checkDeactivateDID(evm *EVM, deactivateDIDOpt *did.DeactivateDIDOptPayload) error {
+	targetDIDUri := deactivateDIDOpt.Payload
+	targetDID := GetDIDFromUri(targetDIDUri)
+	if targetDID == "" {
+		return errors.New("WRONG DID FORMAT")
+	}
+
+	buf := new(bytes.Buffer)
+	buf.WriteString(targetDID)
+	lastTXData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	//do not deactivage a did who was already deactivate
+	if evm.StateDB.IsDIDDeactivated(targetDID) {
+		return errors.New("DID WAS AREADY DEACTIVE")
+	}
+
+	//get  public key
+	publicKeyBase58 := getAuthorizatedPublicKey(&deactivateDIDOpt.Proof,
+		lastTXData.Operation.PayloadInfo)
+	if publicKeyBase58 == "" {
+		return errors.New("Not find the publickey verificationMethod   ")
+	}
+	//get code
+	//var publicKeyByte []byte
+	publicKeyByte := base58.Decode(publicKeyBase58)
+
+	//var code []byte
+	code, err := getCodeByPubKey(publicKeyByte)
+	if err != nil {
+		return err
+	}
+	signature, _ := base64url.DecodeString(deactivateDIDOpt.Proof.Signature)
+
+	var success bool
+	success, err = VerifyByVM(deactivateDIDOpt, code, signature)
+	if err != nil {
+		return err
+	}
+	if !success {
+		return errors.New("[VM] Check Sig FALSE")
+	}
+	return nil
+}
+
+
+func getAuthorizatedPublicKey(proof *did.DIDProofInfo, payloadInfo *did.DIDPayloadInfo) string {
+	proofUriSegment := getUriSegment(proof.VerificationMethod)
+
+	for _, pkInfo := range payloadInfo.PublicKey {
+		if proofUriSegment == getUriSegment(pkInfo.ID) {
+			return pkInfo.PublicKeyBase58
+		}
+	}
+	for _, auth := range payloadInfo.Authorization {
+		switch auth.(type) {
+		case string:
+			keyString := auth.(string)
+			if proofUriSegment == getUriSegment(keyString) {
+				for i := 0; i < len(payloadInfo.PublicKey); i++ {
+					if proofUriSegment == getUriSegment(payloadInfo.PublicKey[i].ID) {
+						return payloadInfo.PublicKey[i].PublicKeyBase58
+					}
+				}
+				return ""
+			}
+		case map[string]interface{}:
+			data, err := json.Marshal(auth)
+			if err != nil {
+				return ""
+			}
+			didPublicKeyInfo := new(did.DIDPublicKeyInfo)
+			err = json.Unmarshal(data, didPublicKeyInfo)
+			if err != nil {
+				return ""
+			}
+			if proofUriSegment == getUriSegment(didPublicKeyInfo.ID) {
+				return didPublicKeyInfo.PublicKeyBase58
+			}
+		default:
+			return ""
+		}
+	}
+
+	return ""
+}
