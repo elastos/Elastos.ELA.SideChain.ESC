@@ -2114,6 +2114,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	batch := bc.db.NewBatch()
 	for _, tx := range types.TxDifference(deletedTxs, addedTxs) {
 		rawdb.DeleteTxLookupEntry(batch, tx.Hash())
+		//TODO delete did tx
 	}
 	// Delete any canonical number assignments above the new head
 	number := bc.CurrentBlock().NumberU64()

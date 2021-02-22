@@ -45,7 +45,10 @@ func NewCustomID(db *leveldb.DB, GenesisBlockAddress string) *customID {
 		reservedCustomIDs: make(map[string]struct{}, 0),
 		receivedCustomIDs: make(map[string]common.Uint168, 0),
 		feeRate:           common.Fixed64(0),
+<<<<<<< HEAD
 		GenesisBlockAddress: GenesisBlockAddress,
+=======
+>>>>>>> update ela spv vendors
 	}
 }
 
@@ -527,7 +530,14 @@ func (c *customID) getCustomIDFeeRate() (common.Fixed64, error) {
 		return c.feeRate, nil
 	}
 	feeRate, _ := c.getCustomIDFeeRateFromDB()
+<<<<<<< HEAD
 	//// todo consider other errors
+=======
+	// todo consider other errors
+	if feeRate == 0 {
+		feeRate = DefaultFeeRate
+	}
+>>>>>>> update ela spv vendors
 	c.feeRate = feeRate
 	return feeRate, nil
 }

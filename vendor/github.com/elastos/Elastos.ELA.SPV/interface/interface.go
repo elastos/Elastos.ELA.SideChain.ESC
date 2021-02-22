@@ -85,9 +85,12 @@ type SPVService interface {
 
 	// GetReceivedCustomIDs query all controversial received custom ID.
 	GetReceivedCustomIDs() (map[string]common.Uint168, error)
+<<<<<<< HEAD
 
 	//HaveRetSideChainDepositCoinTx query tx data by tx hash
 	HaveRetSideChainDepositCoinTx(txHash common.Uint256)bool
+=======
+>>>>>>> update ela spv vendors
 
 	// GetRateOfCustomIDFee query current rate of custom ID fee.
 	GetRateOfCustomIDFee() (common.Fixed64, error)

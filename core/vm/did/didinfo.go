@@ -1,28 +1,54 @@
 package did
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/didjson"
 
 	"github.com/elastos/Elastos.ELA/common"
 )
 
 const DIDInfoVersion = 0x00
 
-//const VerifiableCredentialVersion = 0x01
-
 const DID_ELASTOS_PREFIX = "did:elastos:"
 const ID_STRING = "id"
+
+type DIDType byte
+
+const (
+	RegisterDID                   DIDType = 0x0a
+	DeactivateDID                 DIDType = 0x0b
+	CustomizedDID                 DIDType = 0x0c
+	VerifiableCredentialTxType    DIDType = 0x0d
+	DeactivateCustomizedDIDTxType DIDType = 0x0e
+)
+
+func (d *DIDType) String() string {
+	switch *d {
+	case RegisterDID:
+		return "RegisterDID"
+	case DeactivateDID:
+		return "DeactivateDID"
+	case CustomizedDID:
+		return "CustomizedDID"
+	case VerifiableCredentialTxType:
+		return "VerifiableCredentialTxType"
+	case DeactivateCustomizedDIDTxType:
+		return "DeactivateCustomizedDIDTxType"
+	}
+	return ""
+}
 
 const (
 	Create_DID_Operation     = "create"
 	Update_DID_Operation     = "update"
 	Deactivate_DID_Operation = "deactivate"
-	Transfer_DID_Operation = "transfer"
+	Transfer_DID_Operation   = "transfer"
 )
 
 // header of DID transaction payload
@@ -72,11 +98,10 @@ func (d *DIDHeaderInfo) Deserialize(r io.Reader, version byte) error {
 
 // Proof of DID transaction payload
 type DIDProofInfo struct {
-	Type string `json:"type,omitempty"`
+	Type               string `json:"type,omitempty"`
 	VerificationMethod string `json:"verificationMethod"`
 	Signature          string `json:"signature"`
 }
-
 
 func (d *DIDProofInfo) Serialize(w io.Writer, version byte) error {
 	if err := common.WriteVarString(w, d.Type); err != nil {
@@ -129,9 +154,8 @@ type VerifiableCredentialData struct {
 	CredentialSubject interface{} `json:"credentialSubject,omitempty"`
 }
 
-
 func (p *VerifiableCredentialData) GetData() []byte {
-	data, err := json.Marshal(p)
+	data, err := didjson.Marshal(p)
 	if err != nil {
 		return nil
 	}
@@ -180,6 +204,14 @@ func (p *VerifiableCredential) GetDIDProofInfo() *InnerDIDProofInfo {
 	return &p.Proof
 }
 
+func (p *VerifiableCredential) GetData() []byte {
+	data, err := didjson.Marshal(p)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
 // payload in DID transaction payload
 type DIDPayloadInfo struct {
 	ID                   string                 `json:"id"`
@@ -190,7 +222,6 @@ type DIDPayloadInfo struct {
 	Expires              string                 `json:"expires"`
 }
 
-
 // payload of DID transaction
 type Operation struct {
 	Header  DIDHeaderInfo `json:"header"`
@@ -199,7 +230,6 @@ type Operation struct {
 
 	PayloadInfo *DIDPayloadInfo
 }
-
 
 func (p *Operation) Serialize(w io.Writer, version byte) error {
 	if err := p.Header.Serialize(w, version); err != nil {
@@ -257,7 +287,6 @@ func (p *Operation) GetData() []byte {
 	return []byte(dataString)
 }
 
-
 type TranasactionData struct {
 	TXID      string    `json:"txid"`
 	Timestamp string    `json:"timestamp"`
@@ -286,4 +315,63 @@ func IsCompact(target string) bool {
 		return true
 	}
 	return false
+}
+
+// payload of DID transaction
+type DeactivateDIDOptPayload struct {
+	Header  DIDHeaderInfo `json:"header"`
+	Payload string        `json:"payload"`
+	Proof   DIDProofInfo  `json:"proof"`
+}
+
+
+func (p *DeactivateDIDOptPayload) Data(version byte) []byte {
+	buf := new(bytes.Buffer)
+	if err := p.Header.Serialize(buf, version); err != nil {
+		return nil
+	}
+	if err := common.WriteVarString(buf, p.Payload); err != nil {
+		return nil
+	}
+	return buf.Bytes()
+}
+
+func (p *DeactivateDIDOptPayload) Serialize(w io.Writer, version byte) error {
+	if err := p.Header.Serialize(w, version); err != nil {
+		return errors.New("[DeactivateDIDOptPayload], Header serialize failed," + err.Error())
+	}
+
+	if err := common.WriteVarString(w, p.Payload); err != nil {
+		return errors.New("[DeactivateDIDOptPayload], Payload serialize failed")
+	}
+
+	if err := p.Proof.Serialize(w, version); err != nil {
+		return errors.New("[DeactivateDIDOptPayload], Proof serialize failed," + err.Error())
+	}
+
+	return nil
+}
+
+func (p *DeactivateDIDOptPayload) Deserialize(r io.Reader, version byte) error {
+	if err := p.Header.Deserialize(r, version); err != nil {
+		return errors.New("[DeactivateDIDOptPayload], Header deserialize failed" + err.Error())
+	}
+
+	payload, err := common.ReadVarString(r)
+	if err != nil {
+		return errors.New("[DeactivateDIDOptPayload], payload deserialize failed")
+	}
+	p.Payload = payload
+
+	if err := p.Proof.Deserialize(r, version); err != nil {
+		return errors.New("[DeactivateDIDOptPayload], Proof deserialize failed," + err.Error())
+	}
+	return nil
+}
+
+func (p *DeactivateDIDOptPayload) GetData() []byte {
+	var dataString string
+	dataString = p.Header.Specification + p.Header.Operation + p.Header.
+		PreviousTxid + p.Payload
+	return []byte(dataString)
 }
