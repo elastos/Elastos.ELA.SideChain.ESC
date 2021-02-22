@@ -4,17 +4,17 @@ contract DID {
     
     constructor() {}
 
-    function operationDID(uint256 useGas, string memory operation) public view {
+    function operationDID(uint256 useGas, string memory didDocument) public view {
         uint method = 22;
         uint offSet = 32;
         uint outputSize = 32;
-        
+
         uint256[1] memory result;
-     
-        uint256 inpuSize = bytes(operation).length + offSet;
-      
+
+        uint256 inpuSize = bytes(didDocument).length + offSet;
+
         assembly {
-            if iszero(staticcall(useGas, method, operation, inpuSize, result, outputSize)) {
+            if iszero(staticcall(useGas, method, didDocument, inpuSize, result, outputSize)) {
                 revert(0,0)
             }
         }

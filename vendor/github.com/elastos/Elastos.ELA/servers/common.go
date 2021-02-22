@@ -204,6 +204,16 @@ type InactiveArbitratorsInfo struct {
 	BlockHeight uint32   `json:"blockheight"`
 }
 
+type RevertToDPOSInfo struct {
+	WorkHeightInterval     uint32
+	RevertToPOWBlockHeight uint32
+}
+
+type RevertToPOWInfo struct {
+	Type          string
+	WorkingHeight uint32
+}
+
 type ActivateProducerInfo struct {
 	NodePublicKey string `json:"nodepublickey"`
 	Signature     string `json:"signature"`
@@ -288,11 +298,22 @@ type CRCReservedCustomIDProposalInfo struct {
 	OwnerPublicKey           string   `json:"ownerpublickey"`
 	DraftHash                string   `json:"drafthash"`
 	ReservedCustomIDList     []string `json:"reservedcustomidlist"`
-	BannedCustomIDList       []string `json:"bannedcustomidlist"`
 	Signature                string   `json:"signature"`
 	CRCouncilMemberDID       string   `json:"crcouncilmemberdid"`
 	CRCouncilMemberSignature string   `json:"crcouncilmembersignature"`
 	Hash                     string   `json:"hash"`
+}
+
+type CRCChangeCustomIDFeeInfo struct {
+	ProposalType             string `json:"proposaltype"`
+	CategoryData             string `json:"categorydata"`
+	OwnerPublicKey           string `json:"ownerpublickey"`
+	DraftHash                string `json:"drafthash"`
+	FeeRate                  string `json:"feerate"`
+	Signature                string `json:"signature"`
+	CRCouncilMemberDID       string `json:"crcouncilmemberdid"`
+	CRCouncilMemberSignature string `json:"crcouncilmembersignature"`
+	Hash                     string `json:"hash"`
 }
 
 type CRCReceivedCustomIDProposalInfo struct {
@@ -328,6 +349,16 @@ type CRCProposalReviewInfo struct {
 	OpinionHash  string `json:"opinionhash"`
 	DID          string `json:"did"`
 	Sign         string `json:"sign"`
+}
+
+type CRCCustomIDProposalResultInfo struct {
+	ProposalResults []ProposalResultInfo `json:"proposalresults"`
+}
+
+type ProposalResultInfo struct {
+	ProposalHash string `json:"proposalhash"`
+	ProposalType string `json:"proposaltype"`
+	Result       bool   `json:"result"`
 }
 
 type CRCProposalTrackingInfo struct {
