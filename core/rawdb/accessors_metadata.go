@@ -96,12 +96,3 @@ func WritePreimages(db ethdb.KeyValueWriter, preimages map[common.Hash][]byte) {
 	preimageCounter.Inc(int64(len(preimages)))
 	preimageHitCounter.Inc(int64(len(preimages)))
 }
-
-// WritePreimages writes the provided set of preimages to the database.
-func WriteDIDImage(db ethdb.KeyValueWriter, didimages map[string][]byte) {
-	for id, image := range didimages {
-		if err := db.Put([]byte(id), image); err != nil {
-			log.Crit("Failed to store trie didImage", "err", err)
-		}
-	}
-}

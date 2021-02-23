@@ -67,10 +67,6 @@ type StateDB interface {
 
 	ForEachStorage(common.Address, func(common.Hash, common.Hash) bool) error
 
-	CreateDID(did string, value []byte)
-
-	GetDID(did string) ([]byte, error)
-
 	IsDIDDeactivated(did string) bool
 
 	GetLastDIDTxData(idKey []byte) (*did.TranasactionData, error)
@@ -78,6 +74,10 @@ type StateDB interface {
 	GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDIDTranasactionData, error)
 
 	GetLastCustomizedDIDTxHash(idKey []byte) (elacom.Uint256, error)
+
+	AddDIDLog(did string, doc []byte)
+
+	ADDDeactiveDIDLog(did string)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM
