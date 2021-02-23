@@ -3,8 +3,12 @@ package state
 import (
 	"bytes"
 	"errors"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
+
 	"github.com/elastos/Elastos.ELA.SideChain/service"
+
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/utils/http"
 )
@@ -25,29 +29,32 @@ const (
 	IX_CUSTOMIZEDDIDExpiresHeight        EntryPrefix = 0x99
 )
 
-func (self *StateDB) DIDChange() map[string][]byte {
-	return self.didimages
-}
-
-func (self *StateDB) CreateDID(did string, doc []byte) {
-	self.journal.append(createDIDChange{did: did})
+func (self *StateDB) AddDIDLog(did string, doc []byte) {
+	self.journal.append(didLogChange{did: did})
 	pi := make([]byte, len(doc))
 	copy(pi, doc)
-	self.didimages[did] = pi
+	log := &types.Log{
+		Data: pi,
+		TxHash: self.thash,
+		BlockHash: self.bhash,
+	}
+	self.didLogs[did] = log
 }
 
-func (self *StateDB) GetDID(did string) ([]byte, error) {
-	if data := self.didimages[did]; data != nil {
-		return data, nil
+func (self *StateDB) GetDID(did string) *types.Log {
+	return self.didLogs[did]
+}
+
+func (self *StateDB) DIDLogs() []*types.Log {
+	var logs []*types.Log
+	for _, lgs := range self.didLogs {
+		logs = append(logs, lgs)
 	}
-	if data, err := self.db.TrieDB().DiskDB().Get([]byte(did)); err == nil {
-		return data, nil
-	}
-	return nil, errors.New("not create did")
+	return logs
 }
 
 func (self *StateDB) IsDIDDeactivated(did string) bool {
-	if data := self.deactivateimages[did]; data != false {
+	if data := self.deactiveDID[did]; data != false {
 		return true
 	}
 
@@ -176,4 +183,19 @@ func (self *StateDB) GetLastCustomizedDIDTxHash(idKey []byte) (common.Uint256, e
 	}
 
 	return txHash, nil
+}
+
+func (self *StateDB) ADDDeactiveDIDLog(did string) {
+	self.journal.append(didLogChange{did: did})
+	self.deactiveDID[did] = true
+}
+
+func (self *StateDB) DeactiveDIDLog() []string {
+	var logs []string
+	for id, lgs := range self.deactiveDID {
+		if lgs == true {
+			logs = append(logs, id)
+		}
+	}
+	return logs
 }

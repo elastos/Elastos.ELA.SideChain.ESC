@@ -1404,6 +1404,15 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Write other block data using a batch.
 	batch := bc.db.NewBatch()
 	rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts)
+	perr := rawdb.PersistRegisterDIDTx(bc.db, state.DIDLogs(), block.NumberU64(), block.Time())
+	if perr != nil {
+		log.Error("PersistRegisterDIDTx error", "error", perr)
+	}
+
+	perr = rawdb.PersistDeactivateDIDTx(bc.db, state.DeactiveDIDLog())
+	if perr != nil {
+		log.Error("PersistRegisterDIDTx error", "error", perr)
+	}
 
 	isToMany := bc.isToManyEvilSigners(block.Header())
 	if isToMany {
@@ -1447,8 +1456,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		// Write the positional metadata for transaction/receipt lookups and preimages
 		rawdb.WriteTxLookupEntries(batch, block)
 		rawdb.WritePreimages(batch, state.Preimages())
-		fmt.Println("WriteDIDImage WriteDIDImage WriteDIDImage")
-		rawdb.WriteDIDImage(batch, state.DIDChange())
 		status = CanonStatTy
 	} else {
 		status = SideStatTy

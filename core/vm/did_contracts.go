@@ -1,11 +1,13 @@
 package vm
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
@@ -63,6 +65,11 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 			log.Error("checkRegisterDID error", "error", err)
 			return false32Byte, err
 		}
+
+		id := rawdb.GetDIDFromUri(doc.PayloadInfo.ID)
+		buf := new(bytes.Buffer)
+		doc.Serialize(buf, did.DIDInfoVersion)
+		evm.StateDB.AddDIDLog(id, buf.Bytes())
 	case did.DeactivateDID:
 		doc := new(did.DeactivateDIDOptPayload)
 		if err := json.Unmarshal(data, doc); err != nil {
@@ -73,6 +80,11 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 			log.Error("checkDeactivateDID error", "error", err)
 			return false32Byte, err
 		}
+
+		id := rawdb.GetDIDFromUri(doc.Payload)
+		buf := new(bytes.Buffer)
+		doc.Serialize(buf, did.DIDInfoVersion)
+		evm.StateDB.ADDDeactiveDIDLog(id)
 	case did.CustomizedDID:
 		doc := new(did.CustomizedDIDOperation)
 		if err := json.Unmarshal(data, doc); err != nil {
@@ -89,11 +101,6 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 	default:
 		return false32Byte, errors.New("error didType:" + didType.String())
 	}
-
-	//buf := new(bytes.Buffer)
-	//doc.Serialize(buf, did.DIDInfoVersion)
-
-	//evm.StateDB.CreateDID(id, buf.Bytes())
 
 	return true32Byte, nil
 }
