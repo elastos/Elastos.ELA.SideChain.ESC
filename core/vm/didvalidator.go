@@ -14,6 +14,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain/vm"
 	"github.com/elastos/Elastos.ELA.SideChain/vm/interfaces"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
@@ -94,7 +95,7 @@ func checkRegisterDID(evm *EVM, doc *did.Operation) error {
 //check operateion create---->db must not have
 //                 update----->db must have
 func checkDIDOperation(evm *EVM, header *did.DIDHeaderInfo, idUri string) error {
-	id := GetDIDFromUri(idUri)
+	id := rawdb.GetDIDFromUri(idUri)
 	if id == "" {
 		return errors.New("WRONG DID FORMAT")
 	}
@@ -226,7 +227,7 @@ func checkVeriﬁableCredential(evm *EVM, DID string, VerifiableCredential []did
 }
 
 func GetLastDIDTxData(evm *EVM, issuerDID string) (*did.TranasactionData, error) {
-	did := GetDIDFromUri(issuerDID)
+	did := rawdb.GetDIDFromUri(issuerDID)
 	if did == "" {
 		return nil, errors.New("WRONG DID FORMAT")
 	}
@@ -242,14 +243,6 @@ func GetLastDIDTxData(evm *EVM, issuerDID string) (*did.TranasactionData, error)
 		}
 	}
 	return lastTXData, nil
-}
-
-func GetDIDFromUri(idURI string) string {
-	index := strings.LastIndex(idURI, ":")
-	if index == -1 {
-		return ""
-	}
-	return idURI[index+1:]
 }
 
 func getUriSegment(uri string) string {
@@ -307,7 +300,7 @@ func checkVerificationMethodV1(VerificationMethod string,
 				return err
 			}
 			//didAddress must equal address in DID
-			if didAddress != GetDIDFromUri(payloadInfo.ID) {
+			if didAddress != rawdb.GetDIDFromUri(payloadInfo.ID) {
 				return errors.New("[ID checkVerificationMethodV1] ID and PublicKeyBase58 not match ")
 			}
 			masterPubKeyVerifyOk = true
@@ -474,7 +467,7 @@ func getPublicKeyByVerificationMethod(evm *EVM, VerificationMethod, ID string,
 						return "", errors.New("multi controller NOT FIND PUBLIC KEY OF VerificationMethod")
 					}
 					PublicKey := base58.Decode(pubKeyBase58Str)
-					did := GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
+					did := rawdb.GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
 					if IsMatched(PublicKey, did) {
 						return pubKeyBase58Str, nil
 					}
@@ -497,7 +490,7 @@ func getPublicKeyByVerificationMethod(evm *EVM, VerificationMethod, ID string,
 					return "", errors.New("single controller NOT FIND PUBLIC KEY OF VerificationMethod")
 				}
 				PublicKey := base58.Decode(pubKeyBase58Str)
-				did := GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
+				did := rawdb.GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
 				if IsMatched(PublicKey, did) {
 					return pubKeyBase58Str, nil
 				}
@@ -602,7 +595,8 @@ func getParameterBySignature(signature []byte) []byte {
 
 func checkDeactivateDID(evm *EVM, deactivateDIDOpt *did.DeactivateDIDOptPayload) error {
 	targetDIDUri := deactivateDIDOpt.Payload
-	targetDID := GetDIDFromUri(targetDIDUri)
+
+	targetDID := rawdb.GetDIDFromUri(targetDIDUri)
 	if targetDID == "" {
 		return errors.New("WRONG DID FORMAT")
 	}
@@ -1065,7 +1059,7 @@ func checkCustomizedDIDVerificationMethod(evm *EVM, VerificationMethod, txPrefix
 					return err
 				}
 				//didAddress must equal address in DID
-				if didAddress != GetDIDFromUri(txPrefixDID) {
+				if didAddress != rawdb.GetDIDFromUri(txPrefixDID) {
 					return errors.New("[ID checkVerificationMethodV1] ID and PublicKeyBase58 not match ")
 				}
 				pubkeyCount++
@@ -1125,7 +1119,7 @@ func checkCustomizedDIDVerificationMethod(evm *EVM, VerificationMethod, txPrefix
 						return errors.New("checkCustomizedDIDVerificationMethod NOT FIND PUBLIC KEY OF VerificationMethod")
 					}
 					PublicKey := base58.Decode(pubKeyBase58Str)
-					did := GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
+					did := rawdb.GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
 					if IsMatched(PublicKey, did) {
 						return nil
 					}
@@ -1148,7 +1142,7 @@ func checkCustomizedDIDVerificationMethod(evm *EVM, VerificationMethod, txPrefix
 					return errors.New("checkCustomizedDIDVerificationMethod NOT FIND PUBLIC KEY OF VerificationMethod")
 				}
 				PublicKey := base58.Decode(pubKeyBase58Str)
-				did := GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
+				did := rawdb.GetDIDFromUri(TranasactionData.Operation.PayloadInfo.ID)
 				if IsMatched(PublicKey, did) {
 					return nil
 				}

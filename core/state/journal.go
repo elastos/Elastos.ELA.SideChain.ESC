@@ -131,10 +131,7 @@ type (
 		prev      bool
 		prevDirty bool
 	}
-	createDIDChange struct {
-		did string
-	}
-	deactivateChange struct {
+	didLogChange struct {
 		did string
 	}
 )
@@ -239,10 +236,10 @@ func (ch addPreimageChange) dirtied() *common.Address {
 	return nil
 }
 
-func (cd createDIDChange) revert(s *StateDB) {
-	delete(s.didimages, cd.did)
+func (l didLogChange) revert(s *StateDB) {
+	delete(s.didLogs, l.did)
 }
 
-func (cd createDIDChange) dirtied() *common.Address {
+func (l didLogChange) dirtied() *common.Address {
 	return nil
 }
