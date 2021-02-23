@@ -35,6 +35,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/console"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/downloader"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
@@ -655,7 +657,7 @@ func startSmallCrossTx(ctx *cli.Context, stack *node.Node) {
 		datadir = filepath.Join(node.DefaultDataDir(), "testnet")
 	case ctx.GlobalBool(utils.RinkebyFlag.Name):
 		datadir = filepath.Join(node.DefaultDataDir(), "rinkeby")
-	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+	case ctx.GlobalBool(utils.GoerliFlag.Name):
 		datadir = filepath.Join(node.DefaultDataDir(), "goerli")
 	default:
 		datadir = node.DefaultDataDir()
@@ -663,4 +665,16 @@ func startSmallCrossTx(ctx *cli.Context, stack *node.Node) {
 	smallcrosstx.SmallCrossTxInit(datadir, stack.EventMux())
 
 	withdrawfailedtx.FailedWithrawInit(datadir, stack.EventMux())
+}
+func SetDIDParams(ctx *cli.Context, stack *node.Node) {
+	switch {
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		vm.InitDIDParams(did.TestNetDIDParams)
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		vm.InitDIDParams(did.RegNetDIDParams)
+	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+		vm.InitDIDParams(did.RegNetDIDParams)
+	default:
+		vm.InitDIDParams(did.MainNetDIDParams)
+	}
 }

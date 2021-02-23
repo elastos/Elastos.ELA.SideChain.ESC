@@ -1,11 +1,9 @@
 package vm
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
-	common2 "github.com/elastos/Elastos.ELA/common"
+	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
@@ -18,45 +16,22 @@ import (
 // contract.
 type PrecompiledContractDID interface {
 	RequiredGas(input []byte) uint64  // RequiredPrice calculates the contract gas use
-	Run(evm *EVM, input []byte) ([]byte, error) // Run runs the precompiled contract
+	Run(evm *EVM, input []byte, gas uint64) ([]byte, error) // Run runs the precompiled contract
 }
 
 var PrecompileContractsDID = map[common.Address] PrecompiledContractDID {
-	common.BytesToAddress([]byte{22}): &setDIDType{},
-	common.BytesToAddress([]byte{23}): &operationDID{},
+	common.BytesToAddress([]byte{22}): &operationDID{},
 }
 
-var didType did.DIDType
+
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContractDID(evm *EVM, p PrecompiledContractDID, input []byte, contract *Contract) (ret []byte, err error) {
 	gas := p.RequiredGas(input)
 	if contract.UseGas(gas) {
-		return p.Run(evm, input)
+		return p.Run(evm, input, contract.Gas)
 	}
 	return nil, ErrOutOfGas
-}
-
-type setDIDType struct {
-}
-
-func (s *setDIDType) RequiredGas(input []byte) uint64 {
-	return 1000
-}
-
-func (s *setDIDType) Run(evm *EVM, input []byte) ([]byte, error) {
-	data := getData(input, 32, uint64(len(input)) - 32)
-	buf := new(bytes.Buffer)
-	_, err := buf.Write(data)
-	if err != nil {
-		return false32Byte, err
-	}
-	didType, err := common2.ReadUint64(buf)
-	if err != nil {
-		return false32Byte, err
-	}
-	fmt.Println("didType didType", didType)
-	return true32Byte, nil
 }
 
 type operationDID struct{}
@@ -65,9 +40,11 @@ func (j *operationDID) RequiredGas(input []byte) uint64 {
 	return 1000
 }
 
-func (j *operationDID) Run(evm *EVM, input []byte) ([]byte, error) {
-	data := getData(input, 32, uint64(len(input)) - 32)
-
+func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
+	data := getData(input, 64, uint64(len(input)) - 64)
+	ttype := getData(input, 32, 32)
+	dtype := new(big.Int).SetBytes(ttype)
+	var didType = did.DIDType(dtype.Uint64())
 
 	switch didType {
 	case did.RegisterDID:
@@ -100,6 +77,11 @@ func (j *operationDID) Run(evm *EVM, input []byte) ([]byte, error) {
 		doc := new(did.CustomizedDIDOperation)
 		if err := json.Unmarshal(data, doc); err != nil {
 			return false32Byte, errors.New("createDIDVerify input is error")
+		}
+		err := checkCustomizedDID(evm, doc, gas)
+		if err != nil {
+			log.Error("checkCustomizedDID error", "error", err)
+			return false32Byte, err
 		}
 	case did.VerifiableCredentialTxType:
 
