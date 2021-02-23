@@ -152,3 +152,28 @@ func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDI
 
 	return tempTxData, nil
 }
+
+func (self *StateDB) GetLastCustomizedDIDTxHash(idKey []byte) (common.Uint256, error) {
+	key := []byte{byte(IX_CUSTOMIZEDDIDTXHash)}
+	key = append(key, idKey...)
+
+	data, err := self.db.TrieDB().DiskDB().Get(key)
+	if err != nil {
+		return common.Uint256{}, err
+	}
+
+	r := bytes.NewReader(data)
+	count, err := common.ReadVarUint(r, 0)
+	if err != nil {
+		return common.Uint256{}, err
+	}
+	if count == 0 {
+		return common.Uint256{}, errors.New("not exist")
+	}
+	var txHash common.Uint256
+	if err := txHash.Deserialize(r); err != nil {
+		return common.Uint256{}, err
+	}
+
+	return txHash, nil
+}

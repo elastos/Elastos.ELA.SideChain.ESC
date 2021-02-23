@@ -20,6 +20,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"math"
 	"os"
 	"runtime"
@@ -635,5 +637,19 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	passwords := utils.MakePasswordList(ctx)
 	for i, account := range unlocks {
 		unlockAccount(ks, account, i, passwords)
+	}
+}
+
+
+func SetDIDParams(ctx *cli.Context, stack *node.Node) {
+	switch {
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		vm.InitDIDParams(did.TestNetDIDParams)
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		vm.InitDIDParams(did.RegNetDIDParams)
+	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+		vm.InitDIDParams(did.RegNetDIDParams)
+	default:
+		vm.InitDIDParams(did.MainNetDIDParams)
 	}
 }
