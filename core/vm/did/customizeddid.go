@@ -459,9 +459,10 @@ type VerifiableCredentialTxData struct {
 
 // payload of VerifiableCredential transaction
 type VerifiableCredentialPayload struct {
-	Header  CustomizedDIDHeaderInfo `json:"header"`
-	Payload string                  `json:"payload"`
+	Header  VerifiableCredentialHeaderInfo `json:"header"`
+	Payload string                         `json:"payload"`
 	// DIDProofInfo
+	// todo use InnerDIDProofInfo, use interface{} in Doc
 	Proof interface{} `json:"proof"`
 
 	Doc *VerifiableCredentialDoc
@@ -560,15 +561,7 @@ func (p *VerifiableCredentialPayload) Deserialize(r io.Reader, version byte) err
 }
 
 func (p *VerifiableCredentialPayload) GetData() []byte {
-	var dataString string
-	if p.Header.Operation == Revoke_Verifiable_Credential_Operation {
-		dataString = p.Header.Specification + p.Header.Operation + p.Header.
-			PreviousTxid + p.Payload
-
-	} else {
-		dataString = p.Header.Specification + p.Header.Operation + p.Payload
-
-	}
+	dataString := p.Header.Specification + p.Header.Operation + p.Payload
 	return []byte(dataString)
 }
 

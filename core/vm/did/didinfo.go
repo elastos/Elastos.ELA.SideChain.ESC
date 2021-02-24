@@ -212,6 +212,38 @@ func (p *VerifiableCredential) GetData() []byte {
 	return data
 }
 
+// header of Customized DID transaction payload
+type VerifiableCredentialHeaderInfo struct {
+	Specification string `json:"specification"`
+	Operation     string `json:"operation"`
+}
+
+func (d *VerifiableCredentialHeaderInfo) Serialize(w io.Writer, version byte) error {
+	if err := common.WriteVarString(w, d.Specification); err != nil {
+		return errors.New("[CustomizedDIDHeaderInfo], Specification serialize failed.")
+	}
+
+	if err := common.WriteVarString(w, d.Operation); err != nil {
+		return errors.New("[CustomizedDIDHeaderInfo], Operation serialize failed.")
+	}
+	return nil
+}
+
+func (d *VerifiableCredentialHeaderInfo) Deserialize(r io.Reader, version byte) error {
+	var err error
+	d.Specification, err = common.ReadVarString(r)
+	if err != nil {
+		return errors.New("[CustomizedDIDHeaderInfo], Specification deserialize failed.")
+	}
+
+	d.Operation, err = common.ReadVarString(r)
+	if err != nil {
+		return errors.New("[CustomizedDIDHeaderInfo], Operation deserialize failed.")
+	}
+	return nil
+}
+
+
 // payload in DID transaction payload
 type DIDPayloadInfo struct {
 	ID                   string                 `json:"id"`

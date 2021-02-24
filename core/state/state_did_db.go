@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 
 	"github.com/elastos/Elastos.ELA.SideChain/service"
 
@@ -14,20 +16,6 @@ import (
 )
 
 type EntryPrefix byte
-
-const (
-	IX_DeactivateCustomizedDID           EntryPrefix = 0x89
-	IX_VerifiableCredentialExpiresHeight EntryPrefix = 0x90
-	IX_VerifiableCredentialTXHash        EntryPrefix = 0x91
-	IX_VerifiableCredentialPayload       EntryPrefix = 0x92
-	IX_CUSTOMIZEDDIDPayload              EntryPrefix = 0x93
-	IX_CUSTOMIZEDDIDTXHash               EntryPrefix = 0x94
-	IX_DIDTXHash                         EntryPrefix = 0x95
-	IX_DIDPayload                        EntryPrefix = 0x96
-	IX_DIDExpiresHeight                  EntryPrefix = 0x97
-	IX_DIDDeactivate                     EntryPrefix = 0x98
-	IX_CUSTOMIZEDDIDExpiresHeight        EntryPrefix = 0x99
-)
 
 func (self *StateDB) AddDIDLog(did string, doc []byte) {
 	self.journal.append(didLogChange{did: did})
@@ -54,69 +42,15 @@ func (self *StateDB) DIDLogs() []*types.Log {
 }
 
 func (self *StateDB) IsDIDDeactivated(did string) bool {
-	if data := self.deactiveDID[did]; data != false {
-		return true
-	}
-
-	idKey := new(bytes.Buffer)
-	idKey.WriteString(did)
-
-	key := []byte{byte(IX_DIDDeactivate)}
-	key = append(key, idKey.Bytes()...)
-
-	if _, err := self.db.TrieDB().DiskDB().Get(key); err != nil {
-		return false
-	}
-	return true
+	return rawdb.IsDIDDeactivated(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), did)
 }
 
 func (self *StateDB) GetLastDIDTxData(idKey []byte) (*did.TranasactionData, error) {
-	key := []byte{byte(IX_DIDTXHash)}
-	key = append(key, idKey...)
-
-	data, err := self.db.TrieDB().DiskDB().Get(key)
-	if err != nil {
-		return nil, err
-	}
-
-	r := bytes.NewReader(data)
-	count, err := common.ReadVarUint(r, 0)
-	if err != nil {
-		return nil, err
-	}
-	if count == 0 {
-		return nil, errors.New("not exist")
-	}
-	var txHash common.Uint256
-	if err := txHash.Deserialize(r); err != nil {
-		return nil, err
-	}
-
-	keyPayload := []byte{byte(IX_DIDPayload)}
-	keyPayload = append(keyPayload, txHash.Bytes()...)
-
-	dataPayload, err := self.db.TrieDB().DiskDB().Get(keyPayload)
-	if err != nil {
-		return nil, err
-	}
-
-	tempOperation := new(did.Operation)
-	r = bytes.NewReader(dataPayload)
-	err = tempOperation.Deserialize(r, did.DIDInfoVersion)
-	if err != nil {
-		return nil, http.NewError(int(service.ResolverInternalError),
-			"tempOperation Deserialize failed")
-	}
-	tempTxData := new(did.TranasactionData)
-	tempTxData.TXID = txHash.String()
-	tempTxData.Operation = *tempOperation
-	tempTxData.Timestamp = tempOperation.PayloadInfo.Expires
-
-	return tempTxData, nil
+	return rawdb.GetLastDIDTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey)
 }
 
 func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDIDTranasactionData, error) {
-	key := []byte{byte(IX_CUSTOMIZEDDIDTXHash)}
+	key := []byte{byte(rawdb.IX_CUSTOMIZEDDIDTXHash)}
 	key = append(key, idKey...)
 
 	data, err := self.db.TrieDB().DiskDB().Get(key)
@@ -137,7 +71,7 @@ func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDI
 		return nil, err
 	}
 
-	keyPayload := []byte{byte(IX_CUSTOMIZEDDIDPayload)}
+	keyPayload := []byte{byte(rawdb.IX_CUSTOMIZEDDIDPayload)}
 	keyPayload = append(keyPayload, txHash.Bytes()...)
 
 	dataPayload, err := self.db.TrieDB().DiskDB().Get(keyPayload)
@@ -161,7 +95,7 @@ func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDI
 }
 
 func (self *StateDB) GetLastCustomizedDIDTxHash(idKey []byte) (common.Uint256, error) {
-	key := []byte{byte(IX_CUSTOMIZEDDIDTXHash)}
+	key := []byte{byte(rawdb.IX_CUSTOMIZEDDIDTXHash)}
 	key = append(key, idKey...)
 
 	data, err := self.db.TrieDB().DiskDB().Get(key)
