@@ -67,6 +67,12 @@ func TestLegacyReceiptDecoding(t *testing.T) {
 		TxHash:          tx.Hash(),
 		ContractAddress: common.BytesToAddress([]byte{0x01, 0x11, 0x11}),
 		GasUsed:         111111,
+
+		DIDLog: DIDLog{
+			DID: "ifUPapo7vRTAt2c7ytd4BrbooyK7B7Gp4R",
+			Operation: 0x0a,
+			Data: []byte{0x01, 0x00, 0xff},
+		},
 	}
 	receipt.Bloom = CreateBloomWithTxList(Receipts{receipt}, Transactions{})
 
@@ -104,6 +110,15 @@ func TestLegacyReceiptDecoding(t *testing.T) {
 					t.Fatalf("Receipt log %d data mismatch, want %v, have %v", i, receipt.Logs[i].Data, dec.Logs[i].Data)
 				}
 			}
+			if dec.DIDLog.DID != receipt.DIDLog.DID {
+				t.Fatalf("Receipt DIDLog %s did mismatch, want %s, have %s", receipt.DIDLog.DID, receipt.DIDLog.DID, dec.DIDLog.DID)
+			}
+			if dec.DIDLog.Operation != receipt.DIDLog.Operation {
+				t.Fatalf("Receipt DIDLog %d operation mismatch, want %d, have %d", receipt.DIDLog.Operation, receipt.DIDLog.Operation, dec.DIDLog.Operation)
+			}
+			if !bytes.Equal(dec.DIDLog.Data, receipt.DIDLog.Data) {
+				t.Fatalf("Receipt DIDLog data mismatch, want %v, have %v", receipt.DIDLog.Data, dec.DIDLog.Data)
+			}
 		})
 	}
 }
@@ -113,6 +128,7 @@ func encodeAsStoredReceiptRLP(want *Receipt) ([]byte, error) {
 		PostStateOrStatus: want.statusEncoding(),
 		CumulativeGasUsed: want.CumulativeGasUsed,
 		Logs:              make([]*LogForStorage, len(want.Logs)),
+		DIDLog:            (DIDLogForStorage)(want.DIDLog),
 	}
 	for i, log := range want.Logs {
 		stored.Logs[i] = (*LogForStorage)(log)
@@ -128,6 +144,7 @@ func encodeAsV4StoredReceiptRLP(want *Receipt) ([]byte, error) {
 		ContractAddress:   want.ContractAddress,
 		Logs:              make([]*LogForStorage, len(want.Logs)),
 		GasUsed:           want.GasUsed,
+		DIDLog:            (DIDLogForStorage)(want.DIDLog),
 	}
 	for i, log := range want.Logs {
 		stored.Logs[i] = (*LogForStorage)(log)
@@ -144,6 +161,7 @@ func encodeAsV3StoredReceiptRLP(want *Receipt) ([]byte, error) {
 		ContractAddress:   want.ContractAddress,
 		Logs:              make([]*LogForStorage, len(want.Logs)),
 		GasUsed:           want.GasUsed,
+		DIDLog:            (DIDLogForStorage)(want.DIDLog),
 	}
 	for i, log := range want.Logs {
 		stored.Logs[i] = (*LogForStorage)(log)

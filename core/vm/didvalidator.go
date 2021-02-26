@@ -48,10 +48,6 @@ func CreateCRDIDContractByCode(code []byte) (*contract.Contract, error) {
 }
 
 func checkRegisterDID(evm *EVM, doc *did.Operation) error {
-	if doc.Header.Operation != did.Create_DID_Operation {
-		return errors.New("invalid Operation")
-	}
-
 	_, err := time.Parse(time.RFC3339, doc.PayloadInfo.Expires)
 	if err != nil {
 		return errors.New("invalid Expires")
@@ -620,7 +616,6 @@ func checkDeactivateDID(evm *EVM, deactivateDIDOpt *did.DeactivateDIDOptPayload)
 		return errors.New("Not find the publickey verificationMethod   ")
 	}
 	//get code
-	//var publicKeyByte []byte
 	publicKeyByte := base58.Decode(publicKeyBase58)
 
 	//var code []byte

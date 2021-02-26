@@ -66,6 +66,8 @@ type Receipt struct {
 	BlockHash        common.Hash `json:"blockHash,omitempty"`
 	BlockNumber      *big.Int    `json:"blockNumber,omitempty"`
 	TransactionIndex uint        `json:"transactionIndex"`
+
+	DIDLog           DIDLog     `json:"didLog"`
 }
 
 type receiptMarshaling struct {
@@ -83,6 +85,7 @@ type receiptRLP struct {
 	CumulativeGasUsed uint64
 	Bloom             Bloom
 	Logs              []*Log
+	DIDLog            DIDLog
 }
 
 // storedReceiptRLP is the storage encoding of a receipt.
@@ -90,6 +93,7 @@ type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*LogForStorage
+	DIDLog            DIDLogForStorage
 }
 
 // v4StoredReceiptRLP is the storage encoding of a receipt used in database version 4.
@@ -100,6 +104,7 @@ type v4StoredReceiptRLP struct {
 	ContractAddress   common.Address
 	Logs              []*LogForStorage
 	GasUsed           uint64
+	DIDLog            DIDLogForStorage
 }
 
 // v3StoredReceiptRLP is the original storage encoding of a receipt including some unnecessary fields.
@@ -111,6 +116,7 @@ type v3StoredReceiptRLP struct {
 	ContractAddress   common.Address
 	Logs              []*LogForStorage
 	GasUsed           uint64
+	DIDLog            DIDLogForStorage
 }
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
@@ -127,7 +133,7 @@ func NewReceipt(root []byte, failed bool, cumulativeGasUsed uint64) *Receipt {
 // EncodeRLP implements rlp.Encoder, and flattens the consensus fields of a receipt
 // into an RLP stream. If no post state is present, byzantium fork is assumed.
 func (r *Receipt) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs})
+	return rlp.Encode(w, &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.DIDLog})
 }
 
 // DecodeRLP implements rlp.Decoder, and loads the consensus fields of a receipt
@@ -140,7 +146,7 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 	if err := r.setStatus(dec.PostStateOrStatus); err != nil {
 		return err
 	}
-	r.CumulativeGasUsed, r.Bloom, r.Logs = dec.CumulativeGasUsed, dec.Bloom, dec.Logs
+	r.CumulativeGasUsed, r.Bloom, r.Logs, r.DIDLog= dec.CumulativeGasUsed, dec.Bloom, dec.Logs, dec.DIDLog
 	return nil
 }
 
@@ -177,6 +183,9 @@ func (r *Receipt) Size() common.StorageSize {
 	for _, log := range r.Logs {
 		size += common.StorageSize(len(log.Topics)*common.HashLength + len(log.Data))
 	}
+
+	size += common.StorageSize(unsafe.Sizeof(r.DIDLog))
+
 	return size
 }
 
@@ -191,6 +200,7 @@ func (r *ReceiptForStorage) EncodeRLP(w io.Writer) error {
 		PostStateOrStatus: (*Receipt)(r).statusEncoding(),
 		CumulativeGasUsed: r.CumulativeGasUsed,
 		Logs:              make([]*LogForStorage, len(r.Logs)),
+		DIDLog:			   (DIDLogForStorage)(r.DIDLog),
 	}
 	for i, log := range r.Logs {
 		enc.Logs[i] = (*LogForStorage)(log)
@@ -232,7 +242,7 @@ func decodeStoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 		r.Logs[i] = (*Log)(log)
 	}
 	r.Bloom = CreateBloomWithTxList(Receipts{(*Receipt)(r)}, Transactions{})
-
+	r.DIDLog = (DIDLog)(stored.DIDLog)
 	return nil
 }
 
@@ -253,7 +263,7 @@ func decodeV4StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 		r.Logs[i] = (*Log)(log)
 	}
 	r.Bloom = CreateBloomWithTxList(Receipts{(*Receipt)(r)}, Transactions{})
-
+	r.DIDLog = (DIDLog)(stored.DIDLog)
 	return nil
 }
 
@@ -274,6 +284,7 @@ func decodeV3StoredReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	for i, log := range stored.Logs {
 		r.Logs[i] = (*Log)(log)
 	}
+	r.DIDLog = (DIDLog)(stored.DIDLog)
 	return nil
 }
 

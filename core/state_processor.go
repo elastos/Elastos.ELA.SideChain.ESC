@@ -167,5 +167,6 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	receipt.BlockNumber = header.Number
 	receipt.TransactionIndex = uint(statedb.TxIndex())
 
+	receipt.DIDLog = *statedb.GetDIDLog(tx.Hash())
 	return receipt, err
 }

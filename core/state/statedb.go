@@ -88,9 +88,8 @@ type StateDB struct {
 
 	preimages map[common.Hash][]byte
 
-	didLogs map[string]*types.Log
+	didLogs map[common.Hash]*types.DIDLog
 
-	deactiveDID map[string]bool
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
 	journal        *journal
@@ -122,8 +121,7 @@ func New(root common.Hash, db Database) (*StateDB, error) {
 		stateObjectsDirty:   make(map[common.Address]struct{}),
 		logs:                make(map[common.Hash][]*types.Log),
 		preimages:           make(map[common.Hash][]byte),
-		didLogs: 			 make(map[string]*types.Log),
-		deactiveDID:    	 make(map[string]bool),
+		didLogs: 			 make(map[common.Hash]*types.DIDLog),
 		journal:             newJournal(),
 	}, nil
 }
@@ -156,8 +154,7 @@ func (self *StateDB) Reset(root common.Hash) error {
 	self.logs = make(map[common.Hash][]*types.Log)
 	self.logSize = 0
 	self.preimages = make(map[common.Hash][]byte)
-	self.didLogs = make(map[string]*types.Log)
-	self.deactiveDID = make(map[string]bool)
+	self.didLogs = make(map[common.Hash]*types.DIDLog)
 	self.clearJournalAndRefund()
 	return nil
 }
@@ -586,8 +583,7 @@ func (self *StateDB) Copy() *StateDB {
 		logs:                make(map[common.Hash][]*types.Log, len(self.logs)),
 		logSize:             self.logSize,
 		preimages:           make(map[common.Hash][]byte, len(self.preimages)),
-		didLogs:             make(map[string]*types.Log, len(self.didLogs)),
-		deactiveDID:    	 make(map[string]bool, len(self.deactiveDID)),
+		didLogs:             make(map[common.Hash]*types.DIDLog, len(self.didLogs)),
 		journal:             newJournal(),
 	}
 	// Copy the dirty states, logs, and preimages
@@ -632,11 +628,8 @@ func (self *StateDB) Copy() *StateDB {
 	for hash, preimage := range self.preimages {
 		state.preimages[hash] = preimage
 	}
-	for id, l := range self.didLogs {
-		state.didLogs[id] = l
-	}
-	for id, res := range self.deactiveDID {
-		state.deactiveDID[id] = res
+	for hash, l := range self.didLogs {
+		state.didLogs[hash] = l
 	}
 	return state
 }

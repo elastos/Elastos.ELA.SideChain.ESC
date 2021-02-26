@@ -23,6 +23,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
@@ -458,6 +459,23 @@ func DeleteReceipts(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 	if err := db.Delete(blockReceiptsKey(number, hash)); err != nil {
 		log.Crit("Failed to delete block receipts", "err", err)
 	}
+}
+
+func WriteDIDReceipts(db ethdb.KeyValueStore, receipts types.Receipts, number, btime uint64) error {
+	var err error
+	for _, receipt := range receipts {
+		operation := did.DIDType(receipt.DIDLog.Operation)
+		switch operation {
+		case did.RegisterDID:
+			err = PersistRegisterDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog, number, btime)
+		case did.DeactivateDID:
+			err = PersistDeactivateDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog)
+		}
+	}
+	if err != nil {
+		log.Error("Failed to persist did receipt", "err", err)
+	}
+	return err
 }
 
 // ReadBlock retrieves an entire block corresponding to the hash, assembling it
