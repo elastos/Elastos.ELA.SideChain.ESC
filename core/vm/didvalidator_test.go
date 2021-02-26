@@ -159,8 +159,8 @@ func TestCheckRegisterDID(t *testing.T) {
 	id := "ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
 	buf := new(bytes.Buffer)
 	tx2.Serialize(buf, did.DIDInfoVersion)
-	statedb.AddDIDLog(id, buf.Bytes())
-	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.DIDLogs(), 100, 123456)
+	statedb.AddDIDLog(id, byte(did.RegisterDID), buf.Bytes())
+	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 100, 123456)
 	assert.NoError(t, err1)
 	err2 := checkRegisterDID(evm, tx1)
 	assert.NoError(t, err2)
@@ -227,9 +227,8 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 
 	buf := new(bytes.Buffer)
 	txCreateDID.Serialize(buf, did.DIDInfoVersion)
-	statedb.AddDIDLog(id, buf.Bytes())
-
-	err = rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.DIDLogs(), 0, 0)
+	statedb.AddDIDLog(id, byte(did.RegisterDID), buf.Bytes())
+	err = rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 0, 0)
 	assert.NoError(t, err)
 
 	err = checkDeactivateDID(evm, payload)
@@ -242,8 +241,8 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 	assert.EqualError(t, err, "[VM] Check Sig FALSE")
 
 	//deactive one deactivated did
-	statedb.ADDDeactiveDIDLog(id)
-	rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.DeactiveDIDLog())
+	statedb.AddDIDLog(id, byte(did.DeactivateDID), buf.Bytes())
+	rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}))
 	txDeactivateWrong := getPayloadDeactivateDID(didWithPrefix, verifDid)
 	err = checkDeactivateDID(evm, txDeactivateWrong)
 	assert.EqualError(t, err, "DID WAS AREADY DEACTIVE")

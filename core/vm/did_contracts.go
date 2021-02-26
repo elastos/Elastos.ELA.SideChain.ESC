@@ -69,7 +69,7 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		id := rawdb.GetDIDFromUri(doc.PayloadInfo.ID)
 		buf := new(bytes.Buffer)
 		doc.Serialize(buf, did.DIDInfoVersion)
-		evm.StateDB.AddDIDLog(id, buf.Bytes())
+		evm.StateDB.AddDIDLog(id, byte(didType), buf.Bytes())
 	case did.DeactivateDID:
 		doc := new(did.DeactivateDIDOptPayload)
 		if err := json.Unmarshal(data, doc); err != nil {
@@ -84,7 +84,7 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		id := rawdb.GetDIDFromUri(doc.Payload)
 		buf := new(bytes.Buffer)
 		doc.Serialize(buf, did.DIDInfoVersion)
-		evm.StateDB.ADDDeactiveDIDLog(id)
+		evm.StateDB.AddDIDLog(id, byte(didType), buf.Bytes())
 	case did.CustomizedDID:
 		doc := new(did.CustomizedDIDOperation)
 		if err := json.Unmarshal(data, doc); err != nil {

@@ -132,7 +132,7 @@ type (
 		prevDirty bool
 	}
 	didLogChange struct {
-		did string
+		txhash common.Hash
 	}
 )
 
@@ -237,7 +237,7 @@ func (ch addPreimageChange) dirtied() *common.Address {
 }
 
 func (l didLogChange) revert(s *StateDB) {
-	delete(s.didLogs, l.did)
+	delete(s.didLogs, l.txhash)
 }
 
 func (l didLogChange) dirtied() *common.Address {

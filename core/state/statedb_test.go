@@ -330,6 +330,15 @@ func newTestAction(addr common.Address, r *rand.Rand) testAction {
 			},
 			args: make([]int64, 1),
 		},
+		{
+			name: "AddDIDLog",
+			fn: func(a testAction, s *StateDB) {
+				did := "ifUPapo7vRTAt2c7ytd4BrbooyK7B7Gp4R"
+				var data = []byte{123}
+				s.AddDIDLog(did, 0x0a, data)
+			},
+			args: make([]int64, 1),
+		},
 	}
 	action := actions[r.Intn(len(actions))]
 	var nameargs []string
