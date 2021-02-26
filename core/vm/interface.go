@@ -76,9 +76,7 @@ type StateDB interface {
 
 	GetLastCustomizedDIDTxHash(idKey []byte) (elacom.Uint256, error)
 
-	AddDIDLog(did string, doc []byte)
-
-	ADDDeactiveDIDLog(did string)
+	AddDIDLog(did string, operation byte, doc []byte)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

@@ -1224,6 +1224,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 			rawdb.WriteBody(batch, block.Hash(), block.NumberU64(), block.Body())
 			rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receiptChain[i])
 			rawdb.WriteTxLookupEntries(batch, block)
+			rawdb.WriteDIDReceipts(bc.db.(ethdb.KeyValueStore), receiptChain[i], block.NumberU64(), block.Time())
 
 			stats.processed++
 			if batch.ValueSize() >= ethdb.IdealBatchSize {
@@ -1404,15 +1405,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Write other block data using a batch.
 	batch := bc.db.NewBatch()
 	rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receipts)
-	perr := rawdb.PersistRegisterDIDTx(bc.db, state.DIDLogs(), block.NumberU64(), block.Time())
-	if perr != nil {
-		log.Error("PersistRegisterDIDTx error", "error", perr)
-	}
-
-	perr = rawdb.PersistDeactivateDIDTx(bc.db, state.DeactiveDIDLog())
-	if perr != nil {
-		log.Error("PersistRegisterDIDTx error", "error", perr)
-	}
+	rawdb.WriteDIDReceipts(bc.db.(ethdb.KeyValueStore), receipts, block.NumberU64(), block.Time())
 
 	isToMany := bc.isToManyEvilSigners(block.Header())
 	if isToMany {
@@ -1744,7 +1737,6 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 		substart := time.Now()
 		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 		if err != nil {
-			log.Error("reportBlock process error:", "error", err)
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
 			return it.index, events, coalescedLogs, err

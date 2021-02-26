@@ -255,10 +255,10 @@ func (s *PublicTransactionPoolAPI) getTxTime(ctx context.Context, txid string) (
 	hash := common.HexToHash(txid)
 
 	tx, err := s.GetTransactionByHash(ctx, hash)
-	if err != nil {
+	if err != nil || tx == nil {
 		return errors.New("unkown tx"), 0
 	}
-	block, err := s.b.BlockByHash(ctx, tx.Hash)
+	block, err := s.b.BlockByHash(ctx, *tx.BlockHash)
 	if err != nil {
 		return errors.New("unkown block header"), 0
 

@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastos/Elastos.ELA/common"
+	elaCom "github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/utils/http"
+
+	"github.com/elastos/Elastos.ELA.SideChain/service"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA.SideChain/service"
-	"github.com/elastos/Elastos.ELA/utils/http"
 )
 
 type EntryPrefix byte
@@ -32,45 +32,34 @@ const (
 	IX_CUSTOMIZEDDIDExpiresHeight        EntryPrefix = 0x99
 )
 
-// WritePreimages writes the provided set of preimages to the database.
-func WriteDIDImage(db ethdb.Database, didimages map[string][]byte) {
-	for id, image := range didimages {
-		if err := db.Put([]byte(id), image); err != nil {
-			log.Crit("Failed to store trie didImage", "err", err)
-		}
-	}
-}
-
-func PersistRegisterDIDTx(db ethdb.KeyValueStore, logs []*types.Log, blockHeight uint64,
+func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight uint64,
 	blockTimeStamp uint64) error {
 	var err error
 	var buffer *bytes.Reader
-	for _, log := range logs {
-		operation := new(did.Operation)
-		buffer = bytes.NewReader(log.Data)
-		err = operation.Deserialize(buffer, did.DIDInfoVersion)
-		if err != nil {
-			return err
-		}
-		id := GetDIDFromUri(operation.PayloadInfo.ID)
-		idKey := []byte(id)
-		expiresHeight, err := TryGetExpiresHeight(operation.PayloadInfo.Expires, blockHeight, blockTimeStamp)
-		if err != nil {
-			return err
-		}
-		if err := persistRegisterDIDExpiresHeight(db, idKey, expiresHeight); err != nil {
-			return err
-		}
-		txHash, err := common.Uint256FromBytes(log.TxHash.Bytes())
-		if err != nil {
-			return err
-		}
-		if err := persistRegisterDIDTxHash(db, idKey, *txHash); err != nil {
-			return err
-		}
-		if err := persistRegisterDIDPayload(db, *txHash, operation); err != nil {
-			return err
-		}
+	operation := new(did.Operation)
+	buffer = bytes.NewReader(log.Data)
+	err = operation.Deserialize(buffer, did.DIDInfoVersion)
+	if err != nil {
+		return err
+	}
+	id := GetDIDFromUri(operation.PayloadInfo.ID)
+	idKey := []byte(id)
+	expiresHeight, err := TryGetExpiresHeight(operation.PayloadInfo.Expires, blockHeight, blockTimeStamp)
+	if err != nil {
+		return err
+	}
+	if err := persistRegisterDIDExpiresHeight(db, idKey, expiresHeight); err != nil {
+		return err
+	}
+	thash, err := elaCom.Uint256FromBytes(log.TxHash.Bytes())
+	if err != nil {
+		return err
+	}
+	if err := persistRegisterDIDTxHash(db, idKey, *thash); err != nil {
+		return err
+	}
+	if err := persistRegisterDIDPayload(db, *thash, operation); err != nil {
+		return err
 	}
 	return nil
 }
@@ -103,10 +92,10 @@ func persistRegisterDIDExpiresHeight(db ethdb.KeyValueStore, idKey []byte,
 	if err != nil {
 		// when not exist, only put the current expires height into db.
 		buf := new(bytes.Buffer)
-		if err := common.WriteVarUint(buf, 1); err != nil {
+		if err := elaCom.WriteVarUint(buf, 1); err != nil {
 			return err
 		}
-		if err := common.WriteUint64(buf, expiresHeight); err != nil {
+		if err := elaCom.WriteUint64(buf, expiresHeight); err != nil {
 			return err
 		}
 
@@ -115,7 +104,7 @@ func persistRegisterDIDExpiresHeight(db ethdb.KeyValueStore, idKey []byte,
 
 	// when exist, should add current expires height to the end of the list.
 	r := bytes.NewReader(data)
-	count, err := common.ReadVarUint(r, 0)
+	count, err := elaCom.ReadVarUint(r, 0)
 	if err != nil {
 		return err
 	}
@@ -124,10 +113,10 @@ func persistRegisterDIDExpiresHeight(db ethdb.KeyValueStore, idKey []byte,
 	buf := new(bytes.Buffer)
 
 	// write count
-	if err := common.WriteVarUint(buf, count); err != nil {
+	if err := elaCom.WriteVarUint(buf, count); err != nil {
 		return err
 	}
-	if err := common.WriteUint64(buf, expiresHeight); err != nil {
+	if err := elaCom.WriteUint64(buf, expiresHeight); err != nil {
 		return err
 	}
 	if _, err := r.WriteTo(buf); err != nil {
@@ -137,7 +126,7 @@ func persistRegisterDIDExpiresHeight(db ethdb.KeyValueStore, idKey []byte,
 	return db.Put(key, buf.Bytes())
 }
 
-func persistRegisterDIDTxHash(db ethdb.KeyValueStore, idKey []byte, txHash common.Uint256) error {
+func persistRegisterDIDTxHash(db ethdb.KeyValueStore, idKey []byte, txHash elaCom.Uint256) error {
 	key := []byte{byte(IX_DIDTXHash)}
 	key = append(key, idKey...)
 
@@ -145,20 +134,19 @@ func persistRegisterDIDTxHash(db ethdb.KeyValueStore, idKey []byte, txHash commo
 	if err != nil {
 		// when not exist, only put the current payload hash into db.
 		buf := new(bytes.Buffer)
-		if err := common.WriteVarUint(buf, 1); err != nil {
+		if err := elaCom.WriteVarUint(buf, 1); err != nil {
 			return err
 		}
 
 		if err := txHash.Serialize(buf); err != nil {
 			return err
 		}
-
 		return db.Put(key, buf.Bytes())
 	}
 
 	// when exist, should add current payload hash to the end of the list.
 	r := bytes.NewReader(data)
-	count, err := common.ReadVarUint(r, 0)
+	count, err := elaCom.ReadVarUint(r, 0)
 	if err != nil {
 		return err
 	}
@@ -167,7 +155,7 @@ func persistRegisterDIDTxHash(db ethdb.KeyValueStore, idKey []byte, txHash commo
 	buf := new(bytes.Buffer)
 
 	// write count
-	if err := common.WriteVarUint(buf, count); err != nil {
+	if err := elaCom.WriteVarUint(buf, count); err != nil {
 		return err
 	}
 
@@ -194,14 +182,14 @@ func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte) (*did.TranasactionDa
 	}
 
 	r := bytes.NewReader(data)
-	count, err := common.ReadVarUint(r, 0)
+	count, err := elaCom.ReadVarUint(r, 0)
 	if err != nil {
 		return nil, err
 	}
 	if count == 0 {
 		return nil, errors.New("not exist")
 	}
-	var txHash common.Uint256
+	var txHash elaCom.Uint256
 	if err := txHash.Deserialize(r); err != nil {
 		return nil, err
 	}
@@ -253,13 +241,13 @@ func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.Tranasaction
 	}
 
 	r := bytes.NewReader(data)
-	count, err := common.ReadVarUint(r, 0)
+	count, err := elaCom.ReadVarUint(r, 0)
 	if err != nil {
 		return nil, err
 	}
 	var transactionsData []did.TranasactionData
 	for i := uint64(0); i < count; i++ {
-		var txHash common.Uint256
+		var txHash elaCom.Uint256
 		if err := txHash.Deserialize(r); err != nil {
 			return nil, err
 		}
@@ -287,7 +275,7 @@ func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.Tranasaction
 	return transactionsData, nil
 }
 
-func persistRegisterDIDPayload(db ethdb.KeyValueStore, txHash common.Uint256, p *did.Operation) error {
+func persistRegisterDIDPayload(db ethdb.KeyValueStore, txHash elaCom.Uint256, p *did.Operation) error {
 	key := []byte{byte(IX_DIDPayload)}
 	key = append(key, txHash.Bytes()...)
 
@@ -308,20 +296,16 @@ func GetDIDFromUri(idURI string) string {
 	return idURI[index+1:]
 }
 
-func PersistDeactivateDIDTx(db ethdb.KeyValueStore, logs []string) error {
-	for _, id := range logs {
-		key := []byte{byte(IX_DIDDeactivate)}
-		idKey := []byte(id)
-		key = append(key, idKey...)
+func PersistDeactivateDIDTx(db ethdb.KeyValueStore, log *types.DIDLog) error {
+	key := []byte{byte(IX_DIDDeactivate)}
+	idKey := []byte(log.DID)
+	key = append(key, idKey...)
 
-		buf := new(bytes.Buffer)
-		if err := common.WriteVarUint(buf, 1); err != nil {
-			return err
-		}
-		return db.Put(key, buf.Bytes())
+	buf := new(bytes.Buffer)
+	if err := elaCom.WriteVarUint(buf, 1); err != nil {
+		return err
 	}
-
-	return nil
+	return db.Put(key, buf.Bytes())
 }
 
 func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.VerifiableCredentialTxData, error) {
@@ -334,13 +318,13 @@ func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) ([]d
 	}
 
 	r := bytes.NewReader(data)
-	count, err := common.ReadVarUint(r, 0)
+	count, err := elaCom.ReadVarUint(r, 0)
 	if err != nil {
 		return nil, err
 	}
 	var transactionsData []did.VerifiableCredentialTxData
 	for i := uint64(0); i < count; i++ {
-		var txHash common.Uint256
+		var txHash elaCom.Uint256
 		if err := txHash.Deserialize(r); err != nil {
 			return nil, err
 		}
