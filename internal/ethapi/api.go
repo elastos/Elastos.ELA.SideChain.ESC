@@ -1328,6 +1328,10 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	if receipt.ContractAddress != (common.Address{}) {
 		fields["contractAddress"] = receipt.ContractAddress
 	}
+	//did log
+	if receipt.DIDLog.DID != "" {
+		fields["didLog"] = receipt.DIDLog
+	}
 	return fields, nil
 }
 
