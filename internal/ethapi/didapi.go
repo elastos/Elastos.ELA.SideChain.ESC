@@ -73,7 +73,7 @@ func (rpcTxData *RpcTranasactionData) FromTranasactionData(txData did.Tranasacti
 		return false
 	}
 
-	rpcTxData.TXID = service.ToReversedString(*hash)
+	rpcTxData.TXID = hash.String()//service.ToReversedString(*hash)
 	rpcTxData.Timestamp = txData.Timestamp
 	rpcTxData.Operation.Header = txData.Operation.Header
 	rpcTxData.Operation.Payload = txData.Operation.Payload
