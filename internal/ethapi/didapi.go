@@ -56,9 +56,9 @@ type RpcPayloadDIDInfo struct {
 }
 
 type RpcOperation struct {
-	Header  did.DIDHeaderInfo `json:"header"`
+	Header  did.Header `json:"header"`
 	Payload string           `json:"payload"`
-	Proof   did.DIDProofInfo  `json:"proof"`
+	Proof   did.Proof  `json:"proof"`
 }
 
 type RpcTranasactionData struct {
@@ -67,7 +67,7 @@ type RpcTranasactionData struct {
 	Operation RpcOperation `json:"operation"`
 }
 
-func (rpcTxData *RpcTranasactionData) FromTranasactionData(txData did.TranasactionData) bool {
+func (rpcTxData *RpcTranasactionData) FromTranasactionData(txData did.DIDTransactionData) bool {
 	hash, err := elacom.Uint256FromHexString(txData.TXID)
 	if err != nil {
 		return false
@@ -96,7 +96,7 @@ type RpcCredentialTransactionData struct {
 }
 
 type CredentialOperation struct {
-	Header  did.VerifiableCredentialHeaderInfo `json:"header"`
+	Header  did.Header `json:"header"`
 	Payload string                            `json:"payload"`
 	Proof   interface{}                       `json:"proof"`
 }
@@ -145,7 +145,7 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idPara
 
 	var rpcPayloadDid RpcCredentialPayloadDIDInfo
 	for index, txData := range txsData {
-		rpcPayloadDid.ID = txData.Operation.Doc.ID
+		rpcPayloadDid.ID = txData.Operation.CredentialDoc.ID
 		err, timestamp := s.getTxTime(ctx, txData.TXID)
 		if err != nil {
 			continue
@@ -161,8 +161,8 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idPara
 			isRevokeTransaction = true
 		}
 
-		signer := txData.Operation.Proof.(*did.InnerDIDProofInfo).VerificationMethod
-		if isRevokeTransaction && issuerID == "" && signer == txData.Operation.Doc.Issuer {
+		signer := txData.Operation.Proof.VerificationMethod
+		if isRevokeTransaction && issuerID == "" && signer == txData.Operation.CredentialDoc.Issuer {
 			continue
 		}
 
@@ -211,7 +211,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 		return rpcPayloadDid, nil
 	}
 
-	var txsData []did.TranasactionData
+	var txsData []did.DIDTransactionData
 	if isGetAll {
 		txsData, err = rawdb.GetAllDIDTxTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes())
 		if err != nil {
@@ -226,7 +226,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 	}
 
 	for index, txData := range txsData {
-		rpcPayloadDid.DID = txData.Operation.PayloadInfo.ID
+		rpcPayloadDid.DID = txData.Operation.DIDDoc.ID
 		err, timestamp := s.getTxTime(ctx, txData.TXID)
 		if err != nil {
 			continue

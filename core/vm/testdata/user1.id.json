@@ -1,0 +1,84 @@
+{
+  "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y",
+  "publicKey" : [ {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#key2",
+    "type" : "ECDSAsecp256r1",
+    "controller" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y",
+    "publicKeyBase58" : "i6zZVQwk6XS8m1iiJ5iX8nrnGNfTxGRtiCb5jmF7uNZu"
+  }, {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#key3",
+    "type" : "ECDSAsecp256r1",
+    "controller" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y",
+    "publicKeyBase58" : "24yjowMdMUkNfGRdMnuH1HPZ2PPMryszCNDL74JTgAL6R"
+  }, {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#primary",
+    "type" : "ECDSAsecp256r1",
+    "controller" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y",
+    "publicKeyBase58" : "vMYSz32qbWsNeDJpKsuuMaFsiApuZMz9XVy9DmEwysWg"
+  }, {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#recovery",
+    "type" : "ECDSAsecp256r1",
+    "controller" : "did:elastos:iUc4ujA5doZx7mPRJdBirtLNdePXmtaipJ",
+    "publicKeyBase58" : "qxp7hSiXSoPRJLrCyXz56HGikUgfBjFzKDnfxiwU3cap"
+  } ],
+  "authentication" : [ "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#key2", "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#key3", "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#primary" ],
+  "authorization" : [ "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#recovery" ],
+  "verifiableCredential" : [ {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#email",
+    "type" : [ "BasicProfileCredential", "EmailCredential", "InternetAccountCredential" ],
+    "issuer" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj",
+    "issuanceDate" : "2021-01-28T06:38:34Z",
+    "expirationDate" : "2026-01-28T06:38:34Z",
+    "credentialSubject" : {
+      "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y",
+      "email" : "john@example.com"
+    },
+    "proof" : {
+      "type" : "ECDSAsecp256r1",
+      "created" : "2021-01-28T06:38:34Z",
+      "verificationMethod" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj#primary",
+      "signature" : "ByNWeUbm9LpLpia2GcARpnCpamG54EVZiYCIku46PNVxbDtlNm0WIve59x78hyE2Rf9bIt7ctKI07GazVKIIag"
+    }
+  }, {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#profile",
+    "type" : [ "BasicProfileCredential", "SelfProclaimedCredential" ],
+    "issuer" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y",
+    "issuanceDate" : "2021-01-28T06:38:34Z",
+    "expirationDate" : "2026-01-28T06:38:34Z",
+    "credentialSubject" : {
+      "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y",
+      "email" : "john@example.com",
+      "gender" : "Male",
+      "language" : "English",
+      "name" : "John",
+      "nation" : "Singapore",
+      "twitter" : "@john"
+    },
+    "proof" : {
+      "type" : "ECDSAsecp256r1",
+      "created" : "2021-01-28T06:38:34Z",
+      "verificationMethod" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#primary",
+      "signature" : "FfCGprFkL2NhsTAyUYJ1MSmX1hghI3HDSPGB6l65TmQASLiHo1wsIwtZ8H77FodfoBL5npnZARyxRIFslLw9Og"
+    }
+  } ],
+  "service" : [ {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#carrier",
+    "type" : "CarrierAddress",
+    "serviceEndpoint" : "carrier://X2tDd1ZTErwnHNot8pTdhp7C7Y9FxMPGD8ppiasUT4UsHH2BpF1d"
+  }, {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#openid",
+    "type" : "OpenIdConnectVersion1.0Service",
+    "serviceEndpoint" : "https://openid.example.com/"
+  }, {
+    "id" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#vcr",
+    "type" : "CredentialRepositoryService",
+    "serviceEndpoint" : "https://did.example.com/credentials"
+  } ],
+  "expires" : "2026-01-28T06:38:34Z",
+  "proof" : {
+    "type" : "ECDSAsecp256r1",
+    "created" : "2021-01-28T06:38:34Z",
+    "creator" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#primary",
+    "signatureValue" : "67NG2IH-1yAiHx9d0ONp6oE-i1D9wH9ZxQbCZuel6bekGKO6FCNMVvAj5vBiMpp7s9xdh_bienFueqhemmpP0A"
+  }
+}

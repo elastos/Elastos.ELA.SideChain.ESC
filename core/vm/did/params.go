@@ -2,6 +2,8 @@ package did
 
 import "github.com/elastos/Elastos.ELA/common"
 
+const FeeRate int64 = 10000000000
+
 type DIDParams struct {
 	// CheckRegisterDIDHeight defines the height to check RegisterDID transactions.
 	CheckRegisterDIDHeight uint32
@@ -11,6 +13,8 @@ type DIDParams struct {
 
 	// CustomIDFeeRate defines the default fee rate of registerCustomID transaction
 	CustomIDFeeRate common.Fixed64
+
+	IsTest bool
 }
 
 var MainNetDIDParams = DIDParams{

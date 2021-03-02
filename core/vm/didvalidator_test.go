@@ -29,7 +29,13 @@ var (
 	userAddr1   = crypto.PubkeyToAddress(userKey1.PublicKey)
 
 	id1DocByts     []byte
-	id2DocByts                      []byte
+	id2DocByts     []byte
+	id11DocByts    []byte
+	idUser1DocByts []byte
+	idUser2DocByts []byte
+	customizedDIDDocSingleContrller []byte
+	customizedDIDDocBytes2          []byte
+
 )
 
 const (
@@ -40,6 +46,14 @@ func init() {
 	id1DocByts, _ = LoadJsonData("./testdata/document.compact.json")
 
 	id2DocByts, _ = LoadJsonData("./testdata/issuer.compact.json")
+
+	id11DocByts, _ = LoadJsonData("./testdata/issuer.id.json")
+
+	idUser1DocByts, _ = LoadJsonData("./testdata/user1.id.json")
+	idUser2DocByts, _ = LoadJsonData("./testdata/user2.id.json")
+
+	customizedDIDDocSingleContrller, _ = LoadJsonData("./testdata/examplecorp.id.json")
+	customizedDIDDocBytes2, _ = LoadJsonData("./testdata/foo.id.json")//
 }
 
 var didPayloadBytes = []byte(
@@ -105,42 +119,42 @@ func LoadJsonData(fileName string) ([]byte, error) {
 func Test_checkRegisterDIDTest(t *testing.T)  {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
-
+	var gas uint64 = 20000
 	doc := getPayloadCreateDID()
-	err := checkRegisterDID(evm, doc)
+	err := checkRegisterDID(evm, doc, gas)
 	assert.NoError(t, err)
 
-	info := new(did.Operation)
+	info := new(did.DIDPayload)
 	json.Unmarshal(didPayloadInfoBytes, info)
 	payloadBase64, _ := base64url.DecodeString(info.Payload)
-	payloadInfo := new(did.DIDPayloadInfo)
+	payloadInfo := new(did.DIDDoc)
 	json.Unmarshal(payloadBase64, payloadInfo)
-	info.PayloadInfo = payloadInfo
+	info.DIDDoc = payloadInfo
 
-	err = checkRegisterDID(evm, info)
+	err = checkRegisterDID(evm, info, gas)
 	assert.NoError(t, err)
 
-	info.PayloadInfo.Expires = "Mon Jan _2 15:04:05 2006"
-	err = checkRegisterDID(evm, info)
+	info.DIDDoc.Expires = "Mon Jan _2 15:04:05 2006"
+	err = checkRegisterDID(evm, info,  gas)
 	assert.EqualError(t, err, "invalid Expires")
 
-	info.PayloadInfo.Expires = "2006-01-02T15:04:05Z07:00"
-	err = checkRegisterDID(evm, info)
+	info.DIDDoc.Expires = "2006-01-02T15:04:05Z07:00"
+	err = checkRegisterDID(evm, info, gas)
 	assert.EqualError(t, err, "invalid Expires")
 
-	info.PayloadInfo.Expires = "2018-06-30T12:00:00Z"
-	err = checkRegisterDID(evm, info)
+	info.DIDDoc.Expires = "2018-06-30T12:00:00Z"
+	err = checkRegisterDID(evm, info, gas)
 	assert.NoError(t, err)
 
-	info = new(did.Operation)
+	info = new(did.DIDPayload)
 	json.Unmarshal(errDIDPayloadInfoBytes, info)
 
 	payloadBase64, _ = base64url.DecodeString(info.Payload)
-	payloadInfo = new(did.DIDPayloadInfo)
+	payloadInfo = new(did.DIDDoc)
 	json.Unmarshal(payloadBase64, payloadInfo)
-	info.PayloadInfo = payloadInfo
+	info.DIDDoc = payloadInfo
 
-	err = checkRegisterDID(evm, info)
+	err = checkRegisterDID(evm, info, gas)
 	assert.EqualError(t, err, "invalid Expires")
 }
 
@@ -158,29 +172,29 @@ func TestCheckRegisterDID(t *testing.T) {
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
 	id := "ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
 	buf := new(bytes.Buffer)
-	tx2.Serialize(buf, did.DIDInfoVersion)
-	statedb.AddDIDLog(id, byte(did.RegisterDID), buf.Bytes())
+	tx2.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(id, did.Create_DID_Operation, buf.Bytes())
 	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 100, 123456)
 	assert.NoError(t, err1)
-	err2 := checkRegisterDID(evm, tx1)
+	err2 := checkRegisterDID(evm, tx1, 2000)
 	assert.NoError(t, err2)
 }
 
-func getPayloadDIDInfo(id string, didOperation string, docBytes []byte, privateKeyStr string) *did.Operation {
+func getPayloadDIDInfo(id string, didOperation string, docBytes []byte, privateKeyStr string) *did.DIDPayload {
 	//pBytes := getDIDPayloadBytes(id)
-	info := new(did.DIDPayloadInfo)
+	info := new(did.DIDDoc)
 	json.Unmarshal(docBytes, info)
-	p := &did.Operation{
-		Header: did.DIDHeaderInfo{
+	p := &did.DIDPayload{
+		Header: did.Header{
 			Specification: "elastos/did/1.0",
 			Operation:     didOperation,
 		},
 		Payload: base64url.EncodeToString(docBytes),
-		Proof: did.DIDProofInfo{
+		Proof: did.Proof{
 			Type:               "ECDSAsecp256r1",
 			VerificationMethod: "did:elastos:" + id + "#primary", //primary
 		},
-		PayloadInfo: info,
+		DIDDoc: info,
 	}
 	privateKey1 := base58.Decode(privateKeyStr)
 	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
@@ -188,20 +202,20 @@ func getPayloadDIDInfo(id string, didOperation string, docBytes []byte, privateK
 	return p
 }
 
-func getPayloadCreateDID() *did.Operation {
-	info := new(did.DIDPayloadInfo)
+func getPayloadCreateDID() *did.DIDPayload {
+	info := new(did.DIDDoc)
 	json.Unmarshal(didPayloadBytes, info)
-	p := &did.Operation{
-		Header: did.DIDHeaderInfo{
+	p := &did.DIDPayload{
+		Header: did.Header{
 			Specification: "elastos/did/1.0",
 			Operation:     "create",
 		},
 		Payload: base64url.EncodeToString(didPayloadBytes),
-		Proof: did.DIDProofInfo{
+		Proof: did.Proof{
 			Type:               "ECDSAsecp256r1",
 			VerificationMethod: "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
 		},
-		PayloadInfo: info,
+		DIDDoc: info,
 	}
 
 	privateKey1, _ := elacom.HexStringToBytes(PayloadPrivateKey)
@@ -226,8 +240,8 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 	assert.EqualError(t, err, ErrNotFound.Error())
 
 	buf := new(bytes.Buffer)
-	txCreateDID.Serialize(buf, did.DIDInfoVersion)
-	statedb.AddDIDLog(id, byte(did.RegisterDID), buf.Bytes())
+	txCreateDID.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(id, did.Create_DID_Operation, buf.Bytes())
 	err = rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 0, 0)
 	assert.NoError(t, err)
 
@@ -241,7 +255,7 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 	assert.EqualError(t, err, "[VM] Check Sig FALSE")
 
 	//deactive one deactivated did
-	statedb.AddDIDLog(id, byte(did.DeactivateDID), buf.Bytes())
+	statedb.AddDIDLog(id, did.Deactivate_DID_Operation, buf.Bytes())
 	rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}))
 	txDeactivateWrong := getPayloadDeactivateDID(didWithPrefix, verifDid)
 	err = checkDeactivateDID(evm, txDeactivateWrong)
@@ -249,22 +263,137 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 }
 
 
-func getPayloadDeactivateDID(id, verifDid string) *did.DeactivateDIDOptPayload {
-	info := new(did.DIDPayloadInfo)
+func getPayloadDeactivateDID(id, verifDid string) *did.DIDPayload {
+	info := new(did.DIDDoc)
 	json.Unmarshal(didPayloadBytes, info)
 
-	p := &did.DeactivateDIDOptPayload{
-		Header: did.DIDHeaderInfo{
+	p := &did.DIDPayload{
+		Header: did.Header{
 			Specification: "elastos/did/1.0",
 			Operation:     "create",
 		},
 		Payload: id,
-		Proof: did.DIDProofInfo{
+		Proof: did.Proof{
 			Type:               "ECDSAsecp256r1",
 			VerificationMethod: verifDid,
 		},
 	}
 	privateKey1 := common.Hex2Bytes(PayloadPrivateKey)
+	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
+	p.Proof.Signature = base64url.EncodeToString(sign)
+	return p
+}
+
+func TestCustomizedDID(t *testing.T) {
+	id1 := "imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj"
+	privateKey1Str := "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ" //413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ
+	tx1 := getPayloadDIDInfo(id1, "create", id11DocByts, privateKey1Str)
+
+
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+
+	buf := new(bytes.Buffer)
+	tx1.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(id1, did.Create_DID_Operation, buf.Bytes())
+	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 0, 100)
+	assert.NoError(t, err1)
+
+	//examplercorp.id.json
+	didParam.IsTest = true
+	tx3 := getCustomizedDIDDoc(id1, "create", customizedDIDDocSingleContrller, privateKey1Str)
+	didParam.CustomIDFeeRate = 0
+	err3 := checkCustomizedDID(evm, tx3, 20000)
+	assert.NoError(t, err3)
+
+	// todo fix me
+
+	didParam.IsTest = false
+}
+
+//issuer.json SelfProclaimedCredential
+func TestCustomizedDIDMultSign(t *testing.T) {
+	didParam.IsTest = true
+	defer func() {
+		didParam.IsTest = false
+	}()
+	idUser1 := "iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
+	privateKeyUser1Str := "3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS"
+	tx1 := getPayloadDIDInfo(idUser1, "create", idUser1DocByts, privateKeyUser1Str)
+
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+
+	buf := new(bytes.Buffer)
+	tx1.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(idUser1, did.Create_DID_Operation, buf.Bytes())
+
+	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 100, 123456)
+	assert.NoError(t, err1)
+
+	privateKeyUser2Str := "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
+	idUser2 := "idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g"
+	tx2 := getPayloadDIDInfo(idUser2, "create", idUser2DocByts, privateKeyUser2Str)
+
+	buf = new(bytes.Buffer)
+	tx2.Serialize(buf, did.DIDVersion)
+	statedb.Prepare(common.HexToHash("0x1234"), common.HexToHash("0x1234"), 1)
+	statedb.AddDIDLog(idUser2, did.Create_DID_Operation, buf.Bytes())
+	err2 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.HexToHash("0x1234")), 100, 123456)
+	assert.NoError(t, err2)
+
+	CustomizedDIDTx2 := getCustomizedDIDDocMultiSign(idUser1, idUser2, "create", customizedDIDDocBytes2,
+		privateKeyUser1Str, privateKeyUser2Str)
+	didParam.CustomIDFeeRate = 0
+	err := checkCustomizedDID(evm, CustomizedDIDTx2, 20000)
+	assert.NoError(t, err)
+	// todo fix me
+}
+
+func getCustomizedDIDDocMultiSign(id1, id2 string, didDIDPayload string, docBytes []byte,
+	privateKeyStr1, privateKeyStr2 string) *did.DIDPayload {
+	info := new(did.DIDDoc)
+	json.Unmarshal(docBytes, info)
+
+	//var Proofs []*types.Proof
+	p := &did.DIDPayload{
+		Header: did.Header{
+			Specification: "elastos/did/1.0",
+			Operation:     didDIDPayload,
+		},
+		Payload: base64url.EncodeToString(docBytes),
+		DIDDoc:  info,
+	}
+	proof1 := &did.Proof{
+		Type:               "ECDSAsecp256r1",
+		VerificationMethod: "did:elastos:" + id1 + "#primary",
+	}
+	privateKey1 := base58.Decode(privateKeyStr1)
+	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
+	proof1.Signature = base64url.EncodeToString(sign)
+	p.Proof = *proof1
+	return p
+}
+
+func getCustomizedDIDDoc(id string, didDIDPayload string, docBytes []byte,
+	privateKeyStr string) *did.DIDPayload {
+	//pBytes := getDIDPayloadBytes(id)
+	info := new(did.DIDDoc)
+	json.Unmarshal(docBytes, info)
+
+	p := &did.DIDPayload{
+		Header: did.Header{
+			Specification: "elastos/did/1.0",
+			Operation:     didDIDPayload,
+		},
+		Payload: base64url.EncodeToString(docBytes),
+		Proof: did.Proof{
+			Type:               "ECDSAsecp256r1",
+			VerificationMethod: "did:elastos:" + id + "#primary",
+		},
+		DIDDoc: info,
+	}
+	privateKey1 := base58.Decode(privateKeyStr)
 	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
 	p.Proof.Signature = base64url.EncodeToString(sign)
 	return p
