@@ -36,15 +36,15 @@ func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight
 	blockTimeStamp uint64) error {
 	var err error
 	var buffer *bytes.Reader
-	operation := new(did.Operation)
+	operation := new(did.DIDPayload)
 	buffer = bytes.NewReader(log.Data)
-	err = operation.Deserialize(buffer, did.DIDInfoVersion)
+	err = operation.Deserialize(buffer, did.DIDVersion)
 	if err != nil {
 		return err
 	}
-	id := GetDIDFromUri(operation.PayloadInfo.ID)
+	id := GetDIDFromUri(operation.DIDDoc.ID)
 	idKey := []byte(id)
-	expiresHeight, err := TryGetExpiresHeight(operation.PayloadInfo.Expires, blockHeight, blockTimeStamp)
+	expiresHeight, err := TryGetExpiresHeight(operation.DIDDoc.Expires, blockHeight, blockTimeStamp)
 	if err != nil {
 		return err
 	}
@@ -61,6 +61,8 @@ func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight
 	if err := persistRegisterDIDPayload(db, *thash, operation); err != nil {
 		return err
 	}
+
+	// todo save IsDID or IsCustomDID
 	return nil
 }
 
@@ -172,7 +174,7 @@ func persistRegisterDIDTxHash(db ethdb.KeyValueStore, idKey []byte, txHash elaCo
 	return db.Put(key, buf.Bytes())
 }
 
-func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte) (*did.TranasactionData, error) {
+func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte) (*did.DIDTransactionData, error) {
 	key := []byte{byte(IX_DIDTXHash)}
 	key = append(key, idKey...)
 
@@ -202,17 +204,17 @@ func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte) (*did.TranasactionDa
 		return nil, err
 	}
 
-	tempOperation := new(did.Operation)
+	tempOperation := new(did.DIDPayload)
 	r = bytes.NewReader(dataPayload)
-	err = tempOperation.Deserialize(r, did.DIDInfoVersion)
+	err = tempOperation.Deserialize(r, did.DIDVersion)
 	if err != nil {
 		return nil, http.NewError(int(service.ResolverInternalError),
 			"tempOperation Deserialize failed")
 	}
-	tempTxData := new(did.TranasactionData)
+	tempTxData := new(did.DIDTransactionData)
 	tempTxData.TXID = txHash.String()
 	tempTxData.Operation = *tempOperation
-	tempTxData.Timestamp = tempOperation.PayloadInfo.Expires
+	tempTxData.Timestamp = tempOperation.DIDDoc.Expires
 
 	return tempTxData, nil
 }
@@ -231,7 +233,7 @@ func IsDIDDeactivated(db ethdb.KeyValueStore, did string) bool {
 	return true
 }
 
-func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.TranasactionData, error) {
+func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.DIDTransactionData, error) {
 	key := []byte{byte(IX_DIDTXHash)}
 	key = append(key, idKey...)
 
@@ -245,7 +247,7 @@ func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.Tranasaction
 	if err != nil {
 		return nil, err
 	}
-	var transactionsData []did.TranasactionData
+	var transactionsData []did.DIDTransactionData
 	for i := uint64(0); i < count; i++ {
 		var txHash elaCom.Uint256
 		if err := txHash.Deserialize(r); err != nil {
@@ -258,29 +260,74 @@ func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.Tranasaction
 		if err != nil {
 			return nil, err
 		}
-		tempOperation := new(did.Operation)
+		tempOperation := new(did.DIDPayload)
 		r := bytes.NewReader(payloadData)
-		err = tempOperation.Deserialize(r, did.DIDInfoVersion)
+		err = tempOperation.Deserialize(r, did.DIDVersion)
 		if err != nil {
 			return nil, http.NewError(int(service.InvalidTransaction),
 				"payloaddid Deserialize failed")
 		}
-		tempTxData := new(did.TranasactionData)
+		tempTxData := new(did.DIDTransactionData)
 		tempTxData.TXID = txHash.String()
 		tempTxData.Operation = *tempOperation
-		tempTxData.Timestamp = tempOperation.PayloadInfo.Expires
+		tempTxData.Timestamp = tempOperation.DIDDoc.Expires
 		transactionsData = append(transactionsData, *tempTxData)
 	}
 
 	return transactionsData, nil
 }
 
-func persistRegisterDIDPayload(db ethdb.KeyValueStore, txHash elaCom.Uint256, p *did.Operation) error {
+func GetLastCustomizedDIDTxData(db ethdb.KeyValueStore, idKey []byte) (*did.DIDTransactionData, error) {
+	key := []byte{byte(IX_CUSTOMIZEDDIDTXHash)}
+	key = append(key, idKey...)
+
+	data, err := db.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	r := bytes.NewReader(data)
+	count, err := elaCom.ReadVarUint(r, 0)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, errors.New("not exist")
+	}
+	var txHash elaCom.Uint256
+	if err := txHash.Deserialize(r); err != nil {
+		return nil, err
+	}
+
+	keyPayload := []byte{byte(IX_CUSTOMIZEDDIDPayload)}
+	keyPayload = append(keyPayload, txHash.Bytes()...)
+
+	dataPayload, err := db.Get(keyPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	tempOperation := new(did.DIDPayload)
+	r = bytes.NewReader(dataPayload)
+	err = tempOperation.Deserialize(r, did.DIDVersion)
+	if err != nil {
+		return nil, http.NewError(int(service.ResolverInternalError),
+			"DIDPayload Deserialize failed")
+	}
+	tempTxData := new(did.DIDTransactionData)
+	tempTxData.TXID = txHash.String()
+	tempTxData.Operation = *tempOperation
+	tempTxData.Timestamp = tempOperation.GetDIDDoc().Expires
+
+	return tempTxData, nil
+}
+
+
+func persistRegisterDIDPayload(db ethdb.KeyValueStore, txHash elaCom.Uint256, p *did.DIDPayload) error {
 	key := []byte{byte(IX_DIDPayload)}
 	key = append(key, txHash.Bytes()...)
 
 	buf := new(bytes.Buffer)
-	p.Serialize(buf, did.DIDInfoVersion)
+	p.Serialize(buf, did.DIDVersion)
 	return db.Put(key, buf.Bytes())
 }
 
@@ -335,7 +382,7 @@ func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) ([]d
 		if err != nil {
 			return nil, err
 		}
-		vcPayload := new(did.VerifiableCredentialPayload)
+		vcPayload := new(did.DIDPayload)
 		r := bytes.NewReader(payloadData)
 		err = vcPayload.Deserialize(r, did.VerifiableCredentialVersion)
 		if err != nil {
@@ -344,10 +391,56 @@ func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) ([]d
 		}
 		tempTxData := new(did.VerifiableCredentialTxData)
 		tempTxData.TXID = txHash.String()
-		tempTxData.Timestamp = vcPayload.Doc.ExpirationDate
+		tempTxData.Timestamp = vcPayload.CredentialDoc.ExpirationDate
 		tempTxData.Operation = *vcPayload
 		transactionsData = append(transactionsData, *tempTxData)
 	}
 
 	return transactionsData, nil
+}
+
+
+func GetLastVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) (*did.DIDTransactionData, error) {
+	key := []byte{byte(IX_VerifiableCredentialTXHash)}
+	key = append(key, idKey...)
+
+	data, err := db.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	r := bytes.NewReader(data)
+	count, err := elaCom.ReadVarUint(r, 0)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return nil, errors.New("not exist")
+	}
+	var txHash elaCom.Uint256
+	if err := txHash.Deserialize(r); err != nil {
+		return nil, err
+	}
+
+	keyPayload := []byte{byte(IX_VerifiableCredentialPayload)}
+	keyPayload = append(keyPayload, txHash.Bytes()...)
+
+	dataPayload, err := db.Get(keyPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	credentialPayload := new(did.DIDPayload)
+	r = bytes.NewReader(dataPayload)
+	err = credentialPayload.Deserialize(r, did.VerifiableCredentialVersion)
+	if err != nil {
+		return nil, http.NewError(int(service.ResolverInternalError),
+			"tempOperation Deserialize failed")
+	}
+	tempTxData := new(did.DIDTransactionData)
+	tempTxData.TXID = txHash.String()
+	tempTxData.Operation = *credentialPayload
+	tempTxData.Timestamp = credentialPayload.CredentialDoc.ExpirationDate
+
+	return tempTxData, nil
 }

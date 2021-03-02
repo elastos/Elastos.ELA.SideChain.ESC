@@ -15,7 +15,7 @@ type DIDLog struct {
 	// address of the contract that generated the event
 	DID string `json:"did"`
 
-	Operation byte `json:"operation"`
+	Operation string `json:"operation"`
 
 	// did json document
 	Data []byte `json:"data"`
@@ -58,7 +58,7 @@ type DIDLogForStorage DIDLog
 
 type rlpDIDLog struct {
 	DID string
-	Operation byte
+	Operation string
 	Data    []byte
 	TxHash common.Hash
 }

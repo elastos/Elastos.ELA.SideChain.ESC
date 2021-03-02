@@ -498,7 +498,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	//start the SPV service
 	//log.Info(fmt.Sprintf("Starting SPV service with config: %+v \n", *spvCfg))
 	startSpv(ctx, stack)
-
+	SetDIDParams(ctx, stack)
 	// Register wallet event handlers to open and auto-derive wallets
 	events := make(chan accounts.WalletEvent, 16)
 	stack.AccountManager().Subscribe(events)

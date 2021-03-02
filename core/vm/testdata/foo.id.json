@@ -1,0 +1,17 @@
+{
+  "id" : "did:elastos:foo",
+  "controller" : [ "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y", "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g" ],
+  "multisig" : "2:2",
+  "expires" : "2026-01-28T06:38:36Z",
+  "proof" : [ {
+    "type" : "ECDSAsecp256r1",
+    "created" : "2021-01-28T06:38:36Z",
+    "creator" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#primary",
+    "signatureValue" : "gqu74CtApYjf-KZt4qmM8BcQsWgeBIT_LEvqVpBzBQrN8Q4QdcCf6hV6uhO4Z2l1dUG8NQ4FczKNpWGWlVenrw"
+  }, {
+    "type" : "ECDSAsecp256r1",
+    "created" : "2021-01-28T06:38:36Z",
+    "creator" : "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g#primary",
+    "signatureValue" : "7D-AX0lUmIQtIna8MbnB543CtdXvw1FCind8lv3YwVx2J9P_L-bpjNwrdq8tRQyU5JZfqY6Zwyhxl2qlBF7Yvg"
+  } ]
+}

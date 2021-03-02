@@ -464,11 +464,11 @@ func DeleteReceipts(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 func WriteDIDReceipts(db ethdb.KeyValueStore, receipts types.Receipts, number, btime uint64) error {
 	var err error
 	for _, receipt := range receipts {
-		operation := did.DIDType(receipt.DIDLog.Operation)
+		operation := receipt.DIDLog.Operation
 		switch operation {
-		case did.RegisterDID:
+		case did.Create_DID_Operation, did.Update_DID_Operation, did.Transfer_DID_Operation:
 			err = PersistRegisterDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog, number, btime)
-		case did.DeactivateDID:
+		case did.Deactivate_DID_Operation:
 			err = PersistDeactivateDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog)
 		}
 	}

@@ -18,7 +18,7 @@ import (
 
 type EntryPrefix byte
 
-func (self *StateDB) AddDIDLog(did string, operation byte, doc []byte) {
+func (self *StateDB) AddDIDLog(did string, operation string, doc []byte) {
 	self.journal.append(didLogChange{txhash: self.thash})
 	pi := make([]byte, len(doc))
 	copy(pi, doc)
@@ -50,11 +50,11 @@ func (self *StateDB) IsDIDDeactivated(did string) bool {
 	return rawdb.IsDIDDeactivated(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), did)
 }
 
-func (self *StateDB) GetLastDIDTxData(idKey []byte) (*did.TranasactionData, error) {
+func (self *StateDB) GetLastDIDTxData(idKey []byte) (*did.DIDTransactionData, error) {
 	return rawdb.GetLastDIDTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey)
 }
 
-func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDIDTranasactionData, error) {
+func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.DIDTransactionData, error) {
 	key := []byte{byte(rawdb.IX_CUSTOMIZEDDIDTXHash)}
 	key = append(key, idKey...)
 
@@ -84,17 +84,17 @@ func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDI
 		return nil, err
 	}
 
-	tempOperation := new(did.CustomizedDIDOperation)
+	tempOperation := new(did.DIDPayload)
 	r = bytes.NewReader(dataPayload)
-	err = tempOperation.Deserialize(r, did.CustomizedDIDVersion)
+	err = tempOperation.Deserialize(r, did.DIDVersion)
 	if err != nil {
 		return nil, http.NewError(int(service.ResolverInternalError),
 			"CustomizedDIDOperation Deserialize failed")
 	}
-	tempTxData := new(did.CustomizedDIDTranasactionData)
+	tempTxData := new(did.DIDTransactionData)
 	tempTxData.TXID = txHash.String()
 	tempTxData.Operation = *tempOperation
-	tempTxData.Timestamp = tempOperation.GetPayloadInfo().Expires
+	tempTxData.Timestamp = tempOperation.GetDIDDoc().Expires
 
 	return tempTxData, nil
 }
@@ -122,4 +122,9 @@ func (self *StateDB) GetLastCustomizedDIDTxHash(idKey []byte) (elaCom.Uint256, e
 	}
 
 	return txHash, nil
+}
+
+
+func (self *StateDB) GetLastVerifiableCredentialTxData(idKey []byte) (*did.DIDTransactionData, error) {
+	return rawdb.GetLastVerifiableCredentialTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey)
 }
