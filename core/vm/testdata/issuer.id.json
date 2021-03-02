@@ -1,0 +1,37 @@
+{
+  "id" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj",
+  "publicKey" : [ {
+    "id" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj#primary",
+    "type" : "ECDSAsecp256r1",
+    "controller" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj",
+    "publicKeyBase58" : "238wLrC5sAn2qDhp78ZodB2ywfQ3g7zmaPRidgARStHGL"
+  } ],
+  "authentication" : [ "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj#primary" ],
+  "verifiableCredential" : [ {
+    "id" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj#profile",
+    "type" : [ "BasicProfileCredential", "SelfProclaimedCredential" ],
+    "issuer" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj",
+    "issuanceDate" : "2021-01-28T06:38:34Z",
+    "expirationDate" : "2026-01-28T06:38:34Z",
+    "credentialSubject" : {
+      "id" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj",
+      "email" : "issuer@example.com",
+      "language" : "English",
+      "name" : "Test Issuer",
+      "nation" : "Singapore"
+    },
+    "proof" : {
+      "type" : "ECDSAsecp256r1",
+      "created" : "2021-01-28T06:38:34Z",
+      "verificationMethod" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj#primary",
+      "signature" : "EqFCIEVB6g1kD3pYiZ1twfNgsIgyUpH1jeh0HJI9ZdGVJQLLjK6E-3RuqPA2NFRurXIlknkua4T6C2_89R3fMg"
+    }
+  } ],
+  "expires" : "2026-01-28T06:38:34Z",
+  "proof" : {
+    "type" : "ECDSAsecp256r1",
+    "created" : "2021-01-28T06:38:34Z",
+    "creator" : "did:elastos:imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj#primary",
+    "signatureValue" : "ubd93smQLojkwdshuUAIAF30P8kJ2udZx8YQsrrA_noImJKeEHNm5TY7InIN54nI4cJcH5Of7J84TvMjUpVvWA"
+  }
+}

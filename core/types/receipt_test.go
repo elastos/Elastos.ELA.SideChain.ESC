@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"math"
 	"math/big"
 	"reflect"
@@ -70,7 +71,7 @@ func TestLegacyReceiptDecoding(t *testing.T) {
 
 		DIDLog: DIDLog{
 			DID: "ifUPapo7vRTAt2c7ytd4BrbooyK7B7Gp4R",
-			Operation: 0x0a,
+			Operation: did.Create_DID_Operation,
 			Data: []byte{0x01, 0x00, 0xff},
 		},
 	}
@@ -114,7 +115,7 @@ func TestLegacyReceiptDecoding(t *testing.T) {
 				t.Fatalf("Receipt DIDLog %s did mismatch, want %s, have %s", receipt.DIDLog.DID, receipt.DIDLog.DID, dec.DIDLog.DID)
 			}
 			if dec.DIDLog.Operation != receipt.DIDLog.Operation {
-				t.Fatalf("Receipt DIDLog %d operation mismatch, want %d, have %d", receipt.DIDLog.Operation, receipt.DIDLog.Operation, dec.DIDLog.Operation)
+				t.Fatalf("Receipt DIDLog %s operation mismatch, want %s, have %s", receipt.DIDLog.Operation, receipt.DIDLog.Operation, dec.DIDLog.Operation)
 			}
 			if !bytes.Equal(dec.DIDLog.Data, receipt.DIDLog.Data) {
 				t.Fatalf("Receipt DIDLog data mismatch, want %v, have %v", receipt.DIDLog.Data, dec.DIDLog.Data)

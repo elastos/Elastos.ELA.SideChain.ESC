@@ -2021,6 +2021,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 						rebirthLogs = append(rebirthLogs, &l)
 					}
 				}
+				receipt.DIDLog.Removed = removed
 			}
 		}
 	)
@@ -2114,6 +2115,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	for _, tx := range types.TxDifference(deletedTxs, addedTxs) {
 		rawdb.DeleteTxLookupEntry(batch, tx.Hash())
 		//TODO delete did tx
+
 	}
 	// Delete any canonical number assignments above the new head
 	number := bc.CurrentBlock().NumberU64()
