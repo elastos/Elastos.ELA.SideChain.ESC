@@ -2000,6 +2000,8 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 
 		deletedLogs []*types.Log
 		rebirthLogs []*types.Log
+		deleteDIDLogs  []*types.DIDLog
+		rebirthDIDLogs []*types.DIDLog
 
 		// collectLogs collects the logs that were generated during the
 		// processing of the block that corresponds with the given hash.
@@ -2020,7 +2022,18 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 						rebirthLogs = append(rebirthLogs, &l)
 					}
 				}
+
 				receipt.DIDLog.Removed = removed
+
+				didLog := &receipt.DIDLog
+				if didLog.DID != "" {
+					didLog.Removed = removed
+					if removed {
+						deleteDIDLogs = append(deleteDIDLogs, didLog)
+					} else {
+						rebirthDIDLogs = append(rebirthDIDLogs, didLog)
+					}
+				}
 			}
 		}
 	)
@@ -2113,8 +2126,9 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	batch := bc.db.NewBatch()
 	for _, tx := range types.TxDifference(deletedTxs, addedTxs) {
 		rawdb.DeleteTxLookupEntry(batch, tx.Hash())
-		//TODO delete did tx
-
+	}
+	for _, l := range types.DIDLogDifference(deleteDIDLogs, rebirthDIDLogs) {
+		rawdb.DeleteDIDLog(bc.db, l)
 	}
 	// Delete any canonical number assignments above the new head
 	number := bc.CurrentBlock().NumberU64()
