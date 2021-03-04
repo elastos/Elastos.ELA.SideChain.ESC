@@ -132,9 +132,12 @@ func LoadJsonData(fileName string) ([]byte, error) {
 func Test_checkRegisterDIDTest(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
-	var gas uint64 = 20000
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
 	doc := getPayloadCreateDID()
-	err := checkRegisterDID(evm, doc, gas)
+	var gas uint64 = 2000
+	payloadJson, err := json.Marshal(doc)
+	assert.NoError(t, err)
+	err = checkDIDTransaction(payloadJson, nil)
 	assert.NoError(t, err)
 
 	info := new(did.DIDPayload)
@@ -146,6 +149,10 @@ func Test_checkRegisterDIDTest(t *testing.T) {
 
 	err = checkRegisterDID(evm, info, gas)
 	assert.NoError(t, err)
+
+	err = checkDIDTransaction(didPayloadInfoBytes, nil)
+	assert.NoError(t, err)
+
 
 	info.DIDDoc.Expires = "Mon Jan _2 15:04:05 2006"
 	err = checkRegisterDID(evm, info, gas)
@@ -183,6 +190,7 @@ func TestCheckRegisterDID(t *testing.T) {
 
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
 	id := "ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
 	buf := new(bytes.Buffer)
 	tx2.Serialize(buf, did.DIDVersion)
@@ -252,6 +260,11 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 	err := checkDeactivateDID(evm, payload)
 	assert.EqualError(t, err, ErrNotFound.Error())
 
+	deactiveBytes, err := json.Marshal(payload)
+	assert.NoError(t, err)
+	err = checkDIDTransaction(deactiveBytes, nil)
+	assert.EqualError(t, err, ErrNotFound.Error())
+
 	buf := new(bytes.Buffer)
 	txCreateDID.Serialize(buf, did.DIDVersion)
 	statedb.AddDIDLog(id, did.Create_DID_Operation, buf.Bytes())
@@ -259,6 +272,9 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 	assert.NoError(t, err)
 
 	err = checkDeactivateDID(evm, payload)
+	assert.NoError(t, err)
+
+	err = checkDIDTransaction(deactiveBytes, statedb)
 	assert.NoError(t, err)
 
 	//wrong public key to verify sign
@@ -273,6 +289,11 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 	txDeactivateWrong := getPayloadDeactivateDID(didWithPrefix, verifDid)
 	err = checkDeactivateDID(evm, txDeactivateWrong)
 	assert.EqualError(t, err, "DID WAS AREADY DEACTIVE")
+
+	deactiveBytes, _ = json.Marshal(txDeactivateWrong)
+	err = checkDIDTransaction(deactiveBytes, statedb)
+	assert.EqualError(t, err, "DID WAS AREADY DEACTIVE")
+
 }
 
 func getPayloadDeactivateDID(id, verifDid string) *did.DIDPayload {
@@ -282,7 +303,7 @@ func getPayloadDeactivateDID(id, verifDid string) *did.DIDPayload {
 	p := &did.DIDPayload{
 		Header: did.Header{
 			Specification: "elastos/did/1.0",
-			Operation:     "create",
+			Operation:     did.Deactivate_DID_Operation,
 		},
 		Payload: id,
 		Proof: did.Proof{
@@ -303,7 +324,7 @@ func TestCustomizedDID(t *testing.T) {
 
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
-
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
 	buf := new(bytes.Buffer)
 	tx1.Serialize(buf, did.DIDVersion)
 	statedb.AddDIDLog(id1, did.Create_DID_Operation, buf.Bytes())
@@ -334,7 +355,7 @@ func TestCustomizedDIDMultSign(t *testing.T) {
 
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
-
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
 	buf := new(bytes.Buffer)
 	tx1.Serialize(buf, did.DIDVersion)
 	statedb.AddDIDLog(idUser1, did.Create_DID_Operation, buf.Bytes())
@@ -563,17 +584,21 @@ func getCustomizedDIDTx(id string, didDIDPayload string, docBytes []byte,
 
 func TestHeaderPayloadDIDTX(t *testing.T) {
 	didParam.CustomIDFeeRate = 0
-	preData := common.Hash{}
-	data := preData.Bytes()
-	data = append(data, headerPayloadBytes...)
-	err := checkDIDTransaction(string(data))
+	err := checkDIDTransaction(headerPayloadBytes, nil)
 	assert.NoError(t, err)
 }
 
 
-func checkDIDTransaction(didpayload string) error {
+func checkDIDTransaction(didpayload []byte, db *state.StateDB) error {
+	preData := common.Hash{}
+	didpayload = append( preData.Bytes(), didpayload...)
+
 	did_contract := new(operationDID)
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	statedb := db
+	if statedb == nil {
+		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	}
+
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
 	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
 	gas := did_contract.RequiredGas(evm, []byte(didpayload))
@@ -584,7 +609,9 @@ func checkDIDTransaction(didpayload string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(result)
-	fmt.Println(string(result))
+	val := common.BytesToHash(result)
+	if val.Big().Uint64() != 1 {
+		return errors.New("result error")
+	}
 	return nil
 }
