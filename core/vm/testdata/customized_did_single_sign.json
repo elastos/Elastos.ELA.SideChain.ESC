@@ -1,0 +1,11 @@
+{
+  "id":"did:elastos:foobar",
+  "controller":"did:elastos:iWFAUYhTa35c1fPe3iCJvihZHx6quumnym",
+  "expires":"2025-10-12T05:50:59Z",
+  "proof":{
+    "type":" ECDSAsecp256r1",
+    "created":"2020-10-12T05:50:59Z",
+    "creator":"did:elastos:iWFAUYhTa35c1fPe3iCJvihZHx6quumnym#primary",
+    "signatureValue":"2xiR4877Zq-0pLJ1U5v81vB6vsj-61YVcbFahEs-8Xy7V0-i--3hGagloJLtePYIUAdOcqZfwRQSSbh88eeJfA"
+  }
+}

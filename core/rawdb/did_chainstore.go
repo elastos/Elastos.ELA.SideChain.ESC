@@ -552,7 +552,7 @@ func rollbackVerifiableCredentialExpiresHeight(db ethdb.KeyValueStore,
 		return errors.New("not exist")
 	}
 
-	if _, err = elaCom.ReadUint32(r); err != nil {
+	if _, err = elaCom.ReadUint64(r); err != nil {
 		return err
 	}
 
@@ -666,7 +666,7 @@ func rollbackRegisterDIDExpiresHeight(db ethdb.KeyValueStore, idKey []byte) erro
 		return errors.New("not exist")
 	}
 
-	if _, err = elaCom.ReadUint32(r); err != nil {
+	if _, err = elaCom.ReadUint64(r); err != nil {
 		return err
 	}
 
@@ -686,5 +686,143 @@ func rollbackRegisterDIDExpiresHeight(db ethdb.KeyValueStore, idKey []byte) erro
 		return err
 	}
 
+	return db.Put(key, buf.Bytes())
+}
+
+//persistVerifiableCredentialTx
+func PersistVerifiableCredentialTx(db ethdb.KeyValueStore, log *types.DIDLog,
+	blockHeight uint64, blockTimeStamp uint64, thash common.Hash) error {
+	var err error
+	var buffer *bytes.Reader
+	payload := new(did.DIDPayload)
+	buffer = bytes.NewReader(log.Data)
+	err = payload.Deserialize(buffer, did.DIDVersion)
+	if err != nil {
+		return err
+	}
+	id := GetDIDFromUri(payload.DIDDoc.ID)
+	idKey := []byte(id)
+
+	verifyCred := payload.CredentialDoc
+	expiresHeight, err := TryGetExpiresHeight(verifyCred.ExpirationDate, blockHeight, blockTimeStamp)
+	if err != nil {
+		return err
+	}
+
+	if err := persistVerifiableCredentialExpiresHeight(db, idKey, expiresHeight); err != nil {
+		return err
+	}
+	txhash, err := elaCom.Uint256FromBytes(thash.Bytes())
+	if err != nil {
+		return err
+	}
+	if err := persisterifiableCredentialTxHash(db, idKey, txhash); err != nil {
+		return err
+	}
+	if err := persistVerifiableCredentialPayload(db, txhash, payload); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func persistVerifiableCredentialExpiresHeight(db ethdb.KeyValueStore,
+	idKey []byte, expiresHeight uint64) error {
+	key := []byte{byte(IX_VerifiableCredentialExpiresHeight)}
+	key = append(key, idKey...)
+
+	data, err := db.Get(key)
+	if err != nil {
+		// when not exist, only put the current expires height into db.
+		buf := new(bytes.Buffer)
+		if err := elaCom.WriteVarUint(buf, 1); err != nil {
+			return err
+		}
+		if err := elaCom.WriteUint64(buf, expiresHeight); err != nil {
+			return err
+		}
+
+		return db.Put(key, buf.Bytes())
+	}
+
+	// when exist, should add current expires height to the end of the list.
+	r := bytes.NewReader(data)
+	count, err := elaCom.ReadVarUint(r, 0)
+	if err != nil {
+		return err
+	}
+	count++
+
+	buf := new(bytes.Buffer)
+
+	// write count
+	if err := elaCom.WriteVarUint(buf, count); err != nil {
+		return err
+	}
+	if err := elaCom.WriteUint64(buf, expiresHeight); err != nil {
+		return err
+	}
+	if _, err := r.WriteTo(buf); err != nil {
+		return err
+	}
+
+	return db.Put(key, buf.Bytes())
+}
+
+func persisterifiableCredentialTxHash(db ethdb.KeyValueStore,
+	idKey []byte, txHash *elaCom.Uint256) error {
+	key := []byte{byte(IX_VerifiableCredentialTXHash)}
+	key = append(key, idKey...)
+
+	data, err := db.Get(key)
+	if err != nil {
+		// when not exist, only put the current payload hash into db.
+		buf := new(bytes.Buffer)
+		if err := elaCom.WriteVarUint(buf, 1); err != nil {
+			return err
+		}
+
+		if err := txHash.Serialize(buf); err != nil {
+			return err
+		}
+
+		return db.Put(key, buf.Bytes())
+	}
+
+	// when exist, should add current payload hash to the end of the list.
+	r := bytes.NewReader(data)
+	count, err := elaCom.ReadVarUint(r, 0)
+	if err != nil {
+		return err
+	}
+	count++
+
+	buf := new(bytes.Buffer)
+
+	// write count
+	if err := elaCom.WriteVarUint(buf, count); err != nil {
+		return err
+	}
+
+	// write current payload hash
+	if err := txHash.Serialize(buf); err != nil {
+		return err
+	}
+
+	// write old hashes
+	if _, err := r.WriteTo(buf); err != nil {
+		return err
+	}
+
+	return db.Put(key, buf.Bytes())
+}
+
+func persistVerifiableCredentialPayload(db ethdb.KeyValueStore,
+	txHash *elaCom.Uint256, p *did.DIDPayload) error {
+	key := []byte{byte(IX_VerifiableCredentialPayload)}
+	key = append(key, txHash.Bytes()...)
+
+	buf := new(bytes.Buffer)
+	p.Serialize(buf, did.VerifiableCredentialVersion)
 	return db.Put(key, buf.Bytes())
 }
