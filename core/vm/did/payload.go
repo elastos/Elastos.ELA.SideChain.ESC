@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/didjson"
 	"github.com/elastos/Elastos.ELA/common"
 	"io"
 )
@@ -105,12 +104,10 @@ type CustomIDTicket struct {
 }
 
 func (c *CustomIDTicket) GetData() []byte {
-	data, err := didjson.Marshal(c)
-	if err != nil {
-		return nil
-	}
-	return data
+	dataString := c.CustomID + c.To + c.TransactionID
+	return []byte(dataString)
 }
+
 
 
 func (p *DIDPayload) GetDIDDoc() *DIDDoc {
