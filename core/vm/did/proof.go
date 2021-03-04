@@ -14,7 +14,7 @@ type Proof struct {
 	Signature          string `json:"signature"`
 }
 
-// Proof of DID transaction payload
+// Proof of DID transaction doc
 type DocProof struct {
 	Type           string `json:"type,omitempty"`
 	Created        string `json:"created"`
@@ -30,12 +30,12 @@ type CredentialProof struct {
 	Signature          string `json:"signature"`
 }
 
-// Proof of DID transaction payload
+// Proof of DID transaction ticket
 type TicketProof struct {
 	Type               string `json:"type,omitempty"`
 	Created            string `json:"created"`
 	VerificationMethod string `json:"verificationMethod"`
-	SignatureValue     string `json:"signatureValue"`
+	Signature          string `json:"signature"`
 }
 
 func (d *Proof) Serialize(w io.Writer, version byte) error {

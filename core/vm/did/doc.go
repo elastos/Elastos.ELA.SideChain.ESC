@@ -12,7 +12,7 @@ import (
 
 // payload in DID transaction payload
 type DIDDoc struct {
-	*CustomizedDIDPayloadData
+	*DIDPayloadData
 	Proof interface{} `json:"proof,omitempty"`
 }
 
@@ -82,7 +82,7 @@ func (p *VerifiableCredentialData) GetData() []byte {
 }
 
 
-type CustomizedDIDPayloadData struct {
+type DIDPayloadData struct {
 	ID                   string                 `json:"id"`
 	Controller           interface{}            `json:"controller,omitempty"`
 	MultiSig             string                 `json:"multisig,omitempty"`
@@ -93,7 +93,7 @@ type CustomizedDIDPayloadData struct {
 	Expires              string                 `json:"expires"`
 }
 
-func (c *CustomizedDIDPayloadData) GetData() []byte {
+func (c *DIDPayloadData) GetData() []byte {
 	data, err := didjson.Marshal(c)
 	if err != nil {
 		return nil

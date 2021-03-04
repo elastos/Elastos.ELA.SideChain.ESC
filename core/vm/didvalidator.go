@@ -846,7 +846,7 @@ func checkCustomizedDID(evm *EVM, customizedDIDPayload *did.DIDPayload, gas uint
 		return err
 	}
 	//4, proof multisign verify
-	err = checkCustomIDInnerProof(evm, DIDProofArray, customizedDIDPayload.DIDDoc.CustomizedDIDPayloadData, N, verifyDoc)
+	err = checkCustomIDInnerProof(evm, DIDProofArray, customizedDIDPayload.DIDDoc.DIDPayloadData, N, verifyDoc)
 	if err != nil {
 		return err
 	}
@@ -1244,7 +1244,7 @@ func checkCustomIDTicketProof(evm *EVM, ticketProofArray []*did.TicketProof, iDa
 		if err != nil {
 			return err
 		}
-		signature, _ := base64url.DecodeString(ticketProof.SignatureValue)
+		signature, _ := base64url.DecodeString(ticketProof.Signature)
 
 		var success bool
 		success, err = VerifyByVM(iDateContainer, code, signature)
