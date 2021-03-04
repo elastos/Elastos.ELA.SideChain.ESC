@@ -50,19 +50,21 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 		log.Error("gas price is too small", "need",  params.DIDBaseGasprice)
 		return math.MaxUint64
 	}
-	payloadBase64, _ := base64url.DecodeString(p.Payload)
-	payload := new(did.DIDDoc)
-	if err := json.Unmarshal(payloadBase64, payload); err != nil {
-		log.Error("payloadBase64 is error", "payloadBase64", payloadBase64)
-		return math.MaxUint64
-	}
-	p.DIDDoc = payload
-	buf := new(bytes.Buffer)
-	p.Serialize(buf, did.DIDVersion)
+
 
 	var needFee int64 = 0
 	switch p.Header.Operation {
 	case did.Create_DID_Operation, did.Update_DID_Operation, did.Transfer_DID_Operation:
+		payloadBase64, _ := base64url.DecodeString(p.Payload)
+		payload := new(did.DIDDoc)
+		if err := json.Unmarshal(payloadBase64, payload); err != nil {
+			log.Error("payloadBase64 is error", "payloadBase64", payloadBase64)
+			return math.MaxUint64
+		}
+		p.DIDDoc = payload
+		buf := new(bytes.Buffer)
+		p.Serialize(buf, did.DIDVersion)
+
 		isRegisterDID := false
 		if p.Header.Operation != did.Transfer_DID_Operation {
 			isRegisterDID = isDID(p.DIDDoc)
@@ -73,7 +75,8 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 			needFee = getIDTxFee(payload.ID, payload.Expires, p.Header.Operation, payload.Controller, buf.Len()).IntValue()
 		}
 	default:
-		needFee = getIDTxFee(payload.ID, payload.Expires, p.Header.Operation, nil, buf.Len()).IntValue()
+		needFee = int64(didParam.CustomIDFeeRate)
+		//needFee = getIDTxFee(payload.ID, payload.Expires, p.Header.Operation, nil, buf.Len()).IntValue()
 	}
 
 	fe := new(big.Int).SetInt64(needFee)
@@ -129,13 +132,6 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 			return false32Byte, err
 		}
 	case did.Deactivate_DID_Operation:
-		payloadBase64, _ := base64url.DecodeString(p.Payload)
-		payloadInfo := new(did.DIDDoc)
-		if err := json.Unmarshal(payloadBase64, payloadInfo); err != nil {
-			log.Error("checkDeactivateDID Payload error", "error", err)
-			return false32Byte, errors.New("checkDeactivateDID Payload is error")
-		}
-		p.DIDDoc = payloadInfo
 		if err :=  checkDeactivateDID(evm, p); err != nil {
 			log.Error("checkDeactivateDID error", "error", err)
 			return false32Byte, err
