@@ -17,6 +17,7 @@
 // package web3ext contains geth specific web3.js extensions.
 package web3ext
 
+//web3ext add did by xxl
 var Modules = map[string]string{
 	"accounting": AccountingJs,
 	"admin":      AdminJs,
@@ -34,6 +35,7 @@ var Modules = map[string]string{
 	"swarmfs":    SwarmfsJs,
 	"txpool":     TxpoolJs,
 	"les":        LESJs,
+	"did":        DIDJs,
 }
 
 const ChequebookJs = `
@@ -866,5 +868,26 @@ web3._extend({
 			getter: 'les_getCheckpointContractAddress'
 		}),
 	]
+});
+`
+//add DIDJs by xxl
+const DIDJs = `
+
+web3._extend({
+
+property: 'did',
+
+methods: [
+
+new web3._extend.Method({
+
+	name: 'resolveDID',
+	call: 'eth_resolveDID',
+	params: 2
+
+}),
+
+]
+
 });
 `
