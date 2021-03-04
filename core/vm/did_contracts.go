@@ -116,6 +116,12 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		p.Serialize(buf, did.DIDVersion)
 		evm.StateDB.AddDIDLog(id, p.Header.Operation, buf.Bytes())
 	case did.Transfer_DID_Operation:
+		payloadBase64, _ := base64url.DecodeString(p.Payload)
+		payloadInfo := new(did.DIDDoc)
+		if err := json.Unmarshal(payloadBase64, payloadInfo); err != nil {
+			return false32Byte, errors.New("createDIDVerify Payload is error")
+		}
+		p.DIDDoc = payloadInfo
 		if err := checkCustomizedDID(evm, p, gas); err != nil {
 			log.Error("checkCustomizedDID error", "error", err)
 			return false32Byte, err
