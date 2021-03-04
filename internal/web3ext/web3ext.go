@@ -854,13 +854,17 @@ property: 'did',
 
 methods: [
 
-new web3._extend.Method({
-
-	name: 'resolveDID',
-	call: 'did_resolveDID',
-	params: 2
-
-}),
+	new web3._extend.Method({
+	
+		name: 'resolveDID',
+		call: 'did_resolveDID',
+	}),
+	
+	new web3._extend.Method({
+	
+		name: 'resolveCredential',
+		call: 'did_resolveCredential',
+	}),
 
 ]
 
