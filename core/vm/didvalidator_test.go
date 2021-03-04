@@ -3,14 +3,17 @@ package vm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"testing"
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
@@ -41,6 +44,7 @@ var (
 	customizedVerifableCredDocBytes []byte
 
 	DIDVerifableCredDocBytes []byte
+	headerPayloadBytes        []byte
 )
 
 const (
@@ -63,6 +67,7 @@ func init() {
 	customizedVerifableCredDocBytes, _ = LoadJsonData("./testdata/customized_did_verifiable_credential.json")
 
 	DIDVerifableCredDocBytes, _ = LoadJsonData("./testdata/did_verifiable_credential.json")
+	headerPayloadBytes, _ = LoadJsonData("./testdata/customized_did_multi_controllers.json")
 }
 
 var didPayloadBytes = []byte(
@@ -554,4 +559,32 @@ func getCustomizedDIDTx(id string, didDIDPayload string, docBytes []byte,
 	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
 	p.Proof.Signature = base64url.EncodeToString(sign)
 	return p
+}
+
+func TestHeaderPayloadDIDTX(t *testing.T) {
+	didParam.CustomIDFeeRate = 0
+	preData := common.Hash{}
+	data := preData.Bytes()
+	data = append(data, headerPayloadBytes...)
+	err := checkDIDTransaction(string(data))
+	assert.NoError(t, err)
+}
+
+
+func checkDIDTransaction(didpayload string) error {
+	did_contract := new(operationDID)
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
+	gas := did_contract.RequiredGas(evm, []byte(didpayload))
+	if gas == math.MaxUint64 {
+		return errors.New("RequiredGas is 0")
+	}
+	result, err := did_contract.Run(evm, []byte(didpayload), gas)
+	if err != nil {
+		return err
+	}
+	fmt.Println(result)
+	fmt.Println(string(result))
+	return nil
 }
