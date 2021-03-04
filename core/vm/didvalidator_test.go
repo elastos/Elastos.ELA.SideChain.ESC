@@ -3,6 +3,7 @@ package vm
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -21,6 +22,7 @@ import (
 	elacom "github.com/elastos/Elastos.ELA/common"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 )
+
 var (
 	bankKey, _ = crypto.GenerateKey()
 	bankAddr   = crypto.PubkeyToAddress(bankKey.PublicKey)
@@ -28,14 +30,17 @@ var (
 	userKey1, _ = crypto.GenerateKey()
 	userAddr1   = crypto.PubkeyToAddress(userKey1.PublicKey)
 
-	id1DocByts     []byte
-	id2DocByts     []byte
-	id11DocByts    []byte
-	idUser1DocByts []byte
-	idUser2DocByts []byte
+	id1DocByts                      []byte
+	id2DocByts                      []byte
+	id11DocByts                     []byte
+	idUser1DocByts                  []byte
+	idUser2DocByts                  []byte
 	customizedDIDDocSingleContrller []byte
+	customizedDIDDocBytes1          []byte
 	customizedDIDDocBytes2          []byte
+	customizedVerifableCredDocBytes []byte
 
+	DIDVerifableCredDocBytes []byte
 )
 
 const (
@@ -53,7 +58,11 @@ func init() {
 	idUser2DocByts, _ = LoadJsonData("./testdata/user2.id.json")
 
 	customizedDIDDocSingleContrller, _ = LoadJsonData("./testdata/examplecorp.id.json")
-	customizedDIDDocBytes2, _ = LoadJsonData("./testdata/foo.id.json")//
+	customizedDIDDocBytes1, _ = LoadJsonData("./testdata/customized_did_single_sign.json")
+	customizedDIDDocBytes2, _ = LoadJsonData("./testdata/foo.id.json")
+	customizedVerifableCredDocBytes, _ = LoadJsonData("./testdata/customized_did_verifiable_credential.json")
+
+	DIDVerifableCredDocBytes, _ = LoadJsonData("./testdata/did_verifiable_credential.json")
 }
 
 var didPayloadBytes = []byte(
@@ -106,7 +115,6 @@ var errDIDPayloadInfoBytes = []byte(
 	 }
 `)
 
-
 func LoadJsonData(fileName string) ([]byte, error) {
 	fileData, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -116,7 +124,7 @@ func LoadJsonData(fileName string) ([]byte, error) {
 
 }
 
-func Test_checkRegisterDIDTest(t *testing.T)  {
+func Test_checkRegisterDIDTest(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
 	var gas uint64 = 20000
@@ -135,7 +143,7 @@ func Test_checkRegisterDIDTest(t *testing.T)  {
 	assert.NoError(t, err)
 
 	info.DIDDoc.Expires = "Mon Jan _2 15:04:05 2006"
-	err = checkRegisterDID(evm, info,  gas)
+	err = checkRegisterDID(evm, info, gas)
 	assert.EqualError(t, err, "invalid Expires")
 
 	info.DIDDoc.Expires = "2006-01-02T15:04:05Z07:00"
@@ -262,7 +270,6 @@ func Test_checkDeactivateDIDTest(t *testing.T) {
 	assert.EqualError(t, err, "DID WAS AREADY DEACTIVE")
 }
 
-
 func getPayloadDeactivateDID(id, verifDid string) *did.DIDPayload {
 	info := new(did.DIDDoc)
 	json.Unmarshal(didPayloadBytes, info)
@@ -288,7 +295,6 @@ func TestCustomizedDID(t *testing.T) {
 	id1 := "imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj"
 	privateKey1Str := "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ" //413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ
 	tx1 := getPayloadDIDInfo(id1, "create", id11DocByts, privateKey1Str)
-
 
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
@@ -376,6 +382,157 @@ func getCustomizedDIDDocMultiSign(id1, id2 string, didDIDPayload string, docByte
 }
 
 func getCustomizedDIDDoc(id string, didDIDPayload string, docBytes []byte,
+	privateKeyStr string) *did.DIDPayload {
+	//pBytes := getDIDPayloadBytes(id)
+	info := new(did.DIDDoc)
+	json.Unmarshal(docBytes, info)
+
+	p := &did.DIDPayload{
+		Header: did.Header{
+			Specification: "elastos/did/1.0",
+			Operation:     didDIDPayload,
+		},
+		Payload: base64url.EncodeToString(docBytes),
+		Proof: did.Proof{
+			Type:               "ECDSAsecp256r1",
+			VerificationMethod: "did:elastos:" + id + "#primary",
+		},
+		DIDDoc: info,
+	}
+	privateKey1 := base58.Decode(privateKeyStr)
+	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
+	p.Proof.Signature = base64url.EncodeToString(sign)
+	return p
+}
+
+//todo complete the test
+//self verifiable credential
+func Test0DIDVerifiableCredentialTx(t *testing.T) {
+	//id1 := "iWFAUYhTa35c1fPe3iCJvihZHx6quumnym"
+	//privateKey1Str := "41Wji2Bo39wLB6AoUP77ADANaPeDBQLXycp8rzTcgLNW"
+	//tx1 := getDIDTx(id1, "create", id1DocByts, privateKey1Str)
+	//
+	//batch := s.validator.Store.NewBatch()
+	//err1 := s.validator.Store.PersistRegisterDIDTx(batch, []byte("iWFAUYhTa35c1fPe3iCJvihZHx6quumnym"), tx1,
+	//	100, 123456)
+	//s.NoError(err1)
+	//batch.Commit()
+	//
+	//CustomizedDIDTx1 := getCustomizedDIDTx(id1, "create", customizedDIDDocBytes1, privateKey1Str)
+	//err1 = s.validator.checkCustomizedDID(CustomizedDIDTx1)
+	//s.NoError(err1)
+
+	privateKey2Str := "9sYYMSsS2xDbGvSRhNSnMsTbCbF2LPwLovRH93drSetM"
+	id2 := "ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
+	tx2 := getPayloadDIDInfo(id2, "create", id2DocByts, privateKey2Str)
+
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+
+	buf := new(bytes.Buffer)
+	tx2.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(id2, did.Create_DID_Operation, buf.Bytes())
+	err2 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 100, 123456)
+	assert.NoError(t, err2)
+	//did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB
+	//
+	verifableCredentialTx := getCustomizedDIDVerifiableCredentialTx("did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB",
+		"declare",
+		DIDVerifableCredDocBytes, privateKey2Str)
+	err := checkVerifiableCredential(evm, verifableCredentialTx)
+	assert.NoError(t, err)
+
+}
+
+//didDIDPayload must be create or update
+func getCustomizedDIDVerifiableCredentialTx(id string, didDIDPayload string, docBytes []byte,
+	privateKeyStr string) *did.DIDPayload {
+	fmt.Println(" ---docBytes--- ", string(docBytes))
+	info := new(did.VerifiableCredentialDoc)
+	json.Unmarshal(docBytes, info)
+
+	p := &did.DIDPayload{
+		Header: did.Header{
+			Specification: "elastos/did/1.0",
+			Operation:     didDIDPayload,
+		},
+		Payload: base64url.EncodeToString(docBytes),
+		Proof: did.Proof{
+			Type:               "ECDSAsecp256r1",
+			VerificationMethod: "did:elastos:" + id + "#primary",
+		},
+		CredentialDoc: info,
+	}
+	privateKey1 := base58.Decode(privateKeyStr)
+	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
+	p.Proof.Signature = base64url.EncodeToString(sign)
+	return p
+}
+
+// one cotroller
+func TestCustomizedDIDVerifiableCredentialTx(t *testing.T) {
+	id1 := "iWFAUYhTa35c1fPe3iCJvihZHx6quumnym"
+	privateKey1Str := "41Wji2Bo39wLB6AoUP77ADANaPeDBQLXycp8rzTcgLNW"
+	tx1 := getPayloadDIDInfo(id1, "create", id1DocByts, privateKey1Str)
+
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	//evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+
+	buf := new(bytes.Buffer)
+	tx1.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(id1, did.Create_DID_Operation, buf.Bytes())
+	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}),
+		100, 123456)
+	assert.NoError(t, err1)
+
+	id2 := "ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
+	privateKey2Str := "9sYYMSsS2xDbGvSRhNSnMsTbCbF2LPwLovRH93drSetM"
+	tx2 := getPayloadDIDInfo(id2, "create", id2DocByts, privateKey2Str)
+
+	statedb2, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	buf = new(bytes.Buffer)
+	tx2.Serialize(buf, did.DIDVersion)
+	statedb2.AddDIDLog(id1, did.Create_DID_Operation, buf.Bytes())
+	err2 := rawdb.PersistRegisterDIDTx(statedb2.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb2.GetDIDLog(common.Hash{}),
+		100, 123456)
+	assert.NoError(t, err2)
+
+	CustomizedDIDTx1 := getCustomizedDIDTx(id1, "create", customizedDIDDocBytes1, privateKey1Str)
+	statedb3, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	buf = new(bytes.Buffer)
+	CustomizedDIDTx1.Serialize(buf, did.DIDVersion)
+	statedb3.AddDIDLog(id1, did.Create_DID_Operation, buf.Bytes())
+	err3 := rawdb.PersistRegisterDIDTx(statedb3.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb3.GetDIDLog(common.Hash{}),
+		100, 123456)
+	assert.NoError(t, err3)
+
+	//verifableCredentialTx := getCustomizedDIDVerifiableCredentialTx("iWFAUYhTa35c1fPe3iCJvihZHx6quumnym",
+	//	"declare", customizedVerifableCredDocBytes, privateKey1Str)
+
+
+	//err := checkVerifiableCredential(evm, verifableCredentialTx)
+	//assert.NoError(t, err)
+
+	//credentialID := "did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB#profile"
+	//statedb4, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	//err4 := rawdb.PersistVerifiableCredentialTx(statedb3.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), []byte(credentialID), verifableCredentialTx,
+	//	100, 123456)
+	//s.NoError(err4)
+	//batch4.Commit()
+
+	//txDeactivate := getDeactivateCustomizedDIDTx(credentialID, id2, privateKey2Str)
+	////Deactive did  have no
+	//err5 := s.validator.checkCustomizedDIDDeactivateTX(txDeactivate)
+	//s.NoError(err5)
+	////////////////////////////
+	//verifableCredentialRevokeTx := getCustomizedDIDVerifiableCredentialTx("iWFAUYhTa35c1fPe3iCJvihZHx6quumnym",
+	//	"revoke", customizedVerifableCredDocBytes, privateKey2Str)
+	//err5 := s.validator.checkVerifiableCredential(verifableCredentialRevokeTx)
+	//s.NoError(err5)
+	////////////////////////////////
+}
+
+func getCustomizedDIDTx(id string, didDIDPayload string, docBytes []byte,
 	privateKeyStr string) *did.DIDPayload {
 	//pBytes := getDIDPayloadBytes(id)
 	info := new(did.DIDDoc)
