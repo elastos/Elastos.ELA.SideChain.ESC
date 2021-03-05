@@ -123,10 +123,10 @@ func checkRegisterDID(evm *EVM, p *did.DIDPayload, gas uint64) error {
 	}
 
 	//check txn fee use RequiredGas
-	fee := evm.GasPrice.Uint64() * gas
-	if err := checkRegisterDIDTxFee(p, fee); err != nil {
-		return err
-	}
+	//fee := evm.GasPrice.Uint64() * gas
+	//if err := checkRegisterDIDTxFee(p, fee); err != nil {
+	//	return err
+	//}
 
 	if err := checkDIDOperation(evm, &p.Header, p.DIDDoc.ID); err != nil {
 		return err
@@ -763,10 +763,11 @@ func checkCustomizedDID(evm *EVM, customizedDIDPayload *did.DIDPayload, gas uint
 		return err
 	}
 
-	fee := gas * evm.GasPrice.Uint64()
-	if err := checkCustomizedDIDTxFee(customizedDIDPayload, fee); err != nil {
-		return err
-	}
+	//check txn fee use RequiredGas
+	//fee := gas * evm.GasPrice.Uint64()
+	//if err := checkCustomizedDIDTxFee(customizedDIDPayload, fee); err != nil {
+	//	return err
+	//}
 
 	//check Expires must be  format RFC3339
 	_, err := time.Parse(time.RFC3339, customizedDIDPayload.DIDDoc.Expires)
