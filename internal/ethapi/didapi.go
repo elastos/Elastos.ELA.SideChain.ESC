@@ -212,7 +212,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 
 	buf := new(bytes.Buffer)
 	buf.WriteString(id)
-	txData, err := rawdb.GetLastDIDTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes())
+	txData, err := rawdb.GetLastDIDTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes(), s.b.ChainConfig())
 	if err != nil {
 		rpcPayloadDid.DID = idParam
 		rpcPayloadDid.Status = NonExist
@@ -221,7 +221,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 
 	var txsData []did.DIDTransactionData
 	if isGetAll {
-		txsData, err = rawdb.GetAllDIDTxTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes())
+		txsData, err = rawdb.GetAllDIDTxTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes(), s.b.ChainConfig())
 		if err != nil {
 			return nil, http.NewError(int(service.InternalError),
 				"get did transaction failed")

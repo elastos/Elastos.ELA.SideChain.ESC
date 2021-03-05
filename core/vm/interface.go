@@ -22,6 +22,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
+
 	elacom "github.com/elastos/Elastos.ELA/common"
 )
 
@@ -69,7 +71,7 @@ type StateDB interface {
 
 	IsDIDDeactivated(did string) bool
 
-	GetLastDIDTxData(idKey []byte) (*did.DIDTransactionData, error)
+	GetLastDIDTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error)
 
 	GetLastCustomizedDIDTxData(idKey []byte) (*did.DIDTransactionData, error)
 

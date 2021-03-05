@@ -15,6 +15,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 )
 
 type EntryPrefix byte
@@ -31,6 +32,11 @@ const (
 	IX_DIDExpiresHeight                  EntryPrefix = 0x97
 	IX_DIDDeactivate                     EntryPrefix = 0x98
 	IX_CUSTOMIZEDDIDExpiresHeight        EntryPrefix = 0x99
+)
+var (
+	ERR_READ_TX = errors.New("read transaction error")
+	ERR_READ_RECEIPT = errors.New("read receipt error")
+	ERR_NOT_DIDRECEIPT = errors.New("receipt is not contain did")
 )
 
 func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight uint64,
@@ -59,9 +65,10 @@ func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight
 	if err := persistRegisterDIDTxHash(db, idKey, *thash); err != nil {
 		return err
 	}
-	if err := persistRegisterDIDPayload(db, *thash, operation); err != nil {
-		return err
-	}
+	// didPayload is persisted in receipt
+	//if err := persistRegisterDIDPayload(db, *thash, operation); err != nil {
+	//	return err
+	//}
 
 	// todo save IsDID or IsCustomDID
 	return nil
@@ -175,7 +182,7 @@ func persistRegisterDIDTxHash(db ethdb.KeyValueStore, idKey []byte, txHash elaCo
 	return db.Put(key, buf.Bytes())
 }
 
-func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte) (*did.DIDTransactionData, error) {
+func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error) {
 	key := []byte{byte(IX_DIDTXHash)}
 	key = append(key, idKey...)
 
@@ -197,16 +204,19 @@ func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte) (*did.DIDTransaction
 		return nil, err
 	}
 
-	keyPayload := []byte{byte(IX_DIDPayload)}
-	keyPayload = append(keyPayload, txHash.Bytes()...)
-
-	dataPayload, err := db.Get(keyPayload)
-	if err != nil {
-		return nil, err
+	thash := common.BytesToHash(txHash.Bytes())
+	if txn, _, _, _ := ReadTransaction(db.(ethdb.Database), thash); txn == nil {
+		return nil, ERR_READ_TX
 	}
-
+	recp, _, _,_ := ReadReceipt(db.(ethdb.Database), thash, config)
+	if recp == nil {
+		return nil, ERR_READ_RECEIPT
+	}
+	if recp.DIDLog.DID == "" {
+		return nil, ERR_NOT_DIDRECEIPT
+	}
 	tempOperation := new(did.DIDPayload)
-	r = bytes.NewReader(dataPayload)
+	r = bytes.NewReader(recp.DIDLog.Data)
 	err = tempOperation.Deserialize(r, did.DIDVersion)
 	if err != nil {
 		return nil, http.NewError(int(service.ResolverInternalError),
@@ -234,7 +244,7 @@ func IsDIDDeactivated(db ethdb.KeyValueStore, did string) bool {
 	return true
 }
 
-func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.DIDTransactionData, error) {
+func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte, config *params.ChainConfig) ([]did.DIDTransactionData, error) {
 	key := []byte{byte(IX_DIDTXHash)}
 	key = append(key, idKey...)
 
@@ -254,15 +264,21 @@ func GetAllDIDTxTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.DIDTransacti
 		if err := txHash.Deserialize(r); err != nil {
 			return nil, err
 		}
-		keyPayload := []byte{byte(IX_DIDPayload)}
-		keyPayload = append(keyPayload, txHash.Bytes()...)
+		thash := common.BytesToHash(txHash.Bytes())
+		if txn, _, _, _ := ReadTransaction(db.(ethdb.Database), common.BytesToHash(txHash.Bytes())); txn == nil {
+			return nil, ERR_READ_TX
+		}
 
-		payloadData, err := db.Get(keyPayload)
-		if err != nil {
-			return nil, err
+		recp, _, _,_ := ReadReceipt(db.(ethdb.Database), thash, config)
+		if recp == nil {
+			return nil, ERR_READ_RECEIPT
+		}
+
+		if recp.DIDLog.DID == "" {
+			return nil, ERR_NOT_DIDRECEIPT
 		}
 		tempOperation := new(did.DIDPayload)
-		r := bytes.NewReader(payloadData)
+		r := bytes.NewReader(recp.DIDLog.Data)
 		err = tempOperation.Deserialize(r, did.DIDVersion)
 		if err != nil {
 			return nil, http.NewError(int(service.InvalidTransaction),
@@ -609,9 +625,9 @@ func rollbackRegisterDIDLog(db ethdb.KeyValueStore, idKey []byte, txhash common.
 		return errors.New("not rollback the last one")
 	}
 
-	keyPayload := []byte{byte(IX_DIDPayload)}
-	keyPayload = append(keyPayload, txHash.Bytes()...)
-	db.Delete(keyPayload)
+	//keyPayload := []byte{byte(IX_DIDPayload)}
+	//keyPayload = append(keyPayload, txHash.Bytes()...)
+	//db.Delete(keyPayload)
 
 	//rollback expires height
 	err = rollbackRegisterDIDExpiresHeight(db, idKey)
