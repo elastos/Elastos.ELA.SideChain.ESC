@@ -70,15 +70,15 @@ type StateDB interface {
 
 	IsDIDDeactivated(did string) bool
 
-	GetLastDIDTxData(idKey []byte) (*did.TranasactionData, error)
+	GetLastDIDTxData(idKey []byte) (*did.DIDTransactionData, error)
 
-	GetLastCustomizedDIDTxData(idKey []byte) (*did.CustomizedDIDTranasactionData, error)
+	GetLastCustomizedDIDTxData(idKey []byte) (*did.DIDTransactionData, error)
 
 	GetLastCustomizedDIDTxHash(idKey []byte) (elacom.Uint256, error)
 
-	AddDIDLog(did string, doc []byte)
+	GetLastVerifiableCredentialTxData(idKey []byte) (*did.DIDTransactionData, error)
 
-	ADDDeactiveDIDLog(did string)
+	AddDIDLog(did string, operation string, doc []byte)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

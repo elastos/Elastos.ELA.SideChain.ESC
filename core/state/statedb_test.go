@@ -34,6 +34,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 )
 
 // Tests that updating a state trie does not leak any database writes prior to
@@ -327,6 +328,15 @@ func newTestAction(addr common.Address, r *rand.Rand) testAction {
 				preimage := []byte{1}
 				hash := common.BytesToHash(preimage)
 				s.AddPreimage(hash, preimage)
+			},
+			args: make([]int64, 1),
+		},
+		{
+			name: "AddDIDLog",
+			fn: func(a testAction, s *StateDB) {
+				id := "ifUPapo7vRTAt2c7ytd4BrbooyK7B7Gp4R"
+				var data = []byte{123}
+				s.AddDIDLog(id, did.Create_DID_Operation, data)
 			},
 			args: make([]int64, 1),
 		},

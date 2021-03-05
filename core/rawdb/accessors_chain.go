@@ -23,6 +23,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
@@ -458,6 +459,28 @@ func DeleteReceipts(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 	if err := db.Delete(blockReceiptsKey(number, hash)); err != nil {
 		log.Crit("Failed to delete block receipts", "err", err)
 	}
+}
+
+func WriteDIDReceipts(db ethdb.KeyValueStore, receipts types.Receipts, number, btime uint64) error {
+	var err error
+	for _, receipt := range receipts {
+		operation := receipt.DIDLog.Operation
+		switch operation {
+		case did.Create_DID_Operation, did.Update_DID_Operation, did.Transfer_DID_Operation:
+			err = PersistRegisterDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog, number, btime)
+		case did.Deactivate_DID_Operation:
+			err = PersistDeactivateDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog)
+		case did.Declare_Verifiable_Credential_Operation, did.Revoke_Verifiable_Credential_Operation:
+			if err := PersistVerifiableCredentialTx(db.(ethdb.KeyValueStore), &receipt.DIDLog,
+				 number, btime, receipt.TxHash); err != nil {
+				return err
+			}
+		}
+	}
+	if err != nil {
+		log.Error("Failed to persist did receipt", "err", err)
+	}
+	return err
 }
 
 // ReadBlock retrieves an entire block corresponding to the hash, assembling it

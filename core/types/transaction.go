@@ -291,6 +291,24 @@ func TxDifference(a, b Transactions) Transactions {
 	return keep
 }
 
+// TxDifference returns a new set which is the difference between a and b.
+func DIDLogDifference(a, b []*DIDLog) []*DIDLog {
+	keep := make([]*DIDLog, 0, len(a))
+
+	remove := make(map[common.Hash]struct{})
+	for _, l := range b {
+		remove[l.TxHash] = struct{}{}
+	}
+
+	for _, l := range a {
+		if _, ok := remove[l.TxHash]; !ok {
+			keep = append(keep, l)
+		}
+	}
+
+	return keep
+}
+
 // TxByNonce implements the sort interface to allow sorting a list of transactions
 // by their nonces. This is usually only useful for sorting transactions from a
 // single account, otherwise a nonce comparison doesn't make much sense.
