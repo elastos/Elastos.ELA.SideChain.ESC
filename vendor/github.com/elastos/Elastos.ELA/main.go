@@ -52,8 +52,11 @@ const (
 	// logPath indicates the path storing the node log.
 	nodeLogPath = "logs/node"
 
-	// checkpointPath indicates the path storing the checkpoint data
+	// checkpointPath indicates the path storing the checkpoint data.
 	checkpointPath = "checkpoints"
+
+	// nodePrefix indicates the prefix of node version.
+	nodePrefix = "ela-"
 )
 
 var (
@@ -186,7 +189,9 @@ func startNode(c *cli.Context, st *settings.Settings) {
 				amount += utxo.Value
 			}
 			return amount, nil
-		})
+		},
+		committee.TryUpdateCRMemberInactivity,
+		committee.TryRevertCRMemberInactivity)
 	if err != nil {
 		printErrorAndExit(err)
 	}
@@ -237,7 +242,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 		TxMemPool:      txMemPool,
 		BlockMemPool:   blockMemPool,
 		Routes:         route,
-	}, Version)
+	}, nodePrefix+Version)
 	if err != nil {
 		printErrorAndExit(err)
 	}

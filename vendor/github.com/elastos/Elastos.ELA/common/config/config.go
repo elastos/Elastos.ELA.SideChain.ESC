@@ -72,6 +72,7 @@ type Configuration struct {
 	EnableHistory               bool              `json:"EnableHistory"`
 	HistoryStartHeight          uint32            `json:"HistoryStartHeight"`
 	EnableUtxoDB                bool              `json:"EnableUtxoDB"`
+	EnableCORS                  bool              `json:"EnableCORS"`
 	WalletPath                  string            `json:"WalletPath"`
 	RPCServiceLevel             string            `json:"RPCServiceLevel"`
 	NodeProfileStrategy         string            `json:"NodeProfileStrategy"`
@@ -114,6 +115,7 @@ type CRConfiguration struct {
 	MinCRAssetsAddressUTXOCount        uint32         `json:"MinCRAssetsAddressUTXOCount"`
 	CRAssetsRectifyTransactionHeight   uint32         `json:"CRAssetsRectifyTransactionHeight"`
 	CRCProposalWithdrawPayloadV1Height uint32         `json:"CRCProposalWithdrawPayloadV1Height"`
+	CRCProposalV1Height                uint32         `json:"CRCProposalV1Height"`
 	CRCAddress                         string         `json:"CRCAddress"`
 	CRAssetsAddress                    string         `json:"CRAssetsAddress"`
 	CRExpensesAddress                  string         `json:"CRExpensesAddress"`

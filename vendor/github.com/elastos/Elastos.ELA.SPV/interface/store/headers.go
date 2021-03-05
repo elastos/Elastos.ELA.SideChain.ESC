@@ -15,12 +15,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-var (
-	BKTHeaders  = []byte("H")
-	BKTIndexes  = []byte("I")
-	BKTChainTip = []byte("B")
-)
-
 // Ensure headers implement database.Headers interface.
 var _ HeaderStore = (*headers)(nil)
 

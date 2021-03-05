@@ -7,6 +7,7 @@ package state
 
 import (
 	"bytes"
+	"math"
 	"sort"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -36,10 +37,13 @@ func (c *Committee) processTransactions(txs []*types.Transaction, height uint32)
 	// to elected.
 	activateCRMemberFromInactive := func(cr *CRMember) {
 		oriState := cr.MemberState
+		oriActivateRequestHeight := cr.ActivateRequestHeight
 		c.state.history.Append(height, func() {
 			cr.MemberState = MemberElected
+			cr.ActivateRequestHeight = math.MaxUint32
 		}, func() {
 			cr.MemberState = oriState
+			cr.ActivateRequestHeight = oriActivateRequestHeight
 		})
 	}
 
@@ -85,11 +89,9 @@ func (c *Committee) processTransaction(tx *types.Transaction, height uint32) {
 
 	case types.TransferAsset:
 		c.processVotes(tx, height)
-		c.state.processDeposit(tx, height)
 
 	case types.ReturnCRDepositCoin:
 		c.state.returnDeposit(tx, height)
-		c.state.processDeposit(tx, height)
 
 	case types.CRCProposal:
 		c.manager.registerProposal(tx, height, c.state.CurrentSession, c.state.history)
@@ -109,13 +111,16 @@ func (c *Committee) processTransaction(tx *types.Transaction, height uint32) {
 	case types.CRCProposalRealWithdraw:
 		c.processCRCRealWithdraw(tx, height, c.state.history)
 
-	case types.CRDPOSManagement:
-		c.processCRDPOSManagement(tx, height, c.state.history)
+	case types.CRCouncilMemberClaimNode:
+		c.processCRCouncilMemberClaimNode(tx, height, c.state.history)
 
 	case types.ActivateProducer:
 		c.activateProducer(tx, height, c.state.history)
 	}
 
+	if tx.TxType != types.RegisterCR {
+		c.state.processDeposit(tx, height)
+	}
 	c.processCRCAddressRelatedTx(tx, height)
 }
 
@@ -199,7 +204,7 @@ func (c *Committee) processCancelVotes(tx *types.Transaction, height uint32) {
 
 	references, err := c.state.getTxReference(tx)
 	if err != nil {
-		log.Errorf("get tx reference failed, tx hash:%s", tx.Hash())
+		log.Errorf("get tx reference failed, tx hash:%s", common.ToReversedString(tx.Hash()))
 		return
 	}
 	for _, input := range tx.Inputs {

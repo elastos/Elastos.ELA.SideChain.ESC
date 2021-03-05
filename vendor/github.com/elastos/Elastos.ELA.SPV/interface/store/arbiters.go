@@ -14,12 +14,6 @@ import (
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var (
-	BKTArbiters     = []byte("C")
-	BKTArbPosition  = []byte("P")
-	BKTArbPositions = []byte("Z")
-)
-
 // Ensure arbiters implement arbiters interface.
 var _ Arbiters = (*arbiters)(nil)
 
@@ -31,15 +25,17 @@ type arbiters struct {
 	posCache       []uint32
 	cache          map[common.Uint256]uint32
 	originArbiters [][]byte
+	arbitersCount  int
 }
 
-func NewArbiters(db *leveldb.DB, originArbiters [][]byte) *arbiters {
+func NewArbiters(db *leveldb.DB, originArbiters [][]byte, arbitersCount int) *arbiters {
 	return &arbiters{
 		db:             db,
 		b:              new(leveldb.Batch),
 		posCache:       make([]uint32, 0),
 		cache:          make(map[common.Uint256]uint32),
 		originArbiters: originArbiters,
+		arbitersCount:  arbitersCount,
 	}
 }
 
@@ -73,22 +69,22 @@ func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters 
 	val, ok := c.cache[*key]
 	index := getIndex(height)
 	if !ok {
-		existHeight, err := c.db.Get(hash[:], nil)
+		existHeight, err := c.db.Get(toKey(BKTTransactionHeight, hash[:]...), nil)
 		if err == nil {
 			c.cache[*key] = bytesToUint32(existHeight)
-			batch.Put(index, existHeight)
+			batch.Put(toKey(BKTArbitersData, index...), existHeight)
 			return nil
 		} else if err == leveldb.ErrNotFound {
 			c.cache[*key] = height
-			batch.Put(index, data)
-			batch.Put(hash[:], uint32toBytes(height))
+			batch.Put(toKey(BKTArbitersData, index...), data)
+			batch.Put(toKey(BKTTransactionHeight, hash[:]...), uint32toBytes(height))
 			return nil
 		} else {
 			return err
 		}
 	}
 
-	batch.Put(index, uint32toBytes(val))
+	batch.Put(toKey(BKTArbitersData, index...), uint32toBytes(val))
 	return nil
 }
 
@@ -106,12 +102,12 @@ func (c *arbiters) Get() (crcArbiters [][]byte, normalArbiters [][]byte, err err
 
 func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error) {
 	var val []byte
-	val, err = c.db.Get(getIndex(height), nil)
+	val, err = c.db.Get(toKey(BKTArbitersData, getIndex(height)...), nil)
 	if err != nil {
 		return
 	}
 	if len(val) == 4 {
-		val, err = c.db.Get(getIndex(bytesToUint32(val)), nil)
+		val, err = c.db.Get(toKey(BKTArbitersData, getIndex(bytesToUint32(val))...), nil)
 		if err != nil {
 			return
 		}
@@ -152,7 +148,7 @@ func (c *arbiters) GetByHeight(height uint32) (crcArbiters [][]byte, normalArbit
 	} else {
 		pos = c.posCache
 	}
-	slot, err := findSlot(pos, height)
+	slot, err := findSlot(pos, height, c.arbitersCount)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -272,18 +268,18 @@ func getValueBytes(crc [][]byte, nor [][]byte) []byte {
 	return buf.Bytes()
 }
 
-func findSlot(pos []uint32, height uint32) (uint32, error) {
+func findSlot(pos []uint32, height uint32, arbitersCount int) (uint32, error) {
 
 	if len(pos) == 0 {
 		return 0, errors.New("invalid height")
 	}
 
-	if pos[len(pos)-1]+36 < height {
+	if pos[len(pos)-1]+uint32(arbitersCount) < height {
 		return 0, errors.New("invalid height")
 	}
 
 	for i := len(pos) - 1; i >= 0; i-- {
-		if height >= pos[i] {
+		if height > pos[i] {
 			return pos[i], nil
 		}
 	}
