@@ -857,7 +857,7 @@ methods: [
 new web3._extend.Method({
 
 	name: 'resolveDID',
-	call: 'eth_resolveDID',
+	call: 'did_resolveDID',
 	params: 2
 
 }),

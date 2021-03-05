@@ -88,6 +88,7 @@ type Backend interface {
 
 
 func GetAPIs(apiBackend Backend) []rpc.API {
+
 	nonceLock := new(AddrLocker)
 	return []rpc.API{
 		{
@@ -134,7 +135,7 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 		{
 			Namespace: "did",
 			Version:   "1.0",
-			Service:   NewPublicBlockChainAPI(apiBackend),
+			Service:   NewPublicDIDAPI(apiBackend, nonceLock),
 			Public:    true,
 		},
 
