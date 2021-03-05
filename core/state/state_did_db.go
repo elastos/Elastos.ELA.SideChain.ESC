@@ -9,6 +9,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 
 	"github.com/elastos/Elastos.ELA.SideChain/service"
 
@@ -50,8 +51,8 @@ func (self *StateDB) IsDIDDeactivated(did string) bool {
 	return rawdb.IsDIDDeactivated(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), did)
 }
 
-func (self *StateDB) GetLastDIDTxData(idKey []byte) (*did.DIDTransactionData, error) {
-	return rawdb.GetLastDIDTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey)
+func (self *StateDB) GetLastDIDTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error) {
+	return rawdb.GetLastDIDTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey, config)
 }
 
 func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.DIDTransactionData, error) {

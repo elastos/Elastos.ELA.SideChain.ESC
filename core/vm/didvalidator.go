@@ -406,7 +406,7 @@ func GetLastDIDTxData (evm *EVM, issuerDID string) (*did.DIDTransactionData, err
 	}
 	buf := new(bytes.Buffer)
 	buf.WriteString(did)
-	lastTXData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes())
+	lastTXData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes(), evm.chainConfig)
 
 	if err != nil {
 		if err.Error() == ErrNotFound.Error() || err.Error() == ErrLeveldbNotFound.Error() {
@@ -564,7 +564,7 @@ func checkDIDOperation(evm *EVM, header *did.Header, idUri string) error {
 		return errors.New("DID is deactivated")
 	}
 
-	lastTXData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes())
+	lastTXData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes(), evm.chainConfig)
 
 	dbExist := true
 	if err != nil {
@@ -1359,7 +1359,7 @@ func checkDeactivateDID(evm *EVM, deactivateDIDOpt *did.DIDPayload) error {
 
 	buf := new(bytes.Buffer)
 	buf.WriteString(targetDID)
-	lastTXData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes())
+	lastTXData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes(), evm.chainConfig)
 	if err != nil {
 		return err
 	}
