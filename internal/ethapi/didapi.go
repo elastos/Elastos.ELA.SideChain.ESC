@@ -101,6 +101,13 @@ type CredentialOperation struct {
 	Proof   interface{}                       `json:"proof"`
 }
 
+//xxl add new register API
+// NewPublicDebugAPI creates a new API definition for the public debug methods
+// of the Ethereum service.
+func NewPublicDIDAPI(b Backend, nonceLock *AddrLocker) *PublicTransactionPoolAPI {
+	return &PublicTransactionPoolAPI{b, nonceLock}
+}
+
 func (rpcTxData *RpcCredentialTransactionData) FromCredentialTranasactionData(txData did.
 VerifiableCredentialTxData) bool {
 	hash, err := elacom.Uint256FromHexString(txData.TXID)
@@ -185,6 +192,7 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idPara
 	return rpcPayloadDid, nil
 }
 
+//xxl modify to PublicTransactionPoolAPI
 func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam string, isGetAll bool) (interface{}, error) {
 	var didDocState DidDocState = NonExist
 
