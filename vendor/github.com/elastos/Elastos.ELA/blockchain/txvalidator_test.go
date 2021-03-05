@@ -62,7 +62,8 @@ func (s *txValidatorTestSuite) SetupSuite() {
 		s.Error(err)
 	}
 	s.Chain, err = New(chainStore, params,
-		state.NewState(params, nil, nil, nil, nil),
+		state.NewState(params, nil, nil, nil,
+			nil, nil, nil),
 		crstate.NewCommittee(params))
 	if err != nil {
 		s.Error(err)
@@ -80,7 +81,7 @@ func (s *txValidatorTestSuite) SetupSuite() {
 	s.OriginalLedger = DefaultLedger
 
 	arbiters, err := state.NewArbitrators(params,
-		nil, nil)
+		nil, nil, nil, nil)
 	if err != nil {
 		s.Fail("initialize arbitrator failed")
 	}
@@ -1093,7 +1094,7 @@ func (s *txValidatorTestSuite) TestCheckUpdateProducerTransaction() {
 			amount += utxo.Value
 		}
 		return amount, nil
-	})
+	}, nil, nil)
 	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
 		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
 		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
@@ -3308,7 +3309,7 @@ func (s *txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 	canceledHeight := uint32(8)
 	err := s.Chain.checkReturnDepositCoinTransaction(
 		rdTx, references, 2160+canceledHeight)
-	s.NoError(err)
+	s.EqualError(err, "overspend deposit")
 
 	// cancel CR
 	s.Chain.state.ProcessBlock(&types.Block{
@@ -3324,7 +3325,6 @@ func (s *txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 			},
 		},
 	}, nil)
-	s.CurrentHeight++
 	s.True(producer.State() == state.Canceled, "cancel producer failed")
 
 	// check a return deposit coin transaction with wrong code.
@@ -3342,7 +3342,15 @@ func (s *txValidatorTestSuite) TestCheckReturnDepositCoinTransaction() {
 	rdTx.Programs[0].Code = code1
 	err = s.Chain.checkReturnDepositCoinTransaction(
 		rdTx, references, 2159+canceledHeight)
-	s.NoError(err)
+	s.EqualError(err, "overspend deposit")
+
+	s.CurrentHeight += s.Chain.chainParams.CRDepositLockupBlocks
+	s.Chain.state.ProcessBlock(&types.Block{
+		Header: types.Header{
+			Height: s.CurrentHeight,
+		},
+		Transactions: []*types.Transaction{},
+	}, nil)
 
 	// check a return deposit coin transaction with wrong output amount.
 	rdTx.Outputs[0].Value = 5000 * 100000000
@@ -3998,7 +4006,7 @@ func (s *txValidatorTestSuite) TestCheckVoteOutputs() {
 	})
 	s.EqualError(s.Chain.checkVoteOutputs(config.DefaultParams.CRVotingStartHeight,
 		outputs14, references, producersMap, crsMap),
-		"invalid CRCProposal: 9c5ab8998718e0c1c405a719542879dc7553fca05b4e89132ec8d0e88551fcc0")
+		"invalid CRCProposal: c0fc5185e8d0c82e13894e5ba0fc5375dc79285419a705c4c1e0188799b85a9c")
 }
 
 func (s *txValidatorTestSuite) TestCheckOutputProgramHash() {
@@ -4135,7 +4143,7 @@ func (a *txValidatorTestSuite) createNextTurnDPOSInfoTransaction(crcArbiters, no
 
 	var nextTurnDPOSInfo payload.NextTurnDPOSInfo
 	for _, v := range crcArbiters {
-		nextTurnDPOSInfo.CRPublickeys = append(nextTurnDPOSInfo.CRPublickeys, v)
+		nextTurnDPOSInfo.CRPublicKeys = append(nextTurnDPOSInfo.CRPublicKeys, v)
 	}
 	for _, v := range normalDPOSArbiters {
 		nextTurnDPOSInfo.DPOSPublicKeys = append(nextTurnDPOSInfo.DPOSPublicKeys, v)

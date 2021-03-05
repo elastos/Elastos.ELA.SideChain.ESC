@@ -79,7 +79,7 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 		log.Info(tx.String())
 		payloadData := tx.Payload.(* payload.NextTurnDPOSInfo)
 		log.Info("------------------------CRC ARbiters--------------------------\n")
-		for _, arbiter := range payloadData.CRPublickeys {
+		for _, arbiter := range payloadData.CRPublicKeys {
 			log.Info(common.Bytes2Hex(arbiter) + "\n")
 		}
 		log.Info("-----------------------DPOSPublicKeys---------------------------\n")

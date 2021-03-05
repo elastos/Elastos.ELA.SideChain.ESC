@@ -41,6 +41,8 @@ type spvservice struct {
 	blockListener BlockListener
 	//FilterType is the filter type .(FTBloom, FTDPOS  and so on )
 	filterType uint8
+	// p2p  Protocol version height  use to change version msg content
+	NewP2PProtocolVersionHeight uint64
 }
 
 // NewSPVService creates a new SPV service instance.
@@ -70,17 +72,19 @@ func NewSPVService(cfg *Config) (*spvservice, error) {
 		}
 		originArbiters = append(originArbiters, v)
 	}
-	dataStore, err := store.NewDataStore(dataDir, originArbiters)
+	dataStore, err := store.NewDataStore(dataDir, originArbiters,
+		len(cfg.ChainParams.CRCArbiters)*3)
 	if err != nil {
 		return nil, err
 	}
 
 	service := &spvservice{
-		headers:    headerStore,
-		db:         dataStore,
-		rollback:   cfg.OnRollback,
-		listeners:  make(map[common.Uint256]TransactionListener),
-		filterType: cfg.FilterType,
+		headers:                     headerStore,
+		db:                          dataStore,
+		rollback:                    cfg.OnRollback,
+		listeners:                   make(map[common.Uint256]TransactionListener),
+		filterType:                  cfg.FilterType,
+		NewP2PProtocolVersionHeight: cfg.ChainParams.NewP2PProtocolVersionHeight,
 	}
 
 	chainStore := database.NewChainDB(headerStore, service)
@@ -99,6 +103,7 @@ func NewSPVService(cfg *Config) (*spvservice, error) {
 		NewBlockHeader: newBlockHeader,
 		GetTxFilter:    service.GetFilter,
 		StateNotifier:  service,
+		NodeVersion:    cfg.NodeVersion,
 	}
 
 	service.IService, err = sdk.NewService(serviceCfg)
@@ -239,7 +244,7 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 	if tx.TxType == types.NextTurnDPOSInfo {
 		nextTurnDposInfo := tx.Payload.(*payload.NextTurnDPOSInfo)
 		nakedBatch := batch.GetNakedBatch()
-		err := s.db.Arbiters().BatchPut(nextTurnDposInfo.WorkingHeight, nextTurnDposInfo.CRPublickeys, nextTurnDposInfo.DPOSPublicKeys, nakedBatch)
+		err := s.db.Arbiters().BatchPut(nextTurnDposInfo.WorkingHeight, nextTurnDposInfo.CRPublicKeys, nextTurnDposInfo.DPOSPublicKeys, nakedBatch)
 		if err != nil {
 			return false, err
 		}

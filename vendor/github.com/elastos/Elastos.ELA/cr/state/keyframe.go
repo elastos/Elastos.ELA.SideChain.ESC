@@ -136,7 +136,6 @@ type KeyFrame struct {
 }
 
 type DepositInfo struct {
-	Refundable    bool
 	DepositAmount common.Fixed64
 	Penalty       common.Fixed64
 	TotalAmount   common.Fixed64
@@ -496,10 +495,6 @@ func NewKeyFrame() *KeyFrame {
 }
 
 func (d *DepositInfo) Serialize(w io.Writer) (err error) {
-	if err = common.WriteElement(w, d.Refundable); err != nil {
-		return
-	}
-
 	if err = d.DepositAmount.Serialize(w); err != nil {
 		return
 	}
@@ -516,10 +511,6 @@ func (d *DepositInfo) Serialize(w io.Writer) (err error) {
 }
 
 func (d *DepositInfo) Deserialize(r io.Reader) (err error) {
-	if err = common.ReadElement(r, &d.Refundable); err != nil {
-		return
-	}
-
 	if err = d.DepositAmount.Deserialize(r); err != nil {
 		return
 	}
@@ -1380,6 +1371,14 @@ func copyFixed64Map(src map[string]common.Fixed64) (dst map[string]common.Fixed6
 }
 
 func getCRMembers(src map[common.Uint168]*CRMember) []*CRMember {
+	dst := make([]*CRMember, 0, len(src))
+	for _, v := range src {
+		dst = append(dst, v)
+	}
+	return dst
+}
+
+func getCRMembersCopy(src map[common.Uint168]*CRMember) []*CRMember {
 	dst := make([]*CRMember, 0, len(src))
 	for _, v := range src {
 		m := *v
