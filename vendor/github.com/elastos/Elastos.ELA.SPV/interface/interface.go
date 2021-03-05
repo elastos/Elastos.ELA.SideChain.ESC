@@ -26,6 +26,9 @@ type Config struct {
 
 	//FilterType is the filter type .(FTBloom, FTDPOS  and so on )
 	FilterType uint8
+
+	//node version
+	NodeVersion string
 }
 
 /*

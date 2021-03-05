@@ -183,8 +183,8 @@ var DefaultParams = Params{
 	EnableActivateIllegalHeight: 439000,
 	CRVotingStartHeight:         537670,
 	CRCommitteeStartHeight:      658930,
-	CRClaimDPOSNodeStartHeight:  1000000, // todo complete me later
-	CRClaimDPOSNodePeriod:       720 * 7, // todo complete me later
+	CRClaimDPOSNodeStartHeight:  751400,
+	CRClaimDPOSNodePeriod:       720 * 14,
 	CheckRewardHeight:           436812,
 	VoteStatisticsHeight:        512881,
 	RegisterCRByDIDHeight:       598000,
@@ -206,6 +206,7 @@ var DefaultParams = Params{
 	CRCAppropriatePercentage:    10,
 	MaxCommitteeProposalCount:   128,
 	EnableUtxoDB:                true,
+	EnableCORS:                  false,
 	WalletPath:                  "keystore.dat",
 	RPCServiceLevel:             ConfigurationPermitted.String(),
 	NodeProfileStrategy:         Balanced.String(),
@@ -217,13 +218,14 @@ var DefaultParams = Params{
 	}),
 	TxCacheVolume:                      100000,
 	CheckVoteCRCountHeight:             658930,
-	MaxCRAssetsAddressUTXOCount:        1440,    // todo correct me later
-	MinCRAssetsAddressUTXOCount:        720,     // todo correct me later
-	CRAssetsRectifyTransactionHeight:   1000000, // todo correct me later
-	CRCProposalWithdrawPayloadV1Height: 1000000, // todo correct me later
+	MaxCRAssetsAddressUTXOCount:        800,
+	MinCRAssetsAddressUTXOCount:        720,
+	CRAssetsRectifyTransactionHeight:   751400,
+	CRCProposalWithdrawPayloadV1Height: 751400,
+	CRCProposalV1Height:                751400,
 	RectifyTxFee:                       10000,
 	RealWithdrawSingleFee:              10000,
-	NewP2PProtocolVersionHeight:        1000000,
+	NewP2PProtocolVersionHeight:        751400,
 }
 
 // TestNet returns the network parameters for the test network.
@@ -275,13 +277,18 @@ func (p *Params) TestNet() *Params {
 	copy.PublicDPOSHeight = 300000
 	copy.CRVotingStartHeight = 436900
 	copy.CRCommitteeStartHeight = 546500
-	copy.CRClaimDPOSNodeStartHeight = 1000000 // todo complete me later
-	copy.CRClaimDPOSNodePeriod = 720 * 7      // todo complete me later
+	copy.CRClaimDPOSNodeStartHeight = 646700
+	copy.CRClaimDPOSNodePeriod = 720 * 7
+	copy.CRCProposalV1Height = 646700
+	copy.NewP2PProtocolVersionHeight = 646700
+	copy.CRAssetsRectifyTransactionHeight = 646700
+	copy.CRCProposalWithdrawPayloadV1Height = 646700
 	copy.EnableActivateIllegalHeight = 546500
 	copy.CheckRewardHeight = 100
 	copy.VoteStatisticsHeight = 0
 	copy.RegisterCRByDIDHeight = 483500
 	copy.EnableUtxoDB = true
+	copy.EnableCORS = false
 	copy.VoterRejectPercentage = 10
 	copy.CRCAppropriatePercentage = 10
 	copy.MaxCommitteeProposalCount = 128
@@ -340,13 +347,18 @@ func (p *Params) RegNet() *Params {
 	copy.PublicDPOSHeight = 231500
 	copy.CRVotingStartHeight = 292000
 	copy.CRCommitteeStartHeight = 442000
-	copy.CRClaimDPOSNodeStartHeight = 1000000 // todo complete me later
-	copy.CRClaimDPOSNodePeriod = 720 * 7      // todo complete me later
+	copy.CRClaimDPOSNodeStartHeight = 532650
+	copy.CRClaimDPOSNodePeriod = 720
+	copy.CRCProposalV1Height = 530000
+	copy.NewP2PProtocolVersionHeight = 531030
+	copy.CRAssetsRectifyTransactionHeight = 532650
+	copy.CRCProposalWithdrawPayloadV1Height = 532650
 	copy.EnableActivateIllegalHeight = 256000
 	copy.CheckRewardHeight = 280000
 	copy.VoteStatisticsHeight = 0
 	copy.RegisterCRByDIDHeight = 393000
 	copy.EnableUtxoDB = true
+	copy.EnableCORS = false
 	copy.VoterRejectPercentage = 10
 	copy.CRCAppropriatePercentage = 10
 	copy.MaxCommitteeProposalCount = 128
@@ -575,6 +587,9 @@ type Params struct {
 	// EnableUtxoDB indicate whether to enable utxo database.
 	EnableUtxoDB bool
 
+	// Enable cors for http server.
+	EnableCORS bool
+
 	// WalletPath defines the wallet path used by DPoS arbiters and CR members.
 	WalletPath string
 
@@ -606,6 +621,10 @@ type Params struct {
 
 	// CRCProposalWithdrawPayloadV1Height defines the CRC proposal withdraw payload height
 	CRCProposalWithdrawPayloadV1Height uint32
+
+	// CRCProposalV1Height defines the height to support ChangeProposalOwner,
+	// CloseProposal and SecretaryGeneral proposal.
+	CRCProposalV1Height uint32
 
 	// RectifyTxFee defines the fee of cr rectify transaction
 	RectifyTxFee common.Fixed64

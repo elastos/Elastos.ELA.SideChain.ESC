@@ -86,6 +86,9 @@ type Config struct {
 	// StateNotifier is an optional config, if you don't want to receive state changes of transactions
 	// or blocks, just keep it blank.
 	StateNotifier StateNotifier
+
+	//node version
+	NodeVersion string
 }
 
 /*

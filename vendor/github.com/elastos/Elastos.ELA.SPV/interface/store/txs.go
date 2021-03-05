@@ -12,12 +12,6 @@ import (
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var (
-	BKTTxs       = []byte("T")
-	BKTHeightTxs = []byte("H")
-	BKTForkTxs   = []byte("F")
-)
-
 // Ensure txs implement Txs interface.
 var _ Txs = (*txs)(nil)
 

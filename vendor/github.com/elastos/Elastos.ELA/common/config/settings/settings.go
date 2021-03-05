@@ -571,6 +571,12 @@ func NewSettings() *Settings {
 		ParamName:    "EnableUtxoDB"})
 
 	result.Add(&settingItem{
+		Flag:         nil,
+		DefaultValue: false,
+		ConfigPath:   "EnableCORS",
+		ParamName:    "EnableCORS"})
+
+	result.Add(&settingItem{
 		Flag:         cmdcom.AutoMiningFlag,
 		DefaultValue: false,
 		ConfigSetter: func(string, *config.Params,
@@ -891,6 +897,12 @@ func NewSettings() *Settings {
 		DefaultValue: uint32(0),
 		ConfigPath:   "CRConfiguration.CRCProposalWithdrawPayloadV1Height",
 		ParamName:    "CRCProposalWithdrawPayloadV1Height"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.CRCProposalV1Height,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CRConfiguration.CRCProposalV1Height",
+		ParamName:    "CRCProposalV1Height"})
 
 	result.Add(&settingItem{
 		Flag:         cmdcom.RectifyTxFee,

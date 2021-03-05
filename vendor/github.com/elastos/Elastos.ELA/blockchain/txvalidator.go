@@ -303,10 +303,10 @@ func (b *BlockChain) CheckTransactionContext(blockHeight uint32,
 			return nil, elaerr.Simple(elaerr.ErrTxAssetsRectify, err)
 		}
 
-	case CRDPOSManagement:
-		if err := b.checkCRDPOSManagementTransaction(txn); err != nil {
-			log.Warn("[checkCRDPOSManagementTransaction],", err)
-			return nil, elaerr.Simple(elaerr.ErrTxCRDPOSManagement, err)
+	case CRCouncilMemberClaimNode:
+		if err := b.checkCRCouncilMemberClaimNodeTransaction(txn); err != nil {
+			log.Warn("[checkCRCouncilMemberClaimNodeTransaction],", err)
+			return nil, elaerr.Simple(elaerr.ErrTxCRCRClaimNode, err)
 		}
 	}
 
@@ -529,7 +529,7 @@ func (b *BlockChain) checkVoteCRCProposalContent(
 		proposal := b.crCommittee.GetProposal(*proposalHash)
 		if proposal == nil || proposal.Status != crstate.CRAgreed {
 			return fmt.Errorf("invalid CRCProposal: %s",
-				common.BytesToHexString(cv.Candidate))
+				common.ToReversedString(*proposalHash))
 		}
 	}
 
@@ -1064,7 +1064,7 @@ func checkTransactionPayload(txn *Transaction) error {
 	case *payload.CRAssetsRectify:
 	case *payload.CRCProposalRealWithdraw:
 	case *payload.NextTurnDPOSInfo:
-	case *payload.CRDPOSManagement:
+	case *payload.CRCouncilMemberClaimNode:
 
 	default:
 		return errors.New("[txValidator],invalidate transaction payload type.")
@@ -1100,8 +1100,24 @@ func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) 
 		if blockHeight < b.chainParams.CRVotingStartHeight {
 			return errors.New("not support before CRVotingStartHeight")
 		}
-	case CRCProposal, CRCProposalReview, CRCProposalTracking, CRCAppropriation,
-		CRCProposalWithdraw:
+	case CRCProposal:
+		p, ok := txn.Payload.(*payload.CRCProposal)
+		if !ok {
+			return errors.New("not support invalid CRCProposal transaction")
+		}
+		switch p.ProposalType {
+		case payload.ChangeProposalOwner, payload.CloseProposal, payload.SecretaryGeneral:
+			if blockHeight < b.chainParams.CRCProposalV1Height {
+				return errors.New("not support before CRCProposalV1Height")
+			}
+		default:
+			if blockHeight < b.chainParams.CRCommitteeStartHeight {
+				return errors.New("not support before CRCommitteeStartHeight")
+			}
+		}
+
+	case CRCProposalReview, CRCProposalTracking, CRCAppropriation,
+	CRCProposalWithdraw:
 		if blockHeight < b.chainParams.CRCommitteeStartHeight {
 			return errors.New("not support before CRCommitteeStartHeight")
 		}
@@ -1120,7 +1136,7 @@ func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) 
 		if blockHeight < b.chainParams.CRAssetsRectifyTransactionHeight {
 			return errors.New("not support before CRAssetsRectifyTransactionHeight")
 		}
-	case CRDPOSManagement:
+	case CRCouncilMemberClaimNode:
 		if blockHeight < b.chainParams.CRClaimDPOSNodeStartHeight {
 			return errors.New("not support before CRClaimDPOSNodeStartHeight")
 		}
@@ -1322,7 +1338,7 @@ func (b *BlockChain) checkTransferCrossChainAssetTransaction(txn *Transaction, r
 }
 
 func (b *BlockChain) IsNextArbtratorsSame(nextTurnDPOSInfo *payload.NextTurnDPOSInfo, curNodeNextArbitrators [][]byte) bool {
-	if len(nextTurnDPOSInfo.CRPublickeys)+len(nextTurnDPOSInfo.DPOSPublicKeys) != len(curNodeNextArbitrators) {
+	if len(nextTurnDPOSInfo.CRPublicKeys)+len(nextTurnDPOSInfo.DPOSPublicKeys) != len(curNodeNextArbitrators) {
 		log.Warn("IsNextArbtratorsSame curNodeArbitrators len ", len(curNodeNextArbitrators))
 		return false
 	}
@@ -1330,8 +1346,8 @@ func (b *BlockChain) IsNextArbtratorsSame(nextTurnDPOSInfo *payload.NextTurnDPOS
 	dposIndex := 0
 	for _, v := range curNodeNextArbitrators {
 		if DefaultLedger.Arbitrators.IsNextCRCArbitrator(v) {
-			if bytes.Equal(v, nextTurnDPOSInfo.CRPublickeys[crindex]) ||
-				(bytes.Equal([]byte{}, nextTurnDPOSInfo.CRPublickeys[crindex]) && !DefaultLedger.Arbitrators.IsMemberElectedNextCRCArbitrator(v)) {
+			if bytes.Equal(v, nextTurnDPOSInfo.CRPublicKeys[crindex]) ||
+				(bytes.Equal([]byte{}, nextTurnDPOSInfo.CRPublicKeys[crindex]) && !DefaultLedger.Arbitrators.IsMemberElectedNextCRCArbitrator(v)) {
 				crindex++
 				continue
 			} else {
@@ -1362,8 +1378,8 @@ func (b *BlockChain) checkNextTurnDPOSInfoTransaction(txn *Transaction) error {
 	if !ok {
 		return errors.New("invalid NextTurnDPOSInfo payload")
 	}
-	log.Warnf("[checkNextTurnDPOSInfoTransaction] CRPublickeys %v, DPOSPublicKeys%v\n",
-		b.ConvertToArbitersStr(nextTurnDPOSInfo.CRPublickeys), b.ConvertToArbitersStr(nextTurnDPOSInfo.DPOSPublicKeys))
+	log.Warnf("[checkNextTurnDPOSInfoTransaction] CRPublicKeys %v, DPOSPublicKeys%v\n",
+		b.ConvertToArbitersStr(nextTurnDPOSInfo.CRPublicKeys), b.ConvertToArbitersStr(nextTurnDPOSInfo.DPOSPublicKeys))
 
 	if !DefaultLedger.Arbitrators.IsNeedNextTurnDPOSInfo() {
 		log.Warn("[checkNextTurnDPOSInfoTransaction] !IsNeedNextTurnDPOSInfo")
@@ -1598,7 +1614,7 @@ func (b *BlockChain) checkActivateProducerTransaction(txn *Transaction,
 			depositAmount += u.Value
 		}
 	} else {
-		depositAmount = producer.DepositAmount()
+		depositAmount = producer.TotalAmount()
 	}
 
 	if depositAmount-producer.Penalty() < crstate.MinDepositAmount {
@@ -2195,17 +2211,17 @@ func (b *BlockChain) checkCRAssetsRectifyTransaction(txn *Transaction,
 	return nil
 }
 
-func (b *BlockChain) checkCRDPOSManagementTransaction(txn *Transaction) error {
-	manager, ok := txn.Payload.(*payload.CRDPOSManagement)
+func (b *BlockChain) checkCRCouncilMemberClaimNodeTransaction(txn *Transaction) error {
+	manager, ok := txn.Payload.(*payload.CRCouncilMemberClaimNode)
 	if !ok {
 		return errors.New("invalid payload")
 	}
 
 	if !b.crCommittee.IsInElectionPeriod() {
-		return errors.New("CRDPOSManagement must during election period")
+		return errors.New("CRCouncilMemberClaimNode must during election period")
 
 	}
-	did := manager.CRCommitteeDID
+	did := manager.CRCouncilCommitteeDID
 	crMember := b.crCommittee.GetMember(did)
 	if crMember == nil {
 		return errors.New("the originator must be members")
@@ -2216,22 +2232,22 @@ func (b *BlockChain) checkCRDPOSManagementTransaction(txn *Transaction) error {
 	}
 
 	if crMember.DPOSPublicKey != nil {
-		if bytes.Equal(crMember.DPOSPublicKey, manager.CRManagementPublicKey) {
-			return errors.New("CRManagementPublicKey is the same as crMember.DPOSPublicKey")
+		if bytes.Equal(crMember.DPOSPublicKey, manager.NodePublicKey) {
+			return errors.New("NodePublicKey is the same as crMember.DPOSPublicKey")
 		}
 	}
 
-	_, err := crypto.DecodePoint(manager.CRManagementPublicKey)
+	_, err := crypto.DecodePoint(manager.NodePublicKey)
 	if err != nil {
 		return errors.New("invalid operating public key")
 	}
 
 	// check duplication of node.
-	if b.state.ProducerNodePublicKeyExists(manager.CRManagementPublicKey) {
+	if b.state.ProducerNodePublicKeyExists(manager.NodePublicKey) {
 		return fmt.Errorf("producer already registered")
 	}
 
-	err = b.checkCRDPOSManagementSignature(manager, crMember.Info.Code)
+	err = b.checkCRCouncilMemberClaimNodeSignature(manager, crMember.Info.Code)
 	if err != nil {
 		return errors.New("CR claim DPOS signature check failed")
 	}
@@ -2239,11 +2255,11 @@ func (b *BlockChain) checkCRDPOSManagementTransaction(txn *Transaction) error {
 	return nil
 }
 
-func (b *BlockChain) checkCRDPOSManagementSignature(
-	managementPayload *payload.CRDPOSManagement, code []byte) error {
+func (b *BlockChain) checkCRCouncilMemberClaimNodeSignature(
+	managementPayload *payload.CRCouncilMemberClaimNode, code []byte) error {
 	signBuf := new(bytes.Buffer)
 	managementPayload.SerializeUnsigned(signBuf, payload.CRManagementVersion)
-	if err := checkCRTransactionSignature(managementPayload.Signature, code,
+	if err := checkCRTransactionSignature(managementPayload.CRCouncilCommitteeSignature, code,
 		signBuf.Bytes()); err != nil {
 		return errors.New("CR signature check failed")
 	}
@@ -2815,7 +2831,7 @@ func (b *BlockChain) checkNormalOrELIPProposal(proposal *payload.CRCProposal, pr
 		b.crCommittee.CRCCommitteeUsedAmount-proposalsUsedAmount {
 		return errors.New(fmt.Sprintf("budgets exceeds the balance of CRC"+
 			" committee, proposal hash:%s, budgets:%s, need <= %s",
-			proposal.Hash(), amount, b.crCommittee.CRCCurrentStageAmount-
+			common.ToReversedString(proposal.Hash()), amount, b.crCommittee.CRCCurrentStageAmount-
 				b.crCommittee.CRCCommitteeUsedAmount-proposalsUsedAmount))
 	} else if amount < 0 {
 		return errors.New("budgets is invalid")
@@ -2990,19 +3006,17 @@ func (b *BlockChain) checkReturnDepositCoinTransaction(txn *Transaction,
 		}
 	}
 
-	var depositAmount common.Fixed64
-	var penalty common.Fixed64
+	var availableAmount common.Fixed64
 	for _, program := range txn.Programs {
 		p := b.state.GetProducer(program.Code[1 : len(program.Code)-1])
 		if p == nil {
 			return errors.New("signer must be producer")
 		}
-		penalty += p.Penalty()
-		depositAmount += p.DepositAmount()
+		availableAmount += p.AvailableAmount()
 	}
 
-	if inputValue-changeValue > depositAmount-penalty ||
-		outputValue >= depositAmount {
+	if inputValue-changeValue > availableAmount ||
+		outputValue >= availableAmount {
 		return fmt.Errorf("overspend deposit")
 	}
 
