@@ -2,23 +2,25 @@ pragma solidity >=0.7.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 contract DID {
-    constructor() {}
 
-   //params[0] DIDDocumennt params[1] txType
-    function operationDID(uint256 useGas, uint256 txType, string memory didDocument) public {
+    constructor() {
+
+    }
+    function operationDID(string memory didDocument) public  {
         uint method = 22;
         uint offSet = 32;
         uint outputSize = 32;
         uint256[1] memory result;
         uint256 inputSize = 0;
+        uint256  leftGas =  gasleft();
 
-
-        string memory ttype = string(toBytesEth(txType));
-        string memory input = strConcat(ttype, didDocument);
-
+        // string memory ttype = string(toBytesEth(txType));
+        // string memory input = strConcat(ttype, didDocument);
+        string memory input = didDocument;
         inputSize = bytes(input).length + offSet;
+
         assembly {
-            if iszero(staticcall(useGas, method, input, inputSize, result, outputSize)) {
+            if iszero(staticcall(leftGas, method, input, inputSize, result, outputSize)) {
                 revert(0,0)
             }
         }
