@@ -46,15 +46,14 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 		log.Error("did document input is error", "input", string(data))
 		return math.MaxUint64
 	}
-	if evm.GasPrice.Uint64() < params.DIDBaseGasprice {
-		log.Error("gas price is too small", "need",  params.DIDBaseGasprice)
-		return math.MaxUint64
-	}
-
 
 	var needFee int64 = 0
 	switch p.Header.Operation {
 	case did.Create_DID_Operation, did.Update_DID_Operation, did.Transfer_DID_Operation:
+		if evm.GasPrice.Uint64() < params.DIDBaseGasprice {
+			log.Error("gas price is too small", "need",  params.DIDBaseGasprice)
+			return math.MaxUint64
+		}
 		payloadBase64, _ := base64url.DecodeString(p.Payload)
 		payload := new(did.DIDDoc)
 		if err := json.Unmarshal(payloadBase64, payload); err != nil {
@@ -74,16 +73,16 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 		} else {
 			needFee = getIDTxFee(payload.ID, payload.Expires, p.Header.Operation, payload.Controller, buf.Len()).IntValue()
 		}
+		fe := new(big.Int).SetInt64(needFee)
+		y := new(big.Int).SetInt64(did.FeeRate)
+		ethFee := new(big.Int).Mul(fe, y)
+		gas := new(big.Int).Quo(ethFee, new(big.Int).SetUint64(evm.GasPrice.Uint64()))
+		needFee = gas.Int64()
 	default:
-		needFee = int64(didParam.CustomIDFeeRate)
-		//needFee = getIDTxFee(payload.ID, payload.Expires, p.Header.Operation, nil, buf.Len()).IntValue()
+		needFee = int64(params.DIDBaseGasCost)
 	}
 
-	fe := new(big.Int).SetInt64(needFee)
-	y := new(big.Int).SetInt64(did.FeeRate)
-	ethFee := new(big.Int).Mul(fe, y)
-	gas := new(big.Int).Quo(ethFee, new(big.Int).SetUint64(evm.GasPrice.Uint64()))
-	return gas.Uint64()
+	return uint64(needFee)
 }
 
 func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
