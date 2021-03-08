@@ -28,10 +28,8 @@ const (
 	slotCRCProposalRealWithdrawKey            = "CRCProposalRealWithdrawKey"
 	slotCloseProposalTargetProposalHash       = "CloseProposalTargetProposalHash"
 	slotChangeProposalOwnerTargetProposalHash = "ChangeProposalOwnerTargetProposalHash"
-	slotChangeCustomIDFee                     = "slotChangeCustomIDFee"
 	slotSpecialTxHash                         = "SpecialTxHash"
 	slotSidechainTxHashes                     = "SidechainTxHashes"
-	slotCustomIDProposalResult                = "CustomIDProposalResult"
 	slotTxInputsReferKeys                     = "TxInputsReferKeys"
 	slotCRCouncilMemberNodePublicKey          = "CRCouncilMemberNodePublicKey"
 	slotCRCouncilMemberDID                    = "CRCouncilMemberDID"
@@ -248,16 +246,6 @@ func newConflictManager() conflictManager {
 					},
 				),
 			},
-			// Proposal change custom ID fee.
-			{
-				name: slotChangeCustomIDFee,
-				slot: newConflictSlot(str,
-					keyTypeFuncPair{
-						Type: types.CRCProposal,
-						Func: strChangeCustomIDFee,
-					},
-				),
-			},
 			// CRC Proposal target proposal hash
 			{
 				name: slotCloseProposalTargetProposalHash,
@@ -384,16 +372,6 @@ func newConflictManager() conflictManager {
 					keyTypeFuncPair{
 						Type: types.NextTurnDPOSInfo,
 						Func: hashNextTurnDPOSInfoTxPayloadHash,
-					},
-				),
-			},
-			// custom id proposal result.
-			{
-				name: slotCustomIDProposalResult,
-				slot: newConflictSlot(str,
-					keyTypeFuncPair{
-						Type: types.CustomIDResult,
-						Func: hashCustomIDProposalResultTxPayloadHash,
 					},
 				),
 			},

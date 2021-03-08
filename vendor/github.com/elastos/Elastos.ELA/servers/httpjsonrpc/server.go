@@ -98,7 +98,6 @@ func StartRPCServer() {
 	mainMux["submitsidechainillegaldata"] = SubmitSidechainIllegalData
 	mainMux["getarbiterpeersinfo"] = GetArbiterPeersInfo
 	mainMux["getcrcpeersinfo"] = GetCRCPeersInfo
-	mainMux["getcrosschainpeersinfo"] = GetCrossChainPeersInfo
 
 	mainMux["estimatesmartfee"] = EstimateSmartFee
 	mainMux["getdepositcoin"] = GetDepositCoin
@@ -382,8 +381,6 @@ func convertParams(method string, params []interface{}) Params {
 		return FromArray(params, "height")
 	case "estimatesmartfee":
 		return FromArray(params, "confirmations")
-	case "getrawmempool":
-		return FromArray(params, "state")
 	default:
 		return Params{}
 	}

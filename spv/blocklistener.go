@@ -6,7 +6,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 
-	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 )
@@ -64,18 +63,18 @@ func (l *BlockListener) onBlockHandled(block interface{})  {
 	}
 }
 func InitNextTurnDposInfo() {
-	workingHeight, crcArbiters, normalArbiters, err := SpvService.GetNextArbiters()
-	if err != nil {
-		log.Error("GetNextArbiters error", "err", err.Error())
-		return
-	}
-	nextTurnDposInfo = &payload.NextTurnDPOSInfo{
-		WorkingHeight: workingHeight,
-		CRPublicKeys: crcArbiters,
-		DPOSPublicKeys: normalArbiters,
-	}
-	peers := DumpNextDposInfo()
-	events.Notify(dpos.ETNextProducers, peers)
+	//workingHeight, crcArbiters, normalArbiters, err := SpvService.GetNextArbiters()
+	//if err != nil {
+	//	log.Error("GetNextArbiters error", "err", err.Error())
+	//	return
+	//}
+	//nextTurnDposInfo = &payload.NextTurnDPOSInfo{
+	//	WorkingHeight: workingHeight,
+	//	CRPublicKeys: crcArbiters,
+	//	DPOSPublicKeys: normalArbiters,
+	//}
+	//peers := DumpNextDposInfo()
+	//events.Notify(dpos.ETNextProducers, peers)
 }
 
 func DumpNextDposInfo() []peer.PID {

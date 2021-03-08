@@ -193,29 +193,9 @@ func (s *spvservice) GetTransaction(txId *common.Uint256) (*types.Transaction, e
 	return &tx, nil
 }
 
-// Get arbiters according to height
+//Get arbiters according to height
 func (s *spvservice) GetArbiters(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error) {
 	return s.db.Arbiters().GetByHeight(height)
-}
-
-// Get next turn arbiters according to height
-func (s *spvservice) GetNextArbiters() (workingHeight uint32, crcArbiters [][]byte, normalArbiters [][]byte, err error) {
-	return s.db.Arbiters().GetNext()
-}
-
-// Get reserved custom ID.
-func (s *spvservice) GetReservedCustomIDs() (map[string]struct{}, error) {
-	return s.db.CID().GetReservedCustomIDs()
-}
-
-// Get received custom ID.
-func (s *spvservice) GeReceivedCustomIDs() (map[string]common.Uint168, error) {
-	return s.db.CID().GetReceivedCustomIDs()
-}
-
-// Get rate of custom ID fee.
-func (s *spvservice) GetRateOfCustomIDFee() (common.Fixed64, error) {
-	return s.db.CID().GetCustomIDFeeRate()
 }
 
 func (s *spvservice) GetTransactionIds(height uint32) ([]*common.Uint256, error) {
@@ -261,47 +241,10 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 		}
 	}
 
-	switch tx.TxType {
-	case types.NextTurnDPOSInfo:
+	if tx.TxType == types.NextTurnDPOSInfo {
 		nextTurnDposInfo := tx.Payload.(*payload.NextTurnDPOSInfo)
 		nakedBatch := batch.GetNakedBatch()
-		err := s.db.Arbiters().BatchPut(nextTurnDposInfo.WorkingHeight,
-			nextTurnDposInfo.CRPublicKeys, nextTurnDposInfo.DPOSPublicKeys, nakedBatch)
-		if err != nil {
-			return false, err
-		}
-	case types.CRCProposal:
-		p, ok := tx.Payload.(*payload.CRCProposal)
-		if !ok {
-			return false, errors.New("invalid crc proposal tx")
-		}
-		nakedBatch := batch.GetNakedBatch()
-		switch p.ProposalType {
-		case payload.ReserveCustomID:
-			err := s.db.CID().BatchPutControversialReservedCustomIDs(
-				p.ReservedCustomIDList, p.Hash(tx.PayloadVersion), nakedBatch)
-			if err != nil {
-				return false, err
-			}
-		case payload.ReceiveCustomID:
-			err := s.db.CID().BatchPutControversialReceivedCustomIDs(
-				p.ReceivedCustomIDList, p.ReceiverDID, p.Hash(tx.PayloadVersion), nakedBatch)
-			if err != nil {
-				return false, err
-			}
-		case payload.ChangeCustomIDFee:
-			if err := s.db.CID().BatchPutControversialChangeCustomIDFee(
-				p.RateOfCustomIDFee, p.Hash(tx.PayloadVersion), nakedBatch); err != nil {
-				return false, err
-			}
-		}
-	case types.CustomIDResult:
-		p, ok := tx.Payload.(*payload.CustomIDProposalResult)
-		if !ok {
-			return false, errors.New("invalid custom ID result tx")
-		}
-		nakedBatch := batch.GetNakedBatch()
-		err := s.db.CID().BatchPutCustomIDProposalResults(p.ProposalResults, nakedBatch)
+		err := s.db.Arbiters().BatchPut(nextTurnDposInfo.WorkingHeight, nextTurnDposInfo.CRPublicKeys, nextTurnDposInfo.DPOSPublicKeys, nakedBatch)
 		if err != nil {
 			return false, err
 		}

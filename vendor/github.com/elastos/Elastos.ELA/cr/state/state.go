@@ -53,40 +53,6 @@ type FunctionsConfig struct {
 		map[*types.Input]types.Output, error)
 }
 
-func (s *State) RevertUpdateCRInactivePenalty(cid common.Uint168) {
-	depositInfo, ok := s.depositInfo[cid]
-	if !ok {
-		return
-	}
-	var penalty = s.params.InactivePenalty
-	if depositInfo.Penalty < penalty {
-		depositInfo.Penalty = common.Fixed64(0)
-	} else {
-		depositInfo.Penalty -= penalty
-	}
-}
-
-func (s *State) UpdateCRIllegalPenalty(cid common.Uint168) {
-	depositInfo, ok := s.depositInfo[cid]
-	if !ok {
-		return
-	}
-	depositInfo.Penalty += s.params.IllegalPenalty
-}
-
-func (s *State) RevertUpdateCRIllegalPenalty(cid common.Uint168) {
-	depositInfo, ok := s.depositInfo[cid]
-	if !ok {
-		return
-	}
-	var penalty = s.params.IllegalPenalty
-	if depositInfo.Penalty < penalty {
-		depositInfo.Penalty = common.Fixed64(0)
-	} else {
-		depositInfo.Penalty -= penalty
-	}
-}
-
 // registerFunctions set the tryStartVotingPeriod and processImpeachment function
 // to change member state.
 func (s *State) registerFunctions(cfg *FunctionsConfig) {

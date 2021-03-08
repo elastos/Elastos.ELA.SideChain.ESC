@@ -191,9 +191,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 			return amount, nil
 		},
 		committee.TryUpdateCRMemberInactivity,
-		committee.TryRevertCRMemberInactivity,
-		committee.TryUpdateCRMemberIllegal,
-		committee.TryRevertCRMemberIllegal)
+		committee.TryRevertCRMemberInactivity)
 	if err != nil {
 		printErrorAndExit(err)
 	}
@@ -213,7 +211,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 	pgBar.Stop()
 	ledger.Blockchain = chain // fixme
 	blockMemPool.Chain = chain
-	arbiters.RegisterFunction(chain.GetHeight, chain.GetBestBlockHash,
+	arbiters.RegisterFunction(chain.GetHeight,
 		func(height uint32) (*types.Block, error) {
 			hash, err := chain.GetBlockHash(height)
 			if err != nil {

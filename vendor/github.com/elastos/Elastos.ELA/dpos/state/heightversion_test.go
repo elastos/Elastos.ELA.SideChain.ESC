@@ -48,15 +48,11 @@ func TestHeightVersionInit(t *testing.T) {
 	bestHeight = 0
 
 	arbiters, err = NewArbitrators(activeNetParams,
-		nil, nil, nil, nil,
-		nil, nil)
+		nil, nil, nil, nil)
 	assert.NoError(t, err)
-	arbiters.RegisterFunction(func() uint32 { return bestHeight },
-		func() *common.Uint256 { return &common.Uint256{} },
-		nil, nil)
+	arbiters.RegisterFunction(func() uint32 { return bestHeight }, nil, nil)
 	arbiters.State = NewState(activeNetParams, nil, nil, nil,
-		nil, nil, nil,
-		nil, nil)
+		nil, nil, nil)
 
 }
 
@@ -69,7 +65,7 @@ func TestArbitrators_GetNormalArbitratorsDescV0(t *testing.T) {
 
 	// V0
 	producers, err := arbiters.GetNormalArbitratorsDesc(
-		0, 5, arbiters.State.GetActiveProducers(), 0)
+		0, 5, arbiters.State.GetActiveProducers())
 	assert.NoError(t, err)
 	for i := range producers {
 		assert.Equal(t, arbitrators[i], producers[i].GetNodePublicKey())
@@ -128,7 +124,7 @@ func TestArbitrators_GetNormalArbitratorsDesc(t *testing.T) {
 	// main version
 	producers, err := arbiters.GetNormalArbitratorsDesc(
 		arbiters.State.chainParams.PublicDPOSHeight, 10,
-		arbiters.State.GetActiveProducers(), 0)
+		arbiters.State.GetActiveProducers())
 	assert.Error(t, err, "arbitrators count does not match config value")
 
 	currentHeight += 1
@@ -159,7 +155,7 @@ func TestArbitrators_GetNormalArbitratorsDesc(t *testing.T) {
 
 	// main version
 	producers, err = arbiters.GetNormalArbitratorsDesc(arbiters.State.
-		chainParams.PublicDPOSHeight, 5, arbiters.State.GetActiveProducers(), 0)
+		chainParams.PublicDPOSHeight, 5, arbiters.State.GetActiveProducers())
 	assert.NoError(t, err)
 	for i := range producers {
 		found := false

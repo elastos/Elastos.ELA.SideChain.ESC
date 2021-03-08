@@ -73,14 +73,6 @@ func (a *Arbitrator) Stop() error {
 	return nil
 }
 
-func (a *Arbitrator) GetCurrentArbitrators() []*state.ArbiterInfo {
-	return a.dposManager.GetArbitrators().GetArbitrators()
-}
-
-func (a *Arbitrator) GetNextArbitrators() []*state.ArbiterInfo {
-	return a.dposManager.GetArbitrators().GetNextArbitrators()
-}
-
 func (a *Arbitrator) GetCurrentCRCs() []*state.ArbiterInfo {
 	return a.dposManager.GetArbitrators().GetCRCArbiters()
 }

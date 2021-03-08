@@ -14,16 +14,7 @@ import (
 	"github.com/elastos/Elastos.ELA/crypto"
 )
 
-const (
-	// CRCProposalReviewVersion indicates the version of CRC proposal review payload
-	CRCProposalReviewVersion byte = 0x00
-
-	// CRCProposalReviewVersion01 add opinion data.
-	CRCProposalReviewVersion01 byte = 0x01
-
-	// MaxOpinionDataSize the max size of opinion data.
-	MaxOpinionDataSize = 1 * 1024 * 1024
-)
+const CRCProposalReviewVersion byte = 0x00
 
 const (
 	Approve VoteResult = 0x00
@@ -50,7 +41,6 @@ type CRCProposalReview struct {
 	ProposalHash common.Uint256
 	VoteResult   VoteResult
 	OpinionHash  common.Uint256
-	OpinionData  []byte
 	DID          common.Uint168
 	Signature    []byte
 }
@@ -87,11 +77,6 @@ func (a *CRCProposalReview) SerializeUnsigned(w io.Writer, version byte) error {
 	if err := a.OpinionHash.Serialize(w); err != nil {
 		return errors.New("[CRCProposalReview], failed to serialize OpinionHash")
 	}
-	if version >= CRCProposalReviewVersion01 {
-		if err := common.WriteVarBytes(w, a.OpinionData); err != nil {
-			return errors.New("[CRCProposalReview], failed to serialize OpinionData")
-		}
-	}
 	if err := a.DID.Serialize(w); err != nil {
 		return errors.New("[CRCProposalReview], failed to serialize DID")
 	}
@@ -125,11 +110,6 @@ func (a *CRCProposalReview) DeserializeUnsigned(r io.Reader, version byte) error
 
 	if err = a.OpinionHash.Deserialize(r); err != nil {
 		return errors.New("[CRCProposalReview], failed to deserialize OpinionHash")
-	}
-	if version >= CRCProposalReviewVersion01 {
-		if a.OpinionData, err = common.ReadVarBytes(r, MaxOpinionDataSize, "opinion data"); err != nil {
-			return errors.New("[CRCProposalReview], failed to deserialize OpinionData")
-		}
 	}
 	if err := a.DID.Deserialize(r); err != nil {
 		return errors.New("[CRCProposalReview], failed to deserialize DID")

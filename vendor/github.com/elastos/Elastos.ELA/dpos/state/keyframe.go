@@ -31,9 +31,6 @@ type StateKeyFrame struct {
 	VersionStartHeight        uint32
 	VersionEndHeight          uint32
 	NeedNextTurnDposInfo      bool
-	Unclaimed                 int
-	LastRandomCandidateHeight uint32
-	LastRandomCandidateOwner  string
 }
 
 // RewardData defines variables to calculate reward of a round
@@ -137,18 +134,7 @@ func (s *StateKeyFrame) Serialize(w io.Writer) (err error) {
 		return
 	}
 
-	if err = common.WriteUint32(w, s.VersionEndHeight); err != nil {
-		return
-	}
-
-	if err = common.WriteElements(w, s.NeedNextTurnDposInfo, uint8(s.Unclaimed),
-		s.LastRandomCandidateHeight); err != nil {
-		return
-	}
-	if err = common.WriteVarString(w, s.LastRandomCandidateOwner); err != nil {
-		return
-	}
-	return
+	return common.WriteUint32(w, s.VersionEndHeight)
 }
 
 func (s *StateKeyFrame) Deserialize(r io.Reader) (err error) {
@@ -213,17 +199,6 @@ func (s *StateKeyFrame) Deserialize(r io.Reader) (err error) {
 	}
 
 	if s.VersionEndHeight, err = common.ReadUint32(r); err != nil {
-		return
-	}
-
-	var unclaimed uint8
-	if err = common.ReadElements(r, &s.NeedNextTurnDposInfo, &unclaimed,
-		&s.LastRandomCandidateHeight); err != nil {
-		return
-	}
-	s.Unclaimed = int(unclaimed)
-
-	if s.LastRandomCandidateOwner, err = common.ReadVarString(r); err != nil {
 		return
 	}
 	return

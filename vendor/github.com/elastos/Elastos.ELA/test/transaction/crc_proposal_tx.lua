@@ -34,7 +34,6 @@ local owner_privatekey = getOwnerPrivateKey()
 local proposal_type = getProposalType()
 
 local draft_hash = getDraftHash()
-local draft_data = getDraftData()
 
 local budgets = getBudgets()
 local recipient = getToAddr()
@@ -50,6 +49,10 @@ end
 print( proposal_type)
 
  if proposal_type ~= 0x0400 then
+    if draft_hash == "" then
+        print("draft_hash is nil, should use --draftHash to set it.")
+        return
+    end
 
     if recipient == "" then
         print("recipient is nil, should use --to to set it.")
@@ -71,9 +74,6 @@ print("owner_privatekey:", owner_privatekey)
 
 print("proposal type:", proposal_type)
 print("draft proposal hash:", draft_hash)
-print("draft_data :", draft_data)
-
-
 print("budgets:")
 
 print("-----------------------")
@@ -84,13 +84,13 @@ print("-----------------------")
 
 local cp_payload
 -- crc proposal payload: crPublickey, proposalType, draftData, budgets, recipient, wallet
- cp_payload =crcproposal.new(owner_pubkey, proposal_type, draft_data, budgets,
+ cp_payload =crcproposal.new(owner_pubkey, proposal_type, draft_hash, budgets,
  recipient, wallet, cr_opinion_hash)
 
  print(cp_payload:get())
 
---param 3--->  value 1 represent  CRCProposalVersion01
-local tx = transaction.new(9, 0x25, 1, cp_payload, 0)
+
+local tx = transaction.new(9, 0x25, 0, cp_payload, 0)
 print(tx:get())
 
 -- input: from, fee

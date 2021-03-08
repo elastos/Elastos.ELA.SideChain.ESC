@@ -72,17 +72,6 @@ func hashCRCProposalSecretaryGeneralDID(tx *types.Transaction) (interface{}, err
 	}
 	return nil, nil
 }
-func strChangeCustomIDFee(tx *types.Transaction) (interface{}, error) {
-	p, ok := tx.Payload.(*payload.CRCProposal)
-	if !ok {
-		return nil, fmt.Errorf(
-			"CRC proposal payload cast failed, tx:%s", tx.Hash())
-	}
-	if p.ProposalType == payload.ChangeCustomIDFee {
-		return "Change the fee of custom ID", nil
-	}
-	return nil, nil
-}
 
 func hashCRCProposalWithdrawProposalHash(
 	tx *types.Transaction) (interface{}, error) {
@@ -120,15 +109,6 @@ func hashNextTurnDPOSInfoTxPayloadHash(tx *types.Transaction) (interface{}, erro
 			"NextTurnDPOSInfo tx payload cast failed, tx:%s", tx.Hash())
 	}
 	return payload.Hash(), nil
-}
-
-func hashCustomIDProposalResultTxPayloadHash(tx *types.Transaction) (interface{}, error) {
-	_, ok := tx.Payload.(*payload.CustomIDProposalResult)
-	if !ok {
-		return nil, fmt.Errorf(
-			"custom ID proposal result tx payload cast failed, tx:%s", tx.Hash())
-	}
-	return "customIDProposalResult", nil
 }
 
 // strings related functions

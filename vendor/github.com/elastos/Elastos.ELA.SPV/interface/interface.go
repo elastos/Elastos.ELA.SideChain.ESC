@@ -64,20 +64,8 @@ type SPVService interface {
 	// GetTransactionIds query all transaction hashes on the given block height.
 	GetTransactionIds(height uint32) ([]*common.Uint256, error)
 
-	// GetArbiters Get arbiters according to height.
+	// GetArbiters Get arbiters according to height
 	GetArbiters(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error)
-
-	// Get next turn arbiters.
-	GetNextArbiters() (workingHeight uint32, crcArbiters [][]byte, normalArbiters [][]byte, err error)
-
-	// GetReservedCustomIDs query all controversial reserved custom ID.
-	GetReservedCustomIDs() (map[string]struct{}, error)
-
-	// GeReceivedCustomIDs query all controversial received custom ID.
-	GeReceivedCustomIDs() (map[string]common.Uint168, error)
-
-	// GetRateOfCustomIDFee query current rate of custom ID fee.
-	GetRateOfCustomIDFee() (common.Fixed64, error)
 
 	// GetBlockListener Get block listener
 	GetBlockListener() BlockListener
