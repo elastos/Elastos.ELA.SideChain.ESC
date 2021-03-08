@@ -862,14 +862,13 @@ methods: [
 	
 	}),
 	
-	
 	new web3._extend.Method({
 	
 		name: 'resolveCredential',
 		call: 'did_resolveCredential',
 		params: 2
 	
-	}),
+	})
 
 ]
 
