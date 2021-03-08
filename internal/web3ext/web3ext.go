@@ -860,7 +860,7 @@ methods: [
 		call: 'did_resolveDID',
 		params: 2
 	}),
-
+	
 	new web3._extend.Method({
 	
 		name: 'resolveCredential',
