@@ -80,6 +80,8 @@ type StateDB interface {
 	GetLastVerifiableCredentialTxData(idKey []byte) (*did.DIDTransactionData, error)
 
 	AddDIDLog(did string, operation string, doc []byte)
+
+	IsDID(did string)  (bool, error)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM
