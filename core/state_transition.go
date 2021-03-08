@@ -212,7 +212,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 				st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
 				defer func() {
 					ethfee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
-					if fee.Cmp(new(big.Int)) <= 0 || fee.Cmp(ethfee) < 0 || st.state.GetBalance(toaddr).Cmp(fee) < 0 || vmerr != nil {
+					if fee.Cmp(new(big.Int)) <= 0 || fee.Cmp(ethfee) < 0 || st.state.GetBalance(toaddr).Uint64() < 0 || vmerr != nil {
 						ret = nil
 						usedGas = 0
 						failed = false

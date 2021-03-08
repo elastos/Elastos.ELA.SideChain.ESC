@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
@@ -274,7 +274,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}()
 	}
 	if isRechargeTx {
-		ret, err = run(evm, contract, []byte{}, false)
+		inputData := spv.FindOutRechargeInput(txHash)
+		ret, err = run(evm, contract, inputData, false)
 	} else {
 		ret, err = run(evm, contract, input, false)
 	}
