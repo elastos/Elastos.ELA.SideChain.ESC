@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/btcsuite/btcutil/base58"
 	"math/big"
+	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/math"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
@@ -115,10 +116,9 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		if err != nil {
 			return false32Byte, err
 		}
-		id := rawdb.GetDIDFromUri(p.DIDDoc.ID)
 		buf := new(bytes.Buffer)
 		p.Serialize(buf, did.DIDVersion)
-		evm.StateDB.AddDIDLog(id, p.Header.Operation, buf.Bytes())
+		evm.StateDB.AddDIDLog(p.DIDDoc.ID, p.Header.Operation, buf.Bytes())
 	case did.Transfer_DID_Operation:
 		payloadBase64, _ := base64url.DecodeString(p.Payload)
 		payloadInfo := new(did.DIDDoc)
@@ -130,16 +130,26 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 			log.Error("checkCustomizedDID error", "error", err)
 			return false32Byte, err
 		}
+		buf := new(bytes.Buffer)
+		p.Serialize(buf, did.DIDVersion)
+		evm.StateDB.AddDIDLog(p.DIDDoc.ID, p.Header.Operation, buf.Bytes())
 	case did.Deactivate_DID_Operation:
 		if err :=  checkDeactivateDID(evm, p); err != nil {
 			log.Error("checkDeactivateDID error", "error", err)
 			return false32Byte, err
 		}
+		id := p.Payload
+		buf := new(bytes.Buffer)
+		p.Serialize(buf, did.DIDVersion)
+		evm.StateDB.AddDIDLog(id, p.Header.Operation, buf.Bytes())
 	case did.Declare_Verifiable_Credential_Operation, did.Revoke_Verifiable_Credential_Operation:
 		if err := checkVerifiableCredential(evm, p); err != nil {
 			log.Error("checkVerifiableCredential error", "error", err)
 			return false32Byte, err
 		}
+		buf := new(bytes.Buffer)
+		p.Serialize(buf, did.DIDVersion)
+		evm.StateDB.AddDIDLog(p.CredentialDoc.ID, p.Header.Operation, buf.Bytes())
 	default:
 		log.Error("error operation", "operation", p.Header.Operation)
 		return false32Byte, errors.New("error operation:" + p.Header.Operation)
@@ -148,3 +158,18 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 	return true32Byte, nil
 }
 
+func isDID(didDoc *did.DIDDoc) bool {
+
+	if !strings.HasPrefix(didDoc.ID, did.DID_ELASTOS_PREFIX) {
+		return false
+	}
+	idString := did.GetDIDFromUri(didDoc.ID)
+
+	for _, pkInfo := range didDoc.PublicKey {
+		publicKey := base58.Decode(pkInfo.PublicKeyBase58)
+		if did.IsMatched(publicKey, idString) {
+			return true
+		}
+	}
+	return false
+}
