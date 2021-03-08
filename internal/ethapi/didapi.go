@@ -127,7 +127,7 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idPara
 	var credentialID string
 	//remove DID_ELASTOS_PREFIX
 	if rawdb.IsURIHasPrefix(idParam) {
-		credentialID = rawdb.GetDIDFromUri(idParam)
+		credentialID = did.GetDIDFromUri(idParam)
 	} else {
 		credentialID = idParam
 	}
@@ -144,7 +144,7 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idPara
 	} else {
 		//remove DID_ELASTOS_PREFIX
 		if rawdb.IsURIHasPrefix(issuer) {
-			issuerID = rawdb.GetDIDFromUri(issuer)
+			issuerID = did.GetDIDFromUri(issuer)
 		} else {
 			issuerID = idParam
 		}
@@ -199,7 +199,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 	//remove DID_ELASTOS_PREFIX
 	id := idParam
 	if rawdb.IsURIHasPrefix(idParam) {
-		id = rawdb.GetDIDFromUri(id)
+		id = did.GetDIDFromUri(id)
 	}
 
 	//check is valid address
@@ -211,7 +211,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 	var rpcPayloadDid RpcPayloadDIDInfo
 
 	buf := new(bytes.Buffer)
-	buf.WriteString(id)
+	buf.WriteString(idParam)
 	txData, err := rawdb.GetLastDIDTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes(), s.b.ChainConfig())
 	if err != nil {
 		rpcPayloadDid.DID = idParam

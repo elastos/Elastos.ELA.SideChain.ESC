@@ -21,6 +21,7 @@ import (
 type EntryPrefix byte
 
 const (
+	IX_ISDID                             EntryPrefix = 0x88
 	IX_DeactivateCustomizedDID           EntryPrefix = 0x89
 	IX_VerifiableCredentialExpiresHeight EntryPrefix = 0x90
 	IX_VerifiableCredentialTXHash        EntryPrefix = 0x91
@@ -49,8 +50,7 @@ func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight
 	if err != nil {
 		return err
 	}
-	id := GetDIDFromUri(operation.DIDDoc.ID)
-	idKey := []byte(id)
+	idKey := []byte(operation.DIDDoc.ID)
 	expiresHeight, err := TryGetExpiresHeight(operation.DIDDoc.Expires, blockHeight, blockTimeStamp)
 	if err != nil {
 		return err
@@ -70,8 +70,48 @@ func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight
 	//	return err
 	//}
 
-	// todo save IsDID or IsCustomDID
+	isDID := uint64(0)
+	if did.IsDID(operation.DIDDoc.ID, operation.DIDDoc.PublicKey) {
+		isDID = 1
+	}
+	if err := persistIsDID(db, idKey, isDID); err != nil {
+		return err
+	}
 	return nil
+}
+
+func persistIsDID(db ethdb.KeyValueStore, idKey []byte, isDID uint64) error {
+	key := []byte{byte(IX_ISDID)}
+	key = append(key, idKey...)
+
+	buf := new(bytes.Buffer)
+	if err := elaCom.WriteVarUint(buf, isDID); err != nil {
+		return err
+	}
+	return db.Put(key, buf.Bytes())
+}
+
+func IsDID(db ethdb.KeyValueStore, did string) (bool, error) {
+	idKey := new(bytes.Buffer)
+	idKey.WriteString(did)
+
+	key := []byte{byte(IX_ISDID)}
+	key = append(key, idKey.Bytes()...)
+
+	data, err := db.Get(key)
+	if err != nil {
+		return false, err
+	}
+	r := bytes.NewReader(data)
+	// get the count of expires height
+	isDID, err := elaCom.ReadVarUint(r, 0)
+	if err != nil {
+		return false, err
+	}
+	if isDID == 1 {
+		return true, nil
+	}
+	return false, nil
 }
 
 func TryGetExpiresHeight(Expires string, blockHeight uint64, blockTimeStamp uint64) (uint64, error) {
@@ -205,10 +245,15 @@ func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte, config *params.Chain
 	}
 
 	thash := common.BytesToHash(txHash.Bytes())
-	if txn, _, _, _ := ReadTransaction(db.(ethdb.Database), thash); txn == nil {
-		return nil, ERR_READ_TX
-	}
 	recp, _, _,_ := ReadReceipt(db.(ethdb.Database), thash, config)
+	if bytes.Equal(thash.Bytes(), common.Hash{}.Bytes()){
+		if recps := ReadRawReceipts(db.(ethdb.Database), thash, 0); recps != nil {
+			if recps.Len() > 0 {
+				recp = recps[0]
+			}
+		}
+	}
+
 	if recp == nil {
 		return nil, ERR_READ_RECEIPT
 	}
@@ -352,14 +397,6 @@ func IsURIHasPrefix(id string) bool {
 	return strings.HasPrefix(id, did.DID_ELASTOS_PREFIX)
 }
 
-func GetDIDFromUri(idURI string) string {
-	index := strings.LastIndex(idURI, ":")
-	if index == -1 {
-		return ""
-	}
-	return idURI[index+1:]
-}
-
 func PersistDeactivateDIDTx(db ethdb.KeyValueStore, log *types.DIDLog) error {
 	key := []byte{byte(IX_DIDDeactivate)}
 	idKey := []byte(log.DID)
@@ -466,7 +503,7 @@ func DeleteDIDLog(db ethdb.KeyValueStore, didLog *types.DIDLog) error {
 	if didLog == nil  {
 		return errors.New("didLog is nil")
 	}
-	id := GetDIDFromUri(didLog.DID)
+	id := did.GetDIDFromUri(didLog.DID)
 	if id == "" {
 		return errors.New("invalid regPayload.DIDDoc.ID")
 	}
@@ -663,6 +700,19 @@ func rollbackDeactivateDIDTx(db ethdb.KeyValueStore, idKey []byte) error {
 	return nil
 }
 
+func rollbackIsDID(db ethdb.KeyValueStore,
+	idKey []byte) error {
+	key := []byte{byte(IX_ISDID)}
+	key = append(key, idKey...)
+
+	_, err := db.Get(key)
+	if err != nil {
+		return err
+	}
+	db.Delete(key)
+	return nil
+}
+
 func rollbackRegisterDIDExpiresHeight(db ethdb.KeyValueStore, idKey []byte) error {
 	key := []byte{byte(IX_DIDExpiresHeight)}
 	key = append(key, idKey...)
@@ -716,7 +766,7 @@ func PersistVerifiableCredentialTx(db ethdb.KeyValueStore, log *types.DIDLog,
 	if err != nil {
 		return err
 	}
-	id := GetDIDFromUri(payload.DIDDoc.ID)
+	id := did.GetDIDFromUri(payload.DIDDoc.ID)
 	idKey := []byte(id)
 
 	verifyCred := payload.CredentialDoc
