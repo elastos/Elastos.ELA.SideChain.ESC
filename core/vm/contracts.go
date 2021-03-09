@@ -61,8 +61,8 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{6}):  &bn256AddByzantium{},
 	common.BytesToAddress([]byte{7}):  &bn256ScalarMulByzantium{},
 	common.BytesToAddress([]byte{8}):  &bn256PairingByzantium{},
-	common.BytesToAddress([]byte{20}): &arbiters{},
-	common.BytesToAddress([]byte{21}): &p256Verify{},
+	//common.BytesToAddress([]byte{20}): &arbiters{},
+	//common.BytesToAddress([]byte{21}): &p256Verify{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
@@ -77,8 +77,8 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{7}):  &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):  &blake2F{},
-	common.BytesToAddress([]byte{20}): &arbiters{},
-	common.BytesToAddress([]byte{21}): &p256Verify{},
+	//common.BytesToAddress([]byte{20}): &arbiters{},
+	//common.BytesToAddress([]byte{21}): &p256Verify{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
