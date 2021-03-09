@@ -246,7 +246,7 @@ func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte, config *params.Chain
 
 	thash := common.BytesToHash(txHash.Bytes())
 	recp, _, _,_ := ReadReceipt(db.(ethdb.Database), thash, config)
-	if bytes.Equal(thash.Bytes(), common.Hash{}.Bytes()){
+	if recp == nil {
 		if recps := ReadRawReceipts(db.(ethdb.Database), thash, 0); recps != nil {
 			if recps.Len() > 0 {
 				recp = recps[0]
