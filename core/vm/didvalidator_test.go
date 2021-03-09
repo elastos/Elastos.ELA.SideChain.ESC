@@ -400,43 +400,48 @@ func TestCustomizedDID(t *testing.T) {
 }
 
 //issuer.json SelfProclaimedCredential
-//func TestCustomizedDIDMultSign(t *testing.T) {
-//	didParam.IsTest = true
-//	defer func() {
-//		didParam.IsTest = false
-//	}()
-//	idUser1 := "iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
-//	privateKeyUser1Str := "3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS"
-//	tx1 := getPayloadDIDInfo(idUser1, "create", idUser1DocByts, privateKeyUser1Str)
-//
-//	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
-//	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
-//	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
-//	buf := new(bytes.Buffer)
-//	tx1.Serialize(buf, did.DIDVersion)
-//	statedb.AddDIDLog(idUser1, did.Create_DID_Operation, buf.Bytes())
-//
-//	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 100, 123456)
-//	assert.NoError(t, err1)
-//
-//	privateKeyUser2Str := "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
-//	idUser2 := "idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g"
-//	tx2 := getPayloadDIDInfo(idUser2, "create", idUser2DocByts, privateKeyUser2Str)
-//
-//	buf = new(bytes.Buffer)
-//	tx2.Serialize(buf, did.DIDVersion)
-//	statedb.Prepare(common.HexToHash("0x1234"), common.HexToHash("0x1234"), 1)
-//	statedb.AddDIDLog(idUser2, did.Create_DID_Operation, buf.Bytes())
-//	err2 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.HexToHash("0x1234")), 100, 123456)
-//	assert.NoError(t, err2)
-//
-//	CustomizedDIDTx2 := getCustomizedDIDDocMultiSign(idUser1, idUser2, "create", customizedDIDDocBytes2,
-//		privateKeyUser1Str, privateKeyUser2Str)
-//	didParam.CustomIDFeeRate = 0
-//	err := checkCustomizedDID(evm, CustomizedDIDTx2, 20000)
-//	assert.NoError(t, err)
-//	// todo fix me
-//}
+func TestCustomizedDIDMultSign(t *testing.T) {
+	didParam.IsTest = true
+	defer func() {
+		didParam.IsTest = false
+	}()
+	idUser1 := "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
+	privateKeyUser1Str := "3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS"
+	tx1 := getPayloadDIDInfo(idUser1, "create", idUser1DocByts, privateKeyUser1Str)
+
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
+	buf := new(bytes.Buffer)
+	tx1.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(idUser1, did.Create_DID_Operation, buf.Bytes())
+	receipt := getCreateDIDReceipt(*tx1)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), common.Hash{}, 0, types.Receipts{receipt})
+
+	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 100, 123456)
+	assert.NoError(t, err1)
+
+	privateKeyUser2Str := "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
+	idUser2 := "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g"
+	tx2 := getPayloadDIDInfo(idUser2, "create", idUser2DocByts, privateKeyUser2Str)
+
+	buf = new(bytes.Buffer)
+	tx2.Serialize(buf, did.DIDVersion)
+	statedb.Prepare(common.HexToHash("0x1234"), common.HexToHash("0x1234"), 1)
+	statedb.AddDIDLog(idUser2, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*tx2)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), common.HexToHash("0x1234"), 0, types.Receipts{receipt})
+
+	err2 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.HexToHash("0x1234")), 100, 123456)
+	assert.NoError(t, err2)
+
+	CustomizedDIDTx2 := getCustomizedDIDDocMultiSign(idUser1, idUser2, "create", customizedDIDDocBytes2,
+		privateKeyUser1Str, privateKeyUser2Str)
+	didParam.CustomIDFeeRate = 0
+	err := checkCustomizedDID(evm, CustomizedDIDTx2, 20000)
+	assert.NoError(t, err)
+	// todo fix me
+}
 
 func getCustomizedDIDDocMultiSign(id1, id2 string, didDIDPayload string, docBytes []byte,
 	privateKeyStr1, privateKeyStr2 string) *did.DIDPayload {
@@ -454,7 +459,7 @@ func getCustomizedDIDDocMultiSign(id1, id2 string, didDIDPayload string, docByte
 	}
 	proof1 := &did.Proof{
 		Type:               "ECDSAsecp256r1",
-		VerificationMethod: "did:elastos:" + id1 + "#primary",
+		VerificationMethod: id1 + "#primary", //"did:elastos:" +
 	}
 	privateKey1 := base58.Decode(privateKeyStr1)
 	sign, _ := elaCrypto.Sign(privateKey1, p.GetData())
