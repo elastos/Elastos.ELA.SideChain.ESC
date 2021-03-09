@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -57,10 +58,10 @@ func checkRegisterDID(evm *EVM, p *did.DIDPayload, gas uint64) error {
 	}
 
 	//check txn fee use RequiredGas
-	//fee := evm.GasPrice.Uint64() * gas
-	//if err := checkRegisterDIDTxFee(p, fee); err != nil {
-	//	return err
-	//}
+	fee := evm.GasPrice.Uint64() * gas
+	if err := checkRegisterDIDTxFee(p, fee); err != nil {
+		return err
+	}
 
 	if err := checkDIDOperation(evm, &p.Header, p.DIDDoc.ID); err != nil {
 		return err
@@ -102,6 +103,42 @@ func checkRegisterDID(evm *EVM, p *did.DIDPayload, gas uint64) error {
 		doc.Authentication, doc.PublicKey, nil); err != nil {
 		return err
 	}
+	return nil
+}
+
+func checkRegisterDIDTxFee(operation *did.DIDPayload, txFee uint64) error {
+	//2. calculate the  fee that one cutomized did tx should paid
+	payload := operation.DIDDoc
+	buf := new(bytes.Buffer)
+	operation.Serialize(buf, did.DIDVersion)
+
+	needFee := getIDTxFee(payload.ID, payload.Expires, operation.Header.Operation, nil, buf.Len())
+
+	fe := new(big.Int).SetInt64(needFee.IntValue())
+	toETHfee := new(big.Int).Mul(fe, big.NewInt(did.FeeRate))
+	if txFee < toETHfee.Uint64() {
+		msg := fmt.Sprintf("invalid txFee, need %d, set %d", toETHfee.Uint64(), txFee)
+		return errors.New(msg)
+	}
+
+	//check fee and should paid fee
+	return nil
+}
+
+func checkCustomizedDIDTxFee(payload *did.DIDPayload, txFee uint64) error {
+	//2. calculate the  fee that one cutomized did tx should paid
+	doc := payload.DIDDoc
+	buf := new(bytes.Buffer)
+	payload.Serialize(buf, did.DIDVersion)
+	needFee := getIDTxFee(doc.ID, doc.Expires, payload.Header.Operation, doc.Controller, buf.Len())
+	fe := new(big.Int).SetInt64(needFee.IntValue())
+	toETHfee := new(big.Int).Mul(fe, big.NewInt(did.FeeRate))
+	if txFee < toETHfee.Uint64() {
+		msg := fmt.Sprintf("invalid txFee, need %d, set %d", toETHfee.Uint64(), txFee)
+		return errors.New(msg)
+	}
+
+	//check fee and should paid fee
 	return nil
 }
 
@@ -571,11 +608,10 @@ func checkCustomizedDID(evm *EVM, customizedDIDPayload *did.DIDPayload, gas uint
 		return err
 	}
 
-	//check txn fee use RequiredGas
-	//fee := gas * evm.GasPrice.Uint64()
-	//if err := checkCustomizedDIDTxFee(customizedDIDPayload, fee); err != nil {
-	//	return err
-	//}
+	fee := gas * evm.GasPrice.Uint64()
+	if err := checkCustomizedDIDTxFee(customizedDIDPayload, fee); err != nil {
+		return err
+	}
 
 	//check Expires must be  format RFC3339
 	_, err := time.Parse(time.RFC3339, customizedDIDPayload.DIDDoc.Expires)
