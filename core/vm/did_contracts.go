@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/btcsuite/btcutil/base58"
-	"math/big"
 	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
@@ -41,49 +39,7 @@ func RunPrecompiledContractDID(evm *EVM, p PrecompiledContractDID, input []byte,
 type operationDID struct{}
 
 func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
-	data := getData(input, 32, uint64(len(input)) - 32)
-	p := new(did.DIDPayload)
-	if err := json.Unmarshal(data, p); err != nil {
-		log.Error("did document input is error", "input", string(data))
-		return math.MaxUint64
-	}
-
-	var needFee int64 = 0
-	switch p.Header.Operation {
-	case did.Create_DID_Operation, did.Update_DID_Operation, did.Transfer_DID_Operation:
-		if evm.GasPrice.Uint64() < params.DIDBaseGasprice {
-			log.Error("gas price is too small", "need",  params.DIDBaseGasprice)
-			return math.MaxUint64
-		}
-		payloadBase64, _ := base64url.DecodeString(p.Payload)
-		payload := new(did.DIDDoc)
-		if err := json.Unmarshal(payloadBase64, payload); err != nil {
-			log.Error("payloadBase64 is error", "payloadBase64", payloadBase64)
-			return math.MaxUint64
-		}
-		p.DIDDoc = payload
-		buf := new(bytes.Buffer)
-		p.Serialize(buf, did.DIDVersion)
-
-		isRegisterDID := false
-		if p.Header.Operation != did.Transfer_DID_Operation {
-			isRegisterDID = isDID(p.DIDDoc)
-		}
-		if isRegisterDID {
-			needFee = getIDTxFee(payload.ID, payload.Expires, p.Header.Operation, nil, buf.Len()).IntValue()
-		} else {
-			needFee = getIDTxFee(payload.ID, payload.Expires, p.Header.Operation, payload.Controller, buf.Len()).IntValue()
-		}
-		fe := new(big.Int).SetInt64(needFee)
-		y := new(big.Int).SetInt64(did.FeeRate)
-		ethFee := new(big.Int).Mul(fe, y)
-		gas := new(big.Int).Quo(ethFee, new(big.Int).SetUint64(evm.GasPrice.Uint64()))
-		needFee = gas.Int64()
-	default:
-		needFee = int64(params.DIDBaseGasCost)
-	}
-
-	return uint64(needFee)
+	return params.DIDBaseGasCost
 }
 
 func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
