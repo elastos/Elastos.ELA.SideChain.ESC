@@ -17,7 +17,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 
-	"github.com/elastos/Elastos.ELA.SideChain/service"
 	"github.com/elastos/Elastos.ELA.SideChain/vm/interfaces"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -177,7 +176,7 @@ func checkDIDOperation(evm *EVM, header *did.Header,
 			if err != nil {
 				return err
 			}
-			preTXID := service.ToReversedString(*hash)
+			preTXID := hash.String()
 
 			if lastTXData.TXID != preTXID {
 				return errors.New("PreviousTxid IS NOT CORRECT")
@@ -1036,7 +1035,7 @@ func checkCustomizedDIDOperation(evm *EVM, header *did.Header,
 			if err != nil {
 				return err
 			}
-			preTXID := service.ToReversedString(*hash)
+			preTXID := hash.String()
 
 			if lastTXData.TXID != preTXID {
 				return errors.New("Customized DID PreviousTxid IS NOT CORRECT")
