@@ -2,6 +2,7 @@ package vm
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -129,6 +130,85 @@ func LoadJsonData(fileName string) ([]byte, error) {
 	}
 	return fileData, nil
 
+}
+
+func TestCheckDIDDIDPayload(t *testing.T) {
+	//no create ------>update
+	payloadUpdateDIDInfo := getPayloadUpdateDID()
+	data, err := json.Marshal(payloadUpdateDIDInfo)
+	assert.NoError(t, err)
+	err = checkDIDTransaction(data, nil)
+	assert.EqualError(t, err, "DID WRONG OPERATION NOT EXIST")
+
+	////doubale create
+	payloadCreate := getPayloadCreateDID()
+	data, err = json.Marshal(payloadCreate)
+	assert.NoError(t, err)
+	err = checkDIDTransaction(data, nil)
+	assert.NoError(t, err)
+}
+
+func TestCommonDIDPayloadOperation(t *testing.T) {
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	//evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+
+	payloadCreate := getPayloadCreateDID()
+	data, err := json.Marshal(payloadCreate)
+	assert.NoError(t, err)
+	err = checkDIDTransaction(data, statedb)
+	assert.NoError(t, err)
+
+	buf := new(bytes.Buffer)
+	payloadCreate.Serialize(buf, did.DIDVersion)
+	receipt := getCreateDIDReceipt(*payloadCreate)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), common.Hash{}, 0, types.Receipts{receipt})
+	rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 0, 0)
+
+	payloadUpdate := payloadCreate
+	payloadUpdate.Header.Operation = did.Update_DID_Operation
+	payloadUpdate.Header.PreviousTxid = common.Hash{}.String()
+	payloadUpdate.Header.PreviousTxid = payloadUpdate.Header.PreviousTxid[2:]
+	privateKey1, _ := elacom.HexStringToBytes(PayloadPrivateKey)
+	sign, _ := elaCrypto.Sign(privateKey1, payloadUpdate.GetData())
+	payloadUpdate.Proof.Signature = base64url.EncodeToString(sign)
+
+	data, err = json.Marshal(payloadUpdate)
+	assert.NoError(t, err)
+	err = checkDIDTransaction(data, statedb)
+	assert.NoError(t, err)
+
+	didWithPrefix := payloadUpdate.DIDDoc.ID
+	verifDid := didWithPrefix + "#default"
+	deactivePayLoad := getPayloadDeactivateDID(didWithPrefix, verifDid)
+	data, err = json.Marshal(deactivePayLoad)
+	assert.NoError(t, err)
+	err = checkDIDTransaction(data, statedb)
+	assert.NoError(t, err)
+}
+
+func getPayloadUpdateDID() *did.DIDPayload {
+	info := new(did.DIDDoc)
+	didjson.Unmarshal(didPayloadBytes, info)
+
+	return &did.DIDPayload{
+		Header: did.Header{
+			Specification: "elastos/did/1.0",
+			Operation:     "update",
+		},
+		Payload: base64url.EncodeToString(didPayloadBytes),
+		Proof: did.Proof{
+			Type:               randomString(),
+			VerificationMethod: randomString(),
+			Signature:          randomString(),
+		},
+		DIDDoc: info,
+	}
+}
+
+func randomString() string {
+	a := make([]byte, 20)
+	rand.Read(a)
+	return elacom.BytesToHexString(a)
 }
 
 func TestIDChainStore_CreateDIDTx(t *testing.T) {

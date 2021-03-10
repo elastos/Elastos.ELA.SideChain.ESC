@@ -248,7 +248,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 		tempTXData.Timestamp = time.Unix(int64(timestamp), 0).UTC().Format(time.RFC3339)
 		rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, *tempTXData)
 		if index == 0 {
-			if rawdb.IsDIDDeactivated(s.b.ChainDb().(ethdb.KeyValueStore), id) {
+			if rawdb.IsDIDDeactivated(s.b.ChainDb().(ethdb.KeyValueStore), idParam) {
 				didDocState = Deactivated
 			} else {
 				didDocState = Valid
