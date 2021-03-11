@@ -35,14 +35,6 @@ func (p *VerifiableCredential) GetDIDProofInfo() *CredentialProof {
 	return &p.Proof
 }
 
-func (p *VerifiableCredential) GetData() []byte {
-	data, err := didjson.Marshal(p)
-	if err != nil {
-		return nil
-	}
-	return data
-}
-
 func (p *VerifiableCredential) CompleteCompact(did string) {
 	if IsCompact(p.Issuer) {
 		p.Issuer = did + p.Issuer

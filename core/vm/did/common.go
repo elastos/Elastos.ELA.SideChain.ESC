@@ -111,15 +111,6 @@ func GetController(uriPublic string) (string, string) {
 	return uriPublic[:index], uriPublic[index:]
 }
 
-//#primary key is Fregment
-func GetUriFregment(uri string) string {
-	index := strings.LastIndex(uri, "#")
-	if index == -1 {
-		return ""
-	}
-	return uri[index:]
-}
-
 func CheckSignature(iDateContainer interfaces.IDataContainer, publickBase58, signatureBase64 string) error {
 	//get code
 	//var publicKeyByte []byte
