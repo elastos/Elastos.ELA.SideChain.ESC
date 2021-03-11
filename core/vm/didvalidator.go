@@ -145,11 +145,6 @@ func checkCustomizedDIDTxFee(payload *did.DIDPayload, txFee uint64) error {
 //                 update----->db must have
 func checkDIDOperation(evm *EVM, header *did.Header,
 	idUri string) error {
-	//id := did.GetDIDFromUri(idUri)
-	//if id == "" {
-	//	return errors.New("WRONG DID FORMAT")
-	//}
-
 	buf := new(bytes.Buffer)
 	buf.WriteString(idUri)
 
@@ -194,11 +189,9 @@ func checkDIDOperation(evm *EVM, header *did.Header,
 //is did publickKey
 func checkVerificationMethodV1(VerificationMethod string,
 	DIDDoc *did.DIDDoc) error {
-	proofUriSegment := getUriSegment(VerificationMethod)
-
 	masterPubKeyVerifyOk := false
 	for i := 0; i < len(DIDDoc.PublicKey); i++ {
-		if proofUriSegment == getUriSegment(DIDDoc.PublicKey[i].ID) {
+		if verificationMethodEqual(VerificationMethod, DIDDoc.PublicKey[i].ID) {
 			pubKeyByte := base58.Decode(DIDDoc.PublicKey[i].PublicKeyBase58)
 			//get did address
 			didAddress, err := did.GetDIDAddress(pubKeyByte)
@@ -218,7 +211,7 @@ func checkVerificationMethodV1(VerificationMethod string,
 		switch auth.(type) {
 		case string:
 			keyString := auth.(string)
-			if proofUriSegment == getUriSegment(keyString) {
+			if verificationMethodEqual(VerificationMethod, keyString) {
 				return nil
 			}
 		case map[string]interface{}:
@@ -231,7 +224,7 @@ func checkVerificationMethodV1(VerificationMethod string,
 			if err != nil {
 				return err
 			}
-			if proofUriSegment == getUriSegment(didPublicKeyInfo.ID) {
+			if verificationMethodEqual(VerificationMethod, didPublicKeyInfo.ID) {
 				return nil
 			}
 		default:
@@ -244,18 +237,9 @@ func checkVerificationMethodV1(VerificationMethod string,
 	return errors.New("[ID checkVerificationMethodV1] wrong public key by VerificationMethod ")
 }
 
-func getUriSegment(uri string) string {
-	index := strings.LastIndex(uri, "#")
-	if index == -1 {
-		return ""
-	}
-	return uri[index:]
-}
-
 func getDIDAutheneKey(verificationMethod string, authentication []interface{}, publicKey []did.DIDPublicKeyInfo) (string, error) {
-	_, uriFregment := did.GetController(verificationMethod)
 	for _, pkInfo := range publicKey {
-		if uriFregment == getUriSegment(pkInfo.ID) {
+		if verificationMethodEqual(verificationMethod, pkInfo.ID) {
 			return pkInfo.PublicKeyBase58, nil
 		}
 	}
@@ -271,7 +255,7 @@ func getDIDAutheneKey(verificationMethod string, authentication []interface{}, p
 			if err != nil {
 				return "", err
 			}
-			if uriFregment == getUriSegment(didPublicKeyInfo.ID) {
+			if verificationMethodEqual(verificationMethod, didPublicKeyInfo.ID) {
 				return didPublicKeyInfo.PublicKeyBase58, nil
 			}
 		default:
@@ -279,6 +263,11 @@ func getDIDAutheneKey(verificationMethod string, authentication []interface{}, p
 		}
 	}
 	return "", nil
+}
+
+func verificationMethodEqual(verificationMethod string, vcid string) bool {
+	equal := verificationMethod == vcid
+	return equal
 }
 
 //get did/cutsomizedid Authentication public key
@@ -296,11 +285,11 @@ func getAuthenPublicKey(evm *EVM, verificationMethod string, isDID bool,
 //authorization []interface{},
 func getCustomizedIDPublicKey(evm *EVM, verificationMethod string, publicKey []did.DIDPublicKeyInfo,
 	authentication []interface{}, controller interface{}, keyType publicKeyType) (string, error) {
-	contr, uriFregment := did.GetController(verificationMethod)
+	contr, _ := did.GetController(verificationMethod)
 
 	if keyType == AuthPublicKey {
 		for _, pkInfo := range publicKey {
-			if uriFregment == getUriSegment(pkInfo.ID) {
+			if verificationMethodEqual(verificationMethod, pkInfo.ID) {
 				return pkInfo.PublicKeyBase58, nil
 			}
 		}
@@ -316,7 +305,7 @@ func getCustomizedIDPublicKey(evm *EVM, verificationMethod string, publicKey []d
 				if err != nil {
 					return "", err
 				}
-				if uriFregment == getUriSegment(didPublicKeyInfo.ID) {
+				if verificationMethodEqual(verificationMethod, didPublicKeyInfo.ID) {
 					return didPublicKeyInfo.PublicKeyBase58, nil
 				}
 			default:
@@ -399,7 +388,7 @@ func getDIDDeactivateKey(verificationMethod string, authentication []interface{}
 		switch auth.(type) {
 		case string:
 			keyString := auth.(string)
-			if verificationMethod == getUriSegment(keyString) {
+			if verificationMethodEqual(verificationMethod, keyString) {
 				for i := 0; i < len(publicKey); i++ {
 					if verificationMethod == publicKey[i].ID {
 						return publicKey[i].PublicKeyBase58, nil
@@ -429,18 +418,16 @@ func getDIDDeactivateKey(verificationMethod string, authentication []interface{}
 
 func getDIDDefaultKey(verificationMethod string, authentication []interface{}, publicKey []did.DIDPublicKeyInfo) (string, error) {
 	//#primarykey is fregment
-	_, fregment := did.GetController(verificationMethod)
-
 	for _, pkInfo := range publicKey {
-		if fregment == did.GetUriFregment(pkInfo.ID) {
+		if verificationMethodEqual(verificationMethod, pkInfo.ID) {
 			return pkInfo.PublicKeyBase58, nil
 		}
 	}
 	return "", nil
 }
 
-func GetIDLastDoc(evm *EVM, id string) (*did.DIDDoc, error) {
-	TranasactionData, err := GetLastDIDTxData(evm, id)
+ func GetIDLastDoc(evm *EVM, id string) (*did.DIDDoc, error) {
+    	TranasactionData, err := GetLastDIDTxData(evm, id)
 	if err != nil {
 		return nil, err
 	}
@@ -726,9 +713,6 @@ func checkCustomIDInnerProof(evm *EVM, DIDProofArray []*did.DocProof, iDateConta
 		signature, _ := base64url.DecodeString(CustomizedDIDProof.SignatureValue)
 
 		var success bool
-		fmt.Println("publicKeyBase58 ", publicKeyBase58)
-		fmt.Println("signature ", CustomizedDIDProof.SignatureValue)
-
 		success, err = did.VerifyByVM(iDateContainer, code, signature)
 
 		if err != nil {
@@ -1052,13 +1036,13 @@ func checkCustomizedDIDOperation(evm *EVM, header *did.Header,
 //is VerificationMethod CustomizedID DefaultKey
 func IsVerifMethCustIDDefKey(evm *EVM, VerificationMethod, ID string,
 	publicKey []did.DIDPublicKeyInfo, authentication []interface{}, Controller interface{}) bool {
-	controllerVM, uriFregment := GetDIDAndCompactSymbolFromUri(VerificationMethod)
+	controllerVM, _ := GetDIDAndCompactSymbolFromUri(VerificationMethod)
 
 	//1, check is proofUriSegment public key in authentication. if it is in then check done
 	if controllerVM == "" || controllerVM == ID {
 		var pubkeyCount int
 		for i := 0; i < len(publicKey); i++ {
-			if uriFregment == getUriSegment(publicKey[i].ID) {
+			if verificationMethodEqual(VerificationMethod, publicKey[i].ID) {
 				id := did.GetDIDFromUri(publicKey[i].ID)
 				if !did.IsPublickDIDMatched(publicKey[i].PublicKeyBase58, id) {
 					return false
@@ -1181,7 +1165,7 @@ func IsVerifMethCustIDAuthKey(evm *EVM,  VerificationMethod, ID string,
 	if IsVerifMethCustIDDefKey(evm, VerificationMethod, ID, publicKey, Authentication, Controller) {
 		return true
 	}
-	controllerVM, uriFregment := GetDIDAndCompactSymbolFromUri(VerificationMethod)
+	controllerVM, _ := GetDIDAndCompactSymbolFromUri(VerificationMethod)
 
 	if controllerVM == "" || controllerVM == ID {
 		//proofUriSegment---PublicKeyBase58 is in Authentication
@@ -1189,7 +1173,7 @@ func IsVerifMethCustIDAuthKey(evm *EVM,  VerificationMethod, ID string,
 			switch auth.(type) {
 			case string:
 				keyString := auth.(string)
-				if uriFregment == getUriSegment(keyString) {
+				if verificationMethodEqual(VerificationMethod, keyString) {
 					return true
 				}
 			case map[string]interface{}:
@@ -1202,7 +1186,7 @@ func IsVerifMethCustIDAuthKey(evm *EVM,  VerificationMethod, ID string,
 				if err != nil {
 					return false
 				}
-				if uriFregment == getUriSegment(didPublicKeyInfo.ID) {
+				if verificationMethodEqual(VerificationMethod, didPublicKeyInfo.ID) {
 					return true
 				}
 			default:
@@ -1445,7 +1429,7 @@ func checkDeclareVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 	receiverID := GetVerifiableCredentialID(payload.CredentialDoc)
 	credentialID := payload.CredentialDoc.ID
 	issuer := getCredentialIssuer(receiverID, payload.CredentialDoc)
-	if err := checkDeclareVerifiableCredentialOperation(evm, &payload.Header, credentialID); err != nil {
+	if err := checkVerifiableCredentialOperation(evm, &payload.Header, credentialID); err != nil {
 		return err
 	}
 
@@ -1455,18 +1439,12 @@ func checkDeclareVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 	// if it is "create" use now m/n and public key otherwise use last time m/n and public key
 	// get credential target ID , Authentication , PublicKey, m,n of multisign   (isDID/customized did)
 	//
-	isDID := isResiteredDID(evm, receiverID)
-	if isDID {
-		////issuer can revoke credential
-		//if payload.Header.Operation == id.Revoke_Verifiable_Credential_Operation {
-		//	if CustomizedDIDProof, bExist := payload.Proof.(*id.Proof); bExist == true {
-		//		if strings.Contains(CustomizedDIDProof.VerificationMethod, issuer) {
-		//			return v.checkDIDVerifiableCredential(receiverID, issuer, payload)
-		//		}
-		//	}
-		//}
-		//receiverID is did, but issuer may have one or more controllers  todo more controllers
-		return checkDIDVerifiableCredential(evm, receiverID, issuer, payload)
+	ok, err := evm.StateDB.IsDID(receiverID)
+ 	if err != nil {
+		return err
+	}
+ 	if ok {
+		return checkDeclareCustomizedDIDVerifiableCredential(evm, receiverID, issuer, payload)
 	} else {
 		return checkCustomizedDIDVerifiableCredential(evm, receiverID, payload)
 	}
@@ -1475,14 +1453,14 @@ func checkDeclareVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 
 //1, if one credential is declear can not be declear again
 //if one credential is revoke  can not be decalre or revoke again
-func checkDeclareVerifiableCredentialOperation(evm *EVM, header *did.Header,
+func checkVerifiableCredentialOperation(evm *EVM, header *did.Header,
 	CredentialID string) error {
 	if header.Operation != did.Declare_Verifiable_Credential_Operation {
-		return errors.New("checkDeclareVerifiableCredentialOperation WRONG OPERATION")
+		return errors.New("checkVerifiableCredentialOperation WRONG OPERATION")
 	}
 	buf := new(bytes.Buffer)
 	buf.WriteString(CredentialID)
-	_, err := evm.StateDB.GetLastVerifiableCredentialTxData(buf.Bytes())
+	tx, err := evm.StateDB.GetLastVerifiableCredentialTxData(buf.Bytes())
 	dbExist := true
 	if err != nil {
 		if err.Error() == ErrLeveldbNotFound.Error() || err.Error() == ErrNotFound.Error() {
@@ -1491,32 +1469,58 @@ func checkDeclareVerifiableCredentialOperation(evm *EVM, header *did.Header,
 			return err
 		}
 	}
-	if dbExist {
+	if dbExist && tx.Operation.Header.Operation == did.Declare_Verifiable_Credential_Operation {
 		return errors.New("VerifiableCredential WRONG OPERATION ALREADY Declare")
+	}
+	if dbExist && tx.Operation.Header.Operation == did.Revoke_Verifiable_Credential_Operation {
+		receiverID := GetVerifiableCredentialID(tx.Operation.CredentialDoc)
+		issuer := getCredentialIssuer(receiverID, tx.Operation.CredentialDoc)
+		if err := checkRevokeCustomizedDIDVerifiableCredential(evm, receiverID, issuer, &tx.Operation); err == nil {
+			return errors.New("VerifiableCredential WRONG OPERATION ALREADY Revoked")
+		}
 	}
 
 	return nil
 }
 
-func checkCustomizedDIDVerifiableCredential(evm *EVM, customizedDID string, payload *did.DIDPayload) error {
+func checkRevokeCustomizedDIDVerifiableCredential(evm *EVM, owner string, issuer string, payload *did.DIDPayload) error {
 	//1, if it is "create" use now m/n and public key otherwise use last time m/n and public key
 	//var verifyDoc *id.DIDDoc
-	verifyDoc, err := getVerifyDocMultisign(evm, customizedDID)
+	if err := checkCustomizedDIDVerifiableCredential(evm, owner, payload); err == nil {
+		return nil
+	}
+
+	if err := checkCustomizedDIDVerifiableCredential(evm, issuer, payload); err == nil {
+		return nil
+	}
+
+	return errors.New("invalid signer of revoke payload")
+}
+
+func checkCustomizedDIDVerifiableCredential(evm *EVM, signer string, payload *did.DIDPayload) error {
+	//1, if it is "create" use now m/n and public key otherwise use last time m/n and public key
+	//var verifyDoc *id.DIDDoc
+	verifyDoc, err := getVerifyDocMultisign(evm, signer)
 	if err != nil {
 		return err
 	}
-	publicKeyBase58, _ := getAuthenPublicKey(evm, verifyDoc.ID, false, verifyDoc.PublicKey,
+	ok, err := evm.StateDB.IsDID(signer)
+	if err != nil {
+		return err
+	}
+	publicKeyBase58, _ := getAuthenPublicKey(evm, payload.Proof.VerificationMethod, ok, verifyDoc.PublicKey,
 		verifyDoc.Authentication, verifyDoc.Controller)
 	if publicKeyBase58 == "" {
 		return errors.New("checkCustomizedDIDVerifiableCredential Not find proper publicKeyBase58")
 	}
+
 	//check outter signature
-	err = did.CheckSignature(verifyDoc, publicKeyBase58, payload.CredentialDoc.Proof.Signature)
+	err = did.CheckSignature(payload, publicKeyBase58, payload.Proof.Signature)
 	if err != nil {
 		return err
 	}
 	//4, Verifiable credential
-	if err = checkVerifiableCredentials(evm, verifyDoc.ID, payload.DIDDoc.VerifiableCredential,
+	if err = checkVerifiableCredentials(evm, verifyDoc.ID, []did.VerifiableCredential{*payload.CredentialDoc.VerifiableCredential},
 		verifyDoc.Authentication, verifyDoc.PublicKey, verifyDoc.Controller); err != nil {
 		return err
 	}
@@ -1524,7 +1528,7 @@ func checkCustomizedDIDVerifiableCredential(evm *EVM, customizedDID string, payl
 }
 
 func checkRevokeVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
-	credentialID := payload.Payload
+	credentialID := payload.CredentialDoc.ID
 
 	buf := new(bytes.Buffer)
 	buf.WriteString(credentialID)
@@ -1532,7 +1536,7 @@ func checkRevokeVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 
 	dbExist := true
 	if err != nil {
-		if err.Error() == ErrLeveldbNotFound.Error() ||err.Error() == ErrNotFound.Error() {
+		if err.Error() == ErrLeveldbNotFound.Error() || err.Error() == ErrNotFound.Error() {
 			dbExist = false
 		} else {
 			return err
@@ -1549,8 +1553,7 @@ func checkRevokeVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 		// check if owner or issuer send this transaction
 		owner := GetVerifiableCredentialID(lastTXData.Operation.CredentialDoc)
 		issuer := getCredentialIssuer(owner, lastTXData.Operation.CredentialDoc)
-
-		return checkDIDVerifiableCredential(evm, owner, issuer, payload)
+		return checkRevokeCustomizedDIDVerifiableCredential(evm, owner, issuer, payload)
 	}
 
 	return nil
@@ -1587,23 +1590,39 @@ func GetVerifiableCredentialID(cridential *did.VerifiableCredentialDoc) string {
 	return ID
 }
 
+ func checkDeclareCustomizedDIDVerifiableCredential(evm *EVM, owner string, issuer string, payload *did.DIDPayload) error {
+
+	if err := checkDIDVerifiableCredential(evm, owner, payload); err == nil {
+		return nil
+	}
+
+	if err := checkDIDVerifiableCredential(evm, issuer, payload); err == nil {
+		return nil
+	}
+
+	return errors.New("invalid credential signature")
+}
 
 //receiveDID is did
 //issuer can be did or customizeddid(one/more controller)
 //if it is revoke  issuer can deactive
 //VerificationMethod should be did
-func checkDIDVerifiableCredential(evm *EVM, ownerDID, issuerID string,
+ func checkDIDVerifiableCredential(evm *EVM, signer string,
 	credPayload *did.DIDPayload) error {
-	verifyDIDDoc, err := GetIDLastDoc(evm, ownerDID)
+	verifyDIDDoc, err := GetIDLastDoc(evm, signer)
 	if err != nil {
 		return err
 	}
 	var proof *did.Proof
-	if proof, err = checkDIDAllMethod(evm, ownerDID, issuerID, credPayload); err != nil {
+	if proof, err = checkDIDAllMethod(evm, signer, credPayload); err != nil {
 		return err
 	}
 	//get  public key
-	publicKeyBase58, _ := getAuthenPublicKey(evm, proof.VerificationMethod, true,
+	ok, err := evm.StateDB.IsDID(signer)
+	if err != nil {
+		return err
+	}
+	publicKeyBase58, _ := getAuthenPublicKey(evm, proof.VerificationMethod, ok,
 		verifyDIDDoc.PublicKey, verifyDIDDoc.Authentication, nil)
 	if publicKeyBase58 == "" {
 		return errors.New("checkDIDVerifiableCredential Not find proper publicKeyBase58")
@@ -1629,23 +1648,19 @@ func checkDIDVerifiableCredential(evm *EVM, ownerDID, issuerID string,
 		return errors.New("[VM] Check Sig FALSE")
 	}
 
-	if err = checkVerifiableCredentials(evm, ownerDID, []did.VerifiableCredential{*credPayload.CredentialDoc.VerifiableCredential},
+	if err = checkVerifiableCredentials(evm, signer, []did.VerifiableCredential{*credPayload.CredentialDoc.VerifiableCredential},
 		verifyDIDDoc.Authentication, verifyDIDDoc.PublicKey, nil); err != nil {
 		return err
 	}
 	return nil
 }
 
-func checkDIDAllMethod(evm *EVM, ownerDID, issuerID string, credPayload *did.DIDPayload) (*did.Proof, error) {
+func checkDIDAllMethod(evm *EVM, ownerDID string, credPayload *did.DIDPayload) (*did.Proof, error) {
 	//var DIDProofArray []*id.Proof
 	proof := credPayload.Proof
 	if credPayload.Header.Operation == did.Revoke_Verifiable_Credential_Operation {
-		//如果Proof是数组，在revoke的情况下Proof的签名可以是receiver或者issuer的
-		//receiver或者issuer都即可能是did也可能是短名字
-		//则VerificationMethod指定的应该是issuer的key
-		//receiver或者issuer都即可能是did也可能是短名字
 		verifMethod := proof.VerificationMethod
-		if isIDVerifMethodMatch(evm, verifMethod, issuerID) || isIDVerifMethodMatch(evm, verifMethod, ownerDID) {
+		if isIDVerifMethodMatch(evm, verifMethod, ownerDID) {
 			return &proof, nil
 		}
 		return nil, errors.New("revoke  Proof and id is not matched")

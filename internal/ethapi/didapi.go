@@ -124,14 +124,7 @@ VerifiableCredentialTxData) bool {
 }
 
 func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idParam, issuer string) (interface{}, error) {
-	var credentialID string
-	//remove DID_ELASTOS_PREFIX
-	if rawdb.IsURIHasPrefix(idParam) {
-		credentialID = did.GetDIDFromUri(idParam)
-	} else {
-		credentialID = idParam
-	}
-
+	credentialID := idParam
 	buf := new(bytes.Buffer)
 	buf.WriteString(credentialID)
 	txsData, _ := rawdb.GetAllVerifiableCredentialTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes())
@@ -142,12 +135,7 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idPara
 			return RpcCredentialPayloadDIDInfo{ID: credentialID, Status: CredentialNonExist}, nil
 		}
 	} else {
-		//remove DID_ELASTOS_PREFIX
-		if rawdb.IsURIHasPrefix(issuer) {
-			issuerID = did.GetDIDFromUri(issuer)
-		} else {
-			issuerID = idParam
-		}
+		issuerID = issuer
 	}
 
 	var rpcPayloadDid RpcCredentialPayloadDIDInfo

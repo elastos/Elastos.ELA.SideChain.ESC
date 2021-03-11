@@ -503,7 +503,7 @@ func DeleteDIDLog(db ethdb.KeyValueStore, didLog *types.DIDLog) error {
 	if didLog == nil  {
 		return errors.New("didLog is nil")
 	}
-	id := did.GetDIDFromUri(didLog.DID)
+	id := didLog.DID
 	if id == "" {
 		return errors.New("invalid regPayload.DIDDoc.ID")
 	}
@@ -766,7 +766,7 @@ func PersistVerifiableCredentialTx(db ethdb.KeyValueStore, log *types.DIDLog,
 	if err != nil {
 		return err
 	}
-	id := did.GetDIDFromUri(payload.DIDDoc.ID)
+	id := payload.CredentialDoc.ID
 	idKey := []byte(id)
 
 	verifyCred := payload.CredentialDoc
