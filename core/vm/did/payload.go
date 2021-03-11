@@ -173,7 +173,8 @@ func (p *DIDPayload) Deserialize(r io.Reader, version byte) error {
 
 	// get ticket from header.ticket
 	switch p.Header.Operation {
-	case Create_DID_Operation, Update_DID_Operation, Deactivate_DID_Operation:
+	//, Deactivate_DID_Operation payload is only id string
+	case Create_DID_Operation, Update_DID_Operation:
 		// get DIDDIDDoc from payload data
 		pBytes, err := base64url.DecodeString(p.Payload)
 		if err != nil {
