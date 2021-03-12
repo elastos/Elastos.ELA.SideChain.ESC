@@ -52,7 +52,9 @@ var (
 	didVerifCred      		  []byte
 	user1IDDocByts   	      []byte
 	user2IDDocByts            []byte
+	user3IDDocByts   		  []byte
 	fooIDDocBytes             []byte
+	fooBarIDDocBytes          []byte
 	custIDVerifyCredContrl    []byte
 )
 
@@ -65,6 +67,7 @@ func init() {
 
 	user1IDDocByts, _ = LoadJsonData("./testdata/user1.id.json")
 	user2IDDocByts, _ = LoadJsonData("./testdata/user2.id.json")
+	user3IDDocByts, _ = LoadJsonData("./testdata/user3.id.json")
 
 	customizedDIDDocSingleContrller, _ = LoadJsonData("./testdata/examplecorp.id.json")
 	custIDSingleSignDocBytes1, _ = LoadJsonData("./testdata/customized_did_single_sign.json")
@@ -76,6 +79,7 @@ func init() {
 	docDocBytes, _ = LoadJsonData("./testdata/document.json")
 	didVerifCred, _ = LoadJsonData("./testdata/did_verifiable_credential.json")
 	fooIDDocBytes, _ = LoadJsonData("./testdata/foo.id.json")
+	fooBarIDDocBytes, _ = LoadJsonData("./testdata/foobar.id.json")
 	custIDVerifyCredContrl, _ = LoadJsonData("./testdata/customized_did_verifiable_credential_controllers.json")
 
 }
@@ -659,6 +663,23 @@ func Test0DIDVerifiableCredentialTx(t *testing.T) {
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), common.Hash{}, 0, types.Receipts{receipt})
 	err2 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 0, 0)
 	assert.NoError(t, err2)
+
+	hash3 := common.HexToHash("0x3456")
+	statedb.Prepare(hash3, hash3, 1)
+	privateKey3Str := "9sYYMSsS2xDbGvSRhNSnMsTbCbF2LPwLovRH93drSetM"
+	//id2 := "ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
+	id3 := "did:elastos:igXiyCJEUjGJV1DMsMa4EbWunQqVg97GcS"
+	tx3 := getPayloadDIDInfo(id3, "create", user3IDDocByts, privateKey3Str)
+	buf = new(bytes.Buffer)
+	tx3.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(id3, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*tx3)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash3, 0, types.Receipts{receipt})
+	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash3),
+		100, 123456)
+	assert.NoError(t, err3)
+
+
 	//did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB
 	//
 	verifableCredentialTx := getIDVerifiableCredentialTx("did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB",
@@ -946,73 +967,73 @@ func TestDuplicatedRevokeVerifiableCredentialTx(t *testing.T) {
 }
 
 //more than  one cotroller
-//func TestCustomizedDIDVerifiableCredentialTx2(t *testing.T) {
-//	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
-//	db := statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore)
-//	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
-//
-//	hash := common.Hash{}
-//	id2 := "did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
-//	privateKey2Str := "9sYYMSsS2xDbGvSRhNSnMsTbCbF2LPwLovRH93drSetM"
-//	tx0 := getPayloadDIDInfo(id2, "create", issuerDocByts, privateKey2Str)
-//	buff := new(bytes.Buffer)
-//	tx0.Serialize(buff, did.DIDVersion)
-//	statedb.AddDIDLog(id2, did.Create_DID_Operation, buff.Bytes())
-//	receipt := getCreateDIDReceipt(*tx0)
-//	rawdb.WriteReceipts(db, hash, 0, types.Receipts{receipt})
-//	err0 := rawdb.PersistRegisterDIDTx(db, statedb.GetDIDLog(hash),
-//		100, 123456)
-//	assert.NoError(t, err0)
-//
-//	hash1 := common.HexToHash("0x1234")
-//	statedb.Prepare(hash1, hash1, 1)
-//	idUser1 := "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
-//	privateKeyUser1Str := "3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS"
-//	tx1 := getPayloadDIDInfo(idUser1, "create", user1IDDocByts, privateKeyUser1Str)
-//	buff = new(bytes.Buffer)
-//	tx1.Serialize(buff, did.DIDVersion)
-//	statedb.AddDIDLog(idUser1, did.Create_DID_Operation, buff.Bytes())
-//	receipt = getCreateDIDReceipt(*tx1)
-//	rawdb.WriteReceipts(db, hash1, 0, types.Receipts{receipt})
-//	err1 := rawdb.PersistRegisterDIDTx(db, statedb.GetDIDLog(hash1),
-//		100, 123456)
-//	assert.NoError(t, err1)
-//
-//	hash2 := common.HexToHash("0x2345")
-//	statedb.Prepare(hash2, hash2, 1)
-//	privateKeyUser2Str := "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
-//	idUser2 := "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g"
-//	tx2 := getPayloadDIDInfo(idUser2, "create", user2IDDocByts, privateKeyUser2Str)
-//	buff = new(bytes.Buffer)
-//	tx2.Serialize(buff, did.DIDVersion)
-//	statedb.AddDIDLog(idUser2, did.Create_DID_Operation, buff.Bytes())
-//	receipt = getCreateDIDReceipt(*tx2)
-//	rawdb.WriteReceipts(db, hash2, 0, types.Receipts{receipt})
-//	err2 := rawdb.PersistRegisterDIDTx(db, statedb.GetDIDLog(hash2),
-//		100, 123456)
-//	assert.NoError(t, err2)
-//
-//	hash3 := common.HexToHash("0x3456")
-//	statedb.Prepare(hash3, hash3, 1)
-//	CustomizedDIDTx1 := getCustomizedDIDDocMultiSign(idUser1, idUser2, "create", fooIDDocBytes,
-//		privateKeyUser1Str, privateKeyUser2Str)
-//	customizedDID := "did:elastos:foobar"
-//	buff = new(bytes.Buffer)
-//	CustomizedDIDTx1.Serialize(buff, did.DIDVersion)
-//	statedb.AddDIDLog(customizedDID, did.Create_DID_Operation, buff.Bytes())
-//	receipt = getCreateDIDReceipt(*CustomizedDIDTx1)
-//	receipt.DIDLog.DID = customizedDID
-//	rawdb.WriteReceipts(db, hash3, 0, types.Receipts{receipt})
-//	err3 := rawdb.PersistRegisterDIDTx(db,
-//		statedb.GetDIDLog(hash3),
-//		101, 123456)
-//	assert.NoError(t, err3)
-//
-//	verifableCredentialTx := getCustomizedDIDVerifiableCredPayloadContollers(idUser1, idUser2, "declare",
-//		custIDVerifyCredContrl, privateKeyUser1Str, privateKeyUser2Str)
-//	err := checkVerifiableCredential(evm, verifableCredentialTx)
-//	assert.NoError(t, err)
-//}
+func TestCustomizedDIDVerifiableCredentialTx2(t *testing.T) {
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	db := statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore)
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+
+	hash := common.Hash{}
+	id2 := "did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
+	privateKey2Str := "9sYYMSsS2xDbGvSRhNSnMsTbCbF2LPwLovRH93drSetM"
+	tx0 := getPayloadDIDInfo(id2, "create", issuerDocByts, privateKey2Str)
+	buff := new(bytes.Buffer)
+	tx0.Serialize(buff, did.DIDVersion)
+	statedb.AddDIDLog(id2, did.Create_DID_Operation, buff.Bytes())
+	receipt := getCreateDIDReceipt(*tx0)
+	rawdb.WriteReceipts(db, hash, 0, types.Receipts{receipt})
+	err0 := rawdb.PersistRegisterDIDTx(db, statedb.GetDIDLog(hash),
+		100, 123456)
+	assert.NoError(t, err0)
+
+	hash1 := common.HexToHash("0x1234")
+	statedb.Prepare(hash1, hash1, 1)
+	idUser1 := "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
+	privateKeyUser1Str := "3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS"
+	tx1 := getPayloadDIDInfo(idUser1, "create", user1IDDocByts, privateKeyUser1Str)
+	buff = new(bytes.Buffer)
+	tx1.Serialize(buff, did.DIDVersion)
+	statedb.AddDIDLog(idUser1, did.Create_DID_Operation, buff.Bytes())
+	receipt = getCreateDIDReceipt(*tx1)
+	rawdb.WriteReceipts(db, hash1, 0, types.Receipts{receipt})
+	err1 := rawdb.PersistRegisterDIDTx(db, statedb.GetDIDLog(hash1),
+		100, 123456)
+	assert.NoError(t, err1)
+
+	hash2 := common.HexToHash("0x2345")
+	statedb.Prepare(hash2, hash2, 1)
+	privateKeyUser2Str := "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
+	idUser2 := "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g"
+	tx2 := getPayloadDIDInfo(idUser2, "create", user2IDDocByts, privateKeyUser2Str)
+	buff = new(bytes.Buffer)
+	tx2.Serialize(buff, did.DIDVersion)
+	statedb.AddDIDLog(idUser2, did.Create_DID_Operation, buff.Bytes())
+	receipt = getCreateDIDReceipt(*tx2)
+	rawdb.WriteReceipts(db, hash2, 0, types.Receipts{receipt})
+	err2 := rawdb.PersistRegisterDIDTx(db, statedb.GetDIDLog(hash2),
+		100, 123456)
+	assert.NoError(t, err2)
+
+	hash3 := common.HexToHash("0x3456")
+	statedb.Prepare(hash3, hash3, 1)
+	CustomizedDIDTx1 := getCustomizedDIDDocMultiSign(idUser1, idUser2, "create", fooBarIDDocBytes,
+		privateKeyUser1Str, privateKeyUser2Str)
+	customizedDID := "did:elastos:foobar"
+	buff = new(bytes.Buffer)
+	CustomizedDIDTx1.Serialize(buff, did.DIDVersion)
+	statedb.AddDIDLog(customizedDID, did.Create_DID_Operation, buff.Bytes())
+	receipt = getCreateDIDReceipt(*CustomizedDIDTx1)
+	receipt.DIDLog.DID = customizedDID
+	rawdb.WriteReceipts(db, hash3, 0, types.Receipts{receipt})
+	err3 := rawdb.PersistRegisterDIDTx(db,
+		statedb.GetDIDLog(hash3),
+		101, 123456)
+	assert.NoError(t, err3)
+
+	verifableCredentialTx := getCustomizedDIDVerifiableCredPayloadContollers(idUser1, idUser2, "declare",
+		custIDVerifyCredContrl, privateKeyUser1Str, privateKeyUser2Str)
+	err := checkVerifiableCredential(evm, verifableCredentialTx)
+	assert.NoError(t, err)
+}
 
 // more than one controllers
 func getCustomizedDIDVerifiableCredPayloadContollers(id1, id2 string, didDIDPayload string, docBytes []byte,
