@@ -258,8 +258,6 @@ func getDIDAutheneKey(verificationMethod string, authentication []interface{}, p
 			if verificationMethodEqual(verificationMethod, didPublicKeyInfo.ID) {
 				return didPublicKeyInfo.PublicKeyBase58, nil
 			}
-		default:
-			return "", nil
 		}
 	}
 	return "", nil
@@ -308,8 +306,6 @@ func getCustomizedIDPublicKey(evm *EVM, verificationMethod string, publicKey []d
 				if verificationMethodEqual(verificationMethod, didPublicKeyInfo.ID) {
 					return didPublicKeyInfo.PublicKeyBase58, nil
 				}
-			default:
-				return "", nil
 			}
 		}
 	}
@@ -380,8 +376,6 @@ func getDIDDeactivateKey(verificationMethod string, authentication []interface{}
 			if verificationMethod == didPublicKeyInfo.ID {
 				return didPublicKeyInfo.PublicKeyBase58, nil
 			}
-		default:
-			return "", nil
 		}
 	}
 	for _, auth := range authorization {
@@ -409,8 +403,6 @@ func getDIDDeactivateKey(verificationMethod string, authentication []interface{}
 			if verificationMethod == didPublicKeyInfo.ID {
 				return didPublicKeyInfo.PublicKeyBase58, nil
 			}
-		default:
-			return "", nil
 		}
 	}
 	return "", nil
@@ -1189,8 +1181,6 @@ func IsVerifMethCustIDAuthKey(evm *EVM,  VerificationMethod, ID string,
 				if verificationMethodEqual(VerificationMethod, didPublicKeyInfo.ID) {
 					return true
 				}
-			default:
-				return false
 			}
 		}
 	} else {
