@@ -14,12 +14,6 @@ import (
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var (
-	BKTArbiters     = []byte("C")
-	BKTArbPosition  = []byte("P")
-	BKTArbPositions = []byte("Z")
-)
-
 // Ensure arbiters implement arbiters interface.
 var _ Arbiters = (*arbiters)(nil)
 
@@ -63,7 +57,15 @@ func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters 
 	}
 	batch.Put(BKTArbPosition, uint32toBytes(height))
 	if !isRollback {
-		c.posCache = append(c.getCurrentPositions(), height)
+		posCache := c.getCurrentPositions()
+		newPosCache := make([]uint32, 0)
+		for _, p := range posCache {
+			if p < height {
+				newPosCache = append(newPosCache, p)
+			}
+		}
+		newPosCache = append(newPosCache, height)
+		c.posCache = newPosCache
 		batch.Put(BKTArbPositions, uint32ArrayToBytes(c.posCache))
 	}
 	data := getValueBytes(crcArbiters, normalArbiters)
@@ -75,22 +77,22 @@ func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters 
 	val, ok := c.cache[*key]
 	index := getIndex(height)
 	if !ok {
-		existHeight, err := c.db.Get(hash[:], nil)
+		existHeight, err := c.db.Get(toKey(BKTTransactionHeight, hash[:]...), nil)
 		if err == nil {
 			c.cache[*key] = bytesToUint32(existHeight)
-			batch.Put(index, existHeight)
+			batch.Put(toKey(BKTArbitersData, index...), existHeight)
 			return nil
 		} else if err == leveldb.ErrNotFound {
 			c.cache[*key] = height
-			batch.Put(index, data)
-			batch.Put(hash[:], uint32toBytes(height))
+			batch.Put(toKey(BKTArbitersData, index...), data)
+			batch.Put(toKey(BKTTransactionHeight, hash[:]...), uint32toBytes(height))
 			return nil
 		} else {
 			return err
 		}
 	}
 
-	batch.Put(index, uint32toBytes(val))
+	batch.Put(toKey(BKTArbitersData, index...), uint32toBytes(val))
 	return nil
 }
 
@@ -110,18 +112,18 @@ func (c *arbiters) GetNext() (workingHeight uint32, crcArbiters [][]byte, normal
 	c.RLock()
 	defer c.RUnlock()
 	workingHeight = c.getCurrentPosition()
-	crcArbiters, normalArbiters, err = c.get(c.getCurrentPosition())
+	crcArbiters, normalArbiters, err = c.get(workingHeight)
 	return
 }
 
 func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error) {
 	var val []byte
-	val, err = c.db.Get(getIndex(height), nil)
+	val, err = c.db.Get(toKey(BKTArbitersData, getIndex(height)...), nil)
 	if err != nil {
 		return
 	}
 	if len(val) == 4 {
-		val, err = c.db.Get(getIndex(bytesToUint32(val)), nil)
+		val, err = c.db.Get(toKey(BKTArbitersData, getIndex(bytesToUint32(val))...), nil)
 		if err != nil {
 			return
 		}

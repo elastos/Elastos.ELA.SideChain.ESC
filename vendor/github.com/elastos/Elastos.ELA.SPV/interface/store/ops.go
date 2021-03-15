@@ -10,10 +10,6 @@ import (
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var (
-	BKTOps = []byte("O")
-)
-
 // Ensure ops implement Ops interface.
 var _ Ops = (*ops)(nil)
 
