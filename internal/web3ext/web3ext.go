@@ -855,19 +855,15 @@ property: 'did',
 methods: [
 
 	new web3._extend.Method({
-	
 		name: 'resolveDID',
 		call: 'did_resolveDID',
-		params: 2
-	
+		params: 1
 	}),
 
 	new web3._extend.Method({
-	
 		name: 'resolveCredential',
 		call: 'did_resolveCredential',
-		params: 2
-	
+		params: 1
 	})
 
 ]
