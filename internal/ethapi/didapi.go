@@ -123,12 +123,17 @@ VerifiableCredentialTxData) bool {
 	return true
 }
 
-func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idParam, issuer string) (interface{}, error) {
+func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, param map[string]interface{}) (interface{}, error) {
+	idParam, ok := param["id"].(string)
+	if !ok {
+		return nil, http.NewError(int(service.InvalidParams), "id is null")
+	}
 	credentialID := idParam
 	buf := new(bytes.Buffer)
 	buf.WriteString(credentialID)
 	txsData, _ := rawdb.GetAllVerifiableCredentialTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes())
 
+	issuer, ok := param["issuer"].(string)
 	var issuerID string
 	if issuer == "" {
 		if len(txsData) == 0 {
@@ -181,9 +186,13 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, idPara
 }
 
 //xxl modify to PublicTransactionPoolAPI
-func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam string, isGetAll bool) (interface{}, error) {
+func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[string]interface{}) (interface{}, error) {
 	var didDocState DidDocState = NonExist
 
+	idParam, ok:= param["did"].(string)
+	if !ok {
+		return nil, http.NewError(int(service.InvalidParams), "did is null")
+	}
 	//remove DID_ELASTOS_PREFIX
 	id := idParam
 	if rawdb.IsURIHasPrefix(idParam) {
@@ -194,6 +203,11 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, idParam strin
 	_, err := elacom.Uint168FromAddress(id)
 	if err != nil {
 		return nil, http.NewError(int(service.InvalidParams), "invalid did")
+	}
+
+	isGetAll, ok := param["all"].(bool)
+	if !ok {
+		return nil, http.NewError(int(service.InvalidParams), "all is null")
 	}
 
 	var rpcPayloadDid RpcPayloadDIDInfo
