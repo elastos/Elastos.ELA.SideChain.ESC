@@ -1,0 +1,12 @@
+{
+  "id" : "did:elastos:baz",
+  "controller" : [ "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y", "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g", "did:elastos:igXiyCJEUjGJV1DMsMa4EbWunQqVg97GcS" ],
+  "multisig" : "1:3",
+  "expires" : "2026-02-20T11:35:36Z",
+  "proof" : {
+    "type" : "ECDSAsecp256r1",
+    "created" : "2021-02-20T11:35:36Z",
+    "creator" : "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#primary",
+    "signatureValue" : "IkfC6kR6N82q5HtycsrG7nXBX-NmsKHbIvYzgYLUmXFgOhog2FmRxQ6MXE-LqdlYsSyw4unxcUbN9tlMuA8wJQ"
+  }
+}
