@@ -1,0 +1,19 @@
+{
+  "id":"did:elastos:foobar",
+  "to":"did:elastos:igHbSCez6H3gTuVPzwNZRrdj92GCJ6hD5d",
+  "txid":"a86af5d2759d8171a3ba5cbff0a812a8",
+  "proof":[
+    {
+      "type":"ECDSAsecp256r1",
+      "created":"2021-03-08T03:47:56Z",
+      "verificationMethod":"did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y#primary",
+      "signature":"GzXzR-x0I5VWNal6Zvh0NhLwmOskHrS0Ey_xOY7xskEUrii8nF9jrXgtjeQUteMHfztAhHP6M7R6JtL-6yDM9g"
+    },
+    {
+      "type":"ECDSAsecp256r1",
+      "created":"2021-03-08T03:47:56Z",
+      "verificationMethod":"did:elastos:igXiyCJEUjGJV1DMsMa4EbWunQqVg97GcS#primary",
+      "signature":"gW_aw4XVte1khF4uEGgDnlQbVfabp5DQlCobbCG7PDJhaKCOZNzsI6z4ymihhlVQ_Y-bLmP_Zici0pK1rIl6PQ"
+    }
+  ]
+}

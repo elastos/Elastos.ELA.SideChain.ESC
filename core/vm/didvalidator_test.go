@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/stretchr/testify/assert"
@@ -53,9 +56,16 @@ var (
 	user1IDDocByts   	      []byte
 	user2IDDocByts            []byte
 	user3IDDocByts   		  []byte
+	user4IDDocByts   		  []byte
 	fooIDDocBytes             []byte
 	fooBarIDDocBytes          []byte
+	fooBarNewIDDocBytes 	  []byte
+	fooBarTTIDDocBytes		  []byte
 	custIDVerifyCredContrl    []byte
+
+	batTTDocByts    []byte
+	barzIDDocByts   []byte
+	bazNewIDDocByts []byte
 )
 
 const (
@@ -68,6 +78,7 @@ func init() {
 	user1IDDocByts, _ = LoadJsonData("./testdata/user1.id.json")
 	user2IDDocByts, _ = LoadJsonData("./testdata/user2.id.json")
 	user3IDDocByts, _ = LoadJsonData("./testdata/user3.id.json")
+	user4IDDocByts, _ = LoadJsonData("./testdata/user4.id.json")
 
 	customizedDIDDocSingleContrller, _ = LoadJsonData("./testdata/examplecorp.id.json")
 	custIDSingleSignDocBytes1, _ = LoadJsonData("./testdata/customized_did_single_sign.json")
@@ -80,8 +91,13 @@ func init() {
 	didVerifCred, _ = LoadJsonData("./testdata/did_verifiable_credential.json")
 	fooIDDocBytes, _ = LoadJsonData("./testdata/foo.id.json")
 	fooBarIDDocBytes, _ = LoadJsonData("./testdata/foobar.id.json")
+	fooBarNewIDDocBytes, _ = LoadJsonData("./testdata/foobar.new.id.json")
+	fooBarTTIDDocBytes, _ = LoadJsonData("./testdata/foobar.tt.json")
 	custIDVerifyCredContrl, _ = LoadJsonData("./testdata/customized_did_verifiable_credential_controllers.json")
 
+	batTTDocByts, _ = LoadJsonData("./testdata/baz.tt.json")
+	barzIDDocByts, _ = LoadJsonData("./testdata/baz.id.json")
+	bazNewIDDocByts, _ = LoadJsonData("./testdata/baz.new.id.json")
 }
 
 var didPayloadBytes = []byte(
@@ -1228,4 +1244,460 @@ func checkDIDTransaction(didpayload []byte, db *state.StateDB) error {
 		return errors.New("result error")
 	}
 	return nil
+}
+
+func getLenStr(len int) string {
+	a := make([]byte, len)
+	return string(a)
+}
+
+func TestGetLenthString(t *testing.T) {
+	strLen := 0
+	str := getLenStr(strLen)
+	assert.Equal(t, strLen, len(str))
+
+	strLen = 1
+	str = getLenStr(strLen)
+	assert.Equal(t, strLen, len(str))
+
+	strLen = 2
+	str = getLenStr(strLen)
+	assert.Equal(t, strLen, len(str))
+
+	strLen = 100
+	str = getLenStr(strLen)
+	assert.Equal(t, strLen, len(str))
+}
+
+//test completely
+func TestGetCustomizedDIDLenFactor(t *testing.T) {
+	tests := []struct {
+		ID     string
+		factor float64
+	}{
+		{getLenStr(0), 0.3},
+		{getLenStr(1), 6400},
+		{getLenStr(2), 3200},
+		{getLenStr(3), 1200},
+		{getLenStr(4), 100},
+		{getLenStr(9), 99},
+		{getLenStr(32), 97},
+		{getLenStr(33), 97},
+		{getLenStr(64), 100},
+		{getLenStr(65), 300},
+		{getLenStr(255), 9800},
+	}
+	for _, test := range tests {
+		lenFactor := getCustomizedDIDLenFactor(test.ID)
+		assert.Equal(t, test.factor, lenFactor)
+	}
+}
+
+func TestGetValidPeriodFactor(t *testing.T) {
+	tests := []struct {
+		Expires  string
+		lifeRate float64
+	}{
+		//Days: 1, rate: 0.4958904109589041
+		{"2021-03-18T09:53:35Z", 0.4958904109589041},
+		//Days: 10, rate: 0.5205479452054794
+		{"2021-03-27T09:53:35Z", 0.5205479452054794},
+		//Days: 30, rate: 0.5753424657534246
+		{"2021-04-16T09:53:35Z", 0.5753424657534246},
+		//Months:   2, rate: 0.6575342465753424
+		{"2021-05-16T17:00:00Z", 0.6575342465753424},
+		//Months:   3, rate: 0.7397260273972602
+		{"2021-06-15T17:00:00Z", 0.7397260273972602},
+		//Years:   1, rate: 1.0
+		{"2022-03-17T09:53:35Z", 1.0},
+		//Years:  19, rate: 16.578681317337157
+		{"2040-03-12T09:53:35Z", 16.578681317337157},
+	}
+	//1615946015 2021 3-17 09:53:35
+	for _, test := range tests {
+		lenFactor := getValidPeriodFactor(test.Expires, time.Unix(1615946015, 0))
+		assert.Equal(t, test.lifeRate, lenFactor)
+	}
+}
+
+
+//test completely
+func TestGetOperationFactor(t *testing.T) {
+	tests := []struct {
+		Operation string
+		factor    float64
+	}{
+		{"CREATE", 1},
+		{"UPDATE", 0.8},
+		{"TRANSFER", 1.2},
+		{"DEACTIVATE", 0.3},
+		{"DECLARE", 1},
+		{"REVOKE", 0.3},
+		{"DEFUALT_OTHER", 1},
+	}
+	for _, test := range tests {
+		lenFactor := getOperationFactor(test.Operation)
+		assert.Equal(t, test.factor, lenFactor)
+	}
+}
+
+//test completely
+func TestGetControllerFactor(t *testing.T) {
+	names := []string{"controller1", "controller2"}
+	controller := make([]interface{}, len(names))
+	for i, v := range names {
+		controller[i] = v
+	}
+	str := "controller"
+	tests := []struct {
+		controller interface{}
+		factor     float64
+	}{
+		{nil, 0},
+		{controller, 32},
+		{str, 1},
+	}
+	for _, test := range tests {
+		lenFactor := getControllerFactor(test.controller)
+		assert.Equal(t, test.factor, lenFactor)
+	}
+}
+
+
+//test completely
+func TestGetSizeFactor(t *testing.T) {
+	tests := []struct {
+		payLoadSize int
+		factor      float64
+	}{
+		{1000, 1},
+		{1 * 1024, 1},
+		{2 * 1024, 1.1505149978319906},
+		{32 * 1024, 1.7525749891599531},
+		{33 * 1024, 1.924931548775831},
+		{34 * 1024, 3.1967102737178337},
+		{1024 * 1024, 1507.8735777995842},
+	}
+	for _, test := range tests {
+		lenFactor := getSizeFactor(test.payLoadSize)
+		assert.Equal(t, test.factor, lenFactor)
+	}
+}
+
+func TestCreateMyOwnSign(t *testing.T) {
+	//return
+	ticket := new(did.CustomIDTicket)
+	json.Unmarshal(batTTDocByts, ticket)
+	fmt.Println("ticket", ticket)
+	ticket.TransactionID = "5636c8eea0734a7013d71b58e597135f637bf6d193677cb7f56a1d36e3b723cc"
+
+	dest, err := os.Create("test11.json")
+	if err != nil {
+		return
+	}
+	defer dest.Close()
+	CustomizedDIDProof := &did.TicketProof{}
+	if err := Unmarshal(ticket.Proof, CustomizedDIDProof); err != nil {
+		return
+	}
+	privateKeyStr1 := "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
+	privateKey1 := base58.Decode(privateKeyStr1)
+	sign, _ := elaCrypto.Sign(privateKey1, ticket.GetData())
+	CustomizedDIDProof.Signature = base64url.EncodeToString(sign)
+	ticket.Proof = CustomizedDIDProof
+
+	b11, err := json.Marshal(ticket)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+	dest.Write(b11)
+}
+
+func TestCustomizedDIDTransferSingleProof(t *testing.T) {
+	user1 := "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
+	user1PrivateKeyStr := "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ"
+	user1TX := getPayloadDIDInfo(user1, "create", user1IDDocByts, user1PrivateKeyStr)
+
+	buf := new(bytes.Buffer)
+	user1TX.Serialize(buf, did.DIDVersion)
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
+
+	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt := getCreateDIDReceipt(*user1TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore),  common.Hash{}, 0, types.Receipts{receipt})
+	user1Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}),0, 0)
+	assert.NoError(t, user1Err)
+
+	hash1 := common.HexToHash("0x1234")
+	statedb.Prepare(hash1, hash1, 1)
+	user2 := "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g"
+	user2PrivateKeyStr := "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
+	user2TX := getPayloadDIDInfo(user2, "create", user2IDDocByts, user2PrivateKeyStr)
+	buf = new(bytes.Buffer)
+	user2TX.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*user2TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash1, 0, types.Receipts{receipt})
+	user2Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash1),0, 0)
+	assert.NoError(t, user2Err)
+
+	hash2 := common.HexToHash("0x2345")
+	statedb.Prepare(hash2, hash2, 1)
+	user3 := "did:elastos:igXiyCJEUjGJV1DMsMa4EbWunQqVg97GcS"
+	user3PrivateKeyStr := "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ"
+	user3TX := getPayloadDIDInfo(user3, "create", user3IDDocByts, user3PrivateKeyStr)
+	buf = new(bytes.Buffer)
+	user3TX.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*user3TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash2, 0, types.Receipts{receipt})
+	user3Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2),0, 0)
+	assert.NoError(t, user3Err)
+
+	hash3 := common.HexToHash("0x3456")
+	statedb.Prepare(hash3, hash3, 1)
+	user4 := "did:elastos:igHbSCez6H3gTuVPzwNZRrdj92GCJ6hD5d"
+	//4YWYVhUNF1LLpR5rQeJUg23ESMdAGx6zqwUdcNkV5Rq
+	//EouptA61qGJPz5mjt2JVduv5XapDR7nhJuBKqntDpkEU
+	user4PrivateKeyStr := "EouptA61qGJPz5mjt2JVduv5XapDR7nhJuBKqntDpkEU"
+	user4TX := getPayloadDIDInfo(user4, "create", user4IDDocByts, user4PrivateKeyStr)
+	buf = new(bytes.Buffer)
+	user4TX.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*user4TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash3, 0, types.Receipts{receipt})
+	user4Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash3),0, 0)
+	assert.NoError(t, user4Err)
+
+	hash4 := common.HexToHash("0x4567")
+	statedb.Prepare(hash4, hash4, 1)
+	bazPrivateKeyStr := "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ"
+	CustomizedDIDTx1 := getCustomizedDIDTx("did:elastos:baz", "create", barzIDDocByts, bazPrivateKeyStr)
+	//customizedDID := "did:elastos:baz"
+	buf = new(bytes.Buffer)
+	CustomizedDIDTx1.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(CustomizedDIDTx1.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*CustomizedDIDTx1)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash4, 0, types.Receipts{receipt})
+	//CustomizedDIDTx1
+	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash4),0, 0)
+	assert.NoError(t, err3)
+
+	//doc baz.new.id.json
+	//transfer baz.tt.json
+	txhash := hash4.String()[2:]
+	transferTx := getCustomizedDIDTransferTx(user4, "transfer", bazNewIDDocByts, batTTDocByts, user4PrivateKeyStr, user2PrivateKeyStr, txhash)
+
+	didParam.CustomIDFeeRate = 0
+	didParam.IsTest = true
+
+	data, err := json.Marshal(transferTx)
+	assert.NoError(t, err)
+	transferErr := checkDIDTransaction(data, statedb)
+	assert.NoError(t, transferErr)
+	didParam.IsTest = false
+}
+
+func getCustomizedDIDTransferTx(id string, operation string, docBytes []byte, ticketBytes []byte,
+	privateKeyStr, ticketPrivateKeyStr, lastTxStr string) *did.DIDPayload {
+	info := new(did.DIDDoc)
+	json.Unmarshal(docBytes, info)
+
+	ticket := new(did.CustomIDTicket)
+	json.Unmarshal(ticketBytes, ticket)
+	ticket.TransactionID = lastTxStr
+	CustomizedDIDProof := &did.TicketProof{}
+	if err := Unmarshal(ticket.Proof, CustomizedDIDProof); err != nil {
+		return nil
+	}
+
+	ticketPrivateKey := base58.Decode(ticketPrivateKeyStr)
+	sign, _ := elaCrypto.Sign(ticketPrivateKey, ticket.CustomIDTicketData.GetData())
+	CustomizedDIDProof.Signature = base64url.EncodeToString(sign)
+	ticket.Proof = CustomizedDIDProof
+
+	p := &did.DIDPayload{
+		Header: did.Header{
+			Specification: "elastos/did/1.0",
+			Operation:     operation,
+		},
+		Payload: base64url.EncodeToString(docBytes),
+		Proof: did.Proof{
+			Type:               "ECDSAsecp256r1",
+			VerificationMethod: id + "#primary", //"did:elastos:" +
+		},
+		DIDDoc: info,
+		Ticket: ticket,
+	}
+	privateKey1 := base58.Decode(privateKeyStr)
+	signTicket, _ := elaCrypto.Sign(privateKey1, p.GetData())
+	p.Proof.Signature = base64url.EncodeToString(signTicket)
+	return p
+}
+
+func getMultiContrCustomizedDIDTransferTx(id string, operation string, docBytes []byte, ticketBytes []byte,
+	privateKeyStr, user1PrivateKeyStr, user3PrivateKeyStr, lastTxStr string) *did.DIDPayload {
+
+	info := new(did.DIDDoc)
+	json.Unmarshal(docBytes, info)
+
+	ticket := new(did.CustomIDTicket)
+	json.Unmarshal(ticketBytes, ticket)
+	ticket.TransactionID = lastTxStr
+	user1 := "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
+	var ticketPrivateKey []byte
+	DIDProofArray := make([]*did.TicketProof, 0)
+	if err := Unmarshal(ticket.Proof, &DIDProofArray); err == nil {
+		for _, CustomizedDIDProof := range DIDProofArray {
+			if strings.HasPrefix(CustomizedDIDProof.VerificationMethod, user1) {
+				ticketPrivateKey = base58.Decode(user1PrivateKeyStr)
+			} else {
+				ticketPrivateKey = base58.Decode(user3PrivateKeyStr)
+			}
+			sign, _ := elaCrypto.Sign(ticketPrivateKey, ticket.CustomIDTicketData.GetData())
+			CustomizedDIDProof.Signature = base64url.EncodeToString(sign)
+		}
+	}
+	ticket.Proof = DIDProofArray
+
+	p := &did.DIDPayload{
+		Header: did.Header{
+			Specification: "elastos/did/1.0",
+			Operation:     operation,
+		},
+		Payload: base64url.EncodeToString(docBytes),
+		Proof: did.Proof{
+			Type:               "ECDSAsecp256r1",
+			VerificationMethod: id + "#primary", //"did:elastos:" +
+		},
+		DIDDoc: info,
+		Ticket: ticket,
+	}
+	privateKey1 := base58.Decode(privateKeyStr)
+	signTicket, _ := elaCrypto.Sign(privateKey1, p.GetData())
+	p.Proof.Signature = base64url.EncodeToString(signTicket)
+	return p
+}
+
+func GetprivateKeyStr(privateKey1Str string) string {
+	privateKeyTemp := base58.Decode(privateKey1Str)
+	privateKey := privateKeyTemp[46:78]
+	base58PrivageKey := base58.Encode(privateKey)
+	return base58PrivageKey
+}
+
+func TestCustomizedDIDTransferProofs(t *testing.T) {
+	hash1:= common.Hash{}
+	statedb, _ := state.New(hash1, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
+	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
+
+	user1 := "did:elastos:iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y"
+	user1PrivateKeyStr := "3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS"
+	user1TX := getPayloadDIDInfo(user1, "create", user1IDDocByts, user1PrivateKeyStr)
+	//customizedDID := "did:elastos:baz"
+	buf := new(bytes.Buffer)
+	user1TX.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt := getCreateDIDReceipt(*user1TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash1, 0, types.Receipts{receipt})
+	user1Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash1),0, 0)
+	assert.NoError(t, user1Err)
+
+	hash2 := common.HexToHash("0x1234")
+	statedb.Prepare(hash2, hash2, 1)
+	user2 := "did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g"
+	user2PrivateKeyStr := "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ"
+	user2TX := getPayloadDIDInfo(user2, "create", user2IDDocByts, user2PrivateKeyStr)
+	buf = new(bytes.Buffer)
+	user2TX.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(user2TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*user2TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash2, 0, types.Receipts{receipt})
+	user2Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2),0, 0)
+	assert.NoError(t, user2Err)
+
+	hash3 := common.HexToHash("0x2345")
+	statedb.Prepare(hash3, hash3, 1)
+	user3 := "did:elastos:igXiyCJEUjGJV1DMsMa4EbWunQqVg97GcS"
+	user3PrivateKeyStr := "BdQX3FcigWjRURJ3idTQ3A2vry4e1RwSg2MtfE5zePDy"
+	user3TX := getPayloadDIDInfo(user3, "create", user3IDDocByts, user3PrivateKeyStr)
+	buf = new(bytes.Buffer)
+	user3TX.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(user3TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*user3TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash3, 0, types.Receipts{receipt})
+	user3Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash3),0, 0)
+	assert.NoError(t, user3Err)
+
+	hash4 := common.HexToHash("0x3456")
+	statedb.Prepare(hash4, hash4, 1)
+	user4 := "did:elastos:igHbSCez6H3gTuVPzwNZRrdj92GCJ6hD5d"
+	//4YWYVhUNF1LLpR5rQeJUg23ESMdAGx6zqwUdcNkV5Rq
+	//EouptA61qGJPz5mjt2JVduv5XapDR7nhJuBKqntDpkEU
+	user4PrivateKeyStr := "EouptA61qGJPz5mjt2JVduv5XapDR7nhJuBKqntDpkEU"
+	user4TX := getPayloadDIDInfo(user4, "create", user4IDDocByts, user4PrivateKeyStr)
+	buf = new(bytes.Buffer)
+	user4TX.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(user4TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*user4TX)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash4, 0, types.Receipts{receipt})
+	user4Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash4),0, 0)
+	assert.NoError(t, user4Err)
+
+	hash5 := common.HexToHash("0x4567")
+	statedb.Prepare(hash5, hash5, 1)
+	bazPrivateKeyStr := "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ"
+	CustomizedDIDTx1 := getCustomizedDIDTx("did:elastos:foobar", "create", fooBarIDDocBytes, bazPrivateKeyStr)
+	//customizedDID := "did:elastos:foobar"
+	buf = new(bytes.Buffer)
+	CustomizedDIDTx1.Serialize(buf, did.DIDVersion)
+	statedb.AddDIDLog(CustomizedDIDTx1.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
+	receipt = getCreateDIDReceipt(*CustomizedDIDTx1)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash5, 0, types.Receipts{receipt})
+	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash5),0, 0)
+	assert.NoError(t, err3)
+
+	txhash := hash5.String()[2:]
+	//getMultiContrCustomizedDIDTransferTx getMulContrCustomizedDIDTransferDoc
+	transferTx := getMultiContrCustomizedDIDTransferTx(user4, "transfer", fooBarNewIDDocBytes, fooBarTTIDDocBytes,
+		user4PrivateKeyStr, user1PrivateKeyStr, user3PrivateKeyStr, txhash)
+	didParam.CustomIDFeeRate = 0
+	didParam.IsTest = true
+	transferErr := checkCustomizedDID(evm, transferTx, 0)
+	assert.NoError(t, transferErr)
+	didParam.IsTest = false
+}
+
+func TestGetprivateKeyStr(t *testing.T) {
+	//imUUPBfrZ1yZx6nWXe6LNN59VeX2E6PPKj
+	privateKey1Str := "xprvA39XqfTw2FPEfpMJmM6jK1gzzRv8p1GYJS3DUEEbp1SibLrRyZzHijYTTvzy2a57Es8CBxs2xseMNoLC7nNGxsJY3nfCT3aUeozRQoy8vTH"
+	base58PrivageKey := GetprivateKeyStr(privateKey1Str)
+	fmt.Println("base58PrivageKey ", base58PrivageKey)
+	assert.Equal(t,"413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ", base58PrivageKey)
+
+	//"did:elastos:igHbSCez6H3gTuVPzwNZRrdj92GCJ6hD5d"
+	base58PrivageKey2 := GetprivateKeyStr("xprvA39XqfTw2FPEqBoXJv95kX4KUSjwajnD99fw8pMFv7R71SN8RkJQ1idgV5MR2oLyW1JJUi7sjXYRTDjmHqbkqmCNYbJpapiTnin5N5aj7UV")
+	fmt.Println("base58PrivageKey2 ", base58PrivageKey2)
+	assert.Equal(t,"EouptA61qGJPz5mjt2JVduv5XapDR7nhJuBKqntDpkEU", base58PrivageKey2)
+
+	//did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g
+	base58PrivageKey3 := GetprivateKeyStr("xprvA39XqfTw2FPEnHs4A7H9DRDxxGn7dJpyTdxHqUmBthNFhPAJGATFNdL8wBFZ1NHkC6USNWyEchycKkD3RoT7tPSfugBQVyyPNH3mrEP8KUy")
+	fmt.Println("base58PrivageKey3 ", base58PrivageKey3)
+	assert.Equal(t,"AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J", base58PrivageKey3)
+
+	//iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y
+	//xprvA39XqfTw2FPEjJK4n4XkDomsf2wnTD4n6nZgSm34Da9MosYtFNStyTGRpZU5aRyxpfJ98oK8Yw5GuBnP1Bx7oCrZB9BhWXR28orHW6A5QRn
+	base58PrivageKey4 := GetprivateKeyStr("xprvA39XqfTw2FPEjJK4n4XkDomsf2wnTD4n6nZgSm34Da9MosYtFNStyTGRpZU5aRyxpfJ98oK8Yw5GuBnP1Bx7oCrZB9BhWXR28orHW6A5QRn")
+	fmt.Println("base58PrivageKey4 ", base58PrivageKey4)
+	assert.Equal(t,"3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS", base58PrivageKey4)
+
+	//igXiyCJEUjGJV1DMsMa4EbWunQqVg97GcS
+	//xprvA39XqfTw2FPEneKSjzk2xrKda9547StuuJ3MTHiQL2uczmabXnP9S8xtUbmsLdBPAA558ekswKjxinqx199TvtArQ2GvJyA4u8uisCmKG62
+
+	base58PrivageKey5 := GetprivateKeyStr("xprvA39XqfTw2FPEneKSjzk2xrKda9547StuuJ3MTHiQL2uczmabXnP9S8xtUbmsLdBPAA558ekswKjxinqx199TvtArQ2GvJyA4u8uisCmKG62")
+	fmt.Println("base58PrivageKey5 ", base58PrivageKey5)
+	assert.Equal(t,"BdQX3FcigWjRURJ3idTQ3A2vry4e1RwSg2MtfE5zePDy", base58PrivageKey5)
 }
