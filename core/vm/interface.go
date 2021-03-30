@@ -77,7 +77,7 @@ type StateDB interface {
 
 	GetLastCustomizedDIDTxHash(idKey []byte) (elacom.Uint256, error)
 
-	GetLastVerifiableCredentialTxData(idKey []byte) (*did.DIDTransactionData, error)
+	GetLastVerifiableCredentialTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error)
 
 	AddDIDLog(did string, operation string, doc []byte)
 

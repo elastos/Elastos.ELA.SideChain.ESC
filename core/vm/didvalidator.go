@@ -1449,7 +1449,7 @@ func checkVerifiableCredentialOperation(evm *EVM, header *did.Header,
 	}
 	buf := new(bytes.Buffer)
 	buf.WriteString(CredentialID)
-	tx, err := evm.StateDB.GetLastVerifiableCredentialTxData(buf.Bytes())
+	tx, err := evm.StateDB.GetLastVerifiableCredentialTxData(buf.Bytes(), evm.chainConfig)
 	dbExist := true
 	if err != nil {
 		if err.Error() == ErrLeveldbNotFound.Error() || err.Error() == ErrNotFound.Error() {
@@ -1521,7 +1521,7 @@ func checkRevokeVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 
 	buf := new(bytes.Buffer)
 	buf.WriteString(credentialID)
-	lastTXData, err := evm.StateDB.GetLastVerifiableCredentialTxData(buf.Bytes())
+	lastTXData, err := evm.StateDB.GetLastVerifiableCredentialTxData(buf.Bytes(), evm.chainConfig)
 
 	dbExist := true
 	if err != nil {

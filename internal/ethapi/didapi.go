@@ -131,7 +131,7 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, param 
 	credentialID := idParam
 	buf := new(bytes.Buffer)
 	buf.WriteString(credentialID)
-	txsData, _ := rawdb.GetAllVerifiableCredentialTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes())
+	txsData, _ := rawdb.GetAllVerifiableCredentialTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes(), s.b.ChainConfig())
 
 	issuer, ok := param["issuer"].(string)
 	var issuerID string
