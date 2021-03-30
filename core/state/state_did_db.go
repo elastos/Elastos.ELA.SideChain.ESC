@@ -126,8 +126,8 @@ func (self *StateDB) GetLastCustomizedDIDTxHash(idKey []byte) (elaCom.Uint256, e
 }
 
 
-func (self *StateDB) GetLastVerifiableCredentialTxData(idKey []byte) (*did.DIDTransactionData, error) {
-	return rawdb.GetLastVerifiableCredentialTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey)
+func (self *StateDB) GetLastVerifiableCredentialTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error) {
+	return rawdb.GetLastVerifiableCredentialTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey, config)
 }
 
 func (self *StateDB) IsDID(did string)  (bool, error) {
