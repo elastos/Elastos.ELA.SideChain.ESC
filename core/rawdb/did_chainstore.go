@@ -409,7 +409,7 @@ func PersistDeactivateDIDTx(db ethdb.KeyValueStore, log *types.DIDLog) error {
 	return db.Put(key, buf.Bytes())
 }
 
-func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) ([]did.VerifiableCredentialTxData, error) {
+func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte, config *params.ChainConfig) ([]did.VerifiableCredentialTxData, error) {
 	key := []byte{byte(IX_VerifiableCredentialTXHash)}
 	key = append(key, idKey...)
 
@@ -429,15 +429,26 @@ func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) ([]d
 		if err := txHash.Deserialize(r); err != nil {
 			return nil, err
 		}
-		keyPayload := []byte{byte(IX_VerifiableCredentialPayload)}
-		keyPayload = append(keyPayload, txHash.Bytes()...)
+		//keyPayload := []byte{byte(IX_VerifiableCredentialPayload)}
+		//keyPayload = append(keyPayload, txHash.Bytes()...)
+		thash := common.BytesToHash(txHash.Bytes())
+		recp, _, _,_ := ReadReceipt(db.(ethdb.Database), thash, config)
+		if recp == nil {
+			if recps := ReadRawReceipts(db.(ethdb.Database), thash, 0); recps != nil {
+				if recps.Len() > 0 {
+					recp = recps[0]
+				}
+			}
+		}
 
-		payloadData, err := db.Get(keyPayload)
-		if err != nil {
-			return nil, err
+		if recp == nil {
+			return nil, ERR_READ_RECEIPT
+		}
+		if recp.DIDLog.DID == "" {
+			return nil, ERR_NOT_DIDRECEIPT
 		}
 		vcPayload := new(did.DIDPayload)
-		r := bytes.NewReader(payloadData)
+		r := bytes.NewReader(recp.DIDLog.Data)
 		err = vcPayload.Deserialize(r, did.VerifiableCredentialVersion)
 		if err != nil {
 			return nil, http.NewError(int(service.InvalidTransaction),
@@ -454,7 +465,7 @@ func GetAllVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) ([]d
 }
 
 
-func GetLastVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) (*did.DIDTransactionData, error) {
+func GetLastVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error) {
 	key := []byte{byte(IX_VerifiableCredentialTXHash)}
 	key = append(key, idKey...)
 
@@ -476,16 +487,28 @@ func GetLastVerifiableCredentialTxData(db ethdb.KeyValueStore, idKey []byte) (*d
 		return nil, err
 	}
 
-	keyPayload := []byte{byte(IX_VerifiableCredentialPayload)}
-	keyPayload = append(keyPayload, txHash.Bytes()...)
+	//keyPayload := []byte{byte(IX_VerifiableCredentialPayload)}
+	//keyPayload = append(keyPayload, txHash.Bytes()...)
 
-	dataPayload, err := db.Get(keyPayload)
-	if err != nil {
-		return nil, err
+	thash := common.BytesToHash(txHash.Bytes())
+	recp, _, _,_ := ReadReceipt(db.(ethdb.Database), thash, config)
+	if recp == nil {
+		if recps := ReadRawReceipts(db.(ethdb.Database), thash, 0); recps != nil {
+			if recps.Len() > 0 {
+				recp = recps[0]
+			}
+		}
+	}
+
+	if recp == nil {
+		return nil, ERR_READ_RECEIPT
+	}
+	if recp.DIDLog.DID == "" {
+		return nil, ERR_NOT_DIDRECEIPT
 	}
 
 	credentialPayload := new(did.DIDPayload)
-	r = bytes.NewReader(dataPayload)
+	r = bytes.NewReader(recp.DIDLog.Data)
 	err = credentialPayload.Deserialize(r, did.VerifiableCredentialVersion)
 	if err != nil {
 		return nil, http.NewError(int(service.ResolverInternalError),
@@ -785,9 +808,10 @@ func PersistVerifiableCredentialTx(db ethdb.KeyValueStore, log *types.DIDLog,
 	if err := persisterifiableCredentialTxHash(db, idKey, txhash); err != nil {
 		return err
 	}
-	if err := persistVerifiableCredentialPayload(db, txhash, payload); err != nil {
-		return err
-	}
+	//didPayload is persisted in receipt
+	//if err := persistVerifiableCredentialPayload(db, txhash, payload); err != nil {
+	//	return err
+	//}
 
 	return nil
 }
