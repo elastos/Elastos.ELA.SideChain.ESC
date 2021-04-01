@@ -462,7 +462,8 @@ func TestIDChainStore_DeactivateDIDTx(t *testing.T) {
 
 	//deactive one deactivated did
 	statedb.AddDIDLog(id, did.Deactivate_DID_Operation, buf.Bytes())
-	rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}))
+	rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore),
+		statedb.GetDIDLog(common.Hash{}),common.Hash{})
 	txDeactivateWrong := getPayloadDeactivateDID(didWithPrefix, verifDid)
 	deactiveBytes, _ = json.Marshal(txDeactivateWrong)
 	err = checkDIDTransaction(deactiveBytes, statedb)
@@ -1180,7 +1181,8 @@ func TestDeactivateCustomizedDIDTX(t *testing.T) {
 	statedb.AddDIDLog(customizedDID, did.Deactivate_DID_Operation, buf.Bytes())
 	receipt = getDeactiveDIDReceipt(*txDeactivate)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), common.HexToHash("0x2345"), 0, types.Receipts{receipt})
-	err4 := rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.HexToHash("0x2345")))
+	err4 := rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore),
+		statedb.GetDIDLog(common.HexToHash("0x2345")),common.HexToHash("0x2345"))
 	assert.NoError(t, err4)
 	err = checkDIDTransaction(data, statedb)
 	assert.EqualError(t, err, "DID WAS AREADY DEACTIVE")

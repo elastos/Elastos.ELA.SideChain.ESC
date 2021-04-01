@@ -38,6 +38,7 @@ var (
 	ERR_READ_TX = errors.New("read transaction error")
 	ERR_READ_RECEIPT = errors.New("read receipt error")
 	ERR_NOT_DIDRECEIPT = errors.New("receipt is not contain did")
+	ERR_NOT_DEACTIVATERECEIPT = errors.New("receipt is not contain deactivate tx")
 )
 
 func PersistRegisterDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, blockHeight uint64,
@@ -275,6 +276,50 @@ func GetLastDIDTxData(db ethdb.KeyValueStore, idKey []byte, config *params.Chain
 	return tempTxData, nil
 }
 
+func GetDeactivatedTxData(db ethdb.KeyValueStore, idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error) {
+	key := []byte{byte(IX_DIDDeactivate)}
+	key = append(key, idKey...)
+
+	data, err := db.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	r := bytes.NewReader(data)
+	var txHash elaCom.Uint256
+	if err := txHash.Deserialize(r); err != nil {
+		return nil, err
+	}
+
+	thash := common.BytesToHash(txHash.Bytes())
+	recp, _, _,_ := ReadReceipt(db.(ethdb.Database), thash, config)
+	if recp == nil {
+		if recps := ReadRawReceipts(db.(ethdb.Database), thash, 0); recps != nil {
+			if recps.Len() > 0 {
+				recp = recps[0]
+			}
+		}
+	}
+
+	if recp == nil {
+		return nil, ERR_READ_RECEIPT
+	}
+	if recp.DIDLog.DID == "" {
+		return nil, ERR_NOT_DEACTIVATERECEIPT
+	}
+
+	tempOperation := new(did.DIDPayload)
+	r = bytes.NewReader(recp.DIDLog.Data)
+	err = tempOperation.Deserialize(r, did.DIDVersion)
+	if err != nil {
+		return nil, errors.New("[DIDPayload], tempOperation Deserialize failed")
+	}
+	tempTxData := new(did.DIDTransactionData)
+	tempTxData.TXID = txHash.String()
+	tempTxData.Operation = *tempOperation
+	return tempTxData, nil
+}
+
 func IsDIDDeactivated(db ethdb.KeyValueStore, did string) bool {
 	idKey := new(bytes.Buffer)
 	idKey.WriteString(did)
@@ -397,13 +442,17 @@ func IsURIHasPrefix(id string) bool {
 	return strings.HasPrefix(id, did.DID_ELASTOS_PREFIX)
 }
 
-func PersistDeactivateDIDTx(db ethdb.KeyValueStore, log *types.DIDLog) error {
+func PersistDeactivateDIDTx(db ethdb.KeyValueStore, log *types.DIDLog, thash common.Hash) error {
 	key := []byte{byte(IX_DIDDeactivate)}
 	idKey := []byte(log.DID)
 	key = append(key, idKey...)
 
 	buf := new(bytes.Buffer)
-	if err := elaCom.WriteVarUint(buf, 1); err != nil {
+	txHash, err := elaCom.Uint256FromBytes(thash.Bytes())
+	if err != nil {
+		return err
+	}
+	if err := txHash.Serialize(buf); err != nil {
 		return err
 	}
 	return db.Put(key, buf.Bytes())
