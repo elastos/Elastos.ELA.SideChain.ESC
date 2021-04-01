@@ -751,6 +751,9 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			ElaMsg: elaMsg,
 			Peer:  	p,
 		})
+	case msg.Code == GetSmallCrossTxmsg:
+	case msg.Code == SmallCrossTxmsg:
+
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}

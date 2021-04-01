@@ -21,6 +21,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"math/big"
 	"strings"
 	"time"
@@ -732,6 +734,32 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 	}
 	res := state.GetState(address, common.HexToHash(key))
 	return res[:], state.Error()
+}
+
+func (s *PublicBlockChainAPI) GetCurrentProducers(ctx context.Context) ([]string, error) {
+	block := s.b.CurrentBlock()
+	elaHeight := block.Nonce()
+	if elaHeight == 0 {
+		return s.b.ChainConfig().Pbft.Producers, nil
+	}
+
+	list, _, err := spv.GetProducers(elaHeight)
+	producers := make([]string, len(list))
+
+	for i, v := range list {
+		producer := common.Bytes2Hex(v)
+		producers[i] = producer
+	}
+	return producers, err
+}
+
+func (s *PublicBlockChainAPI) ReceivedSmallCrossTx(ctx context.Context, signature string, rawTx string) error {
+	arbiters, err := s.GetCurrentProducers(ctx)
+	if err != nil {
+		return err
+	}
+	err = smallcrosstx.OnSmallCrossTx(arbiters, signature, rawTx)
+	return err
 }
 
 // CallArgs represents the arguments for a call.

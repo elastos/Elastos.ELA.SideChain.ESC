@@ -33,8 +33,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	whisper "github.com/elastos/Elastos.ELA.SideChain.ETH/whisper/whisperv6"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	whisper "github.com/elastos/Elastos.ELA.SideChain.ETH/whisper/whisperv6"
 	"github.com/naoina/toml"
 )
 
