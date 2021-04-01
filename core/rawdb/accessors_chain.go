@@ -470,9 +470,14 @@ func WriteDIDReceipts(db ethdb.KeyValueStore, receipts types.Receipts, number, b
 		operation := receipt.DIDLog.Operation
 		switch operation {
 		case did.Create_DID_Operation, did.Update_DID_Operation, did.Transfer_DID_Operation:
-			err = PersistRegisterDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog, number, btime)
+			if err = PersistRegisterDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog, number, btime); err != nil{
+				return err
+			}
+
 		case did.Deactivate_DID_Operation:
-			err = PersistDeactivateDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog)
+			if err = PersistDeactivateDIDTx(db.(ethdb.KeyValueStore), &receipt.DIDLog, receipt.TxHash); err != nil{
+				return err
+			}
 		case did.Declare_Verifiable_Credential_Operation, did.Revoke_Verifiable_Credential_Operation:
 			if err := PersistVerifiableCredentialTx(db.(ethdb.KeyValueStore), &receipt.DIDLog,
 				 number, btime, receipt.TxHash); err != nil {
