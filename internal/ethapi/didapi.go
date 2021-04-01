@@ -185,6 +185,31 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, param 
 	return rpcPayloadDid, nil
 }
 
+func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []byte) (*RpcTranasactionData,error) {
+	//get deactive tx date
+	deactiveTxData,err := rawdb.GetDeactivatedTxData(s.b.ChainDb().(ethdb.KeyValueStore), idKey,
+		s.b.ChainConfig())
+	if err != nil {
+		return nil, http.NewError(int(service.InternalError),
+			"get did deactivate transaction failed")
+	}
+	//change from DIDTransactionData to RpcTranasactionData
+	rpcTXData := new(RpcTranasactionData)
+	succe := rpcTXData.FromTranasactionData(*deactiveTxData)
+	if succe == false {
+		return nil,http.NewError(int(service.InternalError),
+			"get did deactivate transaction failed")
+	}
+	//fill tx Timestamp
+	err, timestamp := s.getTxTime(ctx, rpcTXData.TXID)
+	if err != nil {
+		return nil,http.NewError(int(service.InternalError),
+			"get did deactivate transaction failed")
+	}
+	rpcTXData.Timestamp = time.Unix(int64(timestamp), 0).UTC().Format(time.RFC3339)
+	return  rpcTXData,nil
+}
+
 //xxl modify to PublicTransactionPoolAPI
 func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[string]interface{}) (interface{}, error) {
 	var didDocState DidDocState = NonExist
@@ -248,15 +273,24 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 		}
 
 		tempTXData.Timestamp = time.Unix(int64(timestamp), 0).UTC().Format(time.RFC3339)
-		rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, *tempTXData)
 		if index == 0 {
 			if rawdb.IsDIDDeactivated(s.b.ChainDb().(ethdb.KeyValueStore), idParam) {
 				didDocState = Deactivated
+				if isGetAll == false {
+					//fill in
+					deactiveTXData, err := s.getDeactiveTx(ctx, buf.Bytes())
+					if err != nil {
+						return nil,err
+					}
+					rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, *deactiveTXData)
+				}
+
 			} else {
 				didDocState = Valid
 			}
 			rpcPayloadDid.Status = int(didDocState)
 		}
+		rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, *tempTXData)
 	}
 	return rpcPayloadDid, nil
 }
