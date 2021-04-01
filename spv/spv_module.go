@@ -284,6 +284,15 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	l.service.SubmitTransactionReceipt(id, tx.Hash())// give spv service a receipt, Indicates receipt of notice
 }
 
+func NotifySmallCrossTx(tx core.Transaction) {
+	log.Info("========================================================================================")
+	log.Info("smallMainchain transaction info")
+	log.Info("----------------------------------------------------------------------------------------")
+	log.Info(string(tx.String()))
+	log.Info("----------------------------------------------------------------------------------------")
+	savePayloadInfo(tx, nil)
+}
+
 //savePayloadInfo save and send spv perception
 func savePayloadInfo(elaTx core.Transaction, l *listener) {
 	nr := bytes.NewReader(elaTx.Payload.Data(elaTx.PayloadVersion))
