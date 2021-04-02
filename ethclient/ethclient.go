@@ -530,8 +530,8 @@ func (ec *Client) SendPublicTransaction(ctx context.Context, msg ethereum.TXMsg)
 	return hex, nil
 }
 
-func (ec *Client) GetCurrentProducers(ctx context.Context) ([][]byte, error) {
-	var result [][]byte
+func (ec *Client) GetCurrentProducers(ctx context.Context) ([]string, error) {
+	var result []string
 	err := ec.c.CallContext(ctx, &result, "eth_getCurrentProducers")
 	return result, err
 }

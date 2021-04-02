@@ -25,11 +25,13 @@ import (
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/forkid"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 )
 
 var (
@@ -93,6 +95,8 @@ type peer struct {
 	queuedProps chan *propEvent           // Queue of blocks to broadcast to the peer
 	queuedAnns  chan *types.Block         // Queue of blocks to announce to the peer
 	term        chan struct{}             // Termination channel to stop the broadcaster
+
+	knownSmallCroTxs mapset.Set
 }
 
 func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
@@ -107,6 +111,8 @@ func newPeer(version int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
 		queuedProps: make(chan *propEvent, maxQueuedProps),
 		queuedAnns:  make(chan *types.Block, maxQueuedAnns),
 		term:        make(chan struct{}),
+
+		knownSmallCroTxs: mapset.NewSet(),
 	}
 }
 
@@ -150,6 +156,28 @@ func (p *peer) Disconnect() {
 func (p *peer) SendELAMessage(msg *dpos.ElaMsg) {
 	if err := p2p.Send(p.rw, ELAMSG, msg); err != nil {
 		p.Log().Warn("Send ELA message failed, ", "error", err, "msg", msg.Type)
+	}
+}
+
+func (p *peer) SendGetCrossTxMsg(evt *core.GetSmallCrossTxEvent) {
+	if err := p2p.Send(p.rw, GetSmallCrossTxmsg, evt); err != nil {
+		p.Log().Warn("Send GetSmallCrossTxmsg message failed, ", "error", err)
+	}
+}
+
+func (p *peer) SendSmallCrossTxMsg(evt *core.SmallCrossTxEvent) {
+	if err := p2p.Send(p.rw, SmallCrossTxmsg, evt); err != nil {
+		p.Log().Warn("Send GetSmallCrossTxmsg message failed, ", "error", err)
+	}
+}
+
+func (p *peer) SendCrossTxMsg(smallCroTx *smallcrosstx.SmallCrossTx) {
+	p.knownSmallCroTxs.Add(smallCroTx.RawTxID)
+	for p.knownSmallCroTxs.Cardinality() >= maxKnownTxs {
+		p.knownSmallCroTxs.Pop()
+	}
+	if err := p2p.Send(p.rw, SmallCrossTxmsg, smallCroTx); err != nil {
+		p.Log().Warn("Send SendCrossTxMsg message failed, ", "error", err)
 	}
 }
 
@@ -201,6 +229,13 @@ func (p *peer) MarkTransaction(hash common.Hash) {
 		p.knownTxs.Pop()
 	}
 	p.knownTxs.Add(hash)
+}
+
+func (p *peer) MarkSmallCroTx(rawTxID string) {
+	for p.knownSmallCroTxs.Cardinality() >= maxKnownTxs {
+		p.knownSmallCroTxs.Pop()
+	}
+	p.knownSmallCroTxs.Add(rawTxID)
 }
 
 // SendTransactions sends transactions to the peer and includes the hashes
@@ -582,6 +617,19 @@ func (ps *peerSet) PeersWithoutTx(hash common.Hash) []*peer {
 	list := make([]*peer, 0, len(ps.peers))
 	for _, p := range ps.peers {
 		if !p.knownTxs.Contains(hash) {
+			list = append(list, p)
+		}
+	}
+	return list
+}
+
+func (ps *peerSet) PeersWithoutSmallCroTx(rawTxID string) []*peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*peer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		if !p.knownSmallCroTxs.Contains(rawTxID) {
 			list = append(list, p)
 		}
 	}

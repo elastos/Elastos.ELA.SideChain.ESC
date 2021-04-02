@@ -43,6 +43,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
@@ -496,6 +497,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	//start the SPV service
 	//log.Info(fmt.Sprintf("Starting SPV service with config: %+v \n", *spvCfg))
 	startSpv(ctx, stack)
+	startSmallCrossTx(ctx, stack)
 
 	// Register wallet event handlers to open and auto-derive wallets
 	events := make(chan accounts.WalletEvent, 16)
@@ -636,4 +638,23 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	for i, account := range unlocks {
 		unlockAccount(ks, account, i, passwords)
 	}
+}
+
+func startSmallCrossTx(ctx *cli.Context, stack *node.Node) {
+	var datadir string
+	switch {
+	case ctx.GlobalIsSet(utils.DataDirFlag.Name):
+		datadir = ctx.GlobalString(utils.DataDirFlag.Name)
+	case ctx.GlobalBool(utils.DeveloperFlag.Name):
+		datadir = "" // unless explicitly requested, use memory databases
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "testnet")
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "goerli")
+	default:
+		datadir = node.DefaultDataDir()
+	}
+	smallcrosstx.SmallCrossTxInit(datadir, stack.EventMux())
 }

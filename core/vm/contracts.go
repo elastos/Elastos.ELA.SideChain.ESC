@@ -524,7 +524,7 @@ func (c *arbiters) Run(input []byte) ([]byte, error) {
 	}
 	ret := make([]byte, 0)
 	for _, pubkey := range arbiters {
-		hash := crypto.Keccak256(pubkey)
+		hash := crypto.Keccak256(common.Hex2Bytes(pubkey))
 		ret = append(ret, common.LeftPadBytes(hash[:], 32)...)
 	}
 

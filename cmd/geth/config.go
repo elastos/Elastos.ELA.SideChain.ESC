@@ -168,7 +168,6 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		SpvDbDir = node.DefaultDataDir()
 	}
 	spv.SpvDbInit(SpvDbDir)
-
 	if ctx.GlobalIsSet(utils.OverrideIstanbulFlag.Name) {
 		cfg.Eth.OverrideIstanbul = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideIstanbulFlag.Name))
 	}
