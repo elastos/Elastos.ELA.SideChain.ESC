@@ -21,13 +21,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"math/big"
 	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/tyler-smith/go-bip39"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/scwallet"
@@ -41,12 +41,16 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
-	"github.com/tyler-smith/go-bip39"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+
+	"github.com/elastos/Elastos.ELA/events"
 )
 
 const (
@@ -759,6 +763,11 @@ func (s *PublicBlockChainAPI) ReceivedSmallCrossTx(ctx context.Context, signatur
 		return err
 	}
 	err = smallcrosstx.OnSmallCrossTx(arbiters, signature, rawTx)
+	if err != nil {
+		return nil
+	}
+	croTx := smallcrosstx.ETSmallCrossTx{RawTx: rawTx, Signature: signature}
+	events.Notify(dpos.ETSmallCroTx, &croTx)
 	return err
 }
 

@@ -152,6 +152,7 @@ type BlockChain struct {
 	dangerousFeed event.Feed
 	blockProcFeed event.Feed
 	engineChange  event.Feed
+	smallCroFeed  event.Feed
 	scope         event.SubscriptionScope
 	genesisBlock  *types.Block
 
@@ -2400,6 +2401,10 @@ func (bc *BlockChain) SubscribeDangerousChainEvent(ch chan<- DangerousChainSideE
 //SubscribeDangerousChainEvent registers a subscription of DangerousChainSideEvent
 func (bc *BlockChain) SubscribeChangeEnginesEvent(ch chan<- EngineChangeEvent) event.Subscription {
 	return bc.scope.Track(bc.engineChange.Subscribe(ch))
+}
+
+func (bc *BlockChain) SubscribeSmallCrossTxEvent(ch chan<- GetSmallCrossTxEvent) event.Subscription {
+	return bc.scope.Track(bc.smallCroFeed.Subscribe(ch))
 }
 
 // SubscribeBlockProcessingEvent registers a subscription of bool where true means

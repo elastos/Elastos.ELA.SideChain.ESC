@@ -26,6 +26,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
@@ -228,6 +229,10 @@ func (p *Pbft) subscribeEvent() {
 					}
 				}
 			}
+		case dpos.ETSmallCroTx:
+			croTx := e.Data.(*smallcrosstx.ETSmallCrossTx)
+			msg := dmsg.NewSmallCroTx(croTx.Signature, croTx.RawTx)
+			p.network.BroadcastMessage(msg)
 		}
 	})
 }

@@ -18,6 +18,7 @@ import (
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
@@ -620,4 +621,8 @@ func (p *Pbft) limitMap(m map[common.Hash]struct{}, limit int) {
 			return
 		}
 	}
+}
+
+func (p *Pbft) OnSmallCroTxReceived(id peer.PID, msg *dmsg.SmallCroTx) {
+	smallcrosstx.OnReceivedSmallCroTxFromDirectNet(msg.GetSignature(), msg.GetRawTx())
 }

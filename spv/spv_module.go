@@ -586,15 +586,10 @@ func SendEvilProof(addr ethCommon.Address, info interface{}) {
 
 }
 
-func GetArbiters() ([][]byte, error) {
-	if SpvService == nil || SpvService.GetBlockListener() == nil {
-		return nil, errors.New("spv service is not initialized")
-	}
-	height := SpvService.GetBlockListener().BlockHeight()
-	producers, _, err := GetProducers(uint64(height))
+func GetArbiters() ([]string, error) {
+	producers, err := ipcClient.GetCurrentProducers(context.Background())
 	if err != nil {
 		return nil, err
 	}
-
 	return producers, nil
 }
