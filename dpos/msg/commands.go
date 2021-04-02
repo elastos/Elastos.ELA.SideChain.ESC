@@ -7,4 +7,5 @@ package msg
 
 const (
 	CmdConfirm  = "confirm"
+	CmdSmallCroTx  = "smallCroTx"
 )

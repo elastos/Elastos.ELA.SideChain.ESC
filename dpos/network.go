@@ -78,6 +78,8 @@ type NetworkEventListener interface {
 
 	OnBlockReceived(id dpeer.PID, b *dmsg.BlockMsg, confirmed bool)
 	OnConfirmReceived(id dpeer.PID, c *payload.Confirm, height uint64)
+
+	OnSmallCroTxReceived(id dpeer.PID, c *dmsg.SmallCroTx)
 }
 
 type messageItem struct {
@@ -232,6 +234,11 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnConfirmReceived(msgItem.ID, msgConfirm.Confirm, msgConfirm.Height)
 		}
+	case dmsg.CmdSmallCroTx:
+		msgCro, processed := m.(*dmsg.SmallCroTx)
+		if processed {
+			n.listener.OnSmallCroTxReceived(msgItem.ID, msgCro)
+		}
 	}
 }
 
@@ -361,6 +368,8 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &msg.ResponseInactiveArbitrators{}
 	case dmsg.CmdConfirm:
 		message = &dmsg.ConfirmMsg{}
+	case dmsg.CmdSmallCroTx:
+		message = &dmsg.SmallCroTx{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}

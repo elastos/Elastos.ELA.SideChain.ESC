@@ -16,4 +16,5 @@ const (
 	ETAnnounceAddr  events.EventType = 1004
 	ETNextProducers events.EventType = 1005
 	ETOnSPVHeight   events.EventType = 1006
+	ETSmallCroTx    events.EventType = 1007
 )

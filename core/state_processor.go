@@ -17,7 +17,12 @@
 package core
 
 import (
+	"math/big"
+	"time"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/misc"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
@@ -25,9 +30,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
-	"math/big"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -73,6 +76,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		receipt, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
 		if err != nil {
+			if err.Error() == ErrElaToEthAddress.Error() {
+				var blackAddr common.Address
+				if len(tx.Data()) == 32 && *tx.To() == blackAddr && !blocksigner.SelfIsProducer {
+					txHash := hexutil.Encode(tx.Data())[2:]
+					p.bc.smallCroFeed.Send(GetSmallCrossTxEvent{txHash})
+					time.Sleep(2 * time.Second)//delay to get data
+				}
+			}
 			return nil, nil, 0, err
 		}
 		receipts = append(receipts, receipt)
