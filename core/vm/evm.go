@@ -18,6 +18,7 @@ package vm
 
 import (
 	"math/big"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -329,6 +330,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
+		}
+
+		if err == errExecutionReverted && strings.Contains(string(ret), "diderror") {
+			contract.Gas = gas
 		}
 	}
 	return ret, contract.Gas, err

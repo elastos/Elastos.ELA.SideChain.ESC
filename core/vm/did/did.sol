@@ -21,11 +21,12 @@ contract DID {
 
         assembly {
             if iszero(staticcall(leftGas, method, input, inputSize, result, outputSize)) {
-                revert(0,0)
+                //  revert(0,0)
             }
         }
-
-        require(result[0] == 1);
+        if (result[0] != 1) {
+             revert("diderror");
+        }
     }
 
     function toBytesEth(uint256 x) private returns (bytes memory b) {
