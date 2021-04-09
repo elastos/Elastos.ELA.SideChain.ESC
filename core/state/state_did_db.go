@@ -3,7 +3,6 @@ package state
 import (
 	"bytes"
 	"errors"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
@@ -47,11 +46,24 @@ func (self *StateDB) DIDLogs() []*types.DIDLog {
 	return logs
 }
 
+func (self *StateDB) RemoveDIDLog(txHash common.Hash) {
+	if self.didLogs[txHash] != nil {
+		delete(self.didLogs, txHash)
+	}
+}
+
 func (self *StateDB) IsDIDDeactivated(did string) bool {
 	return rawdb.IsDIDDeactivated(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), did)
 }
 
 func (self *StateDB) GetLastDIDTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error) {
+	logs := self.DIDLogs()
+	did := string(idKey)
+	for _, log := range logs {
+		if log.DID == did {
+		   return nil, errors.New("allready create did: " + did)
+		}
+	}
 	return rawdb.GetLastDIDTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey, config)
 }
 

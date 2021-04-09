@@ -172,7 +172,12 @@ func checkDIDOperation(evm *EVM, header *did.Header,
 				return err
 			}
 			preTXID := hash.String()
-
+			if preTXID[:2] == "0x" {
+				preTXID = preTXID[:2]
+			}
+			if lastTXData.TXID[:2] == "0x" {
+				lastTXData.TXID = lastTXData.TXID[2:]
+			}
 			if lastTXData.TXID != preTXID {
 				return errors.New("PreviousTxid IS NOT CORRECT")
 			}
