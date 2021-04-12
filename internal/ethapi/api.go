@@ -771,6 +771,11 @@ func (s *PublicBlockChainAPI) ReceivedSmallCrossTx(ctx context.Context, signatur
 	return err
 }
 
+func (s *PublicBlockChainAPI) GetFailedRechargeTxs(ctx context.Context, height uint64) ([]string, error) {
+	txs := spv.GetFailedRechargeTxs(height)
+	return txs, nil
+}
+
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
 	From     *common.Address `json:"from"`
