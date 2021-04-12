@@ -569,6 +569,11 @@ web3._extend({
 			call: 'eth_getCurrentProducers',
 			params: 0,
 		}),
+		new web3._extend.Method({
+			name: 'getFailedRechargeTxs',
+			call: 'eth_getFailedRechargeTxs',
+			params: 1,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
