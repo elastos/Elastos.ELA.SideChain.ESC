@@ -79,6 +79,8 @@ func New(ctx *node.ServiceContext, config *eth.Config, node *node.Node) (*LightE
 	chainConfig.PassBalance = config.PassBalance
 	chainConfig.BlackContractAddr = config.BlackContractAddr
 	chainConfig.EvilSignersJournalDir = config.EvilSignersJournalDir
+	chainConfig.OldDIDMigrateAddr = config.OldDIDMigrateAddr
+	chainConfig.OldDIDMigrateHeight = config.OldDIDMigrateHeight
 	if len(chainConfig.PbftKeyStore) > 0 {
 		config.PbftKeyStore = chainConfig.PbftKeyStore
 	} else {

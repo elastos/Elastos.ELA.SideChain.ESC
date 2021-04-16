@@ -803,6 +803,16 @@ var (
 		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
 		Value: 0,
 	}
+	OldDIDMigrateHeightFlag = cli.Uint64Flag{
+		Name:  "olddidmigrateheight",
+		Usage: "before this height OldDIDMigrateAddrFlag can migate old did",
+	}
+
+	OldDIDMigrateAddrFlag = cli.StringFlag{
+		Name:  "olddidmigrateaddr",
+		Usage: "configue old did migrate address",
+		Value: "0xC445f9487bF570fF508eA9Ac320b59730e81e503",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1559,6 +1569,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
+	cfg.OldDIDMigrateHeight = new(big.Int).SetUint64(ctx.GlobalUint64(OldDIDMigrateHeightFlag.Name))
+	cfg.OldDIDMigrateAddr = ctx.GlobalString(OldDIDMigrateAddrFlag.Name)
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):

@@ -26,7 +26,7 @@ import (
 // Common errors.
 var (
 	ErrLeveldbNotFound = errors.New("leveldb: not found")
-	ErrNotFound = errors.New("not found")
+	ErrNotFound        = errors.New("not found")
 )
 
 // blockStatus is a bit field representing the validation state of the block.
@@ -44,6 +44,7 @@ const (
 )
 
 var didParam did.DIDParams
+
 const PrefixCRDID contract.PrefixType = 0x67
 
 func InitDIDParams(params did.DIDParams) {
@@ -178,8 +179,11 @@ func checkDIDOperation(evm *EVM, header *did.Header,
 			if lastTXData.TXID[:2] == "0x" {
 				lastTXData.TXID = lastTXData.TXID[2:]
 			}
-			if lastTXData.TXID != preTXID {
-				return errors.New("PreviousTxid IS NOT CORRECT")
+			configHeight := evm.chainConfig.OldDIDMigrateHeight
+			if evm.Context.BlockNumber.Cmp(configHeight) > 0 {
+				if lastTXData.TXID != preTXID {
+					return errors.New("PreviousTxid IS NOT CORRECT")
+				}
 			}
 		}
 	} else {
@@ -269,8 +273,25 @@ func getDIDAutheneKey(verificationMethod string, authentication []interface{}, p
 }
 
 func verificationMethodEqual(verificationMethod string, vcid string) bool {
-	equal := verificationMethod == vcid
-	return equal
+	//equal := verificationMethod == vcid
+	//return equal
+
+	contr1, uriFregment1 := did.GetController(verificationMethod)
+	contr2, uriFregment2 := did.GetController(vcid)
+	if contr1 == "" || contr2 == "" {
+		return uriFregment1 == uriFregment2
+	}
+	////// todo complete me without uriFregment
+	//if contr1 != "" && contr2 != ""{
+	//	return contr1 == contr2 && uriFregment1 == uriFregment2
+	//}else if contr1 == "" || contr2 == "" {
+	//	return uriFregment1 == uriFregment2
+	//
+	//}
+	//if contr1 != "" || contr2 != "" {
+	//	return contr1 == contr2 && uriFregment1 == uriFregment2
+	//}
+	return contr1 == contr2 && uriFregment1 == uriFregment2
 }
 
 //get did/cutsomizedid Authentication public key
@@ -423,8 +444,8 @@ func getDIDDefaultKey(verificationMethod string, authentication []interface{}, p
 	return "", nil
 }
 
- func GetIDLastDoc(evm *EVM, id string) (*did.DIDDoc, error) {
-    	TranasactionData, err := GetLastDIDTxData(evm, id)
+func GetIDLastDoc(evm *EVM, id string) (*did.DIDDoc, error) {
+	TranasactionData, err := GetLastDIDTxData(evm, id)
 	if err != nil {
 		return nil, err
 	}
@@ -873,7 +894,6 @@ func checkCustomizedDIDTicketProof(evm *EVM, verifyDoc *did.DIDDoc, Proof interf
 	return DIDProofArray, nil
 }
 
-
 func checkCustomIDOuterProof(evm *EVM, txPayload *did.DIDPayload, verifyDoc *did.DIDDoc) error {
 	//get  public key
 	publicKeyBase58, _ := getAuthenPublicKey(evm, txPayload.Proof.VerificationMethod, false,
@@ -925,7 +945,7 @@ func getDefaultPublicKey(evm *EVM, verificationMethod string, isDID bool,
 }
 
 func checkCustomizedDIDAvailable(cPayload *did.DIDPayload) error {
-	if spv.SpvService == nil &&  didParam.IsTest == true {
+	if spv.SpvService == nil && didParam.IsTest == true {
 		return nil
 	} else {
 		return errors.New("spv is not inited")
@@ -1021,8 +1041,11 @@ func checkCustomizedDIDOperation(evm *EVM, header *did.Header,
 			}
 			preTXID := hash.String()
 
-			if lastTXData.TXID != preTXID {
-				return errors.New("Customized DID PreviousTxid IS NOT CORRECT")
+			configHeight := evm.chainConfig.OldDIDMigrateHeight
+			if evm.Context.BlockNumber.Cmp(configHeight) > 0 {
+				if lastTXData.TXID != preTXID {
+					return errors.New("Customized DID PreviousTxid IS NOT CORRECT")
+				}
 			}
 		}
 	} else {
@@ -1160,7 +1183,7 @@ func isVerificationsMethodsValid(evm *EVM, verifyDoc *did.DIDDoc, Proof interfac
 	return true
 }
 
-func IsVerifMethCustIDAuthKey(evm *EVM,  VerificationMethod, ID string,
+func IsVerifMethCustIDAuthKey(evm *EVM, VerificationMethod, ID string,
 	publicKey []did.DIDPublicKeyInfo, Authentication []interface{}, Controller interface{}) bool {
 	if IsVerifMethCustIDDefKey(evm, VerificationMethod, ID, publicKey, Authentication, Controller) {
 		return true
@@ -1381,7 +1404,6 @@ func checkDeactivateDID(evm *EVM, deactivateDIDOpt *did.DIDPayload) error {
 	return nil
 }
 
-
 //get did/cutsomizedid deactivate public key
 //for did include default key + authorization key
 //for customizedID controller default key
@@ -1434,16 +1456,15 @@ func checkDeclareVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 
 	////todo check expires
 	ok, err := evm.StateDB.IsDID(receiverID)
- 	if err != nil {
+	if err != nil {
 		return err
 	}
- 	if ok {
+	if ok {
 		return checkDeclareCustomizedDIDVerifiableCredential(evm, receiverID, issuer, payload)
 	} else {
 		return checkCustomizedDIDVerifiableCredential(evm, receiverID, payload)
 	}
 }
-
 
 //1, if one credential is declear can not be declear again
 //if one credential is revoke  can not be decalre or revoke again
@@ -1553,7 +1574,6 @@ func checkRevokeVerifiableCredential(evm *EVM, payload *did.DIDPayload) error {
 	return nil
 }
 
-
 func getCredentialIssuer(DID string, cridential *did.VerifiableCredentialDoc) string {
 	realIssuer := cridential.Issuer
 	if cridential.Issuer == "" {
@@ -1571,7 +1591,6 @@ func getCredentialIssuer(DID string, cridential *did.VerifiableCredentialDoc) st
 	return realIssuer
 }
 
-
 func GetVerifiableCredentialID(cridential *did.VerifiableCredentialDoc) string {
 	creSub := cridential.CredentialSubject.(map[string]interface{})
 	ID := ""
@@ -1584,7 +1603,7 @@ func GetVerifiableCredentialID(cridential *did.VerifiableCredentialDoc) string {
 	return ID
 }
 
- func checkDeclareCustomizedDIDVerifiableCredential(evm *EVM, owner string, issuer string, payload *did.DIDPayload) error {
+func checkDeclareCustomizedDIDVerifiableCredential(evm *EVM, owner string, issuer string, payload *did.DIDPayload) error {
 
 	if err := checkDIDVerifiableCredential(evm, owner, payload); err == nil {
 		return nil
@@ -1601,7 +1620,7 @@ func GetVerifiableCredentialID(cridential *did.VerifiableCredentialDoc) string {
 //issuer can be did or customizeddid(one/more controller)
 //if it is revoke  issuer can deactive
 //VerificationMethod should be did
- func checkDIDVerifiableCredential(evm *EVM, signer string,
+func checkDIDVerifiableCredential(evm *EVM, signer string,
 	credPayload *did.DIDPayload) error {
 	verifyDIDDoc, err := GetIDLastDoc(evm, signer)
 	if err != nil {
@@ -1675,7 +1694,6 @@ func isIDVerifMethodMatch(evm *EVM, verificationMethod, ID string) bool {
 func isDIDVerifMethodMatch(verificationMethod, ID string) bool {
 	return strings.Contains(verificationMethod, ID)
 }
-
 
 //here issuer must be customizdDID
 func isCustomizedVerifMethodMatch(evm *EVM, verificationMethod, issuer string) bool {

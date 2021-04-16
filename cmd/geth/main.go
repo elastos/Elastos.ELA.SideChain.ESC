@@ -174,6 +174,8 @@ var (
 		utils.PbftIPAddress,
 		utils.PbftDposPort,
 		utils.DynamicArbiter,
+		utils.OldDIDMigrateAddrFlag,
+		utils.OldDIDMigrateHeightFlag,
 	}
 
 	rpcFlags = []cli.Flag{

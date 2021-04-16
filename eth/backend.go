@@ -176,6 +176,8 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 	chainConfig.PassBalance = config.PassBalance
 	chainConfig.BlackContractAddr = config.BlackContractAddr
+	chainConfig.OldDIDMigrateHeight = config.OldDIDMigrateHeight
+	chainConfig.OldDIDMigrateAddr = config.OldDIDMigrateAddr
 	chainConfig.EvilSignersJournalDir = config.EvilSignersJournalDir
 	if len(chainConfig.PbftKeyStore) > 0 {
 		config.PbftKeyStore = chainConfig.PbftKeyStore

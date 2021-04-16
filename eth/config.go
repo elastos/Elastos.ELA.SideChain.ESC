@@ -172,4 +172,6 @@ type Config struct {
 	PbftDPosPort uint16
 
 	DynamicArbiterHeight uint64
+	OldDIDMigrateAddr     string
+	OldDIDMigrateHeight   *big.Int
 }
