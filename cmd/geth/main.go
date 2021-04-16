@@ -171,6 +171,8 @@ var (
 		utils.PbftKeystorePassWord,
 		utils.PbftIPAddress,
 		utils.PbftDposPort,
+		utils.OldDIDMigrateAddrFlag,
+		utils.OldDIDMigrateHeightFlag,
 	}
 
 	rpcFlags = []cli.Flag{

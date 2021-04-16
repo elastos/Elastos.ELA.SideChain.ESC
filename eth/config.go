@@ -170,4 +170,7 @@ type Config struct {
 	PbftKeyStorePassWord string
 	PbftIPAddress string
 	PbftDPosPort uint16
+
+	OldDIDMigrateAddr     string
+	OldDIDMigrateHeight   *big.Int
 }
