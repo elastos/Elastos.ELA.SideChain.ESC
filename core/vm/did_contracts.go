@@ -43,6 +43,21 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 }
 
 func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
+	//block height from context BlockNumber. config height address from config
+    //BlockNumber := new(big.Int).SetUint64(464)
+
+	configHeight := evm.chainConfig.OldDIDMigrateHeight
+	configAddr := evm.chainConfig.OldDIDMigrateAddr
+	log.Info("#### Run begin", "configHeight ", configHeight, "configAddr ", configAddr,
+		"callerAddress ",evm.Context.Origin.String())
+	//if  evm.Context.BlockNumber.Cmp(BlockNumber) > 0{
+		if evm.Context.BlockNumber.Cmp(configHeight) <= 0  && evm.Context.Origin.String() != configAddr{
+			log.Info("#### BlockNumber.Cmp(configHeight) <= 0 or callerAddress.String() != configAddr")
+			return false32Byte, errors.New("Befor configHeight only configAddr can send DID tx")
+
+		}
+	//}
+
 	data := getData(input, 32, uint64(len(input)) - 32)
 	p := new(did.DIDPayload)
 	if err := json.Unmarshal(data, p); err != nil {
@@ -110,7 +125,7 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		log.Error("error operation", "operation", p.Header.Operation)
 		return false32Byte, errors.New("error operation:" + p.Header.Operation)
 	}
-
+	log.Info("#### Run end")
 	return true32Byte, nil
 }
 
