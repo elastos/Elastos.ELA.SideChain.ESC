@@ -33,13 +33,13 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/fdlimit"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
@@ -789,18 +789,19 @@ var (
 		Value: "",
 	}
 	PbftIPAddress = cli.StringFlag{
-		Name: "pbft.net.address",
+		Name:  "pbft.net.address",
 		Usage: "connect dpos direct net ip",
 		Value: "127.0.0.1",
 	}
 	PbftDposPort = cli.StringFlag{
-		Name: "pbft.net.port",
+		Name:  "pbft.net.port",
 		Usage: "connect dpos direct net port",
 		Value: "20639",
 	}
 	OldDIDMigrateHeightFlag = cli.Uint64Flag{
 		Name:  "olddidmigrateheight",
 		Usage: "before this height OldDIDMigrateAddrFlag can migate old did",
+		Value: 0,
 	}
 
 	OldDIDMigrateAddrFlag = cli.StringFlag{
