@@ -57,7 +57,7 @@ type RpcPayloadDIDInfo struct {
 
 type RpcOperation struct {
 	Header  did.Header `json:"header"`
-	Payload string           `json:"payload"`
+	Payload string     `json:"payload"`
 	Proof   did.Proof  `json:"proof"`
 }
 
@@ -73,7 +73,7 @@ func (rpcTxData *RpcTranasactionData) FromTranasactionData(txData did.DIDTransac
 		return false
 	}
 
-	rpcTxData.TXID = hash.String()//service.ToReversedString(*hash)
+	rpcTxData.TXID = hash.String() //service.ToReversedString(*hash)
 	rpcTxData.Timestamp = txData.Timestamp
 	rpcTxData.Operation.Header = txData.Operation.Header
 	rpcTxData.Operation.Payload = txData.Operation.Payload
@@ -88,7 +88,6 @@ type RpcCredentialPayloadDIDInfo struct {
 	RpcTXDatas []RpcCredentialTransactionData `json:"transaction,omitempty"`
 }
 
-
 type RpcCredentialTransactionData struct {
 	TXID      string              `json:"txid"`
 	Timestamp string              `json:"timestamp"`
@@ -96,9 +95,9 @@ type RpcCredentialTransactionData struct {
 }
 
 type CredentialOperation struct {
-	Header  did.Header `json:"header"`
-	Payload string                            `json:"payload"`
-	Proof   interface{}                       `json:"proof"`
+	Header  did.Header  `json:"header"`
+	Payload string      `json:"payload"`
+	Proof   interface{} `json:"proof"`
 }
 
 //xxl add new register API
@@ -109,7 +108,7 @@ func NewPublicDIDAPI(b Backend, nonceLock *AddrLocker) *PublicTransactionPoolAPI
 }
 
 func (rpcTxData *RpcCredentialTransactionData) FromCredentialTranasactionData(txData did.
-VerifiableCredentialTxData) bool {
+	VerifiableCredentialTxData) bool {
 	hash, err := elacom.Uint256FromHexString(txData.TXID)
 	if err != nil {
 		return false
@@ -185,9 +184,9 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, param 
 	return rpcPayloadDid, nil
 }
 
-func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []byte) (*RpcTranasactionData,error) {
+func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []byte) (*RpcTranasactionData, error) {
 	//get deactive tx date
-	deactiveTxData,err := rawdb.GetDeactivatedTxData(s.b.ChainDb().(ethdb.KeyValueStore), idKey,
+	deactiveTxData, err := rawdb.GetDeactivatedTxData(s.b.ChainDb().(ethdb.KeyValueStore), idKey,
 		s.b.ChainConfig())
 	if err != nil {
 		return nil, http.NewError(int(service.InternalError),
@@ -197,24 +196,24 @@ func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []by
 	rpcTXData := new(RpcTranasactionData)
 	succe := rpcTXData.FromTranasactionData(*deactiveTxData)
 	if succe == false {
-		return nil,http.NewError(int(service.InternalError),
+		return nil, http.NewError(int(service.InternalError),
 			"get did deactivate transaction failed")
 	}
 	//fill tx Timestamp
 	err, timestamp := s.getTxTime(ctx, rpcTXData.TXID)
 	if err != nil {
-		return nil,http.NewError(int(service.InternalError),
+		return nil, http.NewError(int(service.InternalError),
 			"get did deactivate transaction failed")
 	}
 	rpcTXData.Timestamp = time.Unix(int64(timestamp), 0).UTC().Format(time.RFC3339)
-	return  rpcTXData,nil
+	return rpcTXData, nil
 }
 
 //xxl modify to PublicTransactionPoolAPI
 func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[string]interface{}) (interface{}, error) {
 	var didDocState DidDocState = NonExist
 
-	idParam, ok:= param["did"].(string)
+	idParam, ok := param["did"].(string)
 	if !ok {
 		return nil, http.NewError(int(service.InvalidParams), "did is null")
 	}
@@ -276,15 +275,12 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 		if index == 0 {
 			if rawdb.IsDIDDeactivated(s.b.ChainDb().(ethdb.KeyValueStore), idParam) {
 				didDocState = Deactivated
-				if isGetAll == false {
-					//fill in
-					deactiveTXData, err := s.getDeactiveTx(ctx, buf.Bytes())
-					if err != nil {
-						return nil,err
-					}
-					rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, *deactiveTXData)
+				//fill in
+				deactiveTXData, err := s.getDeactiveTx(ctx, buf.Bytes())
+				if err != nil {
+					return nil, err
 				}
-
+				rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, *deactiveTXData)
 			} else {
 				didDocState = Valid
 			}

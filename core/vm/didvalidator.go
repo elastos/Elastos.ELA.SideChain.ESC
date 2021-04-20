@@ -273,24 +273,11 @@ func getDIDAutheneKey(verificationMethod string, authentication []interface{}, p
 }
 
 func verificationMethodEqual(verificationMethod string, vcid string) bool {
-	//equal := verificationMethod == vcid
-	//return equal
-
 	contr1, uriFregment1 := did.GetController(verificationMethod)
 	contr2, uriFregment2 := did.GetController(vcid)
 	if contr1 == "" || contr2 == "" {
 		return uriFregment1 == uriFregment2
 	}
-	////// todo complete me without uriFregment
-	//if contr1 != "" && contr2 != ""{
-	//	return contr1 == contr2 && uriFregment1 == uriFregment2
-	//}else if contr1 == "" || contr2 == "" {
-	//	return uriFregment1 == uriFregment2
-	//
-	//}
-	//if contr1 != "" || contr2 != "" {
-	//	return contr1 == contr2 && uriFregment1 == uriFregment2
-	//}
 	return contr1 == contr2 && uriFregment1 == uriFregment2
 }
 
