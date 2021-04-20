@@ -18,18 +18,18 @@ import (
 // requires a deterministic gas count based on the input size of the Run method of the
 // contract.
 type PrecompiledContractDID interface {
-	RequiredGas(evm *EVM, input []byte) uint64  // RequiredPrice calculates the contract gas use
+	RequiredGas(evm *EVM, input []byte) uint64              // RequiredPrice calculates the contract gas use
 	Run(evm *EVM, input []byte, gas uint64) ([]byte, error) // Run runs the precompiled contract
 }
 
-var PrecompileContractsDID = map[common.Address] PrecompiledContractDID {
+var PrecompileContractsDID = map[common.Address]PrecompiledContractDID{
 	common.BytesToAddress([]byte{22}): &operationDID{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
 func RunPrecompiledContractDID(evm *EVM, p PrecompiledContractDID, input []byte, contract *Contract) (ret []byte, err error) {
 	gas := p.RequiredGas(evm, input)
-	if contract.UseGas(gas) 	 {
+	if contract.UseGas(gas) {
 		return p.Run(evm, input, contract.Gas)
 	}
 	log.Error("run did contract out of gas")
@@ -44,21 +44,26 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 
 func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 	//block height from context BlockNumber. config height address from config
-    //BlockNumber := new(big.Int).SetUint64(464)
 
 	configHeight := evm.chainConfig.OldDIDMigrateHeight
 	configAddr := evm.chainConfig.OldDIDMigrateAddr
-	log.Info("#### Run begin", "configHeight ", configHeight, "configAddr ", configAddr,
-		"callerAddress ",evm.Context.Origin.String())
-	//if  evm.Context.BlockNumber.Cmp(BlockNumber) > 0{
-		if evm.Context.BlockNumber.Cmp(configHeight) <= 0  && evm.Context.Origin.String() != configAddr{
+	senderAddr := evm.Context.Origin.String()
+	log.Info("#### configAddr", configAddr, "senderAddr", senderAddr)
+
+	//BlockNumber <= configHeight senderAddr must be configAddr
+	if evm.Context.BlockNumber.Cmp(configHeight) <= 0 {
+		if senderAddr != configAddr {
 			log.Info("#### BlockNumber.Cmp(configHeight) <= 0 or callerAddress.String() != configAddr")
 			return false32Byte, errors.New("Befor configHeight only configAddr can send DID tx")
-
 		}
-	//}
+	} else {
+		if senderAddr == configAddr {
+			log.Info("#### BlockNumber.Cmp(configHeight) > 0 callerAddress.String() should not configAddr")
+			return false32Byte, errors.New("after configHeight  configAddr can not send migrate DID tx")
+		}
+	}
 
-	data := getData(input, 32, uint64(len(input)) - 32)
+	data := getData(input, 32, uint64(len(input))-32)
 	p := new(did.DIDPayload)
 	if err := json.Unmarshal(data, p); err != nil {
 		log.Error("DIDPayload input is error", "input", string(data))
@@ -105,7 +110,7 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		p.Serialize(buf, did.DIDVersion)
 		evm.StateDB.AddDIDLog(p.DIDDoc.ID, p.Header.Operation, buf.Bytes())
 	case did.Deactivate_DID_Operation:
-		if err :=  checkDeactivateDID(evm, p); err != nil {
+		if err := checkDeactivateDID(evm, p); err != nil {
 			log.Error("checkDeactivateDID error", "error", err)
 			return false32Byte, err
 		}
@@ -125,7 +130,6 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		log.Error("error operation", "operation", p.Header.Operation)
 		return false32Byte, errors.New("error operation:" + p.Header.Operation)
 	}
-	log.Info("#### Run end")
 	return true32Byte, nil
 }
 

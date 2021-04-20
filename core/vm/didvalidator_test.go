@@ -49,18 +49,18 @@ var (
 
 	headerPayloadBytes        []byte
 	issuerDocByts             []byte
-	docDocBytes 			  []byte
+	docDocBytes               []byte
 	custIDSingleSignDocBytes1 []byte
 	custIDVerifCredDocBytes   []byte
-	didVerifCred      		  []byte
-	user1IDDocByts   	      []byte
+	didVerifCred              []byte
+	user1IDDocByts            []byte
 	user2IDDocByts            []byte
-	user3IDDocByts   		  []byte
-	user4IDDocByts   		  []byte
+	user3IDDocByts            []byte
+	user4IDDocByts            []byte
 	fooIDDocBytes             []byte
 	fooBarIDDocBytes          []byte
-	fooBarNewIDDocBytes 	  []byte
-	fooBarTTIDDocBytes		  []byte
+	fooBarNewIDDocBytes       []byte
+	fooBarTTIDDocBytes        []byte
 	custIDVerifyCredContrl    []byte
 
 	batTTDocByts    []byte
@@ -376,13 +376,13 @@ func getCreateDIDReceipt(payload did.DIDPayload) *types.Receipt {
 	receipt := &types.Receipt{
 		Status:            1,
 		CumulativeGasUsed: 1,
-		Logs: []*types.Log{},
-		TxHash:          common.Hash{},
+		Logs:              []*types.Log{},
+		TxHash:            common.Hash{},
 
 		DIDLog: types.DIDLog{
-			DID: id,
+			DID:       id,
 			Operation: payload.Header.Operation,
-			Data: buf.Bytes(),
+			Data:      buf.Bytes(),
 		},
 	}
 	return receipt
@@ -390,19 +390,19 @@ func getCreateDIDReceipt(payload did.DIDPayload) *types.Receipt {
 
 func getDeactiveDIDReceipt(payload did.DIDPayload) *types.Receipt {
 	id := payload.Payload
-	payload.Payload =  base64url.EncodeToString([]byte(payload.Payload))
+	payload.Payload = base64url.EncodeToString([]byte(payload.Payload))
 	buf := new(bytes.Buffer)
 	payload.Serialize(buf, did.DIDVersion)
 	receipt := &types.Receipt{
 		Status:            1,
 		CumulativeGasUsed: 1,
-		Logs: []*types.Log{},
-		TxHash:          common.Hash{},
+		Logs:              []*types.Log{},
+		TxHash:            common.Hash{},
 
 		DIDLog: types.DIDLog{
-			DID: id,
+			DID:       id,
 			Operation: payload.Header.Operation,
-			Data: buf.Bytes(),
+			Data:      buf.Bytes(),
 		},
 	}
 	return receipt
@@ -415,12 +415,12 @@ func getDeclareDIDReceipt(payload did.DIDPayload) *types.Receipt {
 	receipt := &types.Receipt{
 		Status:            1,
 		CumulativeGasUsed: 1,
-		Logs: []*types.Log{},
-		TxHash:          common.Hash{},
+		Logs:              []*types.Log{},
+		TxHash:            common.Hash{},
 		DIDLog: types.DIDLog{
-			DID: id,
+			DID:       id,
 			Operation: payload.Header.Operation,
-			Data: buf.Bytes(),
+			Data:      buf.Bytes(),
 		},
 	}
 	return receipt
@@ -462,7 +462,7 @@ func TestIDChainStore_DeactivateDIDTx(t *testing.T) {
 	//deactive one deactivated did
 	statedb.AddDIDLog(id, did.Deactivate_DID_Operation, buf.Bytes())
 	rawdb.PersistDeactivateDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore),
-		statedb.GetDIDLog(common.Hash{}),common.Hash{})
+		statedb.GetDIDLog(common.Hash{}), common.Hash{})
 	statedb.RemoveDIDLog(common.Hash{})
 	txDeactivateWrong := getPayloadDeactivateDID(didWithPrefix, verifDid)
 	err = checkDeactivateDID(evm, txDeactivateWrong)
@@ -496,7 +496,7 @@ func TestSelfProclaimedCredential(t *testing.T) {
 	privateKey3Str := "9sYYMSsS2xDbGvSRhNSnMsTbCbF2LPwLovRH93drSetM"
 	id3 := "did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB"
 
-    didParam.CustomIDFeeRate = 0
+	didParam.CustomIDFeeRate = 0
 	//id3DocBytes
 	tx3 := getPayloadDIDInfo(id3, "create", issuerDocByts, privateKey3Str)
 	data, err := json.Marshal(tx3)
@@ -521,7 +521,6 @@ func TestCustomizedDID(t *testing.T) {
 	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
 	buf := new(bytes.Buffer)
 	tx1.Serialize(buf, did.DIDVersion)
-
 
 	statedb.AddDIDLog(id1, did.Create_DID_Operation, buf.Bytes())
 	err1 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 0, 100)
@@ -699,7 +698,6 @@ func Test0DIDVerifiableCredentialTx(t *testing.T) {
 	assert.NoError(t, err3)
 	statedb.RemoveDIDLog(hash3)
 
-
 	//did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB
 	//
 	verifableCredentialTx := getIDVerifiableCredentialTx("did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB",
@@ -776,7 +774,6 @@ func TestRevokeCustomizedDIDVerifiableCredentialTx(t *testing.T) {
 	assert.NoError(t, err2)
 	statedb.RemoveDIDLog(tx2hash)
 
-
 	tx3hash := common.HexToHash("0x2345")
 	statedb.Prepare(tx3hash, tx3hash, 1)
 	CustomizedDIDTx1 := getCustomizedDIDTx(id1, "create", custIDSingleSignDocBytes1, privateKey1Str)
@@ -796,7 +793,6 @@ func TestRevokeCustomizedDIDVerifiableCredentialTx(t *testing.T) {
 	assert.NoError(t, err)
 	err = checkDIDTransaction(data, statedb)
 	assert.NoError(t, err)
-
 
 	tx4Hash := common.HexToHash("0x3456")
 	credentialID := "did:elastos:ir31cZZbBQUFbp4pNpMQApkAyJ9dno3frB#profile"
@@ -894,7 +890,6 @@ func TestRevokeBeforeRegisterVerifiableCredentialTx(t *testing.T) {
 	err = checkDIDTransaction(data, statedb)
 	assert.EqualError(t, err, "VerifiableCredential WRONG OPERATION ALREADY Revoked")
 }
-
 
 // declare after wrong revoke
 func TestWrongRevokeBeforeRegisterVerifiableCredentialTx(t *testing.T) {
@@ -1185,7 +1180,7 @@ func TestDeactivateCustomizedDIDTX(t *testing.T) {
 	statedb.AddDIDLog(customizedDID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*CustomizedDIDTx1)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash2, 0, types.Receipts{receipt})
-	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2),0, 0)
+	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2), 0, 0)
 	assert.NoError(t, err3)
 	statedb.RemoveDIDLog(hash2)
 	/////////////////////////
@@ -1250,7 +1245,7 @@ func TestHeaderPayloadDIDTX(t *testing.T) {
 
 func checkDIDTransaction(didpayload []byte, db *state.StateDB) error {
 	preData := common.Hash{}
-	didpayload = append( preData.Bytes(), didpayload...)
+	didpayload = append(preData.Bytes(), didpayload...)
 
 	did_contract := new(operationDID)
 	statedb := db
@@ -1260,6 +1255,11 @@ func checkDIDTransaction(didpayload []byte, db *state.StateDB) error {
 
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
 	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
+	evm.BlockNumber = new(big.Int).SetInt64(1)
+	evm.Context.Origin = common.HexToAddress("0xC445f9487bF570fF508eA9Ac320b59730e81e503")
+	evm.chainConfig.OldDIDMigrateHeight = new(big.Int).SetInt64(2)
+	evm.chainConfig.OldDIDMigrateAddr = "0xC445f9487bF570fF508eA9Ac320b59730e81e503"
+
 	gas := did_contract.RequiredGas(evm, []byte(didpayload))
 	if gas == math.MaxUint64 {
 		return errors.New("RequiredGas is 0")
@@ -1349,7 +1349,6 @@ func TestGetValidPeriodFactor(t *testing.T) {
 	}
 }
 
-
 //test completely
 func TestGetOperationFactor(t *testing.T) {
 	tests := []struct {
@@ -1391,7 +1390,6 @@ func TestGetControllerFactor(t *testing.T) {
 		assert.Equal(t, test.factor, lenFactor)
 	}
 }
-
 
 //test completely
 func TestGetSizeFactor(t *testing.T) {
@@ -1455,8 +1453,8 @@ func TestCustomizedDIDTransferSingleProof(t *testing.T) {
 
 	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt := getCreateDIDReceipt(*user1TX)
-	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore),  common.Hash{}, 0, types.Receipts{receipt})
-	user1Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}),0, 0)
+	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), common.Hash{}, 0, types.Receipts{receipt})
+	user1Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(common.Hash{}), 0, 0)
 	assert.NoError(t, user1Err)
 	statedb.RemoveDIDLog(common.Hash{})
 
@@ -1470,7 +1468,7 @@ func TestCustomizedDIDTransferSingleProof(t *testing.T) {
 	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*user2TX)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash1, 0, types.Receipts{receipt})
-	user2Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash1),0, 0)
+	user2Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash1), 0, 0)
 	assert.NoError(t, user2Err)
 	statedb.RemoveDIDLog(hash1)
 
@@ -1484,7 +1482,7 @@ func TestCustomizedDIDTransferSingleProof(t *testing.T) {
 	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*user3TX)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash2, 0, types.Receipts{receipt})
-	user3Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2),0, 0)
+	user3Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2), 0, 0)
 	assert.NoError(t, user3Err)
 	statedb.RemoveDIDLog(hash2)
 
@@ -1500,7 +1498,7 @@ func TestCustomizedDIDTransferSingleProof(t *testing.T) {
 	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*user4TX)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash3, 0, types.Receipts{receipt})
-	user4Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash3),0, 0)
+	user4Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash3), 0, 0)
 	assert.NoError(t, user4Err)
 	statedb.RemoveDIDLog(hash3)
 
@@ -1515,7 +1513,7 @@ func TestCustomizedDIDTransferSingleProof(t *testing.T) {
 	receipt = getCreateDIDReceipt(*CustomizedDIDTx1)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash4, 0, types.Receipts{receipt})
 	//CustomizedDIDTx1
-	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash4),0, 0)
+	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash4), 0, 0)
 	assert.NoError(t, err3)
 	statedb.RemoveDIDLog(hash4)
 
@@ -1623,7 +1621,7 @@ func GetprivateKeyStr(privateKey1Str string) string {
 }
 
 func TestCustomizedDIDTransferProofs(t *testing.T) {
-	hash1:= common.Hash{}
+	hash1 := common.Hash{}
 	statedb, _ := state.New(hash1, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
 	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
@@ -1637,7 +1635,7 @@ func TestCustomizedDIDTransferProofs(t *testing.T) {
 	statedb.AddDIDLog(user1TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt := getCreateDIDReceipt(*user1TX)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash1, 0, types.Receipts{receipt})
-	user1Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash1),0, 0)
+	user1Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash1), 0, 0)
 	assert.NoError(t, user1Err)
 	statedb.RemoveDIDLog(hash1)
 
@@ -1651,7 +1649,7 @@ func TestCustomizedDIDTransferProofs(t *testing.T) {
 	statedb.AddDIDLog(user2TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*user2TX)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash2, 0, types.Receipts{receipt})
-	user2Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2),0, 0)
+	user2Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash2), 0, 0)
 	assert.NoError(t, user2Err)
 	statedb.RemoveDIDLog(hash2)
 
@@ -1665,7 +1663,7 @@ func TestCustomizedDIDTransferProofs(t *testing.T) {
 	statedb.AddDIDLog(user3TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*user3TX)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash3, 0, types.Receipts{receipt})
-	user3Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash3),0, 0)
+	user3Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash3), 0, 0)
 	assert.NoError(t, user3Err)
 	statedb.RemoveDIDLog(hash3)
 
@@ -1681,7 +1679,7 @@ func TestCustomizedDIDTransferProofs(t *testing.T) {
 	statedb.AddDIDLog(user4TX.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*user4TX)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash4, 0, types.Receipts{receipt})
-	user4Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash4),0, 0)
+	user4Err := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash4), 0, 0)
 	assert.NoError(t, user4Err)
 	statedb.RemoveDIDLog(hash4)
 
@@ -1695,7 +1693,7 @@ func TestCustomizedDIDTransferProofs(t *testing.T) {
 	statedb.AddDIDLog(CustomizedDIDTx1.DIDDoc.ID, did.Create_DID_Operation, buf.Bytes())
 	receipt = getCreateDIDReceipt(*CustomizedDIDTx1)
 	rawdb.WriteReceipts(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), hash5, 0, types.Receipts{receipt})
-	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash5),0, 0)
+	err3 := rawdb.PersistRegisterDIDTx(statedb.Database().TrieDB().DiskDB().(ethdb.KeyValueStore), statedb.GetDIDLog(hash5), 0, 0)
 	assert.NoError(t, err3)
 	statedb.RemoveDIDLog(hash5)
 
@@ -1715,28 +1713,28 @@ func TestGetprivateKeyStr(t *testing.T) {
 	privateKey1Str := "xprvA39XqfTw2FPEfpMJmM6jK1gzzRv8p1GYJS3DUEEbp1SibLrRyZzHijYTTvzy2a57Es8CBxs2xseMNoLC7nNGxsJY3nfCT3aUeozRQoy8vTH"
 	base58PrivageKey := GetprivateKeyStr(privateKey1Str)
 	fmt.Println("base58PrivageKey ", base58PrivageKey)
-	assert.Equal(t,"413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ", base58PrivageKey)
+	assert.Equal(t, "413uivqLEMjPd8bo42K9ic6VXpgYcJLEwB3vefxJDhXJ", base58PrivageKey)
 
 	//"did:elastos:igHbSCez6H3gTuVPzwNZRrdj92GCJ6hD5d"
 	base58PrivageKey2 := GetprivateKeyStr("xprvA39XqfTw2FPEqBoXJv95kX4KUSjwajnD99fw8pMFv7R71SN8RkJQ1idgV5MR2oLyW1JJUi7sjXYRTDjmHqbkqmCNYbJpapiTnin5N5aj7UV")
 	fmt.Println("base58PrivageKey2 ", base58PrivageKey2)
-	assert.Equal(t,"EouptA61qGJPz5mjt2JVduv5XapDR7nhJuBKqntDpkEU", base58PrivageKey2)
+	assert.Equal(t, "EouptA61qGJPz5mjt2JVduv5XapDR7nhJuBKqntDpkEU", base58PrivageKey2)
 
 	//did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g
 	base58PrivageKey3 := GetprivateKeyStr("xprvA39XqfTw2FPEnHs4A7H9DRDxxGn7dJpyTdxHqUmBthNFhPAJGATFNdL8wBFZ1NHkC6USNWyEchycKkD3RoT7tPSfugBQVyyPNH3mrEP8KUy")
 	fmt.Println("base58PrivageKey3 ", base58PrivageKey3)
-	assert.Equal(t,"AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J", base58PrivageKey3)
+	assert.Equal(t, "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J", base58PrivageKey3)
 
 	//iXcRhYB38gMt1phi5JXJMjeXL2TL8cg58y
 	//xprvA39XqfTw2FPEjJK4n4XkDomsf2wnTD4n6nZgSm34Da9MosYtFNStyTGRpZU5aRyxpfJ98oK8Yw5GuBnP1Bx7oCrZB9BhWXR28orHW6A5QRn
 	base58PrivageKey4 := GetprivateKeyStr("xprvA39XqfTw2FPEjJK4n4XkDomsf2wnTD4n6nZgSm34Da9MosYtFNStyTGRpZU5aRyxpfJ98oK8Yw5GuBnP1Bx7oCrZB9BhWXR28orHW6A5QRn")
 	fmt.Println("base58PrivageKey4 ", base58PrivageKey4)
-	assert.Equal(t,"3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS", base58PrivageKey4)
+	assert.Equal(t, "3z2QFDJE7woSUzL6az9sCB1jkZtzfvEZQtUnYVgQEebS", base58PrivageKey4)
 
 	//igXiyCJEUjGJV1DMsMa4EbWunQqVg97GcS
 	//xprvA39XqfTw2FPEneKSjzk2xrKda9547StuuJ3MTHiQL2uczmabXnP9S8xtUbmsLdBPAA558ekswKjxinqx199TvtArQ2GvJyA4u8uisCmKG62
 
 	base58PrivageKey5 := GetprivateKeyStr("xprvA39XqfTw2FPEneKSjzk2xrKda9547StuuJ3MTHiQL2uczmabXnP9S8xtUbmsLdBPAA558ekswKjxinqx199TvtArQ2GvJyA4u8uisCmKG62")
 	fmt.Println("base58PrivageKey5 ", base58PrivageKey5)
-	assert.Equal(t,"BdQX3FcigWjRURJ3idTQ3A2vry4e1RwSg2MtfE5zePDy", base58PrivageKey5)
+	assert.Equal(t, "BdQX3FcigWjRURJ3idTQ3A2vry4e1RwSg2MtfE5zePDy", base58PrivageKey5)
 }

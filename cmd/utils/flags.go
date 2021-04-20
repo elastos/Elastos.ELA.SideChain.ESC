@@ -33,13 +33,13 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/fdlimit"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -64,6 +64,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	whisper "github.com/elastos/Elastos.ELA.SideChain.ESC/whisper/whisperv6"
+
 	pcsclite "github.com/gballet/go-libpcsclite"
 	cli "gopkg.in/urfave/cli.v1"
 )
@@ -789,12 +790,12 @@ var (
 		Value: "",
 	}
 	PbftIPAddress = cli.StringFlag{
-		Name: "pbft.net.address",
+		Name:  "pbft.net.address",
 		Usage: "connect dpos direct net ip",
 		Value: "127.0.0.1",
 	}
 	PbftDposPort = cli.StringFlag{
-		Name: "pbft.net.port",
+		Name:  "pbft.net.port",
 		Usage: "connect dpos direct net port",
 		Value: "20639",
 	}
@@ -806,6 +807,7 @@ var (
 	OldDIDMigrateHeightFlag = cli.Uint64Flag{
 		Name:  "olddidmigrateheight",
 		Usage: "before this height OldDIDMigrateAddrFlag can migate old did",
+		Value: 0,
 	}
 
 	OldDIDMigrateAddrFlag = cli.StringFlag{
