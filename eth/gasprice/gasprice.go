@@ -29,7 +29,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 )
 
-var maxPrice = big.NewInt(500 * params.GWei)
+var maxPrice = big.NewInt(5000 * params.GWei)
 
 type Config struct {
 	Blocks     int
