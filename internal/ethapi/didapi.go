@@ -134,11 +134,7 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, param 
 
 	issuer, ok := param["issuer"].(string)
 	var issuerID string
-	if issuer == "" {
-		if len(txsData) == 0 {
-			return RpcCredentialPayloadDIDInfo{ID: credentialID, Status: CredentialNonExist}, nil
-		}
-	} else {
+	if issuer != "" {
 		issuerID = issuer
 	}
 
@@ -231,7 +227,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 
 	isGetAll, ok := param["all"].(bool)
 	if !ok {
-		return nil, http.NewError(int(service.InvalidParams), "all is null")
+		isGetAll = false
 	}
 
 	var rpcPayloadDid RpcPayloadDIDInfo
