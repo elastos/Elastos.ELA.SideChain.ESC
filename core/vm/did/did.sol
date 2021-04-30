@@ -6,7 +6,7 @@ contract DID {
     constructor() {
 
     }
-    function publishDidTransaction(string memory didDocument) public  {
+    function publishDidTransaction(string memory data) public  {
         uint method = 22;
         uint offSet = 32;
         uint outputSize = 32;
