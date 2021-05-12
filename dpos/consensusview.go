@@ -7,7 +7,6 @@ package dpos
 
 import (
 	"bytes"
-	"fmt"
 	"sort"
 	"time"
 
@@ -100,7 +99,6 @@ func (v *ConsensusView) UpdateNextProducers(producers []peer.PID, totalCount int
 func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 	nextProducers := v.producers.nextProducers
 	if len(nextProducers) <= 0 {
-		fmt.Println("IsSameProducers 11111")
 		return true
 	}
 	if len(curProducers) != len(nextProducers) {
@@ -120,7 +118,6 @@ func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 		}
 	}
 
-	fmt.Println("IsSameProducers 22222")
 	return true
 }
 
