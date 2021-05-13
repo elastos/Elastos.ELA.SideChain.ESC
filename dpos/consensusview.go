@@ -117,7 +117,6 @@ func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 			return false
 		}
 	}
-
 	return true
 }
 

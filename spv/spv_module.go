@@ -20,6 +20,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb/leveldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"golang.org/x/net/context"
@@ -460,7 +461,7 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		log.Error("elaTx HexStringToBytes: "+elaTx, "err", err)
 		return err, true
 	}
-	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data}
+	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data, GasPrice: new(big.Int).SetUint64(params.GWei)}
 	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
 	if err != nil {
 		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
