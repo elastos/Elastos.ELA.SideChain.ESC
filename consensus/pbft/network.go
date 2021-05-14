@@ -73,7 +73,6 @@ func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
 	if p.account == nil {
 		return nil
 	}
-
 	peers :=  p.network.DumpPeersInfo()
 
 	result := make([]peerInfo, 0)
@@ -203,9 +202,11 @@ func (p *Pbft) AccessFutureBlock(parent *types.Block) {
 func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 	dutyIndex := p.dispatcher.GetConsensusView().GetDutyIndex()
 	isWorkingHeight := spv.SpvIsWorkingHeight()
+	log.Info("OnInsertBlock", "dutyIndex", dutyIndex, "isWorkingHeight", isWorkingHeight)
 	if dutyIndex == 0 && isWorkingHeight {
 		curProducers := p.dispatcher.GetConsensusView().GetProducers()
 		isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+		log.Info("isSame producer", "isSame", isSame)
 		if !isSame {
 			p.dispatcher.GetConsensusView().ChangeCurrentProducers(block.NumberU64() + 1, spv.GetSpvHeight())
 			go p.AnnounceDAddr()
@@ -222,7 +223,9 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			log.Error("OnInsertBlock error", "GetProducers", err)
 			return false
 		}
-		if !p.IsCurrentProducers(producers) {
+		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce()
+		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword)
+		if !p.IsCurrentProducers(producers) && isBackword {
 			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
 			go p.AnnounceDAddr()
 			go p.Recover()

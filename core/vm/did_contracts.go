@@ -48,7 +48,7 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 	configHeight := evm.chainConfig.OldDIDMigrateHeight
 	configAddr := evm.chainConfig.OldDIDMigrateAddr
 	senderAddr := evm.Context.Origin.String()
-	log.Info("#### configAddr", configAddr, "senderAddr", senderAddr)
+	log.Info("####", "configAddr", configAddr, "senderAddr", senderAddr)
 
 	//BlockNumber <= configHeight senderAddr must be configAddr
 	if evm.Context.BlockNumber.Cmp(configHeight) <= 0 {
