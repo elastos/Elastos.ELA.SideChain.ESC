@@ -223,7 +223,9 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			log.Error("OnInsertBlock error", "GetProducers", err)
 			return false
 		}
-		if !p.IsCurrentProducers(producers) {
+		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce() //New node synchronizations
+		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword)
+		if !p.IsCurrentProducers(producers) && isBackword {
 			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
 			go p.AnnounceDAddr()
 			go p.Recover()
