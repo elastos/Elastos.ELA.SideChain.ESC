@@ -88,7 +88,6 @@ func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
 	if p.account == nil {
 		return nil
 	}
-
 	peers :=  p.network.DumpPeersInfo()
 
 	result := make([]peerInfo, 0)
@@ -232,6 +231,7 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 	if dutyIndex == 0 && isWorkingHeight {
 		curProducers := p.dispatcher.GetConsensusView().GetProducers()
 		isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+		log.Info("isSame producer", "isSame", isSame)
 		if !isSame {
 			p.dispatcher.GetConsensusView().ChangeCurrentProducers(block.NumberU64() + 1, spv.GetSpvHeight())
 			go p.AnnounceDAddr()
