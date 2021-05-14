@@ -97,6 +97,8 @@ func (v *ConsensusView) UpdateNextProducers(producers []peer.PID, totalCount int
 }
 
 func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
+	v.producers.mtx.Lock()
+	defer v.producers.mtx.Unlock()
 	nextProducers := v.producers.nextProducers
 	if len(nextProducers) <= 0 {
 		return true
@@ -121,6 +123,8 @@ func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 }
 
 func (v *ConsensusView) IsCurrentProducers(curProducers[][]byte) bool {
+	v.producers.mtx.Lock()
+	defer v.producers.mtx.Unlock()
 	producers := v.producers.producers
 	if len(producers) <= 0 {
 		return false
