@@ -100,7 +100,7 @@ func (b *BlockChain) CheckTransactionSanity(blockHeight uint32,
 
 // CheckTransactionContext verifies a transaction with history transaction in ledger
 func (b *BlockChain) CheckTransactionContext(blockHeight uint32,
-	txn *Transaction, proposalsUsedAmount common.Fixed64) (map[*Input]Output, elaerr.ELAError) {
+	txn *Transaction, proposalsUsedAmount common.Fixed64, timeStamp uint32) (map[*Input]Output, elaerr.ELAError) {
 
 	if err := b.checkTxHeightVersion(txn, blockHeight); err != nil {
 		return nil, elaerr.Simple(elaerr.ErrTxHeightVersion, nil)
@@ -120,6 +120,11 @@ func (b *BlockChain) CheckTransactionContext(blockHeight uint32,
 	if err != nil {
 		log.Warn("[CheckTransactionContext] get transaction reference failed")
 		return nil, elaerr.Simple(elaerr.ErrTxUnknownReferredTx, nil)
+	}
+
+	if err := b.checkPOWConsensusTransaction(txn, references); err != nil {
+		log.Warn("[checkPOWConsensusTransaction],", err)
+		return nil, elaerr.Simple(elaerr.ErrTxValidation, nil)
 	}
 
 	// check double spent transaction
@@ -168,7 +173,12 @@ func (b *BlockChain) CheckTransactionContext(blockHeight uint32,
 			return nil, elaerr.Simple(elaerr.ErrTxPayload, err)
 		}
 		return references, nil
-
+	case RevertToDPOS:
+		if err := b.checkRevertToDPOSTransaction(blockHeight, txn); err != nil {
+			log.Warn("[checkRevertToDPOSTransaction],", err)
+			return nil, elaerr.Simple(elaerr.ErrTxPayload, err)
+		}
+		return references, nil
 	case UpdateVersion:
 		if err := b.checkUpdateVersionTransaction(txn); err != nil {
 			log.Warn("[checkUpdateVersionTransaction],", err)
@@ -321,6 +331,12 @@ func (b *BlockChain) CheckTransactionContext(blockHeight uint32,
 			log.Warn("[checkCRCouncilMemberClaimNodeTransaction],", err)
 			return nil, elaerr.Simple(elaerr.ErrTxCRCRClaimNode, err)
 		}
+	case RevertToPOW:
+		if err := b.checkRevertToPOWTransaction(txn, blockHeight, timeStamp); err != nil {
+			log.Warn("[checkRevertToPOWTransaction],", err)
+			return nil, elaerr.Simple(elaerr.ErrTxRevertToPOW, err)
+		}
+		return references, nil
 	}
 
 	if err := b.checkTransactionFee(txn, references); err != nil {
@@ -603,7 +619,8 @@ func checkTransactionInput(txn *Transaction) error {
 
 	if txn.IsIllegalTypeTx() || txn.IsInactiveArbitrators() ||
 		txn.IsNewSideChainPowTx() || txn.IsUpdateVersion() ||
-		txn.IsActivateProducerTx() || txn.IsNextTurnDPOSInfoTx() {
+		txn.IsActivateProducerTx() || txn.IsNextTurnDPOSInfoTx() ||
+		txn.IsRevertToPOW() || txn.IsRevertToDPOS() || txn.IsCustomIDResultTx() {
 		if len(txn.Inputs) != 0 {
 			return errors.New("no cost transactions must has no input")
 		}
@@ -653,9 +670,16 @@ func (b *BlockChain) checkTransactionOutput(txn *Transaction,
 		}
 
 		if blockHeight >= b.chainParams.CRCommitteeStartHeight {
-			if !txn.Outputs[0].ProgramHash.IsEqual(b.chainParams.CRAssetsAddress) {
-				return errors.New("first output address should be CRC " +
-					"foundation address")
+			if b.state.GetConsensusAlgorithm() == state.POW {
+				if !txn.Outputs[0].ProgramHash.IsEqual(b.chainParams.DestroyELAAddress) {
+					return errors.New("first output address should be " +
+						"DestroyAddress in POW consensus algorithm")
+				}
+			} else {
+				if !txn.Outputs[0].ProgramHash.IsEqual(b.chainParams.CRAssetsAddress) {
+					return errors.New("first output address should be CR " +
+						"assets address")
+				}
 			}
 		} else if !txn.Outputs[0].ProgramHash.IsEqual(FoundationAddress) {
 			return errors.New("first output address should be foundation " +
@@ -688,7 +712,9 @@ func (b *BlockChain) checkTransactionOutput(txn *Transaction,
 	}
 
 	if txn.IsIllegalTypeTx() || txn.IsInactiveArbitrators() ||
-		txn.IsUpdateVersion() || txn.IsActivateProducerTx() || txn.IsNextTurnDPOSInfoTx() {
+		txn.IsUpdateVersion() || txn.IsActivateProducerTx() ||
+		txn.IsNextTurnDPOSInfoTx() || txn.IsRevertToPOW() ||
+		txn.IsRevertToDPOS() || txn.IsCustomIDResultTx() {
 		if len(txn.Outputs) != 0 {
 			return errors.New("no cost transactions should have no output")
 		}
@@ -944,7 +970,7 @@ func (b *BlockChain) checkAttributeProgram(tx *Transaction,
 		}
 		return nil
 	case IllegalSidechainEvidence, IllegalProposalEvidence, IllegalVoteEvidence,
-		ActivateProducer, NextTurnDPOSInfo, CustomIDResult:
+		ActivateProducer, NextTurnDPOSInfo, CustomIDResult, RevertToPOW:
 		if len(tx.Programs) != 0 || len(tx.Attributes) != 0 {
 			return errors.New("zero cost tx should have no attributes and programs")
 		}
@@ -957,7 +983,7 @@ func (b *BlockChain) checkAttributeProgram(tx *Transaction,
 			return errors.New("illegal block transactions should have no programs")
 		}
 		return nil
-	case InactiveArbitrators, UpdateVersion:
+	case InactiveArbitrators, UpdateVersion, RevertToDPOS:
 		if len(tx.Programs) != 1 {
 			return errors.New("inactive arbitrators transactions should have one and only one program")
 		}
@@ -1079,7 +1105,9 @@ func checkTransactionPayload(txn *Transaction) error {
 	case *payload.CRCProposalRealWithdraw:
 	case *payload.NextTurnDPOSInfo:
 	case *payload.CRCouncilMemberClaimNode:
-
+	case *payload.RevertToPOW:
+	case *payload.RevertToDPOS:
+	case *payload.CustomIDProposalResult:
 	default:
 		return errors.New("[txValidator],invalidate transaction payload type.")
 	}
@@ -1101,9 +1129,72 @@ func checkDuplicateSidechainTx(txn *Transaction) error {
 	return nil
 }
 
+func (b *BlockChain) checkPOWConsensusTransaction(txn *Transaction, references map[*Input]Output) error {
+	if b.state.GetConsensusAlgorithm() != state.POW {
+		return nil
+	}
+
+	switch txn.TxType {
+	case RegisterProducer, ActivateProducer, CRCouncilMemberClaimNode:
+		return nil
+	case CRCAppropriation, CRAssetsRectify, CRCProposalRealWithdraw,
+		NextTurnDPOSInfo, RevertToDPOS:
+		return nil
+	case TransferAsset:
+		if txn.Version >= TxVersion09 {
+			var containVoteOutput bool
+			for _, output := range txn.Outputs {
+				if output.Type == OTVote {
+					p := output.Payload.(*outputpayload.VoteOutput)
+					for _, vote := range p.Contents {
+						switch vote.VoteType {
+						case outputpayload.Delegate:
+						case outputpayload.CRC:
+							return errors.New("not allow to vote CR in POW consensus")
+						case outputpayload.CRCProposal:
+							return errors.New("not allow to vote CRC proposal in POW consensus")
+						case outputpayload.CRCImpeachment:
+							return errors.New("not allow to vote CRImpeachment in POW consensus")
+						}
+					}
+					containVoteOutput = true
+				}
+			}
+			if !containVoteOutput {
+				return errors.New("not allow to transfer asset in POW consensus")
+			}
+
+			inputProgramHashes := make(map[common.Uint168]struct{})
+			for _, output := range references {
+				inputProgramHashes[output.ProgramHash] = struct{}{}
+			}
+			outputProgramHashes := make(map[common.Uint168]struct{})
+			for _, output := range txn.Outputs {
+				outputProgramHashes[output.ProgramHash] = struct{}{}
+			}
+			for k, _ := range outputProgramHashes {
+				if _, ok := inputProgramHashes[k]; !ok {
+					return errors.New("output program hash is not in inputs")
+				}
+			}
+		} else {
+			return errors.New("not allow to transfer asset in POW consensus")
+		}
+		return nil
+	}
+
+	return fmt.Errorf("not support transaction %s in POW consensus", txn.TxType.Name())
+}
+
 // validate the type of transaction is allowed or not at current height.
 func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) error {
 	switch txn.TxType {
+	case RevertToPOW, RevertToDPOS:
+		if blockHeight < b.chainParams.RevertToPOWStartHeight {
+			return errors.New(fmt.Sprintf("not support %s transaction "+
+				"before RevertToPOWStartHeight", txn.TxType.Name()))
+		}
+
 	case RegisterCR, UpdateCR:
 		if blockHeight < b.chainParams.CRVotingStartHeight ||
 			(blockHeight < b.chainParams.RegisterCRByDIDHeight &&
@@ -1117,7 +1208,7 @@ func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) 
 				"before CRVotingStartHeight", txn.TxType.Name()))
 		}
 	case CRCProposal:
-		if blockHeight < b.chainParams.ChangeCommitteeNewCRHeight {
+		if blockHeight < b.chainParams.CRCProposalDraftDataStartHeight {
 			if txn.PayloadVersion != payload.CRCProposalVersion {
 				return errors.New("payload version should be CRCProposalVersion")
 			}
@@ -1138,9 +1229,9 @@ func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) 
 					" transactio before CRCProposalV1Height", p.ProposalType.Name()))
 			}
 		case payload.ReserveCustomID, payload.ReceiveCustomID, payload.ChangeCustomIDFee:
-			if blockHeight < b.chainParams.ChangeCommitteeNewCRHeight {
+			if blockHeight < b.chainParams.CustomIDProposalStartHeight {
 				return errors.New(fmt.Sprintf("not support %s CRCProposal"+
-					" transaction before ChangeCommitteeNewCRHeight", p.ProposalType.Name()))
+					" transaction before CustomIDProposalStartHeight", p.ProposalType.Name()))
 			}
 		default:
 			if blockHeight < b.chainParams.CRCommitteeStartHeight {
@@ -1152,7 +1243,7 @@ func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) 
 		if blockHeight < b.chainParams.CRCommitteeStartHeight {
 			return errors.New(fmt.Sprintf("not support %s transaction "+
 				"before CRCommitteeStartHeight", txn.TxType.Name()))
-		} else if blockHeight < b.chainParams.ChangeCommitteeNewCRHeight {
+		} else if blockHeight < b.chainParams.CRCProposalDraftDataStartHeight {
 			if txn.PayloadVersion != payload.CRCProposalVersion {
 				return errors.New("payload version should be CRCProposalVersion")
 			}
@@ -1658,8 +1749,14 @@ func (b *BlockChain) checkActivateProducerTransaction(txn *Transaction,
 
 	if b.GetCRCommittee().IsInElectionPeriod() {
 		crMember := b.GetCRCommittee().GetMemberByNodePublicKey(activateProducer.NodePublicKey)
-		if crMember != nil && crMember.MemberState == crstate.MemberInactive {
-			// todo check penalty
+		if crMember != nil && (crMember.MemberState == crstate.MemberInactive ||
+			crMember.MemberState == crstate.MemberIllegal) {
+			if height < b.chainParams.EnableActivateIllegalHeight && crMember.MemberState == crstate.MemberIllegal {
+				return errors.New("activate MemberIllegal CR is not allowed before EnableActivateIllegalHeight")
+			}
+			if b.crCommittee.GetAvailableDepositAmount(crMember.Info.CID) < 0 {
+				return errors.New("balance of CR is not enough ")
+			}
 			return nil
 		}
 	}
@@ -1675,10 +1772,19 @@ func (b *BlockChain) checkActivateProducerTransaction(txn *Transaction,
 			return errors.New("can not activate this producer")
 		}
 	} else {
-		if producer.State() != state.Inactive &&
-			producer.State() != state.Illegal {
-			return errors.New("can not activate this producer")
+		if height < b.chainParams.ChangeCommitteeNewCRHeight {
+			if producer.State() != state.Active &&
+				producer.State() != state.Inactive &&
+				producer.State() != state.Illegal {
+				return errors.New("can not activate this producer")
+			}
+		} else {
+			if producer.State() != state.Inactive &&
+				producer.State() != state.Illegal {
+				return errors.New("can not activate this producer")
+			}
 		}
+
 	}
 
 	if height > producer.ActivateRequestHeight() &&
@@ -2163,7 +2269,7 @@ func (b *BlockChain) checkCRCProposalTrackingTransaction(txn *Transaction,
 			return errors.New("the opinion data cannot be more than 200K byte")
 		}
 		tempOpinionHash := common.Hash(cptPayload.SecretaryGeneralOpinionData)
-		if !cptPayload.MessageHash.IsEqual(tempOpinionHash) {
+		if !cptPayload.SecretaryGeneralOpinionHash.IsEqual(tempOpinionHash) {
 			return errors.New("the opinion data and opinion hash of" +
 				" proposal tracking are inconsistent")
 		}
@@ -2337,6 +2443,45 @@ func (b *BlockChain) checkCRAssetsRectifyTransaction(txn *Transaction,
 			"inputs:%s outputs:%s", b.chainParams.RectifyTxFee, totalInput, totalOutput)
 	}
 
+	return nil
+}
+
+func (b *BlockChain) checkRevertToPOWTransaction(txn *Transaction, blockHeight uint32, timeStamp uint32) error {
+	p, ok := txn.Payload.(*payload.RevertToPOW)
+	if !ok {
+		return errors.New("invalid payload")
+	}
+
+	if p.WorkingHeight != blockHeight {
+		return errors.New("invalid start POW block height")
+	}
+
+	switch p.Type {
+	case payload.NoBlock:
+		lastBlockTime := int64(b.BestChain.Timestamp)
+		noBlockTime := b.chainParams.RevertToPOWNoBlockTime
+
+		if timeStamp == 0 {
+			// is not in block, check by local time.
+			localTime := b.MedianAdjustedTime().Unix()
+			if localTime-lastBlockTime < noBlockTime {
+				return errors.New("invalid block time")
+			}
+		} else {
+			// is in block, check by the time of existed block.
+			if int64(timeStamp)-lastBlockTime < noBlockTime {
+				return errors.New("invalid block time")
+			}
+		}
+	case payload.NoProducers:
+		if !b.state.NoProducers {
+			return errors.New("current producers is enough")
+		}
+	case payload.NoClaimDPOSNode:
+		if !b.state.NoClaimDPOSNode {
+			return errors.New("current CR member claimed DPoS node")
+		}
+	}
 	return nil
 }
 
@@ -2517,7 +2662,7 @@ func (b *BlockChain) checkCRCProposalTrackingSignature(
 	}
 
 	// Check secretary general signature。
-	return b.checkSecretaryGeneralSignature(cptPayload, pState, signedBuf)
+	return b.checkSecretaryGeneralSignature(cptPayload, pState, signedBuf, payloadVersion)
 }
 
 func (b *BlockChain) normalCheckCRCProposalTrackingSignature(
@@ -2550,7 +2695,7 @@ func (b *BlockChain) normalCheckCRCProposalTrackingSignature(
 	}
 
 	// Check secretary general signature。
-	return b.checkSecretaryGeneralSignature(cptPayload, pState, signedBuf)
+	return b.checkSecretaryGeneralSignature(cptPayload, pState, signedBuf, payloadVersion)
 }
 
 func (b *BlockChain) checkProposalOwnerSignature(
@@ -2596,7 +2741,7 @@ func (b *BlockChain) checkProposalNewOwnerSignature(
 
 func (b *BlockChain) checkSecretaryGeneralSignature(
 	cptPayload *payload.CRCProposalTracking, pState *crstate.ProposalState,
-	signedBuf *bytes.Buffer) error {
+	signedBuf *bytes.Buffer, payloadVersion byte) error {
 	var sgContract *contract.Contract
 	publicKeyBytes, err := hex.DecodeString(b.crCommittee.GetProposalManager().SecretaryGeneralPublicKey)
 	if err != nil {
@@ -2615,6 +2760,11 @@ func (b *BlockChain) checkSecretaryGeneralSignature(
 	}
 	if err := cptPayload.SecretaryGeneralOpinionHash.Serialize(signedBuf); err != nil {
 		return errors.New("invalid secretary opinion hash")
+	}
+	if payloadVersion >= payload.CRCProposalTrackingVersion01 {
+		if err := common.WriteVarBytes(signedBuf, cptPayload.SecretaryGeneralOpinionData); err != nil {
+			return errors.New("invalid secretary-general opinion data")
+		}
 	}
 	if err = checkCRTransactionSignature(cptPayload.SecretaryGeneralSignature,
 		sgContract.Code, signedBuf.Bytes()); err != nil {
@@ -2765,15 +2915,18 @@ func (b *BlockChain) checkReservedCustomID(proposal *payload.CRCProposal, Payloa
 		return errors.New("DecodePoint from OwnerPublicKey error")
 	}
 
-	for _, v := range proposal.ReservedCustomIDList {
-		if len(v) > int(b.chainParams.MaxReservedCustomIDListCount) {
-			return errors.New("reserved custom id too long")
-		}
+	if len(proposal.ReservedCustomIDList) == 0 {
+		return errors.New("reserved custom id list is empty")
 	}
-	for _, v := range proposal.BannedCustomIDList {
-		if len(v) > int(b.chainParams.MaxReservedCustomIDListCount) {
-			return errors.New("banned custom id too long")
+	customIDMap := make(map[string]struct{})
+	for _, v := range proposal.ReservedCustomIDList {
+		if len(v) == 0 || len(v) > int(b.chainParams.MaxReservedCustomIDLength) {
+			return errors.New("invalid reserved custom id length")
 		}
+		if _, ok := customIDMap[v]; ok {
+			return errors.New("duplicated reserved custom ID")
+		}
+		customIDMap[v] = struct{}{}
 	}
 	crMember := b.crCommittee.GetMember(proposal.CRCouncilMemberDID)
 	if crMember == nil {
@@ -2788,26 +2941,32 @@ func (b *BlockChain) checkReceivedCustomID(proposal *payload.CRCProposal, Payloa
 		return errors.New("DecodePoint from OwnerPublicKey error")
 	}
 	reservedCustomIDList := b.crCommittee.GetReservedCustomIDLists()
-	bannedCustomIDList := b.crCommittee.GetBannedCustomIDLists()
 	receivedCustomIDList := b.crCommittee.GetReceivedCustomIDLists()
+	pendingReceivedCustomIDMap := b.crCommittee.GetPendingReceivedCustomIDMap()
 
-	for _, v := range proposal.ReceivedCustomIDList {
-		if len(v) > int(b.chainParams.MaxReservedCustomIDListCount) {
-			return errors.New("received custom id too long")
-		}
+	if len(proposal.ReceivedCustomIDList) == 0 {
+		return errors.New("received custom id list is empty")
 	}
-
+	customIDMap := make(map[string]struct{})
 	for _, v := range proposal.ReceivedCustomIDList {
+		if len(v) == 0 || len(v) > int(b.chainParams.MaxReservedCustomIDLength) {
+			return errors.New("invalid received custom id length")
+		}
+		if _, ok := customIDMap[v]; ok {
+			return errors.New("duplicated received custom ID")
+		}
+		if _, ok := pendingReceivedCustomIDMap[v]; ok {
+			return errors.New("received custom id is receiving")
+		}
 		if utils.StringExisted(receivedCustomIDList, v) {
-			return errors.New("Received custom id already received")
+			return errors.New("received custom id already received")
 		}
 		if !utils.StringExisted(reservedCustomIDList, v) {
-			return errors.New("Received custom id can not be found in reserved custom id list")
+			return errors.New("received custom id can not be found in reserved custom id list")
 		}
-		if utils.StringExisted(bannedCustomIDList, v) {
-			return errors.New("Received custom id found in banned custom id list")
-		}
+		customIDMap[v] = struct{}{}
 	}
+
 	crMember := b.crCommittee.GetMember(proposal.CRCouncilMemberDID)
 	if crMember == nil {
 		return errors.New("CR Council Member should be one of the CR members")
@@ -3352,6 +3511,34 @@ func (b *BlockChain) checkInactiveArbitratorsTransaction(
 	return CheckInactiveArbitrators(txn)
 }
 
+func CheckRevertToDPOSTransaction(txn *Transaction) error {
+	return checkArbitratorsSignatures(txn.Programs[0])
+}
+
+func (b *BlockChain) checkRevertToDPOSTransaction(
+	blockHeight uint32, txn *Transaction) error {
+	p, ok := txn.Payload.(*payload.RevertToDPOS)
+	if !ok {
+		return errors.New("invalid payload.RevertToDPOS")
+	}
+	if p.WorkHeightInterval != payload.WorkHeightInterval {
+		return errors.New("invalid WorkHeightInterval")
+
+	}
+
+	// check dpos state
+	if b.GetState().GetConsensusAlgorithm() != state.POW {
+		return errors.New("invalid GetConsensusAlgorithm() != state.POW")
+	}
+
+	// to avoid init DPOSWorkHeight repeatedly
+	if b.GetState().DPOSWorkHeight > blockHeight {
+		return errors.New("already receieved  revertodpos")
+	}
+
+	return CheckRevertToDPOSTransaction(txn)
+}
+
 func (b *BlockChain) checkUpdateVersionTransaction(txn *Transaction) error {
 	payload, ok := txn.Payload.(*payload.UpdateVersion)
 	if !ok {
@@ -3437,6 +3624,39 @@ func CheckInactiveArbitrators(txn *Transaction) error {
 
 	if err := checkCRCArbitratorsSignatures(txn.Programs[0]); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func checkArbitratorsSignatures(program *program.Program) error {
+	code := program.Code
+	// Get N parameter
+	n := int(code[len(code)-2]) - crypto.PUSH1 + 1
+	// Get M parameter
+	m := int(code[0]) - crypto.PUSH1 + 1
+
+	var arbitratorsCount int
+	arbiters := DefaultLedger.Arbitrators.GetArbitrators()
+	for _, a := range arbiters {
+		if a.IsNormal {
+			arbitratorsCount++
+		}
+	}
+	minSignCount := int(float64(DefaultLedger.Arbitrators.GetArbitersCount())*
+		state.MajoritySignRatioNumerator/state.MajoritySignRatioDenominator) + 1
+	if m < 1 || m > n || n != arbitratorsCount || m < minSignCount {
+		return errors.New("invalid multi sign script code")
+	}
+	publicKeys, err := crypto.ParseMultisigScript(code)
+	if err != nil {
+		return err
+	}
+
+	for _, pk := range publicKeys {
+		if !DefaultLedger.Arbitrators.IsArbitrator(pk[1:]) {
+			return errors.New("invalid multi sign public key")
+		}
 	}
 
 	return nil

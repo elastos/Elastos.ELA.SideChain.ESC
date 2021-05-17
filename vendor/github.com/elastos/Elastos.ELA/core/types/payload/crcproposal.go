@@ -18,6 +18,7 @@ const (
 	// Normal indicates the normal types of proposal.
 	Normal CRCProposalType = 0x0000
 
+	// 0x01 ELIP proposals.
 	// ELIP indicates elastos improvement type of proposal.
 	ELIP CRCProposalType = 0x0100
 	// Used to identify process-related elips
@@ -25,29 +26,33 @@ const (
 	// Used to flag Elastos design issues
 	INFOELIP CRCProposalType = 0x0102
 
-	// MainChainUpgradeCode indicates the code upgrade types of proposals.
+	// 0x02 code upgrade related proposals.
+	// MainChainUpgradeCode indicates the ELA code upgrade types of proposals.
 	MainChainUpgradeCode CRCProposalType = 0x0200
+	// DIDUpgradeCode indicates the DID code upgrade types of proposals.
+	DIDUpgradeCode CRCProposalType = 0x0201
+	// DIDUpgradeCode indicates the ETH code upgrade types of proposals.
+	ETHUpgradeCode CRCProposalType = 0x0202
 
-	// SideChainUpgradeCode indicates the side chain related types of proposals.
-	SideChainUpgradeCode CRCProposalType = 0x0300
-	// Registration of side chain.
-	RegisterSideChain CRCProposalType = 0x0301
-	// Reserved did custom id.
-	ReserveCustomID CRCProposalType = 0x0302
-	// Receive did custom id.
-	ReceiveCustomID CRCProposalType = 0x0303
-	// The rate of custom id fee.
-	ChangeCustomIDFee CRCProposalType = 0x0304
+	// 0x03 for future usage.
 
+	/// 0x04 main chain related proposals.
 	// SecretaryGeneral indicates the vote secretary general types of proposals.
 	SecretaryGeneral CRCProposalType = 0x0400
 	// ChangeProposalOwner indicates the change proposal owner types of proposals.
 	ChangeProposalOwner CRCProposalType = 0x0401
 	// CloseProposal indicates the close proposal types of proposals.
 	CloseProposal CRCProposalType = 0x0402
+	// Registration of side chain.
+	RegisterSideChain CRCProposalType = 0x0410
 
-	// Common information used to define consensus governance
-	DappConsensus CRCProposalType = 0x0500
+	// 0x04 DID related proposals.
+	// Reserved did custom id.
+	ReserveCustomID CRCProposalType = 0x0500
+	// Receive did custom id.
+	ReceiveCustomID CRCProposalType = 0x0501
+	// The rate of custom id fee.
+	ChangeCustomIDFee CRCProposalType = 0x0502
 )
 
 type CRCProposalType uint16
@@ -60,8 +65,12 @@ func (pt CRCProposalType) Name() string {
 		return "ELIP"
 	//case MainChainUpgradeCode:
 	//	return "MainChainUpgradeCode"
-	//case SideChainUpgradeCode:
-	//	return "SideChainUpgradeCode"
+	//case DIDUpgradeCode:
+	//	return "DIDUpgradeCode"
+	//case ETHUpgradeCode:
+	//	return "ETHUpgradeCode"
+	//case RegisterSideChain:
+	//	return "RegisterSideChain"
 	case ChangeProposalOwner:
 		return "ChangeProposalOwner"
 	case CloseProposal:
@@ -146,9 +155,6 @@ type CRCProposal struct {
 
 	// Reversed did custom id list.
 	ReservedCustomIDList []string
-
-	// Banned did custom id list.
-	BannedCustomIDList []string
 
 	// Received did custom id list.
 	ReceivedCustomIDList []string
@@ -372,10 +378,6 @@ func (p *CRCProposal) SerializeUnsignedChangeCustomIDFee(w io.Writer, version by
 		}
 	}
 
-	if err := common.WriteVarUint(w, uint64(len(p.ReceivedCustomIDList))); err != nil {
-		return errors.New("failed to serialize ReceivedCustomIDList len")
-	}
-
 	if err := p.RateOfCustomIDFee.Serialize(w); err != nil {
 		return errors.New("failed to serialize RateOfCustomIDFee")
 	}
@@ -453,16 +455,6 @@ func (p *CRCProposal) SerializeUnsignedReservedCustomID(w io.Writer, version byt
 	for _, v := range p.ReservedCustomIDList {
 		if err := common.WriteVarString(w, v); err != nil {
 			return errors.New("failed to serialize ReservedCustomIDList")
-		}
-	}
-
-	if err := common.WriteVarUint(w, uint64(len(p.BannedCustomIDList))); err != nil {
-		return errors.New("failed to serialize BannedCustomIDList len")
-	}
-
-	for _, v := range p.BannedCustomIDList {
-		if err := common.WriteVarString(w, v); err != nil {
-			return errors.New("failed to serialize BannedCustomIDList")
 		}
 	}
 
@@ -799,19 +791,6 @@ func (p *CRCProposal) DeserializeUnSignedReservedCustomID(r io.Reader, version b
 		p.ReservedCustomIDList = append(p.ReservedCustomIDList, customID)
 	}
 
-	if count, err = common.ReadVarUint(r, 0); err != nil {
-		return errors.New("failed to deserialize Budgets")
-	}
-	p.BannedCustomIDList = make([]string, 0)
-	for i := 0; i < int(count); i++ {
-		bannedCustomID, err := common.ReadVarString(r)
-		if err != nil {
-			return errors.New("[CRCProposal], banned custom id deserialize failed")
-		}
-
-		p.BannedCustomIDList = append(p.BannedCustomIDList, bannedCustomID)
-	}
-
 	return nil
 }
 
@@ -973,12 +952,300 @@ func (p *CRCProposal) DeserializeChangeSecretaryGeneral(r io.Reader, version byt
 	return nil
 }
 
-func (p *CRCProposal) Hash(PayloadVersion byte) common.Uint256 {
+func (p *CRCProposal) Hash(payloadVersion byte) common.Uint256 {
 	if p.hash == nil {
 		buf := new(bytes.Buffer)
-		p.Serialize(buf, PayloadVersion)
+		p.Serialize(buf, payloadVersion)
 		hash := common.Hash(buf.Bytes())
 		p.hash = &hash
 	}
 	return *p.hash
+}
+
+func (p *CRCProposal) ToProposalInfo(payloadVersion byte) CRCProposalInfo {
+	info := CRCProposalInfo{
+		ProposalType:              p.ProposalType,
+		CategoryData:              p.CategoryData,
+		OwnerPublicKey:            p.OwnerPublicKey,
+		DraftHash:                 p.DraftHash,
+		Budgets:                   p.Budgets,
+		Recipient:                 p.Recipient,
+		TargetProposalHash:        p.TargetProposalHash,
+		ReservedCustomIDList:      p.ReservedCustomIDList,
+		ReceivedCustomIDList:      p.ReceivedCustomIDList,
+		ReceiverDID:               p.ReceiverDID,
+		RateOfCustomIDFee:         p.RateOfCustomIDFee,
+		NewRecipient:              p.NewRecipient,
+		NewOwnerPublicKey:         p.NewOwnerPublicKey,
+		SecretaryGeneralPublicKey: p.SecretaryGeneralPublicKey,
+		SecretaryGeneralDID:       p.SecretaryGeneralDID,
+		CRCouncilMemberDID:        p.CRCouncilMemberDID,
+		Hash:                      p.Hash(payloadVersion),
+	}
+
+	if info.Budgets == nil {
+		info.Budgets = []Budget{}
+	}
+	if info.ReservedCustomIDList == nil {
+		info.ReservedCustomIDList = []string{}
+	}
+	if info.ReceivedCustomIDList == nil {
+		info.ReceivedCustomIDList = []string{}
+	}
+	if info.NewOwnerPublicKey == nil {
+		info.NewOwnerPublicKey = []byte{}
+	}
+	if info.SecretaryGeneralPublicKey == nil {
+		info.SecretaryGeneralPublicKey = []byte{}
+	}
+
+	return info
+}
+
+type CRCProposalInfo struct {
+	// The type of current CR Council proposal.
+	ProposalType CRCProposalType
+
+	// Used to store category data
+	// with a length limit not exceeding 4096 characters
+	CategoryData string
+
+	// Public key of proposal owner.
+	OwnerPublicKey []byte
+
+	// The hash of draft proposal.
+	DraftHash common.Uint256
+
+	// The detailed budget and expenditure plan.
+	Budgets []Budget
+
+	// The specified ELA address where the funds are to be sent.
+	Recipient common.Uint168
+
+	// Hash of proposal that need to change owner or need to be closed.
+	TargetProposalHash common.Uint256
+
+	// Reversed did custom id list.
+	ReservedCustomIDList []string
+
+	// Received did custom id list.
+	ReceivedCustomIDList []string
+
+	// Receiver did.
+	ReceiverDID common.Uint168
+
+	// The rate of custom DID fee.
+	RateOfCustomIDFee common.Fixed64
+
+	// The specified ELA address where the funds are to be sent.
+	NewRecipient common.Uint168
+
+	// New public key of proposal owner.
+	NewOwnerPublicKey []byte
+
+	// Public key of SecretaryGeneral.
+	SecretaryGeneralPublicKey []byte
+
+	// DID of SecretaryGeneral.
+	SecretaryGeneralDID common.Uint168
+
+	// DID of CR Council Member.
+	CRCouncilMemberDID common.Uint168
+
+	// The proposal hash
+	Hash common.Uint256
+}
+
+// only used to save into check point.
+func (p *CRCProposalInfo) Serialize(w io.Writer, version byte) error {
+
+	if err := common.WriteElement(w, p.ProposalType); err != nil {
+		return errors.New("failed to serialize ProposalType")
+	}
+
+	if err := common.WriteVarString(w, p.CategoryData); err != nil {
+		return errors.New("failed to serialize CategoryData")
+	}
+
+	if err := common.WriteVarBytes(w, p.OwnerPublicKey); err != nil {
+		return errors.New("failed to serialize OwnerPublicKey")
+	}
+
+	if err := p.DraftHash.Serialize(w); err != nil {
+		return errors.New("failed to serialize DraftHash")
+	}
+
+	if err := common.WriteVarUint(w, uint64(len(p.Budgets))); err != nil {
+		return errors.New("failed to serialize Budgets")
+	}
+
+	for _, v := range p.Budgets {
+		if err := v.Serialize(w); err != nil {
+			return errors.New("failed to serialize Budgets")
+		}
+	}
+
+	if err := p.Recipient.Serialize(w); err != nil {
+		return errors.New("failed to serialize Recipient")
+	}
+
+	if err := p.TargetProposalHash.Serialize(w); err != nil {
+		return errors.New("failed to serialize TargetProposalHash")
+	}
+
+	if err := common.WriteVarUint(w, uint64(len(p.ReservedCustomIDList))); err != nil {
+		return errors.New("failed to serialize ReservedCustomIDList len")
+	}
+
+	for _, v := range p.ReservedCustomIDList {
+		if err := common.WriteVarString(w, v); err != nil {
+			return errors.New("failed to serialize ReservedCustomIDList")
+		}
+	}
+
+	if err := common.WriteVarUint(w, uint64(len(p.ReceivedCustomIDList))); err != nil {
+		return errors.New("failed to serialize ReceivedCustomIDList len")
+	}
+
+	for _, v := range p.ReceivedCustomIDList {
+		if err := common.WriteVarString(w, v); err != nil {
+			return errors.New("failed to serialize ReceivedCustomIDList")
+		}
+	}
+
+	if err := p.ReceiverDID.Serialize(w); err != nil {
+		return errors.New("failed to serialize ReceiverDID")
+	}
+
+	if err := p.RateOfCustomIDFee.Serialize(w); err != nil {
+		return errors.New("failed to serialize RateOfCustomIDFee")
+	}
+
+	if err := p.NewRecipient.Serialize(w); err != nil {
+		return errors.New("failed to serialize Recipient")
+	}
+
+	if err := common.WriteVarBytes(w, p.NewOwnerPublicKey); err != nil {
+		return errors.New("failed to serialize NewOwnerPublicKey")
+	}
+
+	if err := common.WriteVarBytes(w, p.SecretaryGeneralPublicKey); err != nil {
+		return errors.New("failed to serialize SecretaryGeneralPublicKey")
+	}
+
+	if err := p.SecretaryGeneralDID.Serialize(w); err != nil {
+		return errors.New("failed to serialize SecretaryGeneralDID")
+	}
+
+	if err := p.CRCouncilMemberDID.Serialize(w); err != nil {
+		return errors.New("failed to serialize CRCouncilMemberDID")
+	}
+
+	if err := p.Hash.Serialize(w); err != nil {
+		return errors.New("failed to serialize Hash")
+	}
+	return nil
+}
+
+// only used to save into check point.
+func (p *CRCProposalInfo) Deserialize(r io.Reader, version byte) error {
+	err := common.ReadElement(r, &p.ProposalType)
+	if err != nil {
+		return errors.New("failed to deserialize ProposalType")
+	}
+
+	p.CategoryData, err = common.ReadVarString(r)
+	if err != nil {
+		return errors.New("failed to deserialize CategoryData")
+	}
+
+	p.OwnerPublicKey, err = common.ReadVarBytes(r, crypto.NegativeBigLength, "owner")
+	if err != nil {
+		return errors.New("failed to deserialize OwnerPublicKey")
+	}
+
+	if err = p.DraftHash.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize DraftHash")
+	}
+
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return errors.New("failed to deserialize Budgets")
+	}
+	p.Budgets = make([]Budget, 0)
+	for i := 0; i < int(count); i++ {
+		var budget Budget
+		if err := budget.Deserialize(r); err != nil {
+			return errors.New("failed to deserialize Budgets")
+		}
+		p.Budgets = append(p.Budgets, budget)
+	}
+
+	if err = p.Recipient.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize Recipient")
+	}
+
+	if err = p.TargetProposalHash.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize TargetProposalHash")
+	}
+
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return errors.New("failed to deserialize Budgets")
+	}
+	p.ReservedCustomIDList = make([]string, 0)
+	for i := 0; i < int(count); i++ {
+		customID, err := common.ReadVarString(r)
+		if err != nil {
+			return errors.New("[CRCProposal], reserved custom id deserialize failed")
+		}
+
+		p.ReservedCustomIDList = append(p.ReservedCustomIDList, customID)
+	}
+
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return errors.New("failed to deserialize Budgets")
+	}
+	p.ReceivedCustomIDList = make([]string, 0)
+	for i := 0; i < int(count); i++ {
+		customID, err := common.ReadVarString(r)
+		if err != nil {
+			return errors.New("[CRCProposal], reserved custom id deserialize failed")
+		}
+
+		p.ReceivedCustomIDList = append(p.ReceivedCustomIDList, customID)
+	}
+
+	if err = p.ReceiverDID.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize ReceiverDID")
+	}
+
+	if err = p.RateOfCustomIDFee.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize RateOfCustomIDFee")
+	}
+
+	if err = p.NewRecipient.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize Recipient")
+	}
+
+	if p.NewOwnerPublicKey, err = common.ReadVarBytes(r, crypto.NegativeBigLength, "owner"); err != nil {
+		return errors.New("failed to deserialize NewOwnerPublicKey")
+	}
+
+	p.SecretaryGeneralPublicKey, err = common.ReadVarBytes(r, crypto.NegativeBigLength, "secretarygeneralpublickey")
+	if err != nil {
+		return errors.New("failed to deserialize SecretaryGeneralPublicKey")
+	}
+
+	if err := p.SecretaryGeneralDID.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize SecretaryGeneralDID")
+	}
+
+	if err := p.CRCouncilMemberDID.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize CRCouncilMemberDID")
+	}
+
+	if err := p.Hash.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize Hash")
+	}
+	return nil
 }
