@@ -32,13 +32,21 @@ const (
 	notifyTimeout = 10 * time.Second // 10 second
 )
 
+type ConsensusAlgorithm byte
+
+const (
+	DPOS ConsensusAlgorithm = 0x00
+	POW  ConsensusAlgorithm = 0x01
+)
+
 type spvservice struct {
 	sdk.IService
-	headers       store.HeaderStore
-	db            store.DataStore
-	rollback      func(height uint32)
-	listeners     map[common.Uint256]TransactionListener
-	blockListener BlockListener
+	headers        store.HeaderStore
+	db             store.DataStore
+	rollback       func(height uint32)
+	listeners      map[common.Uint256]TransactionListener
+	revertListener RevertListener
+	blockListener  BlockListener
 	//FilterType is the filter type .(FTBloom, FTDPOS  and so on )
 	filterType uint8
 	// p2p  Protocol version height  use to change version msg content
@@ -128,6 +136,11 @@ func (s *spvservice) RegisterTransactionListener(listener TransactionListener) e
 	return s.db.Addrs().Put(address)
 }
 
+func (s *spvservice) RegisterRevertListener(listener RevertListener) error {
+	s.revertListener = listener
+	return nil
+}
+
 func (s *spvservice) RegisterBlockListener(listener BlockListener) error {
 	s.blockListener = listener
 	return nil
@@ -203,13 +216,19 @@ func (s *spvservice) GetNextArbiters() (workingHeight uint32, crcArbiters [][]by
 	return s.db.Arbiters().GetNext()
 }
 
+// Get consensus algorithm by height.
+func (s *spvservice) GetConsensusAlgorithm(height uint32) (ConsensusAlgorithm, error) {
+	mode, err := s.db.Arbiters().GetConsensusAlgorithmByHeight(height)
+	return ConsensusAlgorithm(mode), err
+}
+
 // Get reserved custom ID.
 func (s *spvservice) GetReservedCustomIDs() (map[string]struct{}, error) {
 	return s.db.CID().GetReservedCustomIDs()
 }
 
 // Get received custom ID.
-func (s *spvservice) GeReceivedCustomIDs() (map[string]common.Uint168, error) {
+func (s *spvservice) GetReceivedCustomIDs() (map[string]common.Uint168, error) {
 	return s.db.CID().GetReceivedCustomIDs()
 }
 
@@ -262,6 +281,22 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 	}
 
 	switch tx.TxType {
+	case types.RevertToPOW:
+		revertToPOW := tx.Payload.(*payload.RevertToPOW)
+		nakedBatch := batch.GetNakedBatch()
+		err := s.db.Arbiters().BatchPutRevertTransaction(
+			nakedBatch, revertToPOW.WorkingHeight, byte(POW))
+		if err != nil {
+			return false, err
+		}
+	case types.RevertToDPOS:
+		revertToDPOS := tx.Payload.(*payload.RevertToDPOS)
+		nakedBatch := batch.GetNakedBatch()
+		err := s.db.Arbiters().BatchPutRevertTransaction(
+			nakedBatch, height+revertToDPOS.WorkHeightInterval, byte(DPOS))
+		if err != nil {
+			return false, err
+		}
 	case types.NextTurnDPOSInfo:
 		nextTurnDposInfo := tx.Payload.(*payload.NextTurnDPOSInfo)
 		nakedBatch := batch.GetNakedBatch()
@@ -501,6 +536,13 @@ func (s *spvservice) BlockCommitted(block *util.Block) {
 			item.LastNotify = time.Now()
 			s.db.Que().Put(item)
 			listener.Notify(item.NotifyId, proof, tx)
+		}
+
+		if s.revertListener != nil && tx.IsRevertToPOW() {
+			s.revertListener.NotifyRevertToDPOS(tx)
+		}
+		if s.revertListener != nil && tx.IsRevertToDPOS() {
+			s.revertListener.NotifyRevertToDPOS(tx)
 		}
 	}
 

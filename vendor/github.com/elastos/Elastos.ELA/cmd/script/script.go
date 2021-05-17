@@ -49,6 +49,7 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	proposalTrackingType := c.Int64("proposaltrackingtype")
 	MessageHash := c.String("messagehash")
 	crOpinionHash := c.String("cropinionhash")
+	crOpinionData := c.String("cropiniondata")
 	SecretaryGeneralOpinionHash := c.String("secretarygeneralopinionhash")
 	stage := c.Int64("stage")
 
@@ -60,7 +61,6 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	targetHash := c.String("targethash")
 	closeProposalHash := c.String("closeproposalhash")
 	reservedCustomIDList := c.String("reservedcustomidlist")
-	bannedCustomIDList := c.String("bannedcustomidlist")
 	receivedCustomIDList := c.String("receivedcustomidlist")
 	customidrate := c.String("customidrate")
 	receiverDID := c.String("receiverdid")
@@ -206,6 +206,11 @@ func registerParams(c *cli.Context, L *lua.LState) {
 		L.Push(lua.LString(crOpinionHash))
 		return 1
 	}
+	getCROpinionData := func(L *lua.LState) int {
+		L.Push(lua.LString(crOpinionData))
+		return 1
+	}
+
 	getSecretaryGeneralOpinionHash := func(L *lua.LState) int {
 		L.Push(lua.LString(SecretaryGeneralOpinionHash))
 		return 1
@@ -252,10 +257,6 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	}
 	getReservedCustomIDList := func(L *lua.LState) int {
 		L.Push(lua.LString(reservedCustomIDList))
-		return 1
-	}
-	getBannedCustomIDList := func(L *lua.LState) int {
-		L.Push(lua.LString(bannedCustomIDList))
 		return 1
 	}
 	getReceivedCustomIDList := func(L *lua.LState) int {
@@ -321,6 +322,8 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	L.Register("getProposalTrackingType", getProposalTrackingType)
 	L.Register("getMessageHash", getMessageHash)
 	L.Register("getCROpinionHash", getCROpinionHash)
+	L.Register("getCROpinionData", getCROpinionData)
+
 	L.Register("getSecretaryGeneralOpinionHash", getSecretaryGeneralOpinionHash)
 	L.Register("getStage", getStage)
 
@@ -334,7 +337,6 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	L.Register("getTargetHash", getTargetHash)
 	L.Register("getCloseProposalHash", getCloseProposalHash)
 	L.Register("getReservedCustomIDList", getReservedCustomIDList)
-	L.Register("getBannedCustomIDList", getBannedCustomIDList)
 	L.Register("getReceivedCustomIDList", getReceivedCustomIDList)
 	L.Register("getRateOfCustomIDFee", getRateOfCustomIDFee)
 	L.Register("getReceiverDID", getReceiverDID)
@@ -508,10 +510,6 @@ func NewCommand() *cli.Command {
 				Usage: "reserved custom id list",
 			},
 			cli.StringFlag{
-				Name:  "bannedcustomidlist",
-				Usage: "banned custom id list",
-			},
-			cli.StringFlag{
 				Name:  "receivedcustomidlist",
 				Usage: "received custom id list",
 			},
@@ -546,6 +544,10 @@ func NewCommand() *cli.Command {
 			cli.StringFlag{
 				Name:  "cropinionhash",
 				Usage: "set the hash of proposal opinion",
+			},
+			cli.StringFlag{
+				Name:  "cropiniondata",
+				Usage: "set the data of cr opinion",
 			},
 			cli.StringFlag{
 				Name:  "secretarygeneralopinionhash",

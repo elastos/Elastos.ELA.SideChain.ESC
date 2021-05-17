@@ -27,4 +27,9 @@ var (
 	BKTArbPositions      = []byte("arbpts")
 	BKTArbitersData      = []byte("arbdata")
 	BKTTransactionHeight = []byte("txheight")
+
+	// revert to pow
+	BKTRevertPosition  = []byte("revertp")
+	BKTRevertPositions = []byte("revertps")
+	BKTConsensus       = []byte("consensus")
 )

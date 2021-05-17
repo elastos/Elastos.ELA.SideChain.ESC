@@ -62,7 +62,8 @@ func (s *txValidatorTestSuite) SetupSuite() {
 		s.Error(err)
 	}
 	s.Chain, err = New(chainStore, params,
-		state.NewState(params, nil, nil, nil,
+		state.NewState(params, nil, nil,
+			func() bool { return false },
 			nil, nil,
 			nil, nil, nil),
 		crstate.NewCommittee(params))
@@ -1086,18 +1087,19 @@ func (s *txValidatorTestSuite) TestCheckUpdateProducerTransaction() {
 
 	s.CurrentHeight = 1
 	s.Chain.crCommittee = crstate.NewCommittee(s.Chain.chainParams)
-	s.Chain.state = state.NewState(s.Chain.chainParams, nil, nil, nil, func(programHash common.Uint168) (common.Fixed64,
-		error) {
-		amount := common.Fixed64(0)
-		utxos, err := s.Chain.db.GetFFLDB().GetUTXO(&programHash)
-		if err != nil {
-			return amount, err
-		}
-		for _, utxo := range utxos {
-			amount += utxo.Value
-		}
-		return amount, nil
-	}, nil, nil, nil, nil)
+	s.Chain.state = state.NewState(s.Chain.chainParams, nil, nil,
+		func() bool { return false }, func(programHash common.Uint168) (common.Fixed64,
+			error) {
+			amount := common.Fixed64(0)
+			utxos, err := s.Chain.db.GetFFLDB().GetUTXO(&programHash)
+			if err != nil {
+				return amount, err
+			}
+			for _, utxo := range utxos {
+				amount += utxo.Value
+			}
+			return amount, nil
+		}, nil, nil, nil, nil)
 	s.Chain.crCommittee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
 		GetTxReference:                   s.Chain.UTXOCache.GetTxReference,
 		GetUTXO:                          s.Chain.db.GetFFLDB().GetUTXO,
@@ -1753,7 +1755,7 @@ func (s *txValidatorTestSuite) createSpecificStatusProposal(publicKey1, publicKe
 	}
 	proposalState := &crstate.ProposalState{
 		Status:              status,
-		Proposal:            *proposal,
+		Proposal:            proposal.ToProposalInfo(0),
 		TxHash:              common.Hash(randomBytes(10)),
 		CRVotes:             map[common.Uint168]payload.VoteResult{},
 		VotersRejectAmount:  common.Fixed64(0),
@@ -1929,7 +1931,6 @@ func (s *txValidatorTestSuite) getCRCReservedCustomIDProposalTx(publicKeyStr, pr
 		CRCouncilMemberDID:   *CRCouncilMemberDID,
 		DraftHash:            common.Hash(draftData),
 		ReservedCustomIDList: []string{randomName(3), randomName(3), randomName(3)},
-		BannedCustomIDList:   []string{randomName(3), randomName(3), randomName(3)},
 	}
 
 	signBuf := new(bytes.Buffer)
@@ -1999,16 +2000,17 @@ func (s *txValidatorTestSuite) TestCheckCRCProposalTrackingTransaction() {
 		publicKeyStr1, privateKeyStr1, "", "",
 		publicKeyStr3, privateKeyStr3)
 
+	pld := payload.CRCProposal{
+		ProposalType:       0,
+		OwnerPublicKey:     ownerPubKey,
+		CRCouncilMemberDID: *randomUint168(),
+		DraftHash:          *randomUint256(),
+		Budgets:            createBudgets(3),
+		Recipient:          *recipient,
+	}
 	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash] =
 		&crstate.ProposalState{
-			Proposal: payload.CRCProposal{
-				ProposalType:       0,
-				OwnerPublicKey:     ownerPubKey,
-				CRCouncilMemberDID: *randomUint168(),
-				DraftHash:          *randomUint256(),
-				Budgets:            createBudgets(3),
-				Recipient:          *recipient,
-			},
+			Proposal:      pld.ToProposalInfo(0),
 			Status:        crstate.VoterAgreed,
 			ProposalOwner: ownerPubKey,
 		}
@@ -2091,16 +2093,17 @@ func (s *txValidatorTestSuite) TestCheckCRCProposalTrackingTransaction() {
 		publicKeyStr3, privateKeyStr3)
 
 	// Check proposal status is not VoterAgreed.
+	pld = payload.CRCProposal{
+		ProposalType:       0,
+		OwnerPublicKey:     ownerPubKey,
+		CRCouncilMemberDID: *randomUint168(),
+		DraftHash:          *randomUint256(),
+		Budgets:            createBudgets(3),
+		Recipient:          *recipient,
+	}
 	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash] =
 		&crstate.ProposalState{
-			Proposal: payload.CRCProposal{
-				ProposalType:       0,
-				OwnerPublicKey:     ownerPubKey,
-				CRCouncilMemberDID: *randomUint168(),
-				DraftHash:          *randomUint256(),
-				Budgets:            createBudgets(3),
-				Recipient:          *recipient,
-			},
+			Proposal:         pld.ToProposalInfo(0),
 			TerminatedHeight: 100,
 			Status:           crstate.VoterCanceled,
 			ProposalOwner:    ownerPubKey,
@@ -2110,16 +2113,17 @@ func (s *txValidatorTestSuite) TestCheckCRCProposalTrackingTransaction() {
 	s.EqualError(err, "proposal status is not VoterAgreed")
 
 	// Check reach max proposal tracking count.
+	pld = payload.CRCProposal{
+		ProposalType:       0,
+		OwnerPublicKey:     ownerPubKey,
+		CRCouncilMemberDID: *randomUint168(),
+		DraftHash:          *randomUint256(),
+		Budgets:            createBudgets(3),
+		Recipient:          *recipient,
+	}
 	s.Chain.crCommittee.GetProposalManager().Proposals[*proposalHash] =
 		&crstate.ProposalState{
-			Proposal: payload.CRCProposal{
-				ProposalType:       0,
-				OwnerPublicKey:     ownerPubKey,
-				CRCouncilMemberDID: *randomUint168(),
-				DraftHash:          *randomUint256(),
-				Budgets:            createBudgets(3),
-				Recipient:          *recipient,
-			},
+			Proposal:      pld.ToProposalInfo(0),
 			TrackingCount: 128,
 			Status:        crstate.VoterAgreed,
 			ProposalOwner: ownerPubKey,
@@ -2806,13 +2810,14 @@ func (s *txValidatorTestSuite) TestCheckCRCProposalWithdrawTransaction() {
 	txn := s.getCRCProposalWithdrawTx(publicKeyStr1, privateKeyStr1,
 		Recipient, CRExpensesAddressU168, 9*ela, 50*ela, 0)
 	crcProposalWithdraw, _ := txn.Payload.(*payload.CRCProposalWithdraw)
+	pld :=payload.CRCProposal{
+		OwnerPublicKey: pk1Bytes,
+		Recipient:      *Recipient,
+		Budgets:        createBudgets(3),
+	}
 	propState := &crstate.ProposalState{
 		Status: crstate.VoterAgreed,
-		Proposal: payload.CRCProposal{
-			OwnerPublicKey: pk1Bytes,
-			Recipient:      *Recipient,
-			Budgets:        createBudgets(3),
-		},
+		Proposal: pld.ToProposalInfo(0),
 		FinalPaymentStatus:  false,
 		WithdrawableBudgets: map[uint8]common.Fixed64{0: 10 * 1e8},
 		ProposalOwner:       pk1Bytes,
@@ -3288,39 +3293,7 @@ func (s *txValidatorTestSuite) TestCheckCRCProposalTransaction() {
 	proposal, _ = txn.Payload.(*payload.CRCProposal)
 	proposal.ReservedCustomIDList = append(proposal.ReservedCustomIDList, randomName(260))
 	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
-	s.EqualError(err, "reserved custom id too long")
-
-	// invalid banned custom id
-	txn = s.getCRCReservedCustomIDProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
-	proposal, _ = txn.Payload.(*payload.CRCProposal)
-	proposal.BannedCustomIDList = append(proposal.BannedCustomIDList, randomName(260))
-	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
-	s.EqualError(err, "banned custom id too long")
-
-	manager := s.Chain.crCommittee.GetProposalManager()
-	manager.ReceivedCustomIDLists = make([][]string, 0)
-	manager.ReceivedCustomIDLists = append(manager.ReceivedCustomIDLists, []string{"a"})
-	manager.BannedCustomIDLists = make([][]string, 0)
-	manager.BannedCustomIDLists = append(manager.BannedCustomIDLists, []string{"c", "d", "e"})
-	manager.ReservedCustomIDLists = make([][]string, 0)
-	manager.ReservedCustomIDLists = append(manager.ReservedCustomIDLists, []string{"a", "b", "c"})
-
-	txn = s.getCRCReceivedCustomIDProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1, []string{"a", "d"})
-	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
-	s.EqualError(err, "Received custom id already received")
-
-	txn = s.getCRCReceivedCustomIDProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1, []string{"b", "f"})
-	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
-	s.EqualError(err, "Received custom id can not be found in reserved custom id list")
-
-	txn = s.getCRCReceivedCustomIDProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1, []string{"b", "c"})
-	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
-	s.EqualError(err, "Received custom id found in banned custom id list")
-
-	txn = s.getCRCReceivedCustomIDProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1, []string{"b"})
-	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
-	s.NoError(err)
-
+	s.EqualError(err, "invalid reserved custom id length")
 }
 
 func (s *txValidatorTestSuite) TestCheckStringField() {
@@ -4250,7 +4223,7 @@ func (s *txValidatorTestSuite) TestCreateCRCAppropriationTransaction() {
 	hash := block.Hash()
 	node, _ := s.Chain.LoadBlockNode(&block.Header, &hash)
 	s.Chain.db.SaveBlock(block, node, nil, CalcPastMedianTime(node))
-	txCrcAppropriation, _ := s.Chain.CreateCRCAppropriationTransaction()
+	txCrcAppropriation, _, _ := s.Chain.CreateCRCAppropriationTransaction()
 	s.NotNil(txCrcAppropriation)
 }
 

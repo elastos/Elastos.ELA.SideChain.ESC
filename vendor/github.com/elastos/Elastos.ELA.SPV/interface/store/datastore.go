@@ -72,8 +72,9 @@ func (d *dataStore) CID() CustomID {
 
 func (d *dataStore) Batch() DataBatch {
 	return &dataBatch{
-		DB:    d.db,
-		Batch: new(leveldb.Batch),
+		DB:       d.db,
+		customID: d.cid,
+		Batch:    new(leveldb.Batch),
 	}
 }
 
