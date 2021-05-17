@@ -1297,17 +1297,17 @@ func getValidPeriodFactor(Expires string, nowTime time.Time) float64 {
 func getOperationFactor(operation string) float64 {
 	factor := float64(0)
 	switch operation {
-	case "CREATE":
+	case "create":
 		factor = 1
-	case "UPDATE":
+	case "update":
 		factor = 0.8
-	case "TRANSFER":
+	case "transfer":
 		factor = 1.2
-	case "DEACTIVATE":
+	case "deactivate":
 		factor = 0.3
-	case "DECLARE":
+	case "declare":
 		factor = 1
-	case "REVOKE":
+	case "revoke":
 		factor = 0.3
 	default:
 		factor = 1
