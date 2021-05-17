@@ -14,18 +14,6 @@ import (
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-<<<<<<< HEAD
-=======
-var (
-	BKTRevertPosition  = []byte("A")
-	BKTRevertPositions = []byte("B")
-	BKTArbiters        = []byte("C")
-	BKTConsensus       = []byte("D")
-	BKTArbPosition     = []byte("P")
-	BKTArbPositions    = []byte("Z")
-)
-
->>>>>>> update ela spv vendors
 // Ensure arbiters implement arbiters interface.
 var _ Arbiters = (*arbiters)(nil)
 
@@ -63,7 +51,6 @@ func (c *arbiters) Put(height uint32, crcArbiters [][]byte, normalArbiters [][]b
 }
 
 func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error {
-<<<<<<< HEAD
 	batch.Put(BKTArbPosition, uint32toBytes(height))
 
 	// update positions
@@ -73,25 +60,6 @@ func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters 
 		if p < height {
 			newPosCache = append(newPosCache, p)
 		}
-=======
-	pos := c.getCurrentPosition()
-	var isRollback bool
-	if height <= pos {
-		isRollback = true
-	}
-	batch.Put(BKTArbPosition, uint32toBytes(height))
-	if !isRollback {
-		posCache := c.getCurrentPositions()
-		newPosCache := make([]uint32, 0)
-		for _, p := range posCache {
-			if p < height {
-				newPosCache = append(newPosCache, p)
-			}
-		}
-		newPosCache = append(newPosCache, height)
-		c.posCache = newPosCache
-		batch.Put(BKTArbPositions, uint32ArrayToBytes(c.posCache))
->>>>>>> update ela spv vendors
 	}
 	newPosCache = append(newPosCache, height)
 	c.posCache = newPosCache
@@ -352,10 +320,7 @@ func findSlot(pos []uint32, height uint32, arbitersCount int) (uint32, error) {
 func calcHash(data []byte) [32]byte {
 	return sha256.Sum256(data)
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> update ela spv vendors
 func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	c.RLock()
 	defer c.RUnlock()
@@ -370,11 +335,7 @@ func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	var modeHeight uint32
 	for _, p := range pos {
 		if p > height {
-<<<<<<< HEAD
 			break
-=======
-
->>>>>>> update ela spv vendors
 		}
 		modeHeight = p
 	}
@@ -397,11 +358,7 @@ func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight
 	c.Lock()
 	defer c.Unlock()
 
-<<<<<<< HEAD
 	pos := c.getCurrentRevertPosition()
-=======
-	pos := c.getCurrentPosition()
->>>>>>> update ela spv vendors
 	var isRollback bool
 	if workingHeight <= pos {
 		isRollback = true

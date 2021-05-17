@@ -148,13 +148,10 @@ type CustomID interface {
 	BatchDeleteControversialReceivedCustomIDs(
 		proposalHash common.Uint256, batch *leveldb.Batch)
 
-<<<<<<< HEAD
 	BatchPutRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error
 	BatchDeleteRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error
 
 
-=======
->>>>>>> update ela spv vendors
 	PutControversialChangeCustomIDFee(rate common.Fixed64,
 		proposalHash common.Uint256) error
 	BatchPutControversialChangeCustomIDFee(rate common.Fixed64,
