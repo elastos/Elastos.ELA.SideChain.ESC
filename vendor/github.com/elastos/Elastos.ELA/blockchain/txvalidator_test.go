@@ -3293,7 +3293,7 @@ func (s *txValidatorTestSuite) TestCheckCRCProposalTransaction() {
 	proposal, _ = txn.Payload.(*payload.CRCProposal)
 	proposal.ReservedCustomIDList = append(proposal.ReservedCustomIDList, randomName(260))
 	err = s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
-	s.EqualError(err, "reserved custom id too long")
+	s.EqualError(err, "invalid reserved custom id length")
 }
 
 func (s *txValidatorTestSuite) TestCheckStringField() {
@@ -4223,7 +4223,7 @@ func (s *txValidatorTestSuite) TestCreateCRCAppropriationTransaction() {
 	hash := block.Hash()
 	node, _ := s.Chain.LoadBlockNode(&block.Header, &hash)
 	s.Chain.db.SaveBlock(block, node, nil, CalcPastMedianTime(node))
-	txCrcAppropriation, _ := s.Chain.CreateCRCAppropriationTransaction()
+	txCrcAppropriation, _, _ := s.Chain.CreateCRCAppropriationTransaction()
 	s.NotNil(txCrcAppropriation)
 }
 
