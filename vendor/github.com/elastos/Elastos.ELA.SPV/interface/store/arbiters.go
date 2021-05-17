@@ -23,6 +23,7 @@ type arbiters struct {
 	db             *leveldb.DB
 	b              *leveldb.Batch
 	posCache       []uint32
+	revertPOSCache []uint32
 	cache          map[common.Uint256]uint32
 	originArbiters [][]byte
 	arbitersCount  int
@@ -52,7 +53,7 @@ func (c *arbiters) Put(height uint32, crcArbiters [][]byte, normalArbiters [][]b
 func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error {
 	pos := c.getCurrentPosition()
 	var isRollback bool
-	if height == pos {
+	if height <= pos {
 		isRollback = true
 	}
 	batch.Put(BKTArbPosition, uint32toBytes(height))
@@ -209,6 +210,23 @@ func (c *arbiters) getCurrentPositions() []uint32 {
 	return nil
 }
 
+func (c *arbiters) getCurrentRevertPosition() uint32 {
+	pos, err := c.db.Get(BKTRevertPosition, nil)
+	if err == nil {
+		return bytesToUint32(pos)
+	}
+
+	return 0
+}
+
+func (c *arbiters) getCurrentRevertPositions() []uint32 {
+	pos, err := c.db.Get(BKTRevertPositions, nil)
+	if err == nil {
+		return bytesToUint32Array(pos)
+	}
+	return nil
+}
+
 func (c *arbiters) Commit() error {
 	return c.db.Write(c.b, nil)
 }
@@ -305,4 +323,69 @@ func findSlot(pos []uint32, height uint32, arbitersCount int) (uint32, error) {
 
 func calcHash(data []byte) [32]byte {
 	return sha256.Sum256(data)
+}
+func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
+	c.RLock()
+	defer c.RUnlock()
+	var pos []uint32
+	if len(c.revertPOSCache) == 0 {
+		pos = c.getCurrentRevertPositions()
+		c.revertPOSCache = pos
+	} else {
+		pos = c.revertPOSCache
+	}
+
+	var modeHeight uint32
+	for _, p := range pos {
+		if p > height {
+
+		}
+		modeHeight = p
+	}
+
+	buf := new(bytes.Buffer)
+	if err := common.WriteUint32(buf, modeHeight); err != nil {
+		return 0, err
+	}
+	key := toKey(BKTConsensus, buf.Bytes()...)
+
+	mode, _ := c.db.Get(key, nil)
+	if len(mode) != 1 {
+		return 0, errors.New("failed to get consensus mode")
+	}
+
+	return mode[0], nil
+}
+
+func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight uint32, mode byte) error {
+	c.Lock()
+	defer c.Unlock()
+
+	pos := c.getCurrentPosition()
+	var isRollback bool
+	if workingHeight <= pos {
+		isRollback = true
+	}
+	batch.Put(BKTRevertPosition, uint32toBytes(workingHeight))
+	if !isRollback {
+		posCache := c.getCurrentRevertPositions()
+		newPosCache := make([]uint32, 0)
+		for _, p := range posCache {
+			if p < workingHeight {
+				newPosCache = append(newPosCache, p)
+			}
+		}
+		newPosCache = append(newPosCache, workingHeight)
+		c.revertPOSCache = newPosCache
+		batch.Put(BKTRevertPositions, uint32ArrayToBytes(c.revertPOSCache))
+	}
+
+	buf := new(bytes.Buffer)
+	if err := common.WriteUint32(buf, workingHeight); err != nil {
+		return err
+	}
+	key := toKey(BKTConsensus, buf.Bytes()...)
+	batch.Put(key, []byte{mode})
+
+	return nil
 }

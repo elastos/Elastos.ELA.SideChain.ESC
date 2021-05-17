@@ -24,6 +24,7 @@ const (
 	slotCRCProposalHash                       = "CRCProposalHash"
 	slotCRCProposalTrackingHash               = "CRCProposalTrackingHash"
 	slotCRCProposalReviewKey                  = "CRCProposalReviewKey"
+	slotCRCProposalCustomID                   = "CRCProposalCustomID"
 	slotCRCAppropriationKey                   = "CRCAppropriationKey"
 	slotCRCProposalRealWithdrawKey            = "CRCProposalRealWithdrawKey"
 	slotCloseProposalTargetProposalHash       = "CloseProposalTargetProposalHash"
@@ -36,6 +37,7 @@ const (
 	slotCRCouncilMemberNodePublicKey          = "CRCouncilMemberNodePublicKey"
 	slotCRCouncilMemberDID                    = "CRCouncilMemberDID"
 	slotCRCSecretaryGeneral                   = "CRCSecretaryGeneral"
+	slotRevertToDPOSHash                      = "RevertToDPOSHash"
 )
 
 type conflict struct {
@@ -297,6 +299,16 @@ func newConflictManager() conflictManager {
 					},
 				),
 			},
+			// CRC proposal CustomID
+			{
+				name: slotCRCProposalCustomID,
+				slot: newConflictSlot(strArray,
+					keyTypeFuncPair{
+						Type: types.CRCProposal,
+						Func: strArrayCRCProposalCustomID,
+					},
+				),
+			},
 			// CRC proposal hash
 			{
 				name: slotCRCProposalHash,
@@ -354,6 +366,15 @@ func newConflictManager() conflictManager {
 					keyTypeFuncPair{
 						Type: types.CRCProposalRealWithdraw,
 						Func: hashArrayCRCProposalRealWithdrawTransactionHashes,
+					},
+				),
+			},
+			{
+				name: slotRevertToDPOSHash,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.RevertToDPOS,
+						Func: hashRevertToDPOS,
 					},
 				),
 			},
