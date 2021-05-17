@@ -6,6 +6,7 @@
 package config
 
 import (
+	"math"
 	"math/big"
 	"time"
 
@@ -53,8 +54,14 @@ var (
 	// OriginIssuanceAmount is the origin issuance ELA amount.
 	OriginIssuanceAmount = 3300 * 10000 * 100000000
 
+	// AfterBurnIssuanceAmount is the new issurance ELA amount after cr proposal #1631.
+	AfterBurnIssuanceAmount = 2000 * 10000 * 100000000
+
 	// inflationPerYear is the inflation amount per year.
 	inflationPerYear = OriginIssuanceAmount * 4 / 100
+
+	// newInflationPerYear is the new inflation amount per year.
+	newInflationPerYear = AfterBurnIssuanceAmount * 4 / 100
 
 	// bigOne is 1 represented as a big.Int.  It is defined here to avoid
 	// the overhead of creating it multiple times.
@@ -165,7 +172,6 @@ var DefaultParams = Params{
 		"02b95b000f087a97e988c24331bf6769b4a75e4b7d5d2a38105092a3aa841be33b",
 		"02a0aa9eac0e168f3474c2a0d04e50130833905740a5270e8a44d6c6e85cf6d98c",
 	},
-
 	SecretaryGeneral:            "02712da531804d1c38d159a901313239d2100dfb5b693d71a2f76b15dec3f8fc32",
 	MaxProposalTrackingCount:    128,
 	PowLimit:                    powLimit,
@@ -191,9 +197,9 @@ var DefaultParams = Params{
 	RegisterCRByDIDHeight:       598000,
 	ToleranceDuration:           5 * time.Second,
 	MaxInactiveRounds:           720 * 2,
-	InactivePenalty:             0,    //there will be no penalty in this version
-	IllegalPenalty:              5000, //there will be no penalty in this version
-	EmergencyInactivePenalty:    0,    //there will be no penalty in this version
+	InactivePenalty:             0, //there will be no penalty in this version
+	IllegalPenalty:              0, //there will be no penalty in this version
+	EmergencyInactivePenalty:    0, //there will be no penalty in this version
 	GeneralArbiters:             24,
 	CandidateArbiters:           72,
 	PreConnectOffset:            360,
@@ -228,11 +234,20 @@ var DefaultParams = Params{
 	RectifyTxFee:                       10000,
 	RealWithdrawSingleFee:              10000,
 	NewP2PProtocolVersionHeight:        751400,
-	ChangeCommitteeNewCRHeight:         1000000, //TODO reset latter
-	NoCRCDPOSNodeHeight:                1000000, //TODO reset latter
-	RandomCandidatePeriod:              36 * 10, //TODO reset latter
-	MaxInactiveRoundsOfRandomNode:      36 * 8,  //TODO reset latter
-	MaxReservedCustomIDListCount:       255,     //TODO reset latter
+	ChangeCommitteeNewCRHeight:         932530,
+	CustomIDProposalStartHeight:        932530,
+	NoCRCDPOSNodeHeight:                932530,
+	RevertToPOWStartHeight:             932530,
+	RandomCandidatePeriod:              36 * 10,
+	MaxInactiveRoundsOfRandomNode:      36 * 8,
+	MaxReservedCustomIDLength:          255,
+	CRCProposalDraftDataStartHeight:    2000000,
+	DPOSNodeCrossChainHeight:           2000000,
+	RevertToPOWNoBlockTime:             12 * 3600,
+	StopConfirmBlockTime:               11 * 3600,
+	HalvingRewardHeight:                1051200, // 4 * 365 * 720
+	HalvingRewardInterval:              1051200, // 4 * 365 * 720
+	NewELAIssuanceHeight:               919800,  // 3.5 * 365 * 720
 }
 
 // TestNet returns the network parameters for the test network.
@@ -302,12 +317,22 @@ func (p *Params) TestNet() *Params {
 	copy.MaxNodePerHost = 10
 	copy.CheckVoteCRCountHeight = 546500
 	copy.MaxCRAssetsAddressUTXOCount = 800
-	copy.ChangeCommitteeNewCRHeight = 1000000   //TODO reset latter
-	copy.IllegalPenalty = 5000                  //TODO reset latter
-	copy.NoCRCDPOSNodeHeight = 1000000          //TODO reset latter
-	copy.RandomCandidatePeriod = 36 * 10        //TODO reset latter
-	copy.MaxInactiveRoundsOfRandomNode = 36 * 8 //TODO reset latter
-	copy.MaxReservedCustomIDListCount = 255     //TODO reset latter
+	copy.ChangeCommitteeNewCRHeight = 815060
+	copy.CRCProposalDraftDataStartHeight = 2000000
+	copy.CustomIDProposalStartHeight = 815060
+	copy.InactivePenalty = 0
+	copy.IllegalPenalty = 0
+	copy.NoCRCDPOSNodeHeight = 815060
+	copy.RandomCandidatePeriod = 36 * 10
+	copy.MaxInactiveRoundsOfRandomNode = 36 * 8
+	copy.DPOSNodeCrossChainHeight = 2000000
+	copy.MaxReservedCustomIDLength = 255
+	copy.RevertToPOWNoBlockTime = 12 * 3600
+	copy.StopConfirmBlockTime = 11 * 3600
+	copy.RevertToPOWStartHeight = 815060
+	copy.HalvingRewardHeight = 877880    //767000 + 154 * 720
+	copy.HalvingRewardInterval = 1051200 //4 * 365 * 720
+	copy.NewELAIssuanceHeight = 774920   //767000 + 720 * 11
 
 	return &copy
 }
@@ -379,12 +404,22 @@ func (p *Params) RegNet() *Params {
 	copy.MaxNodePerHost = 10
 	copy.CheckVoteCRCountHeight = 435000
 	copy.MaxCRAssetsAddressUTXOCount = 1440
-	copy.ChangeCommitteeNewCRHeight = 1000000   //TODO reset latter
-	copy.IllegalPenalty = 5000                  //TODO reset latter
-	copy.NoCRCDPOSNodeHeight = 1000000          //TODO reset latter
-	copy.RandomCandidatePeriod = 36 * 10        //TODO reset latter
-	copy.MaxInactiveRoundsOfRandomNode = 36 * 8 //TODO reset latter
-	copy.MaxReservedCustomIDListCount = 255     //TODO reset latter
+	copy.ChangeCommitteeNewCRHeight = 706240
+	copy.CRCProposalDraftDataStartHeight = 2000000
+	copy.CustomIDProposalStartHeight = 706240
+	copy.IllegalPenalty = 0
+	copy.InactivePenalty = 0
+	copy.NoCRCDPOSNodeHeight = 706240
+	copy.RandomCandidatePeriod = 36 * 10
+	copy.MaxInactiveRoundsOfRandomNode = 36 * 8
+	copy.DPOSNodeCrossChainHeight = 2000000
+	copy.MaxReservedCustomIDLength = 255
+	copy.RevertToPOWNoBlockTime = 12 * 3600
+	copy.StopConfirmBlockTime = 11 * 3600
+	copy.RevertToPOWStartHeight = 706240
+	copy.HalvingRewardHeight = 801240    //690360 + 154 * 720
+	copy.HalvingRewardInterval = 1051200 //4 * 365 * 720
+	copy.NewELAIssuanceHeight = 691740   //690300 + 720 * 2
 
 	return &copy
 }
@@ -462,6 +497,9 @@ type Params struct {
 
 	// RewardPerBlock is the reward amount per block.
 	RewardPerBlock common.Fixed64
+
+	// NewRewardPerBlock is the reward amount per block.
+	NewRewardPerBlock common.Fixed64
 
 	// CoinbaseMaturity is the number of blocks required before newly mined
 	// coins (coinbase transactions) can be spent.
@@ -672,11 +710,35 @@ type Params struct {
 	// ChangeCommitteeNewCRHeight defines the new arbiter logic after change committee.
 	ChangeCommitteeNewCRHeight uint32
 
+	// CRCProposalDraftDataStartHeight defines the proposal draft data start height.
+	CRCProposalDraftDataStartHeight uint32
+
+	// CustomIDProposalStartHeight defines the height to allow custom ID related transaction.
+	CustomIDProposalStartHeight uint32
+
 	// RandomCandidatePeriod defines the period to get a candidate as DPOS node at random.
 	RandomCandidatePeriod uint32
 
-	//MaxReservedCustomIDListCount defines the max count of reserved custom iid list per tx.
-	MaxReservedCustomIDListCount uint32
+	// MaxReservedCustomIDLength defines the max length of reserved custom id.
+	MaxReservedCustomIDLength uint32
+
+	// RevertToPOWInterval defines how long time does it take to revert to POW mode.
+	RevertToPOWNoBlockTime int64
+
+	// StopConfirmBlockTime defines how long time dose it take before stop confirm block.
+	StopConfirmBlockTime int64
+
+	// RevertToPOWStartHeight defines the start height to allow to revert to POW mode.
+	RevertToPOWStartHeight uint32
+
+	// HalvingRewardHeight represents the height of halving reward
+	HalvingRewardHeight uint32
+
+	// HalvingRewardInterval represents the interval of halving reward
+	HalvingRewardInterval uint32
+
+	// NewELAIssuanceHeight represents the new issuance ELA amount after proposal #1631
+	NewELAIssuanceHeight uint32
 }
 
 // rewardPerBlock calculates the reward for each block by a specified time
@@ -685,6 +747,19 @@ func rewardPerBlock(targetTimePerBlock time.Duration) common.Fixed64 {
 	blockGenerateInterval := int64(targetTimePerBlock / time.Second)
 	generatedBlocksPerYear := 365 * 24 * 60 * 60 / blockGenerateInterval
 	return common.Fixed64(float64(inflationPerYear) / float64(generatedBlocksPerYear))
+}
+
+// newRewardPerBlock calculates the reward for each block by a specified time
+// duration.
+func (p *Params) newRewardPerBlock(targetTimePerBlock time.Duration, height uint32) common.Fixed64 {
+	blockGenerateInterval := int64(targetTimePerBlock / time.Second)
+	generatedBlocksPerYear := 365 * 24 * 60 * 60 / blockGenerateInterval
+	factor := uint32(1)
+	if height >= p.HalvingRewardHeight {
+		factor = 2 + (height-p.HalvingRewardHeight)/p.HalvingRewardInterval
+	}
+
+	return common.Fixed64(float64(newInflationPerYear) / float64(generatedBlocksPerYear) / math.Pow(2, float64(factor-1)))
 }
 
 // GenesisBlock creates a genesis block by the specified foundation address.
@@ -732,4 +807,13 @@ func GenesisBlock(foundation *common.Uint168) *types.Block {
 		},
 		Transactions: []*types.Transaction{&coinBase, &elaAsset},
 	}
+}
+
+func (p *Params) GetBlockReward(height uint32) (rewardPerBlock common.Fixed64) {
+	if height < p.NewELAIssuanceHeight {
+		rewardPerBlock = p.RewardPerBlock
+	} else {
+		rewardPerBlock = p.newRewardPerBlock(2*time.Minute, height)
+	}
+	return
 }

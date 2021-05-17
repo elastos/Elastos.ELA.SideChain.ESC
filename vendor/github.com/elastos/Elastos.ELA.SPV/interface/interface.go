@@ -45,6 +45,10 @@ type SPVService interface {
 	// listeners must be registered before call Start() method, or some notifications will go missing.
 	RegisterBlockListener(BlockListener) error
 
+	// RegisterRevertListener register the listener to receive revert related transactions notifications.
+	// listeners must be registered before call Start() method, or some notifications will go missing.
+	RegisterRevertListener(listener RevertListener) error
+
 	// After receive the transaction callback, call this method
 	// to confirm that the transaction with the given ID was handled,
 	// so the transaction will be removed from the notify queue.
@@ -70,11 +74,14 @@ type SPVService interface {
 	// Get next turn arbiters.
 	GetNextArbiters() (workingHeight uint32, crcArbiters [][]byte, normalArbiters [][]byte, err error)
 
+	// Get consensus algorithm by height.
+	GetConsensusAlgorithm(height uint32) (ConsensusAlgorithm, error)
+
 	// GetReservedCustomIDs query all controversial reserved custom ID.
 	GetReservedCustomIDs() (map[string]struct{}, error)
 
-	// GeReceivedCustomIDs query all controversial received custom ID.
-	GeReceivedCustomIDs() (map[string]common.Uint168, error)
+	// GetReceivedCustomIDs query all controversial received custom ID.
+	GetReceivedCustomIDs() (map[string]common.Uint168, error)
 
 	// GetRateOfCustomIDFee query current rate of custom ID fee.
 	GetRateOfCustomIDFee() (common.Fixed64, error)
@@ -122,6 +129,23 @@ type TransactionListener interface {
 	// with the merkle tree proof to verify it, the notifyId is key of this
 	// notify message and it must be submitted with the receipt together.
 	Notify(notifyId common.Uint256, proof bloom.MerkleProof, tx types.Transaction)
+}
+
+/*
+Register this listener to IService RegisterRevertListener() method
+to receive revert related transactions notifications.
+*/
+type RevertListener interface {
+	// NotifyRevertToPow is the method to callback when received RevertToPow transaction.
+	NotifyRevertToPow(tx types.Transaction)
+
+	// NotifyRevertToPow is the method to callback when received RevertToDPOS transaction.
+	NotifyRevertToDPOS(tx types.Transaction)
+
+	NotifyRollbackRevertToPow(tx types.Transaction)
+
+	// NotifyRollbackRevertToDPOS is the method to callback when rolled back RevertToDPOS transaction.
+	NotifyRollbackRevertToDPOS(tx types.Transaction)
 }
 
 /*

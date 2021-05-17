@@ -78,6 +78,11 @@ type Configuration struct {
 	NodeProfileStrategy         string            `json:"NodeProfileStrategy"`
 	TxCacheVolume               uint32            `json:"TxCacheVolume"`
 	MaxNodePerHost              uint32            `json:"MaxNodePerHost"`
+	CustomIDProposalStartHeight uint32            `json:"CustomIDProposalStartHeight"`
+	MaxReservedCustomIDLength   uint32            `json:"MaxReservedCustomIDLength"`
+	HalvingRewardHeight         uint32            `json:"HalvingRewardHeight"`
+	HalvingRewardInterval       uint32            `json:"HalvingRewardInterval"`
+	NewELAIssuanceHeight        uint32            `json:"NewELAIssuanceHeight"`
 }
 
 // DPoSConfiguration defines the DPoS consensus parameters.
@@ -100,6 +105,9 @@ type DPoSConfiguration struct {
 	RandomCandidatePeriod         uint32         `json:"RandomCandidatePeriod"`
 	MaxInactiveRoundsOfRandomNode uint32         `json:"MaxInactiveRoundsOfRandomNode"`
 	DPOSNodeCrossChainHeight      uint32         `json:"DPOSNodeCrossChainHeight"`
+	RevertToPOWNoBlockTime        int64          `json:"RevertToPOWNoBlockTime"`
+	StopConfirmBlockTime          int64          `json:"StopConfirmBlockTime"`
+	RevertToPOWStartHeight        uint32         `json:"RevertToPOWStartHeight"`
 }
 
 type CRConfiguration struct {
@@ -132,7 +140,7 @@ type CRConfiguration struct {
 	RealWithdrawSingleFee              common.Fixed64 `json:"RealWithdrawSingleFee"`
 	NewP2PProtocolVersionHeight        uint64         `json:"NewP2PProtocolVersionHeight"`
 	ChangeCommitteeNewCRHeight         uint32         `json:"ChangeCommitteeNewCRHeight"`
-	MaxReservedCustomIDListCount       uint32         `json:"MaxReservedCustomIDListCount"`
+	CRCProposalDraftDataStartHeight    uint32         `json:"CRCProposalDraftDataStartHeight"`
 }
 
 type RPCServiceLevel byte

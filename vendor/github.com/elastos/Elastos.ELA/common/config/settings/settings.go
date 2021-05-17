@@ -496,6 +496,7 @@ func NewSettings() *Settings {
 		DefaultValue: uint32(0),
 		ConfigPath:   "DPoSConfiguration.IllegalPenalty",
 		ParamName:    "IllegalPenalty"})
+
 	result.Add(&settingItem{
 		Flag:         cmdcom.CRCommitteeStartHeightFlag,
 		DefaultValue: uint32(0),
@@ -765,6 +766,24 @@ func NewSettings() *Settings {
 		ParamName: "ToleranceDuration"})
 
 	result.Add(&settingItem{
+		Flag:         cmdcom.RevertToPOWNoBlockTimeFlag,
+		DefaultValue: int64(0),
+		ConfigPath:   "DPoSConfiguration.RevertToPOWNoBlockTime",
+		ParamName:    "RevertToPOWNoBlockTime"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.StopConfirmBlockTimeFlag,
+		DefaultValue: int64(0),
+		ConfigPath:   "DPoSConfiguration.StopConfirmBlockTime",
+		ParamName:    "StopConfirmBlockTime"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.RevertToPOWStartHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.RevertToPOWStartHeight",
+		ParamName:    "RevertToPOWStartHeight"})
+
+	result.Add(&settingItem{
 		Flag:         cmdcom.MaxInactiveRoundsFlag,
 		DefaultValue: uint32(0),
 		ConfigPath:   "DPoSConfiguration.MaxInactiveRounds",
@@ -933,10 +952,22 @@ func NewSettings() *Settings {
 		ParamName:    "ChangeCommitteeNewCRHeight"})
 
 	result.Add(&settingItem{
-		Flag:         cmdcom.MaxReservedCustomIDListCount,
+		Flag:         cmdcom.CRCProposalDraftDataStartHeight,
 		DefaultValue: uint32(0),
-		ConfigPath:   "CRConfiguration.MaxReservedCustomIDListCount",
-		ParamName:    "MaxReservedCustomIDListCount"})
+		ConfigPath:   "CRConfiguration.CRCProposalDraftDataStartHeight",
+		ParamName:    "CRCProposalDraftDataStartHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.CustomIDProposalStartHeight,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CustomIDProposalStartHeight",
+		ParamName:    "CustomIDProposalStartHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.MaxReservedCustomIDLength,
+		DefaultValue: uint32(0),
+		ConfigPath:   "MaxReservedCustomIDLength",
+		ParamName:    "MaxReservedCustomIDLength"})
 
 	result.Add(&settingItem{
 		Flag:         cmdcom.NoCRCDPOSNodeHeight,
@@ -961,6 +992,24 @@ func NewSettings() *Settings {
 		DefaultValue: uint32(0),
 		ConfigPath:   "DPoSConfiguration.DPOSNodeCrossChainHeight",
 		ParamName:    "DPOSNodeCrossChainHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.HalvingRewardHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "HalvingRewardHeight",
+		ParamName:    "HalvingRewardHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.HalvingRewardIntervalFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "HalvingRewardInterval",
+		ParamName:    "HalvingRewardInterval"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.NewELAIssuanceHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "NewELAIssuanceHeight",
+		ParamName:    "NewELAIssuanceHeight"})
 
 	return result
 }
