@@ -261,7 +261,7 @@ func (p *Producer) Deserialize(r io.Reader) (err error) {
 
 const (
 	// maxHistoryCapacity indicates the maximum capacity of change history.
-	maxHistoryCapacity = 10
+	maxHistoryCapacity = 720
 
 	// ActivateDuration is about how long we should activate from pending or
 	// inactive state
@@ -505,7 +505,9 @@ func (s *State) GetCanceledProducers() []*Producer {
 func (s *State) getCanceledProducers() []*Producer {
 	producers := make([]*Producer, 0, len(s.CanceledProducers))
 	for _, producer := range s.CanceledProducers {
-		producers = append(producers, producer)
+		if producer.state == Canceled {
+			producers = append(producers, producer)
+		}
 	}
 	return producers
 }
@@ -1639,12 +1641,13 @@ func (s *State) processIllegalEvidence(payloadData types.Payload,
 		if producer, ok := s.ActivityProducers[key]; ok {
 			oriPenalty := producer.penalty
 			oriState := producer.state
+			oriIllegalHeight := producer.illegalHeight
 			s.history.Append(height, func() {
 				producer.state = Illegal
 				producer.illegalHeight = height
 				s.IllegalProducers[key] = producer
 				producer.activateRequestHeight = math.MaxUint32
-				if height >= s.chainParams.ChangeCommitteeNewCRHeight && oriState != Illegal {
+				if height >= s.chainParams.ChangeCommitteeNewCRHeight {
 					producer.penalty += s.chainParams.IllegalPenalty
 				}
 				delete(s.ActivityProducers, key)
@@ -1652,10 +1655,55 @@ func (s *State) processIllegalEvidence(payloadData types.Payload,
 			}, func() {
 				producer.state = oriState
 				producer.penalty = oriPenalty
-				producer.illegalHeight = 0
+				producer.illegalHeight = oriIllegalHeight
 				s.ActivityProducers[key] = producer
 				producer.activateRequestHeight = math.MaxUint32
 				delete(s.IllegalProducers, key)
+				s.Nicknames[producer.info.NickName] = struct{}{}
+			})
+			continue
+		}
+
+		if producer, ok := s.InactiveProducers[key]; ok {
+			oriPenalty := producer.penalty
+			oriState := producer.state
+			oriIllegalHeight := producer.illegalHeight
+			s.history.Append(height, func() {
+				producer.state = Illegal
+				producer.illegalHeight = height
+				s.IllegalProducers[key] = producer
+				producer.activateRequestHeight = math.MaxUint32
+				if height >= s.chainParams.ChangeCommitteeNewCRHeight {
+					producer.penalty += s.chainParams.IllegalPenalty
+				}
+				delete(s.InactiveProducers, key)
+				delete(s.Nicknames, producer.info.NickName)
+			}, func() {
+				producer.state = oriState
+				producer.penalty = oriPenalty
+				producer.illegalHeight = oriIllegalHeight
+				s.InactiveProducers[key] = producer
+				producer.activateRequestHeight = math.MaxUint32
+				delete(s.IllegalProducers, key)
+				s.Nicknames[producer.info.NickName] = struct{}{}
+			})
+			continue
+		}
+
+		if producer, ok := s.IllegalProducers[key]; ok {
+			oriPenalty := producer.penalty
+			oriIllegalHeight := producer.illegalHeight
+			s.history.Append(height, func() {
+				producer.illegalHeight = height
+				producer.activateRequestHeight = math.MaxUint32
+				if height >= s.chainParams.ChangeCommitteeNewCRHeight {
+					producer.penalty += s.chainParams.IllegalPenalty
+				}
+				delete(s.Nicknames, producer.info.NickName)
+			}, func() {
+				producer.penalty = oriPenalty
+				producer.illegalHeight = oriIllegalHeight
+				producer.activateRequestHeight = math.MaxUint32
 				s.Nicknames[producer.info.NickName] = struct{}{}
 			})
 			continue
@@ -1668,7 +1716,7 @@ func (s *State) processIllegalEvidence(payloadData types.Payload,
 				producer.state = Illegal
 				producer.illegalHeight = height
 				s.IllegalProducers[key] = producer
-				if height >= s.chainParams.ChangeCommitteeNewCRHeight && oriState != Illegal {
+				if height >= s.chainParams.ChangeCommitteeNewCRHeight {
 					producer.penalty += s.chainParams.IllegalPenalty
 				}
 				delete(s.CanceledProducers, key)
@@ -1709,6 +1757,7 @@ func (s *State) setInactiveProducer(producer *Producer, key string,
 	producer.inactiveSince = height
 	producer.activateRequestHeight = math.MaxUint32
 	producer.state = Inactive
+	producer.selected = false
 	s.InactiveProducers[key] = producer
 	delete(s.ActivityProducers, key)
 
@@ -1719,6 +1768,7 @@ func (s *State) setInactiveProducer(producer *Producer, key string,
 			}
 		} else {
 			producer.penalty += s.chainParams.EmergencyInactivePenalty
+
 		}
 	}
 }
@@ -1803,11 +1853,12 @@ func (s *State) countArbitratorsInactivityV2(height uint32,
 						oriInactiveCount = producer.inactiveCount
 					}
 					oriLastUpdateInactiveHeight := producer.lastUpdateInactiveHeight
+					oriSelected := producer.selected
 					s.history.Append(height, func() {
 						s.tryUpdateInactivityV2(key, producer, needReset, height)
 					}, func() {
 						s.tryRevertInactivity(key, producer, needReset, height,
-							oriInactiveCount, oriLastUpdateInactiveHeight)
+							oriInactiveCount, oriLastUpdateInactiveHeight, oriSelected)
 					})
 				} else {
 					oriState := cr.MemberState
@@ -1834,11 +1885,12 @@ func (s *State) countArbitratorsInactivityV2(height uint32,
 			oriInactiveCount = producer.inactiveCount
 		}
 		oriLastUpdateInactiveHeight := producer.lastUpdateInactiveHeight
+		oriSelected := producer.selected
 		s.history.Append(height, func() {
 			s.tryUpdateInactivityV2(key, producer, needReset, height)
 		}, func() {
 			s.tryRevertInactivity(key, producer, needReset, height,
-				oriInactiveCount, oriLastUpdateInactiveHeight)
+				oriInactiveCount, oriLastUpdateInactiveHeight, oriSelected)
 		})
 	}
 }
@@ -1877,7 +1929,7 @@ func (s *State) countArbitratorsInactivityV1(height uint32,
 					continue
 				}
 				oriState := cr.MemberState
-				oriInactiveCount := cr.InactiveCount
+				oriInactiveCount := cr.InactiveCountingHeight
 				s.history.Append(height, func() {
 					s.tryUpdateCRMemberInactivity(cr.Info.DID, needReset, height)
 				}, func() {
@@ -1895,11 +1947,12 @@ func (s *State) countArbitratorsInactivityV1(height uint32,
 
 		oriInactiveCount := producer.inactiveCount
 		oriLastUpdateInactiveHeight := producer.lastUpdateInactiveHeight
+		oriSelected := producer.selected
 		s.history.Append(height, func() {
 			s.tryUpdateInactivity(key, producer, needReset, height)
 		}, func() {
 			s.tryRevertInactivity(key, producer, needReset, height,
-				oriInactiveCount, oriLastUpdateInactiveHeight)
+				oriInactiveCount, oriLastUpdateInactiveHeight, oriSelected)
 		})
 	}
 }
@@ -1949,11 +2002,12 @@ func (s *State) countArbitratorsInactivityV0(height uint32,
 			oriInactiveCount = producer.inactiveCount
 		}
 		oriLastUpdateInactiveHeight := producer.lastUpdateInactiveHeight
+		oriSelected := producer.selected
 		s.history.Append(height, func() {
 			s.tryUpdateInactivity(key, producer, needReset, height)
 		}, func() {
 			s.tryRevertInactivity(key, producer, needReset, height,
-				oriInactiveCount, oriLastUpdateInactiveHeight)
+				oriInactiveCount, oriLastUpdateInactiveHeight, oriSelected)
 		})
 	}
 }
@@ -1963,7 +2017,6 @@ func (s *State) tryUpdateInactivityV2(key string, producer *Producer,
 	if needReset {
 		if producer.selected {
 			producer.randomCandidateInactiveCount = 0
-
 		} else {
 			producer.inactiveCount = 0
 		}
@@ -1977,7 +2030,6 @@ func (s *State) tryUpdateInactivityV2(key string, producer *Producer,
 		}
 	}
 
-
 	if producer.selected {
 		producer.randomCandidateInactiveCount++
 		if producer.randomCandidateInactiveCount >= s.chainParams.MaxInactiveRoundsOfRandomNode {
@@ -1987,6 +2039,7 @@ func (s *State) tryUpdateInactivityV2(key string, producer *Producer,
 		producer.inactiveCount++
 		if producer.inactiveCount >= s.chainParams.MaxInactiveRounds {
 			s.setInactiveProducer(producer, key, height, false)
+			producer.inactiveCount = 0
 		}
 	}
 	producer.lastUpdateInactiveHeight = height
@@ -2010,8 +2063,10 @@ func (s *State) tryUpdateInactivity(key string, producer *Producer,
 }
 
 func (s *State) tryRevertInactivity(key string, producer *Producer,
-	needReset bool, height, oriInactiveCount uint32, oriLastUpdateInactiveHeight uint32) {
+	needReset bool, height, oriInactiveCount uint32,
+	oriLastUpdateInactiveHeight uint32, oriSelected bool) {
 	producer.lastUpdateInactiveHeight = oriLastUpdateInactiveHeight
+	producer.selected = oriSelected
 	if needReset {
 		if producer.selected {
 			producer.randomCandidateInactiveCount = oriInactiveCount
