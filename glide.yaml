@@ -132,7 +132,11 @@ import:
   version: a5f61da16f63f2ab1aff9909aea5f77155655242
 >>>>>>> update spv vendor
 - package: github.com/elastos/Elastos.ELA
+<<<<<<< HEAD
   version: 348a9a58552f67517009c9789edb31590e59344b #feature_register_sidechain
+=======
+  version: 87aef49384e354905dd819df7e92bff96acb35f4
+>>>>>>> update ela vendor
 - package: github.com/gorilla/websocket
 - package: github.com/mattn/go-sqlite3
 - package: github.com/btcsuite/btcd/wire
