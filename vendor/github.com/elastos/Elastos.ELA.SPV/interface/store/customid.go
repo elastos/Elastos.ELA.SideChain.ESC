@@ -521,10 +521,7 @@ func (c *customID) getCustomIDFeeRate() (common.Fixed64, error) {
 		return c.feeRate, nil
 	}
 	feeRate, _ := c.getCustomIDFeeRateFromDB()
-	// todo consider other errors
-	if feeRate == 0 {
-		feeRate = DefaultFeeRate
-	}
+	//// todo consider other errors
 	c.feeRate = feeRate
 	return feeRate, nil
 }
