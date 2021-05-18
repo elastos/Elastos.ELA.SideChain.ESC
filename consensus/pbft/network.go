@@ -172,7 +172,7 @@ func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
 		return
 	}
 	sealHash := p.SealHash(b.Header())
-	log.Info("-----On PreBlock received------", "blockHash:", sealHash.String(), "height:", b.NumberU64())
+	log.Info("-----On PreBlock received------", "blockHash:", sealHash.String(), "height:", b.NumberU64(), "nonce", b.Nonce())
 	err = p.blockPool.AppendDposBlock(b)
 	if err == consensus.ErrUnknownAncestor {
 		log.Info("Append Future blocks", "height:", b.NumberU64())
