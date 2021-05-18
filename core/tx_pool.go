@@ -521,10 +521,24 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// Heuristic limit, reject transactions over 32KB to prevent DOS attacks
-	if tx.Size() > 128*1024 {
-		log.Info("tx size is too big", "size", tx.Size())
-		return ErrOversizedData
+	isMigrateDID := false
+	signer := types.MakeSigner(pool.chainconfig, pool.chain.CurrentBlock().Number())
+	msg, err := tx.AsMessage(signer)
+	if err == nil && msg.From().String() == pool.chainconfig.OldDIDMigrateAddr &&
+		pool.chainconfig.OldDIDMigrateHeight != nil &&
+		pool.chain.CurrentBlock().Number().Cmp(pool.chainconfig.OldDIDMigrateHeight) <= 0 {
+		isMigrateDID = true
+		if tx.Size() > 600*1024 {
+			log.Info("migrate did tx size is too big", "size", tx.Size())
+			return ErrOversizedData
+		}
+	} else {
+		if tx.Size() > 128*1024 {
+			log.Info("tx size is too big", "size", tx.Size())
+			return ErrOversizedData
+		}
 	}
+
 	// Transactions can't be negative. This may never happen using RLP decoded
 	// transactions but may occur if you create a transaction using the RPC.
 	if tx.Value().Sign() < 0 {
@@ -573,7 +587,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if err != nil {
 		return err
 	}
-	if tx.Gas() < intrGas {
+	if tx.Gas() < intrGas && !isMigrateDID {
 		return ErrIntrinsicGas
 	}
 	return nil

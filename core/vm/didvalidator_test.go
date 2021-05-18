@@ -1355,13 +1355,13 @@ func TestGetOperationFactor(t *testing.T) {
 		Operation string
 		factor    float64
 	}{
-		{"CREATE", 1},
-		{"UPDATE", 0.8},
-		{"TRANSFER", 1.2},
-		{"DEACTIVATE", 0.3},
-		{"DECLARE", 1},
-		{"REVOKE", 0.3},
-		{"DEFUALT_OTHER", 1},
+		{"create", 1},
+		{"update", 0.8},
+		{"transfer", 1.2},
+		{"deactivate", 0.3},
+		{"declare", 1},
+		{"revoke", 0.3},
+		{"default_other", 1},
 	}
 	for _, test := range tests {
 		lenFactor := getOperationFactor(test.Operation)

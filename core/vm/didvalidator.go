@@ -59,8 +59,14 @@ func checkRegisterDID(evm *EVM, p *did.DIDPayload, gas uint64) error {
 
 	//check txn fee use RequiredGas
 	fee := evm.GasPrice.Uint64() * gas
-	if err := checkRegisterDIDTxFee(p, fee); err != nil {
-		return err
+	configHeight := evm.chainConfig.OldDIDMigrateHeight
+	configAddr := evm.chainConfig.OldDIDMigrateAddr
+	senderAddr := evm.Context.Origin.String()
+
+	if configHeight  == nil || evm.Context.BlockNumber.Cmp(configHeight) > 0 || senderAddr != configAddr{
+		if err := checkRegisterDIDTxFee(p, fee); err != nil {
+			return err
+		}
 	}
 
 	if err := checkDIDOperation(evm, &p.Header, p.DIDDoc.ID); err != nil {

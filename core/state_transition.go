@@ -277,6 +277,13 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	if err != nil {
 		return nil, 0, false, err
 	}
+	senderAddr := evm.Context.Origin.String()
+	if evm.ChainConfig().OldDIDMigrateHeight != nil &&
+		evm.Context.BlockNumber.Cmp(evm.ChainConfig().OldDIDMigrateHeight) <= 0 {
+		if senderAddr == evm.ChainConfig().OldDIDMigrateAddr {
+			gas = 0
+		}
+	}
 	if err = st.useGas(gas); err != nil {
 		return nil, 0, false, err
 	}
