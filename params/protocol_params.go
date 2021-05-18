@@ -133,7 +133,7 @@ const (
 	ArbitersBaseGas uint64 = 1000 // Gas needed for getting DPos arbiters
 	P256VerifyBaseGas uint64 = 1000 // Gas needed for verifying P256 signature
 	DIDBaseGasprice   uint64 = GWei * 1000
-	DIDBaseGasCost    uint64 = 300000
+	DIDBaseGasCost    uint64 = 0
 )
 
 var (
