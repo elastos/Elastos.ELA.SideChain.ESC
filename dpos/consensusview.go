@@ -100,9 +100,6 @@ func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 	v.producers.mtx.Lock()
 	defer v.producers.mtx.Unlock()
 	nextProducers := v.producers.nextProducers
-	if len(nextProducers) <= 0 {
-		return true
-	}
 	if len(curProducers) != len(nextProducers) {
 		return false
 	}
