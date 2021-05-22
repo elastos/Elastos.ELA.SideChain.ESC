@@ -73,6 +73,8 @@ type StateDB interface {
 
 	GetLastDIDTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error)
 
+	GetAllDIDTxData(idKey []byte, config *params.ChainConfig) ([]did.DIDTransactionData, error)
+
 	GetLastCustomizedDIDTxData(idKey []byte) (*did.DIDTransactionData, error)
 
 	GetLastCustomizedDIDTxHash(idKey []byte) (elacom.Uint256, error)
@@ -82,6 +84,12 @@ type StateDB interface {
 	AddDIDLog(did string, operation string, doc []byte)
 
 	IsDID(did string)  (bool, error)
+
+	ReadTransaction(txID common.Hash) (*types.Transaction, common.Hash, uint64, uint64)
+
+	ReadBlock(hash common.Hash, number uint64) *types.Block
+
+	GetDeactivatedTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

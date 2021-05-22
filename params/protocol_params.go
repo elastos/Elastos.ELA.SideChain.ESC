@@ -134,6 +134,7 @@ const (
 	P256VerifyBaseGas uint64 = 1000 // Gas needed for verifying P256 signature
 	DIDBaseGasprice   uint64 = GWei * 1000
 	DIDBaseGasCost    uint64 = 0
+	ResolveDIDCost    uint64 = 1000
 )
 
 var (
