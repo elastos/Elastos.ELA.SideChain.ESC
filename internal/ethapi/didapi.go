@@ -15,71 +15,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/internal/didapi"
 )
-
-type DidDocState uint8
-
-const (
-	Valid = iota
-	Expired
-	Deactivated
-	NonExist
-)
-
-func (c DidDocState) String() string {
-	switch c {
-	case Valid:
-		return "Valid"
-	case Expired:
-		return "Expired"
-	case Deactivated:
-		return "Deactivated"
-	case NonExist:
-		return "NonExist"
-	default:
-		return "Unknown"
-	}
-}
-
-const (
-	CredentialValid = iota
-	CredentialReserve
-	CredentialRevoked
-	CredentialNonExist
-)
-
-// payload of DID transaction
-type RpcPayloadDIDInfo struct {
-	DID        string                `json:"did"`
-	Status     int                   `json:"status"`
-	RpcTXDatas []RpcTranasactionData `json:"transaction,omitempty"`
-}
-
-type RpcOperation struct {
-	Header  did.Header `json:"header"`
-	Payload string     `json:"payload"`
-	Proof   did.Proof  `json:"proof"`
-}
-
-type RpcTranasactionData struct {
-	TXID      string       `json:"txid"`
-	Timestamp string       `json:"timestamp"`
-	Operation RpcOperation `json:"operation"`
-}
-
-func (rpcTxData *RpcTranasactionData) FromTranasactionData(txData did.DIDTransactionData) bool {
-	hash, err := elacom.Uint256FromHexString(txData.TXID)
-	if err != nil {
-		return false
-	}
-
-	rpcTxData.TXID = hash.String() //service.ToReversedString(*hash)
-	rpcTxData.Timestamp = txData.Timestamp
-	rpcTxData.Operation.Header = txData.Operation.Header
-	rpcTxData.Operation.Payload = txData.Operation.Payload
-	rpcTxData.Operation.Proof = txData.Operation.Proof
-	return true
-}
 
 // payload of DID transaction
 type RpcCredentialPayloadDIDInfo struct {
@@ -170,17 +107,17 @@ func (s *PublicTransactionPoolAPI) ResolveCredential(ctx context.Context, param 
 	}
 
 	if len(txsData) == 0 {
-		rpcPayloadDid.Status = CredentialNonExist
+		rpcPayloadDid.Status = didapi.CredentialNonExist
 	} else if len(txsData) == 1 {
-		rpcPayloadDid.Status = CredentialValid
+		rpcPayloadDid.Status = didapi.CredentialValid
 	} else if len(txsData) == 2 {
-		rpcPayloadDid.Status = CredentialRevoked
+		rpcPayloadDid.Status = didapi.CredentialRevoked
 	}
 
 	return rpcPayloadDid, nil
 }
 
-func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []byte) (*RpcTranasactionData, error) {
+func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []byte) (*didapi.RpcTranasactionData, error) {
 	//get deactive tx date
 	deactiveTxData, err := rawdb.GetDeactivatedTxData(s.b.ChainDb().(ethdb.KeyValueStore), idKey,
 		s.b.ChainConfig())
@@ -189,7 +126,7 @@ func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []by
 			"get did deactivate transaction failed")
 	}
 	//change from DIDTransactionData to RpcTranasactionData
-	rpcTXData := new(RpcTranasactionData)
+	rpcTXData := new(didapi.RpcTranasactionData)
 	succe := rpcTXData.FromTranasactionData(*deactiveTxData)
 	if succe == false {
 		return nil, http.NewError(int(service.InternalError),
@@ -207,7 +144,7 @@ func (s *PublicTransactionPoolAPI) getDeactiveTx(ctx context.Context, idKey []by
 
 //xxl modify to PublicTransactionPoolAPI
 func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[string]interface{}) (interface{}, error) {
-	var didDocState DidDocState = NonExist
+	var didDocState didapi.DidDocState = didapi.NonExist
 
 	idParam, ok := param["did"].(string)
 	if !ok {
@@ -233,14 +170,14 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 		isGetAll = false
 	}
 
-	var rpcPayloadDid RpcPayloadDIDInfo
+	var rpcPayloadDid didapi.RpcPayloadDIDInfo
 
 	buf := new(bytes.Buffer)
 	buf.WriteString(idParam)
 	txData, err := rawdb.GetLastDIDTxData(s.b.ChainDb().(ethdb.KeyValueStore), buf.Bytes(), s.b.ChainConfig())
 	if err != nil {
 		rpcPayloadDid.DID = idParam
-		rpcPayloadDid.Status = NonExist
+		rpcPayloadDid.Status = didapi.NonExist
 		return rpcPayloadDid, nil
 	}
 
@@ -264,7 +201,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 		if err != nil {
 			continue
 		}
-		tempTXData := new(RpcTranasactionData)
+		tempTXData := new(didapi.RpcTranasactionData)
 		succe := tempTXData.FromTranasactionData(txData)
 		if succe == false {
 			continue
@@ -273,7 +210,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 		tempTXData.Timestamp = time.Unix(int64(timestamp), 0).UTC().Format(time.RFC3339)
 		if index == 0 {
 			if rawdb.IsDIDDeactivated(s.b.ChainDb().(ethdb.KeyValueStore), idParam) {
-				didDocState = Deactivated
+				didDocState = didapi.Deactivated
 				//fill in
 				deactiveTXData, err := s.getDeactiveTx(ctx, buf.Bytes())
 				if err != nil {
@@ -281,7 +218,7 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 				}
 				rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, *deactiveTXData)
 			} else {
-				didDocState = Valid
+				didDocState = didapi.Valid
 			}
 			rpcPayloadDid.Status = int(didDocState)
 		}

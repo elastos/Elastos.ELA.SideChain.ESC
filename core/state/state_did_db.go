@@ -67,6 +67,17 @@ func (self *StateDB) GetLastDIDTxData(idKey []byte, config *params.ChainConfig) 
 	return rawdb.GetLastDIDTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey, config)
 }
 
+func (self *StateDB) GetAllDIDTxData(idKey []byte, config *params.ChainConfig) ([]did.DIDTransactionData, error) {
+	logs := self.DIDLogs()
+	id := string(idKey)
+	for _, log := range logs {
+		if log.DID == id {
+			return nil, errors.New("allready create did: " + id)
+		}
+	}
+	return rawdb.GetAllDIDTxTxData(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), idKey, config)
+}
+
 func (self *StateDB) GetLastCustomizedDIDTxData(idKey []byte) (*did.DIDTransactionData, error) {
 	key := []byte{byte(rawdb.IX_CUSTOMIZEDDIDTXHash)}
 	key = append(key, idKey...)
@@ -144,4 +155,16 @@ func (self *StateDB) GetLastVerifiableCredentialTxData(idKey []byte, config *par
 
 func (self *StateDB) IsDID(did string)  (bool, error) {
 	return rawdb.IsDID(self.db.TrieDB().DiskDB().(ethdb.KeyValueStore), did)
+}
+
+func (self *StateDB) ReadTransaction(txID common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
+	return rawdb.ReadTransaction(self.db.TrieDB().DiskDB().(ethdb.Database), txID)
+}
+
+func (self *StateDB) ReadBlock(hash common.Hash, number uint64) *types.Block {
+	return rawdb.ReadBlock(self.db.TrieDB().DiskDB().(ethdb.Database), hash, number)
+}
+
+func (self *StateDB) GetDeactivatedTxData(idKey []byte, config *params.ChainConfig) (*did.DIDTransactionData, error)  {
+	return rawdb.GetDeactivatedTxData(self.db.TrieDB().DiskDB().(ethdb.Database), idKey, config)
 }
