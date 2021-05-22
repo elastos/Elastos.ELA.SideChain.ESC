@@ -4,14 +4,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/btcsuite/btcutil/base58"
 	"strings"
+	"time"
+
+	"github.com/bitly/go-simplejson"
+	"github.com/btcsuite/btcutil/base58"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/internal/didapi"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+
+	elacom "github.com/elastos/Elastos.ELA/common"
 )
 
 // PrecompiledContract is the basic interface for native Go contracts. The implementation
@@ -24,6 +31,7 @@ type PrecompiledContractDID interface {
 
 var PrecompileContractsDID = map[common.Address]PrecompiledContractDID{
 	common.BytesToAddress([]byte{22}): &operationDID{},
+	common.BytesToAddress([]byte{23}): &resolveDID{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -291,4 +299,154 @@ func isDID(didDoc *did.DIDDoc) bool {
 		}
 	}
 	return false
+}
+
+type resolveDID struct {}
+
+func (j *resolveDID) RequiredGas(evm *EVM, input []byte) uint64 {
+	return params.ResolveDIDCost
+}
+
+func (j *resolveDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
+	var didDocState didapi.DidDocState = didapi.NonExist
+	data := getData(input, 32, uint64(len(input) - 32))
+	params := make(map[string]interface{})
+
+	err := json.Unmarshal(data, &params)
+	if err != nil {
+		return false32Byte, errors.New( "resolveDID input is error" + string(data))
+	}
+
+	//remove DID_ELASTOS_PREFIX
+	idParam, ok := params["did"].(string)
+	if !ok {
+		return false32Byte, errors.New( "did is null")
+	}
+	id := idParam
+	if rawdb.IsURIHasPrefix(idParam) {
+		id = did.GetDIDFromUri(id)
+	}
+
+	//check is valid address
+	_, err = elacom.Uint168FromAddress(id)
+	if err != nil {
+		return false32Byte, errors.New("invalid did")
+	}
+
+	isGetAll, ok := params["all"].(bool)
+	if !ok {
+		isGetAll = false
+	}
+
+	branchPath, ok := params["branch"].([]interface{})
+	if !ok {
+		return false32Byte, errors.New("branch is null")
+	}
+
+	var rpcPayloadDid didapi.ResolvePayloadDIDInfo
+	buf := new(bytes.Buffer)
+	buf.WriteString(idParam)
+	txData, err := evm.StateDB.GetLastDIDTxData(buf.Bytes(), evm.chainConfig)
+	if err != nil {
+		return false32Byte, errors.New("did is not exist")
+	}
+
+	var txsData []did.DIDTransactionData
+	if isGetAll {
+		txsData, err = evm.StateDB.GetAllDIDTxData(buf.Bytes(), evm.chainConfig)
+		if err != nil {
+			return false32Byte, errors.New("get did transaction failed")
+		}
+	} else {
+		if txData != nil {
+			txsData = append(txsData, *txData)
+		}
+	}
+
+	for index, txData := range txsData {
+		rpcPayloadDid.DID = txData.Operation.DIDDoc.ID
+		err, timestamp := getTxTime(evm, txData.TXID)
+		if err != nil {
+			continue
+		}
+		tempTXData := new(didapi.RpcTranasactionData)
+		succe := tempTXData.FromTranasactionData(txData)
+		if succe == false {
+			continue
+		}
+		tempTXData.Timestamp = time.Unix(int64(timestamp), 0).UTC().Format(time.RFC3339)
+		if index == 0 {
+			if evm.StateDB.IsDIDDeactivated(idParam) {
+				didDocState = didapi.Deactivated
+				deactiveTXData, err := getDeactiveTx(evm, buf.Bytes())
+				if err != nil {
+					return nil, err
+				}
+				rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, deactiveTXData.ToResolveTxData())
+			} else {
+				didDocState = didapi.Valid
+			}
+			rpcPayloadDid.Status = int(didDocState)
+		}
+		rpcPayloadDid.RpcTXDatas = append(rpcPayloadDid.RpcTXDatas, tempTXData.ToResolveTxData())
+	}
+
+	res, err := json.Marshal(rpcPayloadDid)
+	if err != nil {
+		return false32Byte, err
+	}
+	jin, err := simplejson.NewJson(res)
+	if err != nil {
+		log.Error("set simple json error", "error", err)
+		return false32Byte, err
+	}
+
+	for _, p := range branchPath {
+		if path, ok := p.(string); ok {
+			jin = jin.Get(path)
+		} else if path, ok := p.(float64); ok {
+			jin = jin.GetIndex(int(path))
+		}
+	}
+	inter := jin.Interface()
+	if jin == nil {
+		return false32Byte, errors.New("get value error")
+	}
+	vv, err := json.Marshal(inter)
+	log.Info("resolve did", "return", string(vv), "err", err)
+	return vv, err
+}
+
+func getTxTime(evm *EVM, txid string) (error, uint64) {
+	hash := common.HexToHash(txid)
+	tx, blockHash, blockNumber, _ := evm.StateDB.ReadTransaction(hash)
+	if tx == nil {
+		return errors.New("unkown tx"), 0
+	}
+	block := evm.StateDB.ReadBlock(blockHash, blockNumber)
+	if block == nil {
+		return errors.New("unkown block header"), 0
+
+	}
+	return nil, block.Time()
+}
+
+func getDeactiveTx(evm *EVM, idKey []byte) (*didapi.RpcTranasactionData, error) {
+	deactiveTxData, err := evm.StateDB.GetDeactivatedTxData(idKey, evm.chainConfig)
+	if err != nil {
+		return nil, errors.New("get did deactivate transaction failed")
+	}
+	//change from DIDTransactionData to RpcTranasactionData
+	rpcTXData := new(didapi.RpcTranasactionData)
+	succe := rpcTXData.FromTranasactionData(*deactiveTxData)
+	if succe == false {
+		return nil, errors.New("change deactive tx data failed")
+	}
+	//fill tx Timestamp
+	err, timestamp := getTxTime(evm, rpcTXData.TXID)
+	if err != nil {
+		return nil, errors.New("get did deactivate transaction failed" + err.Error())
+	}
+	rpcTXData.Timestamp = time.Unix(int64(timestamp), 0).UTC().Format(time.RFC3339)
+	return rpcTXData, nil
 }
