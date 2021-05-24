@@ -15,6 +15,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
 
 	"github.com/elastos/Elastos.ELA.SideChain/vm/interfaces"
@@ -107,13 +108,17 @@ func checkRegisterDID(evm *EVM, p *did.DIDPayload, gas uint64) error {
 	doc := p.DIDDoc
 	if err = checkVerifiableCredentials(evm, doc.ID, doc.VerifiableCredential,
 		doc.Authentication, doc.PublicKey, nil); err != nil {
+		if err.Error() == "[VM] Check Sig FALSE" && evm.Context.BlockNumber.Cmp(configHeight) < 0{
+			log.Warn("checkRegisterDID end "," Check Sig FALSE ID", p.DIDDoc.ID)
+			return nil
+		}
 		return err
 	}
 	return nil
 }
 
 func checkRegisterDIDTxFee(operation *did.DIDPayload, txFee uint64) error {
-	//2. calculate the  fee that one cutomized did tx should paid
+	//2. calculate the  fee that one cutomized did txls should paid
 	payload := operation.DIDDoc
 	buf := new(bytes.Buffer)
 	operation.Serialize(buf, did.DIDVersion)
