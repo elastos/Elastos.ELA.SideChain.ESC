@@ -82,11 +82,11 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 		isRegisterDID := isDID(p.DIDDoc)
 		if isRegisterDID {
 			if err = checkRegisterDID(evm, p, gas); err != nil {
-				log.Error("checkRegisterDID error", "error", err)
+				log.Error("checkRegisterDID error", "error", err, "ID", p.DIDDoc.ID)
 			}
 		} else {
 			if err = checkCustomizedDID(evm, p, gas); err != nil {
-				log.Error("checkCustomizedDID error", "error", err)
+				log.Error("checkCustomizedDID error", "error", err, "ID", p.DIDDoc.ID)
 			}
 		}
 		if err != nil {
