@@ -51,24 +51,20 @@ func (c *arbiters) Put(height uint32, crcArbiters [][]byte, normalArbiters [][]b
 }
 
 func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error {
-	pos := c.getCurrentPosition()
-	var isRollback bool
-	if height <= pos {
-		isRollback = true
-	}
 	batch.Put(BKTArbPosition, uint32toBytes(height))
-	if !isRollback {
-		posCache := c.getCurrentPositions()
-		newPosCache := make([]uint32, 0)
-		for _, p := range posCache {
-			if p < height {
-				newPosCache = append(newPosCache, p)
-			}
+
+	// update positions
+	posCache := c.getCurrentPositions()
+	newPosCache := make([]uint32, 0)
+	for _, p := range posCache {
+		if p < height {
+			newPosCache = append(newPosCache, p)
 		}
-		newPosCache = append(newPosCache, height)
-		c.posCache = newPosCache
-		batch.Put(BKTArbPositions, uint32ArrayToBytes(c.posCache))
 	}
+	newPosCache = append(newPosCache, height)
+	c.posCache = newPosCache
+	batch.Put(BKTArbPositions, uint32ArrayToBytes(c.posCache))
+
 	data := getValueBytes(crcArbiters, normalArbiters)
 	hash := calcHash(data)
 	key, err := common.Uint256FromBytes(hash[:])
