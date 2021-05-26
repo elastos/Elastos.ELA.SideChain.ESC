@@ -28,7 +28,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
-	cevent "github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/downloader"
@@ -120,7 +119,7 @@ func (self *Miner) update() {
 						go pbftEngine.Recover()
 					}
 				}
-				self.mux.Post(cevent.InitCurrentProducers{})
+				//self.mux.Post(cevent.InitCurrentProducers{})
 				return
 			}
 		case <-self.exitCh:

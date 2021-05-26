@@ -573,6 +573,11 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 				return ErrInsufficientFunds
 			}
 		}
+		if to.String() == pool.chainconfig.BlackContractAddr && spv.MainChainIsPowMode() {
+			log.Error("[validateTx]", "error", ErrMainChainInPowMode.Error())
+			return ErrMainChainInPowMode
+		}
+
 	} else {
 		contractAddr := crypto.CreateAddress(from, pool.currentState.GetNonce(from))
 		if contractAddr.String() != pool.chainconfig.BlackContractAddr {
