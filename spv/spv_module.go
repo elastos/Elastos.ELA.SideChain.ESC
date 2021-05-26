@@ -47,6 +47,7 @@ var (
 
 	failedMutex      sync.RWMutex
 	failedTxList = make(map[uint64][]string)
+	consensusMode spv.ConsensusAlgorithm
 )
 
 const (
@@ -95,6 +96,8 @@ type Config struct {
 
 type Service struct {
 	spv.SPVService
+
+	mux      *event.TypeMux
 }
 
 //Spv database initialization
@@ -108,7 +111,7 @@ func SpvDbInit(spvdataDir string) {
 }
 
 //Spv service initialization
-func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
+func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux) (*Service, error) {
 	var chainParams *config.Params
 	switch strings.ToLower(cfg.ActiveNet) {
 	case "testnet", "test", "t":
@@ -133,6 +136,7 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 	spvCfg.ChainParams = chainParams
 	spvCfg.PermanentPeers = chainParams.PermanentPeers
 	dataDir = cfg.DataDir
+	spvCfg.NodeVersion = "ETH_DID_1.9.7"
 	initLog(cfg.DataDir)
 
 	service, err := spv.NewSPVService(spvCfg)
@@ -141,7 +145,7 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 		return nil, err
 	}
 
-	SpvService = &Service{service}
+	SpvService = &Service{service, tmux}
 	err = service.RegisterTransactionListener(&listener{
 		address: cfg.GenesisAddress,
 		service: service,
