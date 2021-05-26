@@ -2,6 +2,9 @@ package spv
 
 import (
 	"errors"
+
+	spv "github.com/elastos/Elastos.ELA.SPV/interface"
+
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
@@ -22,6 +25,10 @@ func SpvIsWorkingHeight() bool {
 		return SpvService.GetBlockListener().BlockHeight() > nextTurnDposInfo.WorkingHeight
 	}
 	return false
+}
+
+func MainChainIsPowMode() bool {
+	return consensusMode == spv.POW
 }
 
 func GetProducers(elaHeight uint64) ([][]byte, int, error) {
