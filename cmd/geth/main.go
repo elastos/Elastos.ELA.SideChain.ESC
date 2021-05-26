@@ -473,7 +473,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		log.Error("Attach client: ", "err", err)
 	}
 
-	if spvService, err := spv.NewService(spvCfg,client); err != nil {
+	if spvService, err := spv.NewService(spvCfg,client, stack.EventMux()); err != nil {
 		utils.Fatalf("SPV service init error: %v", err)
 	} else {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})

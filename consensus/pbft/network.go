@@ -224,10 +224,10 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			log.Error("OnInsertBlock error", "GetProducers", err)
 			return false
 		}
-		spvIsNormal := p.dispatcher.GetConsensusView().GetSpvHeight() == block.Nonce()
+		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce()
 		isCurrent := p.IsCurrentProducers(producers)
-		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", spvIsNormal, "isCurrent", isCurrent)
-		if  spvIsNormal && !isCurrent {
+		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword, "isCurrent", isCurrent)
+		if  isBackword && !isCurrent {
 			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
 			go p.AnnounceDAddr()
 			go p.Recover()
