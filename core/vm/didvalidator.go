@@ -114,6 +114,16 @@ func checkRegisterDID(evm *EVM, p *did.DIDPayload, gas uint64) error {
 		}
 		return err
 	}
+
+	DIDProofArray, err := getDocProof(p.DIDDoc.Proof)
+	if err != nil {
+		return err
+	}
+	var verifyDoc *did.DIDDoc
+	verifyDoc = p.DIDDoc
+	if err = checkDIDInnerProof(evm,DIDProofArray, doc.DIDPayloadData, 1, verifyDoc); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -707,6 +717,50 @@ func checkCustomizedDID(evm *EVM, customizedDIDPayload *did.DIDPayload, gas uint
 	}
 	return nil
 
+}
+
+//3, proof multisign verify
+func  checkDIDInnerProof(evm *EVM, DIDProofArray []*did.DocProof, iDateContainer interfaces.IDataContainer,
+	N int, verifyDoc *did.DIDDoc) error {
+	verifyOkCount := 0
+	//3, proof multisign verify
+	for _, CustomizedDIDProof := range DIDProofArray {
+		//get  public key
+		publicKeyBase58, _ := getDefaultPublicKey(evm, CustomizedDIDProof.Creator, true, verifyDoc.PublicKey,
+			verifyDoc.Authentication, verifyDoc.Controller)
+		if publicKeyBase58 == "" {
+			return errors.New("checkCustomIDInnerProof Not find proper publicKeyBase58")
+		}
+		//get code
+		//var publicKeyByte []byte
+		publicKeyByte := base58.Decode(publicKeyBase58)
+
+		//var code []byte
+		code, err := did.GetCodeByPubKey(publicKeyByte)
+		if err != nil {
+			return err
+		}
+		signature, _ := base64url.DecodeString(CustomizedDIDProof.SignatureValue)
+
+		var success bool
+		fmt.Println("checkDIDInnerProof publicKeyBase58 ", publicKeyBase58)
+		fmt.Println("checkDIDInnerProof signature ", CustomizedDIDProof.SignatureValue)
+		fmt.Println("checkDIDInnerProof data ", string(iDateContainer.GetData()))
+
+		success, err = did.VerifyByVM(iDateContainer, code, signature)
+
+		if err != nil {
+			return err
+		}
+		if !success {
+			return errors.New("[VM] Check Sig FALSE")
+		}
+		verifyOkCount++
+	}
+	if verifyOkCount < N {
+		return errors.New("[VM] Check Sig FALSE verifyOkCount < N")
+	}
+	return nil
 }
 
 //3, proof multisign verify
