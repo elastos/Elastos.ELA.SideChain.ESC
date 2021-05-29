@@ -51,7 +51,7 @@ func (c *arbiters) Put(height uint32, crcArbiters [][]byte, normalArbiters [][]b
 }
 
 func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error {
-	batch.Put(BKTArbPosition, uint32toBytes(height))
+batch.Put(BKTArbPosition, uint32toBytes(height))
 
 	// update positions
 	posCache := c.getCurrentPositions()

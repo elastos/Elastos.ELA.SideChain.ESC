@@ -536,6 +536,8 @@ func (ec *Client) GetCurrentProducers(ctx context.Context) ([]string, error) {
 	return result, err
 }
 
+
+
 func (ec *Client) CurrentBlockNumber(ctx context.Context) (uint64, error) {
 	var hex hexutil.Uint64
 	err := ec.c.CallContext(ctx, &hex, "eth_blockNumber")
