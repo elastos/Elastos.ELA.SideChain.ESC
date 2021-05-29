@@ -536,6 +536,17 @@ func (ec *Client) GetCurrentProducers(ctx context.Context) ([]string, error) {
 	return result, err
 }
 
+
+
+func (ec *Client) CurrentBlockNumber(ctx context.Context) (uint64, error) {
+	var hex hexutil.Uint64
+	err := ec.c.CallContext(ctx, &hex, "eth_blockNumber")
+	if err != nil {
+		return 0, err
+	}
+	return uint64(hex), nil
+}
+
 func toSendTxArg(msg ethereum.TXMsg) interface{} {
 	arg := map[string]interface{}{
 		"from": msg.From,

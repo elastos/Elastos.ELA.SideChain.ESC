@@ -98,9 +98,6 @@ func (v *ConsensusView) UpdateNextProducers(producers []peer.PID, totalCount int
 
 func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 	nextProducers := v.producers.nextProducers
-	if len(nextProducers) <= 0 {
-		return true
-	}
 	if len(curProducers) != len(nextProducers) {
 		return false
 	}

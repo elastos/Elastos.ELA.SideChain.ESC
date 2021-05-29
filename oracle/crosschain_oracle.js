@@ -11,6 +11,7 @@ const getExistTxs = require("./getexisttxs");
 const GetIllegalEvidenceByHeight=require("./getillegalevidencebyheight");
 const CheckIllegalEvidence=require("./checkillegalevidence");
 const Smallcrosschaintransaction=require("./smallcrosschaintransaction");
+const FailedDepositTransactions=require("./faileddeposittransactions");
 
 const app = express();
 
@@ -55,6 +56,10 @@ app.post("/", async function(req, res) {
         }
         if (json_data["method"] === "sendsmallcrosstransaction") {
             await Smallcrosschaintransaction(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "getfaileddeposittransactions") {
+            await FailedDepositTransactions(json_data, res)
             return;
         }
     } catch (err) {

@@ -218,14 +218,16 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 		spv.InitNextTurnDposInfo()
 		return !isSame
 	} else if block.Nonce() > 0 {
+		//used to sync completed to consensus
 		producers, totalCount, err := spv.GetProducers(block.Nonce())
 		if err != nil {
 			log.Error("OnInsertBlock error", "GetProducers", err)
 			return false
 		}
-		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce() //New node synchronizations
-		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword)
-		if !p.IsCurrentProducers(producers) && isBackword {
+		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce()
+		isCurrent := p.IsCurrentProducers(producers)
+		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword, "isCurrent", isCurrent)
+		if  isBackword && !isCurrent {
 			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
 			go p.AnnounceDAddr()
 			go p.Recover()
