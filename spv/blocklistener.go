@@ -2,9 +2,9 @@ package spv
 
 import (
 	"bytes"
-
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	eevent "github.com/elastos/Elastos.ELA.SideChain.ETH/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
@@ -35,7 +35,7 @@ type BlockListener struct {
 func (l *BlockListener) NotifyBlock(block *util.Block) {
 	l.blockNumber = block.Height
 	l.StoreAuxBlock(block)
-	log.Info("BlockListener handle block ", "height", block.Height)
+	log.Info("BlockListener handle block ", "height", l.blockNumber)
 	l.onBlockHandled(l.param.block)
 	if l.handle != nil {
 		l.handle(l.param.block)
@@ -61,9 +61,11 @@ func (l *BlockListener) RegisterFunc(handleFunc func(block interface{}) error) {
 }
 
 func (l *BlockListener) onBlockHandled(block interface{}) {
+	isWorkingHeight := SpvIsWorkingHeight()
 	if nextTurnDposInfo == nil {
 		InitNextTurnDposInfo()
-	} else if !SpvIsWorkingHeight() {
+		isWorkingHeight = SpvIsWorkingHeight()
+	} else if !isWorkingHeight {
 		if IsNexturnBlock(block) {
 			log.Info("------------------ force change next turn arbiters-----------")
 			peers := DumpNextDposInfo()
@@ -77,9 +79,13 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 	if len(nextTurnDposInfo.CRPublicKeys) == 0 && len(nextTurnDposInfo.DPOSPublicKeys) == 0 && consensusMode == spv.DPOS {
 		consensusMode = spv.POW
 		log.Info("<----------MainChain turn to POW consensus mode------->")
-	} else if (len(nextTurnDposInfo.CRPublicKeys) > 0 || len(nextTurnDposInfo.DPOSPublicKeys) > 0) &&  consensusMode == spv.POW && SpvIsWorkingHeight() {
+	} else if (len(nextTurnDposInfo.CRPublicKeys) > 0 || len(nextTurnDposInfo.DPOSPublicKeys) > 0) &&  consensusMode == spv.POW && isWorkingHeight {
 		log.Info("<----------MainChain turn to DPOS consensus mode------->")
 		consensusMode = spv.DPOS
+	}
+
+	if isWorkingHeight {
+		SpvService.mux.Post(eevent.InitCurrentProducers{})
 	}
 }
 
