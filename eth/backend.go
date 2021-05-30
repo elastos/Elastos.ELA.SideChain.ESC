@@ -400,19 +400,18 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	return eth, nil
 }
 
-func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, currentHeader *types.Header) {
-	log.Info("InitCurrentProducers", "nonce", currentHeader.Nonce.Uint64(), "height", currentHeader.Height())
-	if currentHeader == nil {
+func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, currentBlock *types.Block) {
+	number := currentBlock.NumberU64()
+	log.Info("InitCurrentProducers", "nonce", currentBlock.Nonce(), "height", number)
+	if currentBlock == nil {
 		return
 	}
-	if currentHeader.Number.Uint64() == 0 {
+	if !config.IsPBFTFork(currentBlock.Number()) {
 		return
 	}
-	if !config.IsPBFTFork(currentHeader.Number) {
-		return
-	}
-	spvHeight := currentHeader.Nonce.Uint64()
+	spvHeight := currentBlock.Nonce()
 	if spvHeight <= 0 {
+		engine.OnInsertBlock(currentBlock)
 		return
 	}
 
@@ -423,9 +422,6 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	}
 	if engine.IsCurrentProducers(producers) {
 		log.Info("is current producers, do not need update", "totalProducers", totalProducers)
-		if engine.IsProducer() {
-			engine.Recover()
-		}
 		return
 	}
 	blocksigner.SelfIsProducer = false
@@ -479,7 +475,7 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				}
 			case <-initProducersSub.Chan():
 				pbftEngine := engine.(*pbft.Pbft)
-				currentHeader := eth.blockchain.CurrentHeader()
+				currentHeader := eth.blockchain.CurrentBlock()
 				InitCurrentProducers(pbftEngine, eth.blockchain.Config(), currentHeader)
 			}
 		}
