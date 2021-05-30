@@ -202,6 +202,9 @@ func (p *Pbft) AccessFutureBlock(parent *types.Block) {
 }
 
 func (p *Pbft) OnInsertBlock(block *types.Block) bool {
+	if p.dispatcher == nil {
+		return false
+	}
 	dutyIndex := p.dispatcher.GetConsensusView().GetDutyIndex()
 	isWorkingHeight := spv.SpvIsWorkingHeight()
 	if dutyIndex == 0 && isWorkingHeight {
