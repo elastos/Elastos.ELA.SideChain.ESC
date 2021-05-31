@@ -53,7 +53,7 @@ var DefaultConfig = Config{
 	Miner: miner.Config{
 		GasFloor: 100000000,
 		GasCeil:  100000000,
-		GasPrice: big.NewInt(params.GWei * 1000),
+		GasPrice: big.NewInt(params.GWei * 1),
 		Recommit: 3 * time.Second,
 	},
 	TxPool: core.DefaultTxPoolConfig,
