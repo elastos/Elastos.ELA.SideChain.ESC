@@ -214,7 +214,7 @@ func (p *Pbft) subscribeEvent() {
 		case dpos.ETNextProducers:
 			producers := e.Data.([]peer.PID)
 			log.Info("update next producers", "totalCount", spv.GetTotalProducersCount())
-			go p.dispatcher.GetConsensusView().UpdateNextProducers(producers, spv.GetTotalProducersCount())
+			p.dispatcher.GetConsensusView().UpdateNextProducers(producers, spv.GetTotalProducersCount())
 		case dpos.ETOnSPVHeight:
 			height := e.Data.(uint32)
 			if spv.GetWorkingHeight() >= height {
@@ -702,6 +702,8 @@ func (p *Pbft) changeViewLoop() {
 func (p *Pbft) Recover() {
 	if p.IsCurrent == nil || p.account == nil || p.isRecovering ||
 		!p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
+		log.Info(" Recover Error", "account", ecom.BytesToHexString(p.account.PublicKeyBytes()))
+		p.dispatcher.GetConsensusView().DumpInfo()
 		return
 	}
 	p.isRecovering = true
