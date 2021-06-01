@@ -77,7 +77,25 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 			return false32Byte, errors.New("createDIDVerify Payload is error")
 		}
 		p.DIDDoc = payloadInfo
+		for _, pkInfo := range p.DIDDoc.PublicKey {
+			if  pkInfo.ID == ""{
+				log.Error("Run public ID is empty")
+				return false32Byte, errors.New("public ID is empty")
+			}
+			if  pkInfo.Type != "ECDSAsecp256r1" {
+				log.Error("Run public Type != ECDSAsecp256r1")
 
+				return false32Byte, errors.New("public Type != ECDSAsecp256r1")
+			}
+			if  pkInfo.Controller == ""{
+				log.Error("Run public Controller is empty")
+				return false32Byte, errors.New("public Controller is empty")
+			}
+			if  pkInfo.PublicKeyBase58 == ""{
+				log.Error("Run public PublicKeyBase58 is empty")
+				return false32Byte, errors.New("public PublicKeyBase58 is empty")
+			}
+		}
 		var err error
 		isRegisterDID := isDID(p.DIDDoc)
 		if isRegisterDID {
