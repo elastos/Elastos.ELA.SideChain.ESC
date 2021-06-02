@@ -792,8 +792,14 @@ func (sm *SyncManager) handleBlockchainEvents(event *events.Event) {
 		sm.peerNotifier.RelayInventory(iv, block.Header)
 
 	case events.ETBlockProcessed:
+		block, ok := event.Data.(*types.Block)
+		if !ok {
+			log.Warnf("ETBlockProcessed accepted event is not a block.")
+			break
+		}
 		// check all transactions in pool.
 		sm.txMemPool.CheckAndCleanAllTransactions()
+		sm.txMemPool.BroadcastSmallCrossChainTransactions(block.Height)
 
 		// A block has been connected to the main block chain.
 	case events.ETBlockConnected:
@@ -867,6 +873,16 @@ func (sm *SyncManager) handleBlockchainEvents(event *events.Event) {
 		if err := sm.txMemPool.AppendToTxPoolWithoutEvent(tx); err != nil {
 			log.Warnf("ETAppendTxToTxPool tx append to txpool failed TxType %v, err %v", tx.TxType, err)
 			break
+		}
+	case events.ETSmallCrossChainNeedRelay:
+		txs, ok := event.Data.([]*types.Transaction)
+		if !ok {
+			log.Error("ETSmallCrossChainNeedRelay event is not a tx list")
+		}
+		for _, tx := range txs {
+			txHash := tx.Hash()
+			iv := msg.NewInvVect(msg.InvTypeTx, &txHash)
+			sm.peerNotifier.RelayInventory(iv, tx)
 		}
 	}
 }

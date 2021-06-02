@@ -486,6 +486,21 @@ var (
 		Name:  "newelaissuanceheight",
 		Usage: "defines height of using the new ela issuance (2000w)",
 	}
+
+	SmallCrossTransferThreshold = cli.StringFlag{
+		Name:  "smallcrosstransferthreshold",
+		Usage: "defines the minimum amount of transfer consider as small cross transfer",
+	}
+
+	ReturnDepositCoinFeeFlag = cli.StringFlag{
+		Name:  "ReturnDepositCoinFee",
+		Usage: "defines the fee of return cross chain deposit coin",
+	}
+
+	NewCrossChainStartHeightFlag = cli.StringFlag{
+		Name:  "NewCrossChainStartHeight",
+		Usage: "defines the height to only support TransferCrossChainAsset v1",
+	}
 )
 
 // MoveRPCFlags finds the rpc argument and moves it to the front

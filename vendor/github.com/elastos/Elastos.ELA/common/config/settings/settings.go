@@ -1011,6 +1011,23 @@ func NewSettings() *Settings {
 		ConfigPath:   "NewELAIssuanceHeight",
 		ParamName:    "NewELAIssuanceHeight"})
 
+	result.Add(&settingItem{
+		Flag:         cmdcom.SmallCrossTransferThreshold,
+		DefaultValue: common.Fixed64(0),
+		ConfigPath:   "SmallCrossTransferThreshold",
+		ParamName:    "SmallCrossTransferThreshold"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.ReturnDepositCoinFeeFlag,
+		DefaultValue: common.Fixed64(0),
+		ConfigPath:   "ReturnDepositCoinFee",
+		ParamName:    "ReturnDepositCoinFee"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.NewCrossChainStartHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "NewCrossChainStartHeight",
+		ParamName:    "NewCrossChainStartHeight"})
 	return result
 }
 
