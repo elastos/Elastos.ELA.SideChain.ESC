@@ -473,6 +473,9 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		err = errors.New("Cross-chain transactions have been processed")
 		return err, true
 	}
+	if IsFailedElaTx(elaTx) {
+		return errors.New("allready failed tx"), true
+	}
 	data, err := common.HexStringToBytes(elaTx)
 	if err != nil {
 		log.Error("elaTx HexStringToBytes: "+elaTx, "err", err)
@@ -480,7 +483,6 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 	}
 	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data}
 	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
-	err = errors.New("test")//TODO will delete after test finised
 	if err != nil {
 		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
 		if IsFailedElaTx(elaTx) {
@@ -657,6 +659,15 @@ func OnTx2Failed(elaTx string) {
 }
 
 func IsFailedElaTx(elaTx string) bool {
+	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
+	if err == nil {
+		h := ethCommon.Hash{}
+		if ethCommon.BytesToHash(ethTx) != h {
+			onElaTxPacked(elaTx)
+			return false
+		}
+	}
+
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 	for _, txs := range failedTxList {
