@@ -715,6 +715,9 @@ func onElaTxPacked(elaTx string) {
 		if err != nil {
 			continue
 		}
+		if len(it.Key()) != 8 || len(txs) == 0 {
+			continue
+		}
 		height := binary.BigEndian.Uint64(it.Key())
 		for i, txid := range txs {
 			if txid == elaTx {
