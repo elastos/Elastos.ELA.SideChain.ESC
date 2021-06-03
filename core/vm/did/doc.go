@@ -73,6 +73,13 @@ func (p *VerifiableCredentialData) GetData() []byte {
 	return data
 }
 
+type Service struct {
+	ID              string `json:"id"`
+	Type            string `json:"type"`
+	ServiceEndpoint string `json:"serviceEndpoint"`
+	//user define extra property
+	//ExtraProperty interface{} `json:"extraProperty,omitempty"`
+}
 
 type DIDPayloadData struct {
 	ID                   string                 `json:"id"`
@@ -82,6 +89,7 @@ type DIDPayloadData struct {
 	Authentication       []interface{}          `json:"authentication,omitempty"`
 	Authorization        []interface{}          `json:"authorization,omitempty"`
 	VerifiableCredential []VerifiableCredential `json:"verifiableCredential,omitempty"`
+	Service              []Service              `json:"service,omitempty"`
 	Expires              string                 `json:"expires"`
 }
 
