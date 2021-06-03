@@ -473,6 +473,9 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		err = errors.New("Cross-chain transactions have been processed")
 		return err, true
 	}
+	if IsFailedElaTx(elaTx) {
+		return errors.New("allready failed tx"), true
+	}
 	data, err := common.HexStringToBytes(elaTx)
 	if err != nil {
 		log.Error("elaTx HexStringToBytes: "+elaTx, "err", err)
@@ -480,20 +483,13 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 	}
 	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data}
 	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
-	err = errors.New("test")//TODO will delete after test finised
 	if err != nil {
 		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
-		if IsFailedElaTx(elaTx) {
-			return err, true
-		}
 		OnTx2Failed(elaTx)
 		return err, false
 	}
 
 	if gasLimit == 0 {
-		if IsFailedElaTx(elaTx) {
-			return err, true
-		}
 		OnTx2Failed(elaTx)
 		log.Error("gasLimit is zero:","main txhash", elaTx)
 		return err, false
