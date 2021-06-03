@@ -555,7 +555,6 @@ func setNextSeek(seek uint64) {
 func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err error, finished bool){
 	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
 	if err != nil {
-		onElaTxPacked(elaTx)
 		log.Error(fmt.Sprintf("IpcClient StorageAt: %v", err))
 		return err, true
 	}
@@ -570,6 +569,12 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		log.Error("elaTx HexStringToBytes: "+elaTx, "err", err)
 		return err, true
 	}
+
+	if IsFailedElaTx(elaTx) {
+		err = errors.New("is failed tx, can't to send")
+		return err, true
+	}
+
 	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data}
 	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
 	if err != nil {
@@ -718,6 +723,9 @@ func FindOutRechargeInput(transactionHash string) []byte {
 }
 
 func OnTx2Failed(elaTx string) {
+	if IsPackagedElaTx(elaTx) {
+		return
+	}
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
@@ -745,6 +753,18 @@ func OnTx2Failed(elaTx string) {
 	data := encodeTxList(txList)
 	err = spvTransactiondb.Put(encodeUnTransactionNumber(height), data)
 	log.Info("recharge tx failed", "height", height, "tx", elaTx)
+}
+
+func IsPackagedElaTx(elaTx string) bool {
+	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
+	if err == nil {
+		h := ethCommon.Hash{}
+		if ethCommon.BytesToHash(ethTx) != h {
+			onElaTxPacked(elaTx)
+			return true
+		}
+	}
+	return false
 }
 
 func IsFailedElaTx(elaTx string) bool {
