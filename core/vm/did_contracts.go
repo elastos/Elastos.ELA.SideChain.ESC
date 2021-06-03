@@ -42,6 +42,41 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 	return params.DIDBaseGasCost
 }
 
+func  checkPayloadSyntax(p *did.DIDPayload) error {
+	// check proof
+	if p.Proof.VerificationMethod == "" {
+		return errors.New("proof Creator is nil")
+	}
+	if p.Proof.Signature == "" {
+		return errors.New("proof Created is nil")
+	}
+	if p.DIDDoc != nil {
+		if len(p.DIDDoc.Authentication) == 0 {
+			return errors.New("did doc Authentication is nil")
+		}
+		if p.DIDDoc.Expires == "" {
+			return errors.New("did doc Expires is nil")
+		}
+
+		for _, pkInfo := range p.DIDDoc.PublicKey {
+			if  pkInfo.ID == ""{
+				return errors.New("check DIDDoc.PublicKey ID is empty")
+			}
+			if  pkInfo.Type != "ECDSAsecp256r1" {
+				return errors.New("check DIDDoc.PublicKey Type != ECDSAsecp256r1")
+			}
+			if  pkInfo.Controller == ""{
+				return  errors.New("check DIDDoc.PublicKey Controller is empty")
+			}
+			if  pkInfo.PublicKeyBase58 == ""{
+				return  errors.New("check DIDDoc.PublicKey PublicKeyBase58 is empty")
+			}
+		}
+	}
+	return nil
+}
+
+
 func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 	//block height from context BlockNumber. config height address from config
 
@@ -77,24 +112,10 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 			return false32Byte, errors.New("createDIDVerify Payload is error")
 		}
 		p.DIDDoc = payloadInfo
-		for _, pkInfo := range p.DIDDoc.PublicKey {
-			if  pkInfo.ID == ""{
-				log.Error("Run public ID is empty")
-				return false32Byte, errors.New("public ID is empty")
-			}
-			if  pkInfo.Type != "ECDSAsecp256r1" {
-				log.Error("Run public Type != ECDSAsecp256r1")
-
-				return false32Byte, errors.New("public Type != ECDSAsecp256r1")
-			}
-			if  pkInfo.Controller == ""{
-				log.Error("Run public Controller is empty")
-				return false32Byte, errors.New("public Controller is empty")
-			}
-			if  pkInfo.PublicKeyBase58 == ""{
-				log.Error("Run public PublicKeyBase58 is empty")
-				return false32Byte, errors.New("public PublicKeyBase58 is empty")
-			}
+		// abnormal payload check
+		if err :=checkPayloadSyntax(p); err != nil {
+			log.Error("checkPayloadSyntax error", "error", err, "ID", p.DIDDoc.ID)
+			return false32Byte, err
 		}
 		var err error
 		isRegisterDID := isDID(p.DIDDoc)

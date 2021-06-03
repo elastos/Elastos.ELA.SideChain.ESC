@@ -121,7 +121,7 @@ func checkRegisterDID(evm *EVM, p *did.DIDPayload, gas uint64) error {
 	}
 	var verifyDoc *did.DIDDoc
 	verifyDoc = p.DIDDoc
-	if err = checkDIDInnerProof(evm,DIDProofArray, doc.DIDPayloadData, 1, verifyDoc); err != nil {
+	if err = checkDIDInnerProof(evm,DIDProofArray, doc.DIDPayloadData, len(DIDProofArray), verifyDoc); err != nil {
 		return err
 	}
 	return nil
@@ -229,11 +229,10 @@ func checkVerificationMethodV1(VerificationMethod string,
 				return err
 			}
 			//didAddress must equal address in DID
-			if didAddress != did.GetDIDFromUri(DIDDoc.ID) {
-				return errors.New("[ID checkVerificationMethodV1] ID and PublicKeyBase58 not match ")
+			if didAddress == did.GetDIDFromUri(DIDDoc.ID) {
+				masterPubKeyVerifyOk = true
+				break
 			}
-			masterPubKeyVerifyOk = true
-			break
 		}
 	}
 
@@ -1203,6 +1202,17 @@ func getDocProof(Proof interface{}) ([]*did.DocProof, error) {
 	} else {
 		//error
 		return nil, errors.New("isVerificationsMethodsValid Invalid Proof type")
+	}
+	for _, proof := range DIDProofArray {
+		if proof.Creator == "" {
+			return nil, errors.New("proof Creator is null")
+		}
+		if proof.Created == "" {
+			return nil, errors.New("proof Created is null")
+		}
+		if proof.SignatureValue == "" {
+			return nil, errors.New("proof SignatureValue is null")
+		}
 	}
 	return DIDProofArray, nil
 }

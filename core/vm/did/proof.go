@@ -25,7 +25,7 @@ type DocProof struct {
 // Proof of DID transaction payload
 type CredentialProof struct {
 	Type               string `json:"type,omitempty"`
-	Created            string `json:"created"`
+	Created            string `json:"created,omitempty"`
 	VerificationMethod string `json:"verificationMethod"`
 	Nonce              string `json:"nonce,omitempty"`
 	Realm              string `json:"realm,omitempty"`

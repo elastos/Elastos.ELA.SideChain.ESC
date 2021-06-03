@@ -70,7 +70,10 @@ var (
 
 const (
 	PayloadPrivateKey = "a38aa1f5f693a13ef0cf2f1c1c0155cbcdd9386f37b0000739f8cb50af601b7b"
-)
+	User2PrivateKeyBase58 = "AqBB8Uur4QwwBtFPeA2Yd5yF2Ni45gyz2osfFcMcuP7J"
+	User2PublicKeyBase58 = "kTYQhMtoimm9wV3vy4q9EVy4Z1WxRqxhvngztdGo1Dmc"
+
+	)
 
 func init() {
 	id11DocByts, _ = LoadJsonData("./testdata/issuer.id.json")
@@ -127,16 +130,21 @@ var didPayloadBytes = []byte(
         "expires" : "2023-02-10T17:00:00Z"
 	}`)
 
+
 //right
 var didPayloadInfoBytes = []byte(
 	`{
-		"header":{"operation":"create","specification":"elastos/did/1.0"},
-		"payload":"eyJpZCI6ImRpZDplbGFzdG9zOmliRjdnTXo1c2FObzM5MlVkN3pTQVZSblFyc0E3cHgydEMiLCJwdWJsaWNLZXkiOlt7ImlkIjoiI3ByaW1hcnkiLCJwdWJsaWNLZXlCYXNlNTgiOiJyb1FHRWVNdU1LZjdFeUFWa3loZjdxSnN5cmtGVXBUZ296WEQ4VkpoS2hpQyJ9XSwiYXV0aGVudGljYXRpb24iOlsiI3ByaW1hcnkiXSwiZXhwaXJlcyI6IjIwMjQtMTEtMjVUMDI6MDA6MDBaIn0",
-		"proof":{
-			"signature":"nrbHEEysMLzBR1mMVRjan9yfQtNGmK6Rqy7v9rvUpsJNoIMsY5JtEUiJvW82jW4xNlvOOEDI-VpLK_GCgjoUdQ",
-			"verificationMethod":"#primary"
-			}
-	 }
+    "header":{
+        "specification":"elastos/did/1.0",
+        "operation":"create"
+    },
+    "payload":"eyJpZCI6ImRpZDplbGFzdG9zOmlkd3VFTWNjU3BzVEg0WnFyaHVIcWc2eThYTVZRQXNZNWciLCJwdWJsaWNLZXkiOlt7ImlkIjoiZGlkOmVsYXN0b3M6aWR3dUVNY2NTcHNUSDRacXJodUhxZzZ5OFhNVlFBc1k1ZyNwcmltYXJ5IiwidHlwZSI6IkVDRFNBc2VjcDI1NnIxIiwiY29udHJvbGxlciI6ImRpZDplbGFzdG9zOmlkd3VFTWNjU3BzVEg0WnFyaHVIcWc2eThYTVZRQXNZNWciLCJwdWJsaWNLZXlCYXNlNTgiOiJrVFlRaE10b2ltbTl3VjN2eTRxOUVWeTRaMVd4UnF4aHZuZ3p0ZEdvMURtYyJ9XSwiYXV0aGVudGljYXRpb24iOlsiZGlkOmVsYXN0b3M6aWR3dUVNY2NTcHNUSDRacXJodUhxZzZ5OFhNVlFBc1k1ZyNwcmltYXJ5Il0sInZlcmlmaWFibGVDcmVkZW50aWFsIjpbeyJpZCI6ImRpZDplbGFzdG9zOmlkd3VFTWNjU3BzVEg0WnFyaHVIcWc2eThYTVZRQXNZNWcjcHJvZmlsZSIsInR5cGUiOlsiU2VsZlByb2NsYWltZWRDcmVkZW50aWFsIl0sImlzc3VlciI6ImRpZDplbGFzdG9zOmlkd3VFTWNjU3BzVEg0WnFyaHVIcWc2eThYTVZRQXNZNWciLCJpc3N1YW5jZURhdGUiOiIyMDIxLTAxLTI4VDA2OjM4OjM1WiIsImV4cGlyYXRpb25EYXRlIjoiMjAyNi0wMS0yOFQwNjozODozNVoiLCJjcmVkZW50aWFsU3ViamVjdCI6eyJpZCI6ImRpZDplbGFzdG9zOmlkd3VFTWNjU3BzVEg0WnFyaHVIcWc2eThYTVZRQXNZNWciLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20iLCJnZW5kZXIiOiJNYWxlIiwibGFuZ3VhZ2UiOiJFbmdsaXNoIiwibmFtZSI6IkpvaG4iLCJuYXRpb24iOiJTaW5nYXBvcmUiLCJ0d2l0dGVyIjoiQGpvaG4ifSwicHJvb2YiOnsidHlwZSI6IkVDRFNBc2VjcDI1NnIxIiwiY3JlYXRlZCI6IjIwMjEtMDEtMjhUMDY6Mzg6MzVaIiwidmVyaWZpY2F0aW9uTWV0aG9kIjoiZGlkOmVsYXN0b3M6aWR3dUVNY2NTcHNUSDRacXJodUhxZzZ5OFhNVlFBc1k1ZyNwcmltYXJ5Iiwic2lnbmF0dXJlIjoidWJSajNMNVp0LWZpUE4wT1dGLWZyQjlfZ2xHNWlHR1BFUzJKelNKWDhIX1M2bXotUnFQOTZzYXduYUVFdkN6Ym9NdHVnRlQxOXZTNC0xQnVLTlZRVGcifX1dLCJleHBpcmVzIjoiMjAyNi0wMS0yOFQwNjozODozNVoiLCJwcm9vZiI6eyJ0eXBlIjoiRUNEU0FzZWNwMjU2cjEiLCJjcmVhdGVkIjoiMjAyMS0wMS0yOFQwNjozODozNVoiLCJjcmVhdG9yIjoiZGlkOmVsYXN0b3M6aWR3dUVNY2NTcHNUSDRacXJodUhxZzZ5OFhNVlFBc1k1ZyNwcmltYXJ5Iiwic2lnbmF0dXJlVmFsdWUiOiI3d2Z3dF9ZOGpZamo2Sm01NExFa2VKbk91bHItNHprMmRtRDBLalhxd2NaV0NnUU1Mb0lRR0ZwUVlmODA0ZFlvbmsxcTNTMFQ1UlZaNTdTRWVVN01qdyJ9fQ",
+    "proof":{
+        "type":"ECDSAsecp256r1",
+        "verificationMethod":"did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g#primary",
+        "signature":"yaZ7rX0G0JhVlK0xEprcEa93Lu3E5nQJww_jQuCQb8hSl3h3JFB3KegDvSq8KUtSS1szN5dsImV0IuAIccOPxw"
+    }
+}
 `)
 
 var errDIDPayloadInfoBytes = []byte(
@@ -261,6 +269,8 @@ func TestIDChainStore_CreateDIDTx(t *testing.T) {
 	err = checkDIDTransaction(didPayloadInfoBytes, nil)
 	assert.NoError(t, err)
 
+	originExpires := info.DIDDoc.Expires
+
 	info.DIDDoc.Expires = "Mon Jan _2 15:04:05 2006"
 	err = checkRegisterDID(evm, info, gas)
 	assert.EqualError(t, err, "invalid Expires")
@@ -269,7 +279,7 @@ func TestIDChainStore_CreateDIDTx(t *testing.T) {
 	err = checkRegisterDID(evm, info, gas)
 	assert.EqualError(t, err, "invalid Expires")
 
-	info.DIDDoc.Expires = "2018-06-30T12:00:00Z"
+	info.DIDDoc.Expires = originExpires
 	err = checkRegisterDID(evm, info, gas)
 	assert.NoError(t, err)
 
@@ -284,7 +294,7 @@ func TestIDChainStore_CreateDIDTx(t *testing.T) {
 	data, err := json.Marshal(info)
 	assert.NoError(t, err)
 	err = checkDIDTransaction(data, statedb)
-	assert.EqualError(t, err, "invalid Expires")
+	assert.EqualError(t, err, "did doc Expires is nil")
 }
 
 func TestCheckRegisterDID(t *testing.T) {
