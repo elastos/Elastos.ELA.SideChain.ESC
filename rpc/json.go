@@ -27,6 +27,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/elastos/Elastos.ELA/utils/http"
+
 )
 
 const (
@@ -114,6 +117,11 @@ func errorMessage(err error) *jsonrpcMessage {
 	ec, ok := err.(Error)
 	if ok {
 		msg.Error.Code = ec.ErrorCode()
+	}else{
+		ec, ok := err.(*http.Error)
+		if ok {
+			msg.Error.Code = ec.Code
+		}
 	}
 	return msg
 }

@@ -217,6 +217,9 @@ func (s *PublicTransactionPoolAPI) ResolveDID(ctx context.Context, param map[str
 	id := idParam
 	if rawdb.IsURIHasPrefix(idParam) {
 		id = did.GetDIDFromUri(id)
+	}else{
+		//add prefix
+		idParam = did.DID_ELASTOS_PREFIX+ idParam
 	}
 
 	//check is valid address
