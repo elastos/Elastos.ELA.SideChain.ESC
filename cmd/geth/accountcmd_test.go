@@ -152,14 +152,12 @@ error: failed to load password hash
 create dpos account error: open wallet failed pbftKeystore: keystore.dat password
 error: failed to load password hash
 Unlocking account f466859ead1932d743d622cb74fc058882e8648a | Attempt 1/3
-!! Unsupported terminal, password will be echoed.
-Password: {{.InputLine "foobar"}}
 `)
 	geth.ExpectExit()
 
 	wantMessages := []string{
-		"Unlocked account",
-		"=0xf466859eAD1932D743d622CB74FC058882E8648A",
+		"Initialised chain configuration",
+		"ChainID: 22",
 	}
 	for _, m := range wantMessages {
 		if !strings.Contains(geth.StderrText(), m) {
