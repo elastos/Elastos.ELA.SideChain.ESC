@@ -574,6 +574,11 @@ web3._extend({
 			call: 'eth_getFailedRechargeTxs',
 			params: 1,
 		}),
+		new web3._extend.Method({
+			name: 'getFailedRechargeTxByHash',
+			call: 'eth_getFailedRechargeTxByHash',
+			params: 1,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
