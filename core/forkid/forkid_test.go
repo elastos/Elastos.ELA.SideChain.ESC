@@ -47,12 +47,12 @@ func TestCreation(t *testing.T) {
 				{1, ID{Hash: checksumToBytes(0x5d123fc1), Next: 2}},              // First and last Homestead block
 				{2, ID{Hash: checksumToBytes(0xed9684bd), Next: 3}},              // First and last Tangerine block
 				{3, ID{Hash: checksumToBytes(0xd6fa7574), Next: 4}},              // First and last  Spurious block
-				{4, ID{Hash: checksumToBytes(0x46b9cb10), Next: 2426880}},       // First Byzantium block
-				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 2426880}}, // Last Byzantium block
-				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 2426880}},       // First Constantinople, and Petersburg block
-				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 2426880}}, // Last Petersburg block
-				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 2426880}},       // Today Istanbul block
-				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 2426880}},      // Future Istanbul block
+				{4, ID{Hash: checksumToBytes(0x46b9cb10), Next: 0}},       // First Byzantium block
+				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 0}}, // Last Byzantium block
+				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 0}},       // First Constantinople, and Petersburg block
+				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 0}}, // Last Petersburg block
+				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 0}},       // Today Istanbul block
+				{2426879, ID{Hash: checksumToBytes(0x46b9cb10), Next: 0}},      // Future Istanbul block
 			},
 		},
 		// Ropsten test cases
@@ -64,11 +64,11 @@ func TestCreation(t *testing.T) {
 				{1, ID{Hash: checksumToBytes(0x6980aadf), Next: 2}},              // First and last Homestead block
 				{2, ID{Hash: checksumToBytes(0x3d585731), Next: 3}},              // First and last Tangerine block
 				{3, ID{Hash: checksumToBytes(0xea52fca4), Next: 4}},              // First and last  Spurious block
-				{4, ID{Hash: checksumToBytes(0xccb4d429), Next: 2333460}},       // First Byzantium block
-				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 2333460}}, // Last Byzantium block
-				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 2333460}}, // First Constantinople, and Petersburg block
-				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 2333460}}, // Last Petersburg block
-				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 2333460}},       // Today Istanbul block
+				{4, ID{Hash: checksumToBytes(0xccb4d429), Next: 0}},       // First Byzantium block
+				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 0}}, // Last Byzantium block
+				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 0}}, // First Constantinople, and Petersburg block
+				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 0}}, // Last Petersburg block
+				{2333459, ID{Hash: checksumToBytes(0xccb4d429), Next: 0}},       // Today Istanbul block
 				//{10000000, ID{Hash: checksumToBytes(0x879d6e30), Next: 0}},      // Future Istanbul block
 			},
 		},
@@ -81,11 +81,11 @@ func TestCreation(t *testing.T) {
 				{1, ID{Hash: checksumToBytes(0x56c61556), Next: 2}},              // First and last Homestead block
 				{2, ID{Hash: checksumToBytes(0x5d6130af), Next: 3}},              // First and last Tangerine block
 				{3, ID{Hash: checksumToBytes(0x240e0924), Next: 4}},              // First and last  Spurious block
-				{4, ID{Hash: checksumToBytes(0x84a0dabb), Next: 2208900}},       // First Byzantium block
-				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 2208900}}, // Last Byzantium block
-				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 2208900}},       // First Constantinople, and Petersburg block
-				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 2208900}}, // Last Petersburg block
-				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 2208900}},       // Today Istanbul block
+				{4, ID{Hash: checksumToBytes(0x84a0dabb), Next: 0}},       // First Byzantium block
+				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 0}}, // Last Byzantium block
+				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 0}},       // First Constantinople, and Petersburg block
+				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 0}}, // Last Petersburg block
+				{2208899, ID{Hash: checksumToBytes(0x84a0dabb), Next: 0}},       // Today Istanbul block
 				//{10000000, ID{Hash: checksumToBytes(0x879d6e30), Next: 0}},      // Future Istanbul block
 			},
 		},
