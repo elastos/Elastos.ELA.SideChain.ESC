@@ -267,7 +267,6 @@ func (p *Pbft) Author(header *types.Header) (common.Address, error) {
 }
 
 func (p *Pbft) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
-	dpos.Info("Pbft VerifyHeader")
 	return p.verifyHeader(chain, header, nil, seal)
 }
 
@@ -463,7 +462,6 @@ func (p *Pbft) Finalize(chain consensus.ChainReader, header *types.Header, state
 
 func (p *Pbft) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	dpos.Info("Pbft FinalizeAndAssemble")
 	// No block rewards in DPoS, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -594,7 +592,6 @@ func (p *Pbft) SealHash(header *types.Header) common.Hash {
 }
 
 func (p *Pbft) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
-	dpos.Info("Pbft CalcDifficulty")
 	if p.IsOnduty() {
 		return diffInTurn
 	}
