@@ -62,12 +62,6 @@ func  checkPayloadSyntax(p *did.DIDPayload) error {
 			if  pkInfo.ID == ""{
 				return errors.New("check DIDDoc.PublicKey ID is empty")
 			}
-			if  pkInfo.Type != "ECDSAsecp256r1" {
-				return errors.New("check DIDDoc.PublicKey Type != ECDSAsecp256r1")
-			}
-			if  pkInfo.Controller == ""{
-				return  errors.New("check DIDDoc.PublicKey Controller is empty")
-			}
 			if  pkInfo.PublicKeyBase58 == ""{
 				return  errors.New("check DIDDoc.PublicKey PublicKeyBase58 is empty")
 			}
