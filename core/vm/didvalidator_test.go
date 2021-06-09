@@ -118,7 +118,7 @@ var didPayloadBytes = []byte(
 					   "publicKeyBase58":"zNxoZaZLdackZQNMas7sCkPRHZsJ3BtdjEvM2y5gNvKJ"
 				   }
                     ],
-        "authentication":["did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
+        "authentication":["did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#default",
                           {
                                "id": "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
                                "type":"ECDSAsecp256r1",
@@ -129,7 +129,6 @@ var didPayloadBytes = []byte(
         "authorization":["did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default"],
         "expires" : "2023-02-10T17:00:00Z"
 	}`)
-
 
 //right
 var didPayloadInfoBytes = []byte(
@@ -252,6 +251,11 @@ func TestIDChainStore_CreateDIDTx(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
 	evm := NewEVM(Context{}, statedb, &params.ChainConfig{}, Config{})
 	evm.GasPrice = big.NewInt(int64(params.DIDBaseGasprice))
+	evm.chainConfig.OldDIDMigrateHeight = new(big.Int).SetInt64(2)
+	evm.chainConfig.OldDIDMigrateAddr = "0xC445f9487bF570fF508eA9Ac320b59730e81e503"
+	evm.BlockNumber = new(big.Int).SetInt64(1)
+	evm.Context.Origin = common.HexToAddress("0xC445f9487bF570fF508eA9Ac320b59730e81e503")
+
 	doc := getPayloadCreateDID()
 	var gas uint64 = 2000
 	payloadJson, err := json.Marshal(doc)
@@ -294,7 +298,7 @@ func TestIDChainStore_CreateDIDTx(t *testing.T) {
 	data, err := json.Marshal(info)
 	assert.NoError(t, err)
 	err = checkDIDTransaction(data, statedb)
-	assert.EqualError(t, err, "did doc Expires is nil")
+	assert.EqualError(t, err, "invalid Expires")
 }
 
 func TestCheckRegisterDID(t *testing.T) {
@@ -467,7 +471,7 @@ func TestIDChainStore_DeactivateDIDTx(t *testing.T) {
 	verifDid = "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#master"
 	payload = getPayloadDeactivateDID(didWithPrefix, verifDid)
 	err = checkDeactivateDID(evm, payload)
-	assert.EqualError(t, err, "[VM] Check Sig FALSE")
+	assert.EqualError(t, err, "Not find the publickey of verificationMethod")
 
 	//deactive one deactivated did
 	statedb.AddDIDLog(id, did.Deactivate_DID_Operation, buf.Bytes())
