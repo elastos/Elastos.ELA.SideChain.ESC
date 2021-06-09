@@ -524,6 +524,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	isMigrateDID := false
 	signer := types.MakeSigner(pool.chainconfig, pool.chain.CurrentBlock().Number())
 	msg, err := tx.AsMessage(signer)
+
 	if err == nil && msg.From().String() == pool.chainconfig.OldDIDMigrateAddr &&
 		pool.chainconfig.OldDIDMigrateHeight != nil &&
 		pool.chain.CurrentBlock().Number().Cmp(pool.chainconfig.OldDIDMigrateHeight) <= 0 {
