@@ -42,6 +42,103 @@ func (j *operationDID) RequiredGas(evm *EVM, input []byte) uint64 {
 	return params.DIDBaseGasCost
 }
 
+func checkPublicKey(publicKey            *did.DIDPublicKeyInfo )error{
+	if  publicKey.ID == ""{
+		return errors.New("check Doc PublicKey ID is empty")
+	}
+	if  publicKey.PublicKeyBase58 == ""{
+		return  errors.New("check Doc PublicKey PublicKeyBase58 is empty")
+	}
+	return nil
+}
+
+func checkAuthen(didWithPrefix string, authen       []interface{}, publicKey []did.DIDPublicKeyInfo)(error){
+	//auth should not be empty
+	if len(authen) == 0 {
+		return errors.New("did doc Authentication is nil")
+	}
+	masterPubKeyVerifyOk := false
+	//auth embed public must accord with checkPublicKey
+	didAddress := did.GetDIDFromUri(didWithPrefix)
+	for _, auth := range authen {
+		switch auth.(type) {
+		case string:
+			keyString := auth.(string)
+			for i := 0; i < len(publicKey); i++ {
+				if verificationMethodEqual(publicKey[i].ID, keyString) {
+					if did.IsPublickDIDMatched(publicKey[i].PublicKeyBase58, didAddress){
+						masterPubKeyVerifyOk = true
+					}
+				}
+			}
+		case map[string]interface{}:
+			data, err := json.Marshal(auth)
+			if err != nil {
+				return errors.New("checkAuthen Marshal auth error")
+			}
+			didPublicKeyInfo := new(did.DIDPublicKeyInfo)
+			err = json.Unmarshal(data, didPublicKeyInfo)
+			if err != nil {
+				return  errors.New("checkAuthen Unmarshal DIDPublicKeyInfo error")
+			}
+			if err := checkPublicKey(didPublicKeyInfo); err != nil{
+				return  err
+			}
+			for i := 0; i < len(publicKey); i++ {
+				if verificationMethodEqual(publicKey[i].ID, didPublicKeyInfo.ID) {
+					if did.IsPublickDIDMatched(publicKey[i].PublicKeyBase58, didAddress){
+						masterPubKeyVerifyOk = true
+					}
+				}
+			}
+		}
+	}
+	if !masterPubKeyVerifyOk{
+		return  errors.New("authen at least have one master public key")
+
+	}
+	return   nil
+}
+
+func isPublicKeyIDUnique(p *did.DIDPayload)bool{
+	// New empty IDSet
+	IDSet := make(map[string]bool)
+	for i := 0; i < len(p.DIDDoc.PublicKey); i++ {
+		//get uri fregment
+		_,uriFregment := did.GetController(p.DIDDoc.PublicKey[i].ID)
+		//
+		if _,ok := IDSet[uriFregment]; ok{
+			return false
+		}
+		IDSet[uriFregment] = true
+	}
+
+	for _, auth := range p.DIDDoc.Authentication {
+		switch auth.(type) {
+		case map[string]interface{}:
+			data, err := json.Marshal(auth)
+			if err != nil {
+				return false
+			}
+			didPublicKeyInfo := new(did.DIDPublicKeyInfo)
+			err = json.Unmarshal(data, didPublicKeyInfo)
+			if err != nil {
+				return false
+			}
+			//get uri fregment
+			_,uriFregment := did.GetController(didPublicKeyInfo.ID)
+			//
+			if _,ok := IDSet[uriFregment]; ok{
+				return false
+			}
+			IDSet[uriFregment] = true
+		default:
+			continue
+		}
+	}
+	return true
+}
+
 func  checkPayloadSyntax(p *did.DIDPayload) error {
 	// check proof
 	if p.Proof.VerificationMethod == "" {
@@ -51,19 +148,37 @@ func  checkPayloadSyntax(p *did.DIDPayload) error {
 		return errors.New("proof Created is nil")
 	}
 	if p.DIDDoc != nil {
+		if !isPublicKeyIDUnique(p) {
+			return errors.New("doc public key id is not unique")
+		}
 		if len(p.DIDDoc.Authentication) == 0 {
 			return errors.New("did doc Authentication is nil")
+		}
+		if err := checkAuthen(p.DIDDoc.ID, p.DIDDoc.Authentication, p.DIDDoc.PublicKey); err != nil {
+			return err
 		}
 		if p.DIDDoc.Expires == "" {
 			return errors.New("did doc Expires is nil")
 		}
 
 		for _, pkInfo := range p.DIDDoc.PublicKey {
-			if  pkInfo.ID == ""{
-				return errors.New("check DIDDoc.PublicKey ID is empty")
+			if err := checkPublicKey(&pkInfo); err != nil{
+				return err
 			}
-			if  pkInfo.PublicKeyBase58 == ""{
-				return  errors.New("check DIDDoc.PublicKey PublicKeyBase58 is empty")
+		}
+		DIDProofArray, err := getDocProof(p.DIDDoc.Proof)
+		if err != nil {
+			return err
+		}
+		for _, proof := range DIDProofArray {
+			if proof.Creator == "" {
+				return errors.New("proof Creator is null")
+			}
+			if proof.Created == "" {
+				return errors.New("proof Created is null")
+			}
+			if proof.SignatureValue == "" {
+				return errors.New("proof SignatureValue is null")
 			}
 		}
 	}
@@ -106,11 +221,7 @@ func (j *operationDID) Run(evm *EVM, input []byte, gas uint64) ([]byte, error) {
 			return false32Byte, errors.New("createDIDVerify Payload is error")
 		}
 		p.DIDDoc = payloadInfo
-		// abnormal payload check
-		if err :=checkPayloadSyntax(p); err != nil {
-			log.Error("checkPayloadSyntax error", "error", err, "ID", p.DIDDoc.ID)
-			return false32Byte, err
-		}
+
 		var err error
 		isRegisterDID := isDID(p.DIDDoc)
 		if isRegisterDID {
