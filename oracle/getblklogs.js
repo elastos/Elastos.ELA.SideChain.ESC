@@ -6,8 +6,8 @@ module.exports = async function (json_data, res) {
     try {
         console.log("Getting Sidechain Logs At Block Height: ");
         let blkheight = json_data["params"]["height"];
-        console.log(blkheight);
-        console.log("============================================================");
+        console.log("blkheight", blkheight);
+        console.log("============================================================" ,common.contract.options.address);
         let logs = null;
         if (parseInt(blkheight) > 7) {
             logs = await common.contract.getPastEvents(common.payloadReceived.name, {
@@ -20,7 +20,7 @@ module.exports = async function (json_data, res) {
         let txlog = null;
         let txreceipt;
         if (logs != null) {
-            console.log(logs);
+            console.log("logs", logs);
             for (const log of logs) {
 
                 if (log.address !== common.contract.options.address) {
