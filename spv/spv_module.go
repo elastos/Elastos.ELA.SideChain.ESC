@@ -749,6 +749,37 @@ func GetFailedRechargeTxs(height uint64) []string {
 	return list
 }
 
+func GetFailedRechargeTxByHash(hash string) string {
+	failedMutex.Lock()
+	defer failedMutex.Unlock()
+	for _, txs := range failedTxList {
+		for _, tx := range txs {
+			if tx == hash {
+				return tx
+			}
+		}
+	}
+
+	it := spvTransactiondb.NewIterator()
+	defer it.Release()
+	for it.Next() {
+		value := it.Value()
+		txs, err := decodeTxList(value)
+		if err != nil {
+			continue
+		}
+		if len(it.Key()) != 8 || len(txs) == 0 {
+			continue
+		}
+		for _, tx := range txs {
+			if tx == hash {
+				return tx
+			}
+		}
+	}
+	return ""
+}
+
 func getTxsOnDb(height uint64) []string {
 	list := make([]string, 0)
 	data, err := spvTransactiondb.Get(encodeUnTransactionNumber(height))

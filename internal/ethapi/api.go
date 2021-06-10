@@ -776,6 +776,11 @@ func (s *PublicBlockChainAPI) GetFailedRechargeTxs(ctx context.Context, height u
 	return txs, nil
 }
 
+func (s *PublicBlockChainAPI) GetFailedRechargeTxByHash(ctx context.Context, hash string) (string, error) {
+	txid := spv.GetFailedRechargeTxByHash(hash)
+	return txid, nil
+}
+
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
 	From     *common.Address `json:"from"`
