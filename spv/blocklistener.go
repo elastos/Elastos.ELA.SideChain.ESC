@@ -75,7 +75,9 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 			InitNextTurnDposInfo()
 		}
 	}
-
+	if nextTurnDposInfo == nil {
+		return
+	}
 	if len(nextTurnDposInfo.CRPublicKeys) == 0 && len(nextTurnDposInfo.DPOSPublicKeys) == 0 && consensusMode == spv.DPOS {
 		consensusMode = spv.POW
 		log.Info("<----------MainChain turn to POW consensus mode------->")

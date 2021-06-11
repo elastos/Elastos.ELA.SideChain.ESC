@@ -678,13 +678,46 @@ func IsPackagedElaTx(elaTx string) bool {
 func IsFailedElaTx(elaTx string) bool {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
-	for _, txs := range failedTxList {
+
+	currentHeight, err := ipcClient.CurrentBlockNumber(context.Background())
+	if err != nil {
+		return false
+	}
+
+	for height, txs := range failedTxList {
 		for _, txid := range txs {
+			if currentHeight - height < 6 {
+				continue
+			}
 			if txid == elaTx {
 				return true
 			}
 		}
 	}
+
+	it := spvTransactiondb.NewIterator()
+	defer it.Release()
+	for it.Next() {
+		value := it.Value()
+		txs, err := decodeTxList(value)
+		if err != nil {
+			continue
+		}
+		key := it.Key()
+		if len(key) != 8 || len(txs) == 0 {
+			continue
+		}
+		height := binary.BigEndian.Uint64(key)
+		if currentHeight - height < 6 {
+			continue
+		}
+		for _, tx := range txs {
+			if tx == elaTx {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
@@ -739,8 +772,12 @@ func GetFailedRechargeTxs(height uint64) []string {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 	list := make([]string, 0)
+	if height < 6 {
+		return list
+	}
+	height = height - 6
 	txs := failedTxList[height]
-	if txs == nil {
+	if txs == nil || len(txs) == 0 {
 		txs = getTxsOnDb(height)
 	}
 	for _, txid := range txs {
@@ -752,7 +789,15 @@ func GetFailedRechargeTxs(height uint64) []string {
 func GetFailedRechargeTxByHash(hash string) string {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
-	for _, txs := range failedTxList {
+	currentHeight, err := ipcClient.CurrentBlockNumber(context.Background())
+	if err != nil {
+		log.Error("GetFailedRechargeTxByHash CurrentBlockNumber failed", "error",  err.Error())
+		return ""
+	}
+	for height, txs := range failedTxList {
+		if currentHeight - height < 6 {
+			continue
+		}
 		for _, tx := range txs {
 			if tx == hash {
 				return tx
@@ -768,7 +813,12 @@ func GetFailedRechargeTxByHash(hash string) string {
 		if err != nil {
 			continue
 		}
-		if len(it.Key()) != 8 || len(txs) == 0 {
+		key := it.Key()
+		if len(key) != 8 || len(txs) == 0 {
+			continue
+		}
+		height := binary.BigEndian.Uint64(key)
+		if currentHeight - height < 6 {
 			continue
 		}
 		for _, tx := range txs {
