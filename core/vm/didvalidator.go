@@ -592,7 +592,6 @@ func checkVerifiableCredentials(evm *EVM, ID string, VerifiableCredential []did.
 		if !success {
 			return errors.New("[VM] Check Sig FALSE")
 		}
-		return nil
 	}
 	return nil
 }
