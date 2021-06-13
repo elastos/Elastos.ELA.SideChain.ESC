@@ -82,8 +82,8 @@ useful on the testnet too. Please see above for their explanations if you've ski
 
 Specifying the `--testnet` flag, however, will reconfigure your `geth` instance a bit:
 
- * Instead of using the default data directory (`~/.ela_ethereum` on Linux for example), `geth`
-   will nest itself one level deeper into a `testnet` subfolder (`~/.ela_ethereum/testnet` on
+ * Instead of using the default data directory (`~/.ELA_EID` on Linux for example), `geth`
+   will nest itself one level deeper into a `testnet` subfolder (`~/.ELA_EID/testnet` on
    Linux). Note, on OSX and Linux this also means that attaching to a running testnet node
    requires the use of a custom endpoint since `geth attach` will try to attach to a
    production node endpoint by default. E.g.
@@ -124,7 +124,7 @@ $ geth --rinkeby console
 ```
 Web3 = require("web3");
 // set web3 uri
-web3 = new Web3("http://127.0.0.1:20636");
+web3 = new Web3("http://127.0.0.1:20646");
 // set withdraw contract
 contract = new web3.eth.Contract([{"constant":false,"inputs":[{"name":"_addr","type":"string"},{"name":"_amount","type":"uint256"},{"name":"_fee","type":"uint256"}],"name":"receivePayload","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"payable":true,"stateMutability":"payable","type":"fallback"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_addr","type":"string"},{"indexed":false,"name":"_amount","type":"uint256"},{"indexed":false,"name":"_crosschainamount","type":"uint256"},{"indexed":true,"name":"_sender","type":"address"}],"name":"PayloadReceived","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_sender","type":"address"},{"indexed":false,"name":"_amount","type":"uint256"},{"indexed":true,"name":"_black","type":"address"}],"name":"EtherDeposited","type":"event"}]);
 // set eth account address
@@ -180,12 +180,12 @@ HTTP based JSON-RPC API options:
 
   * `--rpc` Enable the HTTP-RPC server
   * `--rpcaddr` HTTP-RPC server listening interface (default: "localhost")
-  * `--rpcport` HTTP-RPC server listening port (default: 20636)
+  * `--rpcport` HTTP-RPC server listening port (default: 20646)
   * `--rpcapi` API's offered over the HTTP-RPC interface (default: "eth,net,web3")
   * `--rpccorsdomain` Comma separated list of domains from which to accept cross origin requests (browser enforced)
   * `--ws` Enable the WS-RPC server
   * `--wsaddr` WS-RPC server listening interface (default: "localhost")
-  * `--wsport` WS-RPC server listening port (default: 20635)
+  * `--wsport` WS-RPC server listening port (default: 20645)
   * `--wsapi` API's offered over the WS-RPC interface (default: "eth,net,web3")
   * `--wsorigins` Origins from which to accept websockets requests
   * `--ipcdisable` Disable the IPC-RPC server

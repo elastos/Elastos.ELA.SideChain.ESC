@@ -2,7 +2,7 @@ const TodoList = artifacts.require('./OpCodes.sol')
 const assert = require('assert')
 let contractInstance
 const Web3 = require('web3');
-const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:20636'));
+const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:20646'));
 // const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:9545'));
 
 contract('OpCodes', (accounts) => {
