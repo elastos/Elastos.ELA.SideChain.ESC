@@ -624,7 +624,7 @@ var (
 	ListenPortFlag = cli.IntFlag{
 		Name:  "port",
 		Usage: "Network listening port",
-		Value: 20638,
+		Value: 20648,
 	}
 	BootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
@@ -797,7 +797,7 @@ var (
 	PbftDposPort = cli.StringFlag{
 		Name:  "pbft.net.port",
 		Usage: "connect dpos direct net port",
-		Value: "20639",
+		Value: "20649",
 	}
 	DynamicArbiter = cli.Uint64Flag{
 		Name:  "spv.arbiter.height",

@@ -12,5 +12,5 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /Elastos.ELA.SideChain.ESC/build/bin/* /usr/local/bin/
 
-EXPOSE 20636 20635 8547 20638 20638/udp
+EXPOSE 20646 20645 20647 20648 20648/udp
 #ENTRYPOINT ["geth"]

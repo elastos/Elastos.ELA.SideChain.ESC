@@ -29,11 +29,11 @@ import (
 
 const (
 	DefaultHTTPHost    = "localhost" // Default host interface for the HTTP RPC server
-	DefaultHTTPPort    = 20636       // Default TCP port for the HTTP RPC server
+	DefaultHTTPPort    = 20646       // Default TCP port for the HTTP RPC server
 	DefaultWSHost      = "localhost" // Default host interface for the websocket RPC server
-	DefaultWSPort      = 20635       // Default TCP port for the websocket RPC server
+	DefaultWSPort      = 20645       // Default TCP port for the websocket RPC server
 	DefaultGraphQLHost = "localhost" // Default host interface for the GraphQL server
-	DefaultGraphQLPort = 8547        // Default TCP port for the GraphQL server
+	DefaultGraphQLPort = 20647        // Default TCP port for the GraphQL server
 )
 
 // DefaultConfig contains reasonable default settings.
@@ -48,7 +48,7 @@ var DefaultConfig = Config{
 	GraphQLPort:         DefaultGraphQLPort,
 	GraphQLVirtualHosts: []string{"localhost"},
 	P2P: p2p.Config{
-		ListenAddr: ":20638",
+		ListenAddr: ":20648",
 		MaxPeers:   50,
 		NAT:        nat.Any(),
 	},
@@ -62,19 +62,19 @@ func DefaultDataDir() string {
 	if home != "" {
 		switch runtime.GOOS {
 		case "darwin":
-			return filepath.Join(home, "Library", "ELA_Ethereum")
+			return filepath.Join(home, "Library", "ELA_EID")
 		case "windows":
 			// We used to put everything in %HOME%\AppData\Roaming, but this caused
 			// problems with non-typical setups. If this fallback location exists and
 			// is non-empty, use it, otherwise DTRT and check %LOCALAPPDATA%.
-			fallback := filepath.Join(home, "AppData", "Roaming", "ELA_Ethereum")
+			fallback := filepath.Join(home, "AppData", "Roaming", "ELA_EID")
 			appdata := windowsAppData()
 			if appdata == "" || isNonEmptyDir(fallback) {
 				return fallback
 			}
-			return filepath.Join(appdata, "ELA_Ethereum")
+			return filepath.Join(appdata, "ELA_EID")
 		default:
-			return filepath.Join(home, ".ela_ethereum")
+			return filepath.Join(home, ".ELA_EID")
 		}
 	}
 	// As we cannot guess a stable location, return empty and handle later
