@@ -12,13 +12,13 @@ type DIDParams struct {
 }
 
 var MainNetDIDParams = DIDParams{
-	CustomIDFeeRate:            200000,
+	CustomIDFeeRate:            2000000,
 }
 
 var TestNetDIDParams = DIDParams{
-	CustomIDFeeRate:            200000,
+	CustomIDFeeRate:            2000000,
 }
 
 var RegNetDIDParams = DIDParams{
-	CustomIDFeeRate:            200000,
+	CustomIDFeeRate:            2000000,
 }

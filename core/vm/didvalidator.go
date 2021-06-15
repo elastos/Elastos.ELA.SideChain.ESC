@@ -1308,15 +1308,15 @@ func GetMultisignMN(mulstiSign string) (int, int, error) {
 //Payload
 //ID  Expires  Controller Operation Payload interface
 func getIDTxFee(customID, expires, operation string, controller interface{}, payloadLen int) common.Fixed64 {
-	//A id lenght
+	//A id lenght lengthRate
 	A := getCustomizedDIDLenFactor(customID)
-	//B Valid period
+	//B Valid period lifeRate
 	B := getValidPeriodFactor(expires, time.Now())
-	//C operation create or update
+	//C operation create or update OperationRate
 	C := getOperationFactor(operation)
-	//M controller sign number
+	//M controller sign number multisigRate
 	M := getControllerFactor(controller)
-	//E doc size
+	//E doc size sizeRate
 	E := getSizeFactor(payloadLen)
 	//F factor got from cr proposal
 	F := didParam.CustomIDFeeRate
@@ -1326,7 +1326,7 @@ func getIDTxFee(customID, expires, operation string, controller interface{}, pay
 			F = feeRate
 		}
 	}
-	fee := (A*B*C*M + E) * float64(F)
+	fee := (A*B*C*E + M) * float64(F)
 	return common.Fixed64(fee)
 }
 

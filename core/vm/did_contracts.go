@@ -73,6 +73,10 @@ func checkAuthen(didWithPrefix string, authen       []interface{}, publicKey []d
 		case string:
 			keyString := auth.(string)
 			for i := 0; i < len(publicKey); i++ {
+				//if this is not my public key ignore.
+				if publicKey[i].Controller != "" && publicKey[i].Controller !=  didWithPrefix {
+					continue
+				}
 				if verificationMethodEqual(publicKey[i].ID, keyString) {
 					if did.IsPublickDIDMatched(publicKey[i].PublicKeyBase58, didAddress){
 						masterPubKeyVerifyOk = true
@@ -93,6 +97,10 @@ func checkAuthen(didWithPrefix string, authen       []interface{}, publicKey []d
 				return  err
 			}
 			for i := 0; i < len(publicKey); i++ {
+				//if this is not my public key ignore.
+				if publicKey[i].Controller != "" && publicKey[i].Controller !=  didWithPrefix {
+					continue
+				}
 				if verificationMethodEqual(publicKey[i].ID, didPublicKeyInfo.ID) {
 					if did.IsPublickDIDMatched(publicKey[i].PublicKeyBase58, didAddress){
 						masterPubKeyVerifyOk = true
@@ -158,9 +166,6 @@ func  checkPayloadSyntax(p *did.DIDPayload) error {
 	if p.DIDDoc != nil {
 		if !isPublicKeyIDUnique(p) {
 			return errors.New("doc public key id is not unique")
-		}
-		if len(p.DIDDoc.Authentication) == 0 {
-			return errors.New("did doc Authentication is nil")
 		}
 		if err := checkAuthen(p.DIDDoc.ID, p.DIDDoc.Authentication, p.DIDDoc.PublicKey); err != nil {
 			return err
