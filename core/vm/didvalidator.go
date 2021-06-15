@@ -144,6 +144,7 @@ func checkRegisterDIDTxFee(operation *did.DIDPayload, txFee uint64) error {
 	operation.Serialize(buf, did.DIDVersion)
 
 	needFee := getIDTxFee(payload.ID, payload.Expires, operation.Header.Operation, nil, buf.Len())
+	log.Error("#### checkRegisterDIDTxFee ", "needFee sela", needFee)
 
 	fe := new(big.Int).SetInt64(needFee.IntValue())
 	toETHfee := new(big.Int).Mul(fe, big.NewInt(did.FeeRate))
