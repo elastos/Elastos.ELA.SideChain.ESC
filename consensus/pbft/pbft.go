@@ -699,7 +699,7 @@ func (p *Pbft) changeViewLoop() {
 func (p *Pbft) Recover() {
 	if p.IsCurrent == nil || p.account == nil || p.isRecovering ||
 		!p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
-		log.Info(" Recover Error", "account", ecom.BytesToHexString(p.account.PublicKeyBytes()))
+		log.Info(" Recover Error")
 		p.dispatcher.GetConsensusView().DumpInfo()
 		return
 	}
