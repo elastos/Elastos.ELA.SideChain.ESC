@@ -28,6 +28,9 @@ func IsDID(ID string, publicKey []DIDPublicKeyInfo) bool {
 	}
 	idString := GetDIDFromUri(ID)
 	for _, pkInfo := range publicKey {
+		if pkInfo.Controller != "" && pkInfo.Controller !=  ID {
+			continue
+		}
 		publicKey := base58.Decode(pkInfo.PublicKeyBase58)
 		if IsMatched(publicKey, idString) {
 			return true
