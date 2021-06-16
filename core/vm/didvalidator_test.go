@@ -108,7 +108,7 @@ var didPayloadBytes = []byte(
         "id" : "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j",
         "publicKey":[{ "id": "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#default",
                        "type":"ECDSAsecp256r1",
-                       "controller":"did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN",
+                       "controller":"did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j",
                        "publicKeyBase58":"zxt6NyoorFUFMXA8mDBULjnuH3v6iNdZm42PyG4c1YdC"
                       },
 					{
@@ -1814,4 +1814,39 @@ func TestCheckKeyReference(t *testing.T) {
 	info.Authorization = append(info.Authorization, "#notexist")
 	err = checkKeyReference(id, info.Authentication, info.Authorization,info.PublicKey)
 	assert.Equal(t,"checkKeyReference authorization key is not exit in public key array", err.Error())
+}
+
+func TestIsDID(t *testing.T) {
+	//default key controller is not iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j
+	var didPayloadBytes = []byte(
+		`{
+        "id" : "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j",
+        "publicKey":[{ "id": "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#default",
+                       "type":"ECDSAsecp256r1",
+                       "controller":"did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN",
+                       "publicKeyBase58":"zxt6NyoorFUFMXA8mDBULjnuH3v6iNdZm42PyG4c1YdC"
+                      },
+					{
+					   "id": "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#master",
+					   "type":"ECDSAsecp256r1",
+					   "controller":"did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN",
+					   "publicKeyBase58":"zNxoZaZLdackZQNMas7sCkPRHZsJ3BtdjEvM2y5gNvKJ"
+				   }
+                    ],
+        "authentication":["did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#default",
+                          {
+                               "id": "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
+                               "type":"ECDSAsecp256r1",
+                               "controller":"did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN",
+                               "publicKeyBase58":"zNxoZaZLdackZQNMas7sCkPRHZsJ3BtdjEvM2y5gNvKJ"
+                           }
+                         ],
+        "authorization":["did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default"],
+        "expires" : "2023-02-10T17:00:00Z"
+	}`)
+	info := new(did.DIDDoc)
+	didjson.Unmarshal(didPayloadBytes, info)
+
+	ret := isDID(info)
+	assert.Equal(t, false ,ret)
 }

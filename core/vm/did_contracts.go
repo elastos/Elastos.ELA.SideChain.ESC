@@ -351,6 +351,9 @@ func isDID(didDoc *did.DIDDoc) bool {
 	idString := did.GetDIDFromUri(didDoc.ID)
 
 	for _, pkInfo := range didDoc.PublicKey {
+		if pkInfo.Controller != "" && pkInfo.Controller !=  didDoc.ID {
+			continue
+		}
 		publicKey := base58.Decode(pkInfo.PublicKeyBase58)
 		if did.IsMatched(publicKey, idString) {
 			return true

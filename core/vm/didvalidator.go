@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -146,10 +145,9 @@ func checkRegisterDIDTxFee(operation *did.DIDPayload, txFee uint64) error {
 	needFee := getIDTxFee(payload.ID, payload.Expires, operation.Header.Operation, nil, buf.Len())
 	log.Error("#### checkRegisterDIDTxFee ", "needFee sela", needFee)
 
-	fe := new(big.Int).SetInt64(needFee.IntValue())
-	toETHfee := new(big.Int).Mul(fe, big.NewInt(did.FeeRate))
-	if txFee < toETHfee.Uint64() {
-		msg := fmt.Sprintf("invalid txFee, need %d, set %d", toETHfee.Uint64(), txFee)
+	toETHfee := needFee * float64(did.FeeRate)
+	if float64(txFee) < toETHfee {
+		msg := fmt.Sprintf("invalid txFee, need %f, set %f", toETHfee, float64(txFee))
 		return errors.New(msg)
 	}
 
@@ -163,10 +161,11 @@ func checkCustomizedDIDTxFee(payload *did.DIDPayload, txFee uint64) error {
 	buf := new(bytes.Buffer)
 	payload.Serialize(buf, did.DIDVersion)
 	needFee := getIDTxFee(doc.ID, doc.Expires, payload.Header.Operation, doc.Controller, buf.Len())
-	fe := new(big.Int).SetInt64(needFee.IntValue())
-	toETHfee := new(big.Int).Mul(fe, big.NewInt(did.FeeRate))
-	if txFee < toETHfee.Uint64() {
-		msg := fmt.Sprintf("invalid txFee, need %d, set %d", toETHfee.Uint64(), txFee)
+
+	toETHfee := needFee * float64(did.FeeRate)
+
+	if float64(txFee) < toETHfee {
+		msg := fmt.Sprintf("invalid txFee, need %f, set %f", toETHfee, float64(txFee))
 		return errors.New(msg)
 	}
 
@@ -1308,7 +1307,7 @@ func GetMultisignMN(mulstiSign string) (int, int, error) {
 
 //Payload
 //ID  Expires  Controller Operation Payload interface
-func getIDTxFee(customID, expires, operation string, controller interface{}, payloadLen int) common.Fixed64 {
+func getIDTxFee(customID, expires, operation string, controller interface{}, payloadLen int) float64 {
 	//A id lenght lengthRate
 	A := getCustomizedDIDLenFactor(customID)
 	//B Valid period lifeRate
@@ -1328,7 +1327,7 @@ func getIDTxFee(customID, expires, operation string, controller interface{}, pay
 		}
 	}
 	fee := (A*B*C*E + M) * float64(F)
-	return common.Fixed64(fee)
+	return fee
 }
 
 func getCustomizedDIDLenFactor(ID string) float64 {
