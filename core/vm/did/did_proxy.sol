@@ -8,8 +8,8 @@ contract DID_Proxy is Ownable, Proxy  {
   address private implementation;
   event Upgraded(address indexed implementation);
 
-  constructor(address implementation) {
-    _setImplementation(implementation);
+  constructor(address imple) {
+    _setImplementation(imple);
    }
     
    function _setImplementation(address newImplementation) private {
@@ -23,6 +23,10 @@ contract DID_Proxy is Ownable, Proxy  {
     }
     
     function _implementation() internal view virtual override  returns (address) {
+        return implementation;
+    }
+
+    function getTarget() view public returns (address) {
         return implementation;
     }
     
