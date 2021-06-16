@@ -1752,3 +1752,66 @@ func TestGetprivateKeyStr(t *testing.T) {
 	fmt.Println("base58PrivageKey5 ", base58PrivageKey5)
 	assert.Equal(t, "BdQX3FcigWjRURJ3idTQ3A2vry4e1RwSg2MtfE5zePDy", base58PrivageKey5)
 }
+
+func TestCheckKeyReference(t *testing.T) {
+	var didPayloadBytes = []byte(
+		`{
+        "id" : "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j",
+        "publicKey":[{ "id": "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#default",
+                       "type":"ECDSAsecp256r1",
+                       "controller":"did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j",
+                       "publicKeyBase58":"zxt6NyoorFUFMXA8mDBULjnuH3v6iNdZm42PyG4c1YdC"
+                      },
+					{
+					   "id": "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#master",
+					   "type":"ECDSAsecp256r1",
+					   "controller":"",
+					   "publicKeyBase58":"zNxoZaZLdackZQNMas7sCkPRHZsJ3BtdjEvM2y5gNvKJ"
+				   },
+					{
+					   "id": "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#otherController",
+					   "type":"ECDSAsecp256r1",
+					   "controller":"did:elastos:idwuEMccSpsTH4ZqrhuHqg6y8XMVQAsY5g",
+					   "publicKeyBase58":"zNxoZaZLdackZQNMas7sCkPRHZsJ3BtdjEvM2y5gNvKJ"
+				   }
+                    ],
+        "authentication":["did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#default",
+                          "#master",
+                          "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
+                          {
+                               "id": "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
+                               "type":"ECDSAsecp256r1",
+                               "controller":"did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j",
+                               "publicKeyBase58":"zNxoZaZLdackZQNMas7sCkPRHZsJ3BtdjEvM2y5gNvKJ"
+                           }
+                         ],
+        "authorization":["did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j#default",
+						"#master",
+						 "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
+							{
+                               "id": "did:elastos:icJ4z2DULrHEzYSvjKNJpKyhqFDxvYV7pN#default",
+                               "type":"ECDSAsecp256r1",
+                               "controller":"did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j",
+                               "publicKeyBase58":"zNxoZaZLdackZQNMas7sCkPRHZsJ3BtdjEvM2y5gNvKJ"
+                           }
+						],
+        "expires" : "2023-02-10T17:00:00Z"
+	}`)
+	info := new(did.DIDDoc)
+	didjson.Unmarshal(didPayloadBytes, info)
+	fmt.Println("123")
+	id := "did:elastos:iTWqanUovh3zHfnExGaan4SJAXG3DCZC6j"
+
+	err := checkKeyReference(id, info.Authentication, info.Authorization,info.PublicKey)
+	assert.NoError(t, err)
+	//						"#notexist",
+	oriAuth := info.Authentication
+	//oriAuthor := info.Authorization
+	info.Authentication = append(info.Authentication, "#notexist")
+	err = checkKeyReference(id, info.Authentication, info.Authorization,info.PublicKey)
+	assert.Equal(t,"checkKeyReference authen key is not exit in public key array", err.Error())
+	info.Authentication =oriAuth
+	info.Authorization = append(info.Authorization, "#notexist")
+	err = checkKeyReference(id, info.Authentication, info.Authorization,info.PublicKey)
+	assert.Equal(t,"checkKeyReference authorization key is not exit in public key array", err.Error())
+}
