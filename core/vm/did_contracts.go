@@ -60,6 +60,55 @@ func checkPublicKey(publicKey            *did.DIDPublicKeyInfo )error{
 	return nil
 }
 
+func checkKeyReference(didWithPrefix string, authen  , authorization     []interface{},
+publicKey []did.DIDPublicKeyInfo)(error){
+	var  keyExist bool
+	for _, auth := range authen {
+		switch auth.(type) {
+		case string:
+			keyString := auth.(string)
+			keyExist = false
+			//if it is not mine
+			controller, _ := did.GetController(keyString)
+			if controller != "" && controller !=  didWithPrefix {
+				continue
+			}
+			for i := 0; i < len(publicKey); i++ {
+				if verificationMethodEqual(publicKey[i].ID, keyString) {
+					keyExist = true
+					break
+				}
+
+			}
+			if !keyExist {
+				return  errors.New("checkKeyReference authen key is not exit in public key array")
+			}
+		}
+	}
+	for _, author := range authorization {
+		switch author.(type) {
+		case string:
+			keyString := author.(string)
+			keyExist = false
+			controller, _ := did.GetController(keyString)
+			if controller != "" && controller !=  didWithPrefix {
+				continue
+			}
+			for i := 0; i < len(publicKey); i++ {
+				if verificationMethodEqual(publicKey[i].ID, keyString) {
+					keyExist = true
+					break
+				}
+
+			}
+			if !keyExist {
+				return  errors.New("checkKeyReference authorization key is not exit in public key array")
+			}
+		}
+	}
+	return nil
+}
+
 func checkAuthen(didWithPrefix string, authen       []interface{}, publicKey []did.DIDPublicKeyInfo)(error){
 	//auth should not be empty
 	if len(authen) == 0 {
@@ -163,11 +212,15 @@ func  checkPayloadSyntax(p *did.DIDPayload) error {
 	if p.Proof.Signature == "" {
 		return errors.New("proof Created is nil")
 	}
+	doc := p.DIDDoc
 	if p.DIDDoc != nil {
 		if !isPublicKeyIDUnique(p) {
 			return errors.New("doc public key id is not unique")
 		}
 		if err := checkAuthen(p.DIDDoc.ID, p.DIDDoc.Authentication, p.DIDDoc.PublicKey); err != nil {
+			return err
+		}
+		if err := checkKeyReference(doc.ID, doc.Authentication, doc.Authorization, doc.PublicKey);err != nil{
 			return err
 		}
 		if p.DIDDoc.Expires == "" {
