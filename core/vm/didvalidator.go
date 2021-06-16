@@ -143,7 +143,7 @@ func checkRegisterDIDTxFee(operation *did.DIDPayload, txFee uint64) error {
 	operation.Serialize(buf, did.DIDVersion)
 
 	needFee := getIDTxFee(payload.ID, payload.Expires, operation.Header.Operation, nil, buf.Len())
-	log.Error("#### checkRegisterDIDTxFee ", "needFee sela", needFee)
+	log.Debug("#### checkRegisterDIDTxFee ", "needFee sela", needFee)
 
 	toETHfee := needFee * float64(did.FeeRate)
 	if float64(txFee) < toETHfee {
