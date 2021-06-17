@@ -51,7 +51,7 @@ func (c *arbiters) Put(height uint32, crcArbiters [][]byte, normalArbiters [][]b
 }
 
 func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error {
-batch.Put(BKTArbPosition, uint32toBytes(height))
+	batch.Put(BKTArbPosition, uint32toBytes(height))
 
 	// update positions
 	posCache := c.getCurrentPositions()
@@ -334,7 +334,7 @@ func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	var modeHeight uint32
 	for _, p := range pos {
 		if p > height {
-
+			break
 		}
 		modeHeight = p
 	}
@@ -357,24 +357,20 @@ func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight
 	c.Lock()
 	defer c.Unlock()
 
-	pos := c.getCurrentPosition()
-	var isRollback bool
-	if workingHeight <= pos {
-		isRollback = true
-	}
+	// update position
 	batch.Put(BKTRevertPosition, uint32toBytes(workingHeight))
-	if !isRollback {
-		posCache := c.getCurrentRevertPositions()
-		newPosCache := make([]uint32, 0)
-		for _, p := range posCache {
-			if p < workingHeight {
-				newPosCache = append(newPosCache, p)
-			}
+
+	// update positions
+	posCache := c.getCurrentRevertPositions()
+	newPosCache := make([]uint32, 0)
+	for _, p := range posCache {
+		if p < workingHeight {
+			newPosCache = append(newPosCache, p)
 		}
-		newPosCache = append(newPosCache, workingHeight)
-		c.revertPOSCache = newPosCache
-		batch.Put(BKTRevertPositions, uint32ArrayToBytes(c.revertPOSCache))
 	}
+	newPosCache = append(newPosCache, workingHeight)
+	c.revertPOSCache = newPosCache
+	batch.Put(BKTRevertPositions, uint32ArrayToBytes(c.revertPOSCache))
 
 	buf := new(bytes.Buffer)
 	if err := common.WriteUint32(buf, workingHeight); err != nil {
