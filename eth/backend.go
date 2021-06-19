@@ -469,9 +469,8 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				if eth.blockchain.Config().IsPBFTFork(b.Block.Number()) {
 					pbftEngine := engine.(*pbft.Pbft)
 					pbftEngine.AccessFutureBlock(b.Block)
-					if pbftEngine.OnInsertBlock(b.Block) {
-						blocksigner.SelfIsProducer = pbftEngine.IsProducer()
-					}
+					pbftEngine.OnInsertBlock(b.Block)
+					blocksigner.SelfIsProducer = pbftEngine.IsProducer()
 				}
 			case <-initProducersSub.Chan():
 				pbftEngine := engine.(*pbft.Pbft)
