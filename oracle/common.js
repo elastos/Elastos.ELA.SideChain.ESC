@@ -56,7 +56,7 @@ module.exports = {
         let returnValue = value
         if (numList.length > 1) {
             let precisionStr = numList[1]
-            if (precisionStr > 8) {
+            if (precisionStr.length > 8) {
                 let b = precisionStr.substr(precisionStr.lastIndexOf(".") + 1,8)
                 returnValue = numList[0] + "." + b
             }
