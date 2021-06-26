@@ -31,6 +31,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/withdrawfailedtx"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -78,7 +79,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if err != nil {
 			if err.Error() == ErrElaToEthAddress.Error() {
 				var blackAddr common.Address
-				if len(tx.Data()) == 32 && *tx.To() == blackAddr && !blocksigner.SelfIsProducer {
+				if len(tx.Data()) == 32 && *tx.To() == blackAddr && !blocksigner.SelfIsProducer {//common node need sync
 					txHash := hexutil.Encode(tx.Data())[2:]
 					p.bc.smallCroFeed.Send(GetSmallCrossTxEvent{txHash})
 					time.Sleep(2 * time.Second)//delay to get data
@@ -127,12 +128,18 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	if tx.To() != nil {
 		to := *tx.To()
 		var blackAddr common.Address
-		if len(tx.Data()) == 32 && to == blackAddr {
-			txHash := hexutil.Encode(tx.Data())
-			fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txHash)
-			if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 && addr != blackAddr {
-				statedb.SetState(blackAddr, common.HexToHash(txHash),tx.Hash())
+		iswithdraw, txHash := withdrawfailedtx.IsWithdawFailedTx(tx.Data(), config.BlackContractAddr)
+		if to == blackAddr {
+			if iswithdraw {
+				statedb.SetState(blackAddr, common.HexToHash(txHash), tx.Hash())
 				statedb.SetNonce(blackAddr, statedb.GetNonce(blackAddr) + 1)
+			} else if len(tx.Data()) == 32 {
+				txHash = hexutil.Encode(tx.Data())
+				fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txHash)
+				if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 && addr != blackAddr {
+					statedb.SetState(blackAddr, common.HexToHash(txHash),tx.Hash())
+					statedb.SetNonce(blackAddr, statedb.GetNonce(blackAddr) + 1)
+				}
 			}
 		}
 	}

@@ -13,6 +13,8 @@ const CheckIllegalEvidence=require("./checkillegalevidence");
 const Smallcrosschaintransaction=require("./smallcrosschaintransaction");
 const FailedDepositTransactions=require("./faileddeposittransactions");
 const GetFailedDepositTxByHash=require("./getfaileddeposittransactionbyhash");
+const FailedWithdrawTxByHash=require("./receivedInvaliedwithrawtx");
+const ProcessedFailedWithdrawTxs=require("./processedinvalidwithdrawtx");
 
 const app = express();
 
@@ -65,6 +67,14 @@ app.post("/", async function(req, res) {
         }
         if (json_data["method"] === "getfaileddeposittransactionbyhash") {
             GetFailedDepositTxByHash(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "sendinvalidwithdrawtransaction") {
+            FailedWithdrawTxByHash(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "getprocessedinvalidwithdrawtransactions") {
+            ProcessedFailedWithdrawTxs(json_data, res)
             return;
         }
     } catch (err) {

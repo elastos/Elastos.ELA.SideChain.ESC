@@ -20,6 +20,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/withdrawfailedtx"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -632,4 +633,11 @@ func (p *Pbft) limitMap(m map[common.Hash]struct{}, limit int) {
 
 func (p *Pbft) OnSmallCroTxReceived(id peer.PID, msg *dmsg.SmallCroTx) {
 	smallcrosstx.OnReceivedSmallCroTxFromDirectNet(msg.GetSignature(), msg.GetRawTx())
+}
+
+func (p* Pbft) OnFailedWithdrawTxReceived(id peer.PID, msg *dmsg.FailedWithdrawTx) {
+	err := withdrawfailedtx.ReceivedFailedWithdrawTx(msg.GetHash(), msg.GetSignature())
+	if err != nil {
+		log.Error("ReceivedFailedWithdrawTx", "error", err)
+	}
 }

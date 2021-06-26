@@ -579,6 +579,11 @@ web3._extend({
 			call: 'eth_getFailedRechargeTxByHash',
 			params: 1,
 		}),
+		new web3._extend.Method({
+			name: 'sendInvalidWithdrawTransaction',
+			call: 'eth_sendInvalidWithdrawTransaction',
+			params: 1,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({

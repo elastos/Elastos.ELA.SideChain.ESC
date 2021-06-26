@@ -9,12 +9,13 @@ import "github.com/elastos/Elastos.ELA/events"
 
 // Constants for the type of a notification message.	
 const (
-	ETNewPeer       events.EventType = 1000
-	ETDonePeer      events.EventType = 1001
-	ETStopRoutes    events.EventType = 1002
-	ETElaMsg        events.EventType = 1003
-	ETAnnounceAddr  events.EventType = 1004
-	ETNextProducers events.EventType = 1005
-	ETOnSPVHeight   events.EventType = 1006
-	ETSmallCroTx    events.EventType = 1007
+	ETNewPeer          events.EventType = 1000
+	ETDonePeer         events.EventType = 1001
+	ETStopRoutes       events.EventType = 1002
+	ETElaMsg           events.EventType = 1003
+	ETAnnounceAddr     events.EventType = 1004
+	ETNextProducers    events.EventType = 1005
+	ETOnSPVHeight      events.EventType = 1006
+	ETSmallCroTx       events.EventType = 1007
+	ETFailedWithdrawTx events.EventType = 1008
 )

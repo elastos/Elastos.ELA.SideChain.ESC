@@ -80,6 +80,7 @@ type NetworkEventListener interface {
 	OnConfirmReceived(id dpeer.PID, c *payload.Confirm, height uint64)
 
 	OnSmallCroTxReceived(id dpeer.PID, c *dmsg.SmallCroTx)
+	OnFailedWithdrawTxReceived(id dpeer.PID, c *dmsg.FailedWithdrawTx)
 }
 
 type messageItem struct {
@@ -239,6 +240,11 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnSmallCroTxReceived(msgItem.ID, msgCro)
 		}
+	case dmsg.CmdFailedWithdrawTx:
+		withdrawTx, processed := m.(*dmsg.FailedWithdrawTx)
+		if processed {
+			n.listener.OnFailedWithdrawTxReceived(msgItem.ID, withdrawTx)
+		}
 	}
 }
 
@@ -370,6 +376,8 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &dmsg.ConfirmMsg{}
 	case dmsg.CmdSmallCroTx:
 		message = &dmsg.SmallCroTx{}
+	case dmsg.CmdFailedWithdrawTx:
+		message = &dmsg.FailedWithdrawTx{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}
