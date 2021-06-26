@@ -522,6 +522,13 @@ func IteratorUnTransaction(from ethCommon.Address) {
 			}
 			fee, _, _ := FindOutputFeeAndaddressByTxHash(string(txHash))
 			if fee.Uint64() <= 0 {
+				log.Error("FindOutputFeeAndaddressByTxHash fee is 0")
+				if IsFailedElaTx(string(txHash)) {
+					setNextSeek(seek)
+					break
+				}
+				OnTx2Failed(string(txHash))
+				setNextSeek(seek)
 				break
 			}
 			err, finished := SendTransaction(from, string(txHash), fee)
@@ -605,7 +612,7 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 	if err != nil {
 		return err, true
 	}
-	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String())
+	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String(), "gasLimit", gasLimit)
 	return nil, true
 }
 
@@ -670,6 +677,7 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 		log.Error("SpvServicedb Get Fee: ", "err", err, "elaHash", transactionHash)
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
+	fmt.Println("FindOutputFeeAndaddressByTxHash fee", string(v))
 	fees := strings.Split(string(v), ",")
 	f, err := common.StringToFixed64(fees[0])
 	if err != nil {
@@ -775,11 +783,16 @@ func IsFailedElaTx(elaTx string) bool {
 	if err != nil {
 		return false
 	}
-
+	if elaTx[0:2] == "0x" {
+		elaTx = elaTx[2:]
+	}
 	for height, txs := range failedTxList {
 		for _, txid := range txs {
 			if currentHeight - height < 6 {
 				continue
+			}
+			if txid[0:2] == "0x" {
+				txid = txid[2:]
 			}
 			if txid == elaTx {
 				return true
@@ -803,8 +816,11 @@ func IsFailedElaTx(elaTx string) bool {
 		if currentHeight - height < 6 {
 			continue
 		}
-		for _, tx := range txs {
-			if tx == elaTx {
+		for _, txid := range txs {
+			if txid[0:2] == "0x" {
+				txid = txid[2:]
+			}
+			if txid == elaTx {
 				return true
 			}
 		}
@@ -947,4 +963,8 @@ func GetArbiters() ([]string, error) {
 		return nil, err
 	}
 	return producers, nil
+}
+
+func GetClient() *ethclient.Client {
+	return ipcClient
 }

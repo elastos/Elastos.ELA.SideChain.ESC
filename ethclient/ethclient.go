@@ -552,7 +552,7 @@ func toSendTxArg(msg ethereum.TXMsg) interface{} {
 		"from": msg.From,
 		"to":   msg.To,
 	}
-	if len(msg.Data) == 32 {
+	if len(msg.Data) > 0 {
 		arg["data"] = hexutil.Bytes(msg.Data)
 	}
 	if msg.Value != nil {

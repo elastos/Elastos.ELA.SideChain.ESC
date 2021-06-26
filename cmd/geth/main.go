@@ -45,6 +45,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/withdrawfailedtx"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/contract"
@@ -657,4 +658,6 @@ func startSmallCrossTx(ctx *cli.Context, stack *node.Node) {
 		datadir = node.DefaultDataDir()
 	}
 	smallcrosstx.SmallCrossTxInit(datadir, stack.EventMux())
+
+	withdrawfailedtx.FailedWithrawInit(datadir, stack.EventMux())
 }
