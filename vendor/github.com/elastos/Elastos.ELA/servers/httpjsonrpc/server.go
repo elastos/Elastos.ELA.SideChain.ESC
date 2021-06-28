@@ -66,6 +66,7 @@ func StartRPCServer() {
 	mainMux["getblockbyheight"] = GetBlockByHeight
 	mainMux["getexistwithdrawtransactions"] = GetExistWithdrawTransactions
 	mainMux["getreceivedbyaddress"] = GetReceivedByAddress
+	mainMux["getexistreturndeposittransactions"] = GetExistSideChainReturnDepositTransactions
 	// wallet interfaces
 	mainMux["getamountbyinputs"] = GetAmountByInputs
 	mainMux["getutxosbyamount"] = GetUTXOsByAmount
@@ -100,6 +101,7 @@ func StartRPCServer() {
 	mainMux["getarbiterpeersinfo"] = GetArbiterPeersInfo
 	mainMux["getcrcpeersinfo"] = GetCRCPeersInfo
 	mainMux["getcrosschainpeersinfo"] = GetCrossChainPeersInfo
+	mainMux["getsmallcrosstransfertxs"] = GetSmallCrossTransferTxs
 
 	mainMux["estimatesmartfee"] = EstimateSmartFee
 	mainMux["getdepositcoin"] = GetDepositCoin

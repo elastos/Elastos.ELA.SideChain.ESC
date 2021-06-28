@@ -245,9 +245,12 @@ var DefaultParams = Params{
 	DPOSNodeCrossChainHeight:           2000000,
 	RevertToPOWNoBlockTime:             12 * 3600,
 	StopConfirmBlockTime:               11 * 3600,
-	HalvingRewardHeight:                1051200, // 4 * 365 * 720
-	HalvingRewardInterval:              1051200, // 4 * 365 * 720
-	NewELAIssuanceHeight:               919800,  // 3.5 * 365 * 720
+	HalvingRewardHeight:                1051200,   // 4 * 365 * 720
+	HalvingRewardInterval:              1051200,   // 4 * 365 * 720
+	NewELAIssuanceHeight:               919800,    // 3.5 * 365 * 720
+	SmallCrossTransferThreshold:        100000000, //TODO reset latter
+	ReturnDepositCoinFee:               100,       //TODO reset latter
+	NewCrossChainStartHeight:           2000000,   // todo complete me
 }
 
 // TestNet returns the network parameters for the test network.
@@ -330,9 +333,12 @@ func (p *Params) TestNet() *Params {
 	copy.RevertToPOWNoBlockTime = 12 * 3600
 	copy.StopConfirmBlockTime = 11 * 3600
 	copy.RevertToPOWStartHeight = 815060
-	copy.HalvingRewardHeight = 877880    //767000 + 154 * 720
-	copy.HalvingRewardInterval = 1051200 //4 * 365 * 720
-	copy.NewELAIssuanceHeight = 774920   //767000 + 720 * 11
+	copy.HalvingRewardHeight = 877880            //767000 + 154 * 720
+	copy.HalvingRewardInterval = 1051200         //4 * 365 * 720
+	copy.NewELAIssuanceHeight = 774920           //767000 + 720 * 11
+	copy.SmallCrossTransferThreshold = 100000000 //TODO reset latter
+	copy.ReturnDepositCoinFee = 100              //TODO reset latter
+	copy.NewCrossChainStartHeight = 2000000      // todo complete me
 
 	return &copy
 }
@@ -417,9 +423,12 @@ func (p *Params) RegNet() *Params {
 	copy.RevertToPOWNoBlockTime = 12 * 3600
 	copy.StopConfirmBlockTime = 11 * 3600
 	copy.RevertToPOWStartHeight = 706240
-	copy.HalvingRewardHeight = 801240    //690360 + 154 * 720
-	copy.HalvingRewardInterval = 1051200 //4 * 365 * 720
-	copy.NewELAIssuanceHeight = 691740   //690300 + 720 * 2
+	copy.HalvingRewardHeight = 801240            //690360 + 154 * 720
+	copy.HalvingRewardInterval = 1051200         //4 * 365 * 720
+	copy.NewELAIssuanceHeight = 691740           //690300 + 720 * 2
+	copy.SmallCrossTransferThreshold = 100000000 //TODO reset latter
+	copy.ReturnDepositCoinFee = 100              //TODO reset latter
+	copy.NewCrossChainStartHeight = 2000000      // todo complete me
 
 	return &copy
 }
@@ -538,6 +547,9 @@ type Params struct {
 
 	// CRVotingStartHeight defines the height of CR voting started.
 	CRVotingStartHeight uint32
+
+	// NewCrossChainStartHeight defines the height of new cross chain transaction started.
+	NewCrossChainStartHeight uint32
 
 	// CRCommitteeStartHeight defines the height of CR Committee started.
 	CRCommitteeStartHeight uint32
@@ -739,6 +751,12 @@ type Params struct {
 
 	// NewELAIssuanceHeight represents the new issuance ELA amount after proposal #1631
 	NewELAIssuanceHeight uint32
+
+	// SMALLCrossTransferThreshold indicates the minimum amount consider as Small transfer
+	SmallCrossTransferThreshold common.Fixed64
+
+	// ReturnDepositCoinFee indicates the fee the
+	ReturnDepositCoinFee common.Fixed64
 }
 
 // rewardPerBlock calculates the reward for each block by a specified time

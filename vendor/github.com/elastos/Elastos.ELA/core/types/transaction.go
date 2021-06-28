@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA/core/contract"
 	"io"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -67,6 +68,8 @@ const (
 
 	RevertToPOW  TxType = 0x41
 	RevertToDPOS TxType = 0x42
+
+	ReturnSideChainDepositCoin TxType = 0x51
 )
 
 func (self TxType) Name() string {
@@ -382,6 +385,10 @@ func (tx *Transaction) Hash() common.Uint256 {
 	return *tx.txHash
 }
 
+func (tx *Transaction) IsReturnSideChainDepositCoinTx() bool {
+	return tx.TxType == ReturnSideChainDepositCoin
+}
+
 func (tx *Transaction) ISCRCouncilMemberClaimNode() bool {
 	return tx.TxType == CRCouncilMemberClaimNode
 }
@@ -656,8 +663,25 @@ func GetPayload(txType TxType) (Payload, error) {
 		p = new(payload.RevertToPOW)
 	case CustomIDResult:
 		p = new(payload.CustomIDProposalResult)
+	case ReturnSideChainDepositCoin:
+		p = new(payload.ReturnSideChainDepositCoin)
 	default:
 		return nil, errors.New("[Transaction], invalid transaction type.")
 	}
 	return p, nil
+}
+
+func (tx *Transaction) IsSmallTransfer(min common.Fixed64) bool {
+	payloadObj, ok := tx.Payload.(*payload.TransferCrossChainAsset)
+	if !ok {
+		return false
+	}
+	var totalCrossAmt common.Fixed64
+	for i := 0; i < len(payloadObj.CrossChainAddresses); i++ {
+		if bytes.Compare(tx.Outputs[payloadObj.OutputIndexes[i]].ProgramHash[0:1], []byte{byte(contract.PrefixCrossChain)}) == 0 {
+			totalCrossAmt += tx.Outputs[payloadObj.OutputIndexes[i]].Value
+		}
+	}
+
+	return totalCrossAmt <= min
 }

@@ -337,6 +337,12 @@ func (b *BlockChain) CheckTransactionContext(blockHeight uint32,
 			return nil, elaerr.Simple(elaerr.ErrTxRevertToPOW, err)
 		}
 		return references, nil
+
+	case ReturnSideChainDepositCoin:
+		if err := b.checkReturnSideChainDepositTransaction(txn); err != nil {
+			log.Warn("[checkReturnSideChainDepositTransaction]", err)
+			return nil, elaerr.Simple(elaerr.ErrTxReturnSideChainDeposit, err)
+		}
 	}
 
 	if err := b.checkTransactionFee(txn, references); err != nil {
@@ -746,7 +752,6 @@ func (b *BlockChain) checkTransactionOutput(txn *Transaction,
 		if txn.Outputs[0].Type != OTNone {
 			return errors.New("the type of new sideChainPow tx output must be OTNone")
 		}
-
 		return nil
 	}
 
@@ -779,6 +784,11 @@ func (b *BlockChain) checkTransactionOutput(txn *Transaction,
 			}
 		}
 	}
+
+	if txn.IsReturnSideChainDepositCoinTx() {
+		return nil
+	}
+
 	if b.GetHeight() >= b.chainParams.PublicDPOSHeight && specialOutputCount > 1 {
 		return errors.New("special output count should less equal than 1")
 	}
@@ -827,8 +837,31 @@ func checkOutputProgramHash(height uint32, programHash common.Uint168) error {
 }
 
 func checkOutputPayload(txType TxType, output *Output) error {
-	// OTVote information can only be placed in TransferAsset transaction.
-	if txType == TransferAsset {
+	switch txType {
+	case ReturnSideChainDepositCoin:
+		switch output.Type {
+		case OTNone:
+		case OTReturnSideChainDepositCoin:
+		default:
+			return errors.New("transaction type dose not match the output payload type")
+		}
+	case WithdrawFromSideChain:
+		switch output.Type {
+		case OTNone:
+		case OTWithdrawFromSideChain:
+		default:
+			return errors.New("transaction type dose not match the output payload type")
+		}
+	case TransferCrossChainAsset:
+		// OTCrossChain information can only be placed in TransferCrossChainAsset transaction.
+		switch output.Type {
+		case OTNone:
+		case OTCrossChain:
+		default:
+			return errors.New("transaction type dose not match the output payload type")
+		}
+	case TransferAsset:
+		// OTVote information can only be placed in TransferAsset transaction.
 		switch output.Type {
 		case OTVote:
 			if contract.GetPrefixType(output.ProgramHash) !=
@@ -840,7 +873,7 @@ func checkOutputPayload(txType TxType, output *Output) error {
 		default:
 			return errors.New("transaction type dose not match the output payload type")
 		}
-	} else {
+	default:
 		switch output.Type {
 		case OTNone:
 		default:
@@ -1108,6 +1141,7 @@ func checkTransactionPayload(txn *Transaction) error {
 	case *payload.RevertToPOW:
 	case *payload.RevertToDPOS:
 	case *payload.CustomIDProposalResult:
+	case *payload.ReturnSideChainDepositCoin:
 	default:
 		return errors.New("[txValidator],invalidate transaction payload type.")
 	}
@@ -1301,6 +1335,19 @@ func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) 
 				}
 			}
 		}
+	case TransferCrossChainAsset:
+		if blockHeight < b.chainParams.NewCrossChainStartHeight {
+			if txn.PayloadVersion != payload.TransferCrossChainVersion {
+				return errors.New("not support " +
+					"TransferCrossChainAsset payload version V1 before NewCrossChainStartHeight")
+			}
+			return nil
+		} else {
+			if txn.PayloadVersion != payload.TransferCrossChainVersionV1 {
+				return errors.New("not support " +
+					"TransferCrossChainAsset payload version V0 after NewCrossChainStartHeight")
+			}
+		}
 	}
 
 	return nil
@@ -1336,6 +1383,71 @@ func CheckSideChainPowConsensus(txn *Transaction, arbitrator []byte) error {
 }
 
 func (b *BlockChain) checkWithdrawFromSideChainTransaction(txn *Transaction, references map[*Input]Output, height uint32) error {
+
+	if txn.PayloadVersion == payload.WithdrawFromSideChainVersion {
+		return b.checkWithdrawFromSideChainTransactionV0(txn, references, height)
+	} else if txn.PayloadVersion == payload.WithdrawFromSideChainVersionV1 {
+		return b.checkWithdrawFromSideChainTransactionV1(txn, references, height)
+	}
+	return errors.New("invalid payload version")
+}
+
+func (b *BlockChain) checkWithdrawFromSideChainTransactionV1(txn *Transaction, references map[*Input]Output, height uint32) error {
+	for _, output := range txn.Outputs {
+		if output.Type != OTWithdrawFromSideChain {
+			continue
+		}
+		witPayload, ok := output.Payload.(*outputpayload.Withdraw)
+		if !ok {
+			return errors.New("Invalid withdraw from side chain output payload type")
+		}
+		if exist := DefaultLedger.Store.IsSidechainTxHashDuplicate(witPayload.SideChainTransactionHash); exist {
+			return errors.New("Duplicate side chain transaction hash in output paylod")
+		}
+	}
+
+	for _, output := range references {
+		if bytes.Compare(output.ProgramHash[0:1], []byte{byte(contract.PrefixCrossChain)}) != 0 {
+			return errors.New("Invalid transaction inputs address, without \"X\" at beginning")
+		}
+	}
+
+	for _, p := range txn.Programs {
+		publicKeys, m, n, err := crypto.ParseCrossChainScriptV1(p.Code)
+		if err != nil {
+			return err
+		}
+		var arbiters []*state.ArbiterInfo
+		var minCount uint32
+		if height >= b.chainParams.DPOSNodeCrossChainHeight {
+			arbiters = DefaultLedger.Arbitrators.GetArbitrators()
+			minCount = uint32(b.chainParams.GeneralArbiters) + 1
+		} else {
+			arbiters = DefaultLedger.Arbitrators.GetCRCArbiters()
+			minCount = b.chainParams.CRAgreementCount
+		}
+		var arbitersCount int
+		for _, c := range arbiters {
+			if !c.IsNormal {
+				continue
+			}
+			arbitersCount++
+		}
+		if n != arbitersCount {
+			return errors.New("invalid arbiters total count in code")
+		}
+		if m < int(minCount) {
+			return errors.New("invalid arbiters sign count in code")
+		}
+		if err := b.checkCrossChainArbitrators(publicKeys); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *BlockChain) checkWithdrawFromSideChainTransactionV0(txn *Transaction, references map[*Input]Output, height uint32) error {
 	witPayload, ok := txn.Payload.(*payload.WithdrawFromSideChain)
 	if !ok {
 		return errors.New("Invalid withdraw from side chain payload type")
@@ -1429,6 +1541,40 @@ func (b *BlockChain) checkCrossChainArbitrators(publicKeys [][]byte) error {
 }
 
 func (b *BlockChain) checkTransferCrossChainAssetTransaction(txn *Transaction, references map[*Input]Output) error {
+	if txn.PayloadVersion > payload.TransferCrossChainVersionV1 {
+		return errors.New("invalid payload version")
+	} else if txn.PayloadVersion == payload.TransferCrossChainVersionV1 {
+		return b.checkTransferCrossChainAssetTransactionV1(txn, references)
+	}
+	return b.checkTransferCrossChainAssetTransactionV0(txn, references)
+}
+
+func (b *BlockChain) checkTransferCrossChainAssetTransactionV1(txn *Transaction, references map[*Input]Output) error {
+	if txn.Version < TxVersion09 {
+		return errors.New("invalid transaction version")
+	}
+
+	var crossChainOutputCount uint32
+	for _, output := range txn.Outputs {
+		switch output.Type {
+		case OTNone:
+		case OTCrossChain:
+			if bytes.Compare(output.ProgramHash[0:1], []byte{byte(contract.PrefixCrossChain)}) != 0 {
+				return errors.New("invalid transaction output address, without \"X\" at beginning")
+			}
+			crossChainOutputCount++
+		default:
+			return errors.New("invalid output type in cross chain transaction")
+		}
+	}
+	if crossChainOutputCount == 0 {
+		return errors.New("invalid cross chain output count")
+	}
+
+	return nil
+}
+
+func (b *BlockChain) checkTransferCrossChainAssetTransactionV0(txn *Transaction, references map[*Input]Output) error {
 	payloadObj, ok := txn.Payload.(*payload.TransferCrossChainAsset)
 	if !ok {
 		return errors.New("Invalid transfer cross chain asset payload type")
@@ -2441,6 +2587,63 @@ func (b *BlockChain) checkCRAssetsRectifyTransaction(txn *Transaction,
 	if totalInput != totalOutput+b.chainParams.RectifyTxFee {
 		return fmt.Errorf("inputs minus outputs does not match with %d sela fee , "+
 			"inputs:%s outputs:%s", b.chainParams.RectifyTxFee, totalInput, totalOutput)
+	}
+
+	return nil
+}
+
+func (b *BlockChain) checkReturnSideChainDepositTransaction(txn *Transaction) error {
+	_, ok := txn.Payload.(*payload.ReturnSideChainDepositCoin)
+	if !ok {
+		return errors.New("invalid payload")
+	}
+
+	// check outputs
+	fee := b.chainParams.ReturnDepositCoinFee
+	for _, o := range txn.Outputs {
+		if o.Type != OTReturnSideChainDepositCoin {
+			continue
+		}
+		py, ok := o.Payload.(*outputpayload.ReturnSideChainDeposit)
+		if !ok {
+			return errors.New("invalid ReturnSideChainDeposit output payload")
+		}
+
+		tx, _, err := b.db.GetTransaction(py.DepositTransactionHash)
+		if err != nil {
+			return errors.New("invalid deposit tx:" + tx.String())
+		}
+		refTx, _, err := b.db.GetTransaction(tx.Inputs[0].Previous.TxID)
+		if err != nil {
+			return err
+		}
+
+		// need to return the deposit coin to first input address
+		refOutput := refTx.Outputs[tx.Inputs[0].Previous.Index]
+		if o.ProgramHash != refOutput.ProgramHash {
+			return errors.New("invalid output address")
+		}
+
+		var depositAmount common.Fixed64
+		for _, output := range tx.Outputs {
+			if bytes.Compare(output.ProgramHash[0:1], []byte{byte(contract.PrefixCrossChain)}) != 0 {
+				continue
+			}
+
+			crossChainHash, err := common.Uint168FromAddress(py.GenesisBlockAddress)
+			if err != nil {
+				return err
+			}
+			if !crossChainHash.IsEqual(output.ProgramHash) {
+				continue
+			}
+
+			depositAmount += output.Value
+		}
+
+		if o.Value+fee != depositAmount {
+			return errors.New("invalid output amount")
+		}
 	}
 
 	return nil

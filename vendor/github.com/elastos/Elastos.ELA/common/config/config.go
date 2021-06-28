@@ -83,6 +83,9 @@ type Configuration struct {
 	HalvingRewardHeight         uint32            `json:"HalvingRewardHeight"`
 	HalvingRewardInterval       uint32            `json:"HalvingRewardInterval"`
 	NewELAIssuanceHeight        uint32            `json:"NewELAIssuanceHeight"`
+	SmallCrossTransferThreshold common.Fixed64    `json:"SmallCrossTransferThreshold"`
+	ReturnDepositCoinFee        common.Fixed64    `json:"ReturnDepositCoinFee"`
+	NewCrossChainStartHeight    uint32            `json:"NewCrossChainStartHeight"`
 }
 
 // DPoSConfiguration defines the DPoS consensus parameters.
