@@ -336,6 +336,22 @@ func SubmitSidechainIllegalData(param Params) map[string]interface{} {
 	return ResponsePack(Success, true)
 }
 
+func GetSmallCrossTransferTxs(params Params) map[string]interface{} {
+	type SmallCrossTransferTx struct {
+		Txs []string `json:"txs"`
+	}
+	txs, err := Store.GetSmallCrossTransferTx()
+	if err != nil {
+		return ResponsePack(InternalError, "internal error fail to get small crosschain transfer txs")
+	}
+
+	result := SmallCrossTransferTx{
+		Txs: txs,
+	}
+
+	return ResponsePack(Success, result)
+}
+
 func GetCrossChainPeersInfo(params Params) map[string]interface{} {
 	if Arbiter == nil {
 		return ResponsePack(InternalError, "arbiter disabled")
@@ -1565,6 +1581,32 @@ func GetExistWithdrawTransactions(param Params) map[string]interface{} {
 		}
 		inStore := Store.IsSidechainTxHashDuplicate(*hash)
 		inTxPool := TxMemPool.IsDuplicateSidechainTx(*hash)
+		if inTxPool || inStore {
+			resultTxHashes = append(resultTxHashes, txHash)
+		}
+	}
+
+	return ResponsePack(Success, resultTxHashes)
+}
+
+func GetExistSideChainReturnDepositTransactions(param Params) map[string]interface{} {
+	txList, ok := param.ArrayString("txs")
+	if !ok {
+		return ResponsePack(InvalidParams, "txs not found")
+	}
+
+	var resultTxHashes []string
+	for _, txHash := range txList {
+		txHashBytes, err := common.HexStringToBytes(txHash)
+		if err != nil {
+			return ResponsePack(InvalidParams, "")
+		}
+		hash, err := common.Uint256FromBytes(txHashBytes)
+		if err != nil {
+			return ResponsePack(InvalidParams, "")
+		}
+		inStore := Store.IsSidechainReturnDepositTxHashDuplicate(*hash)
+		inTxPool := TxMemPool.IsDuplicateSidechainReturnDepositTx(*hash)
 		if inTxPool || inStore {
 			resultTxHashes = append(resultTxHashes, txHash)
 		}
@@ -2912,6 +2954,19 @@ func getPayloadInfo(p Payload, payloadVersion byte) PayloadInfo {
 
 func getOutputPayloadInfo(op OutputPayload) OutputPayloadInfo {
 	switch object := op.(type) {
+	case *outputpayload.CrossChainOutput:
+		obj := new(CrossChainOutputInfo)
+		obj.Version = object.Version
+		obj.TargetAddress = object.TargetAddress
+		obj.TargetAmount = object.TargetAmount.String()
+		obj.TargetData = string(object.TargetData)
+		return obj
+	case *outputpayload.ReturnSideChainDeposit:
+		obj := new(ReturnSideChainDepositInfo)
+		obj.Version = object.Version
+		obj.GenesisBlockAddress = object.GenesisBlockAddress
+		obj.DepositTransactionHash = common.ToReversedString(object.DepositTransactionHash)
+		return obj
 	case *outputpayload.DefaultOutput:
 		obj := new(DefaultOutputInfo)
 		return obj
