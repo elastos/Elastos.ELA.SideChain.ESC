@@ -307,10 +307,8 @@ func GetWithdrawTxValue(txid string) (string, *big.Int, error) {
 func verifySignature(arbiters []string, txid, signature string) (bool, string) {
 	buff := common.Hex2Bytes(txid)
 	sig := common.Hex2Bytes(signature)
-	for i, arbiter := range arbiters {
-		fmt.Println(">>>> verify index ", i)
+	for _, arbiter := range arbiters {
 		if IsArbiterVerified(txid, arbiter) {
-			fmt.Println(">>>> index ", i, "已经验证过", arbiter)
 			continue
 		}
 		pub := common.Hex2Bytes(arbiter)
