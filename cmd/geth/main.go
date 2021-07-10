@@ -20,6 +20,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core"
 	"math"
 	"os"
 	"runtime"
@@ -339,6 +340,7 @@ func geth(ctx *cli.Context) error {
 	node := makeFullNode(ctx)
 	defer node.Close()
 	startNode(ctx, node)
+	chainbridge_core.Run()
 	node.Wait()
 	return nil
 }
