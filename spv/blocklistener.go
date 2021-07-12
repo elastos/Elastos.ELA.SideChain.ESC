@@ -33,6 +33,10 @@ type BlockListener struct {
 }
 
 func (l *BlockListener) NotifyBlock(block *util.Block) {
+	if block.Height <= l.blockNumber {
+		log.Warn("BlockListener handle block ", "height", l.blockNumber)
+		return
+	}
 	l.blockNumber = block.Height
 	l.StoreAuxBlock(block)
 	log.Info("BlockListener handle block ", "height", l.blockNumber)
@@ -70,7 +74,7 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 			log.Info("------------------ force change next turn arbiters-----------")
 			peers := DumpNextDposInfo()
 			events.Notify(dpos.ETNextProducers, peers)
-		} else if consensusMode == spv.POW {
+		} else if GetCurrentConsensusMode() == spv.POW {
 			SpvService.mux.Post(eevent.InitCurrentProducers{})
 			InitNextTurnDposInfo()
 		}
@@ -78,17 +82,20 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 	if nextTurnDposInfo == nil {
 		return
 	}
-	if len(nextTurnDposInfo.CRPublicKeys) == 0 && len(nextTurnDposInfo.DPOSPublicKeys) == 0 && consensusMode == spv.DPOS {
-		consensusMode = spv.POW
-		log.Info("<----------MainChain turn to POW consensus mode------->")
-	} else if (len(nextTurnDposInfo.CRPublicKeys) > 0 || len(nextTurnDposInfo.DPOSPublicKeys) > 0) &&  consensusMode == spv.POW && isWorkingHeight {
-		log.Info("<----------MainChain turn to DPOS consensus mode------->")
-		consensusMode = spv.DPOS
+	if consensusMode == spv.POW && GetCurrentConsensusMode() == spv.DPOS {
+		log.Info("----------turn to Dpos mode------------")
+		SpvService.mux.Post(eevent.InitCurrentProducers{})
+		InitNextTurnDposInfo()
+	} else if consensusMode == spv.DPOS && GetCurrentConsensusMode() == spv.POW {
+		log.Info("----------turn to POW mode------------")
+		SpvService.mux.Post(eevent.InitCurrentProducers{})
+		InitNextTurnDposInfo()
 	}
-
 	if isWorkingHeight {
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 	}
+	consensusMode = GetCurrentConsensusMode()
+	log.Info("current consensus mode", "mode", consensusMode)
 }
 
 func IsNexturnBlock(block interface{}) bool {
@@ -132,6 +139,17 @@ func InitNextTurnDposInfo() {
 	}
 	peers := DumpNextDposInfo()
 	events.Notify(dpos.ETNextProducers, peers)
+}
+
+func GetCurrentConsensusMode() spv.ConsensusAlgorithm {
+	if SpvService == nil {
+		return spv.DPOS
+	}
+	mode , err := SpvService.GetConsensusAlgorithm(uint32(GetSpvHeight()))
+	if err != nil {
+		return spv.DPOS
+	}
+	return mode
 }
 
 func DumpNextDposInfo() []peer.PID {
