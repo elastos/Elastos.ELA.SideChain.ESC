@@ -49,6 +49,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/withdrawfailedtx"
 
 	"github.com/elastos/Elastos.ELA/events"
 )
@@ -779,6 +780,25 @@ func (s *PublicBlockChainAPI) GetFailedRechargeTxs(ctx context.Context, height u
 func (s *PublicBlockChainAPI) GetFailedRechargeTxByHash(ctx context.Context, hash string) (string, error) {
 	txid := spv.GetFailedRechargeTxByHash(hash)
 	return txid, nil
+}
+
+func (s *PublicBlockChainAPI) SendInvalidWithdrawTransaction(ctx context.Context, signature string, hash string) error {
+	txid := common.HexToHash(hash)
+	tx, _, _, _, err := s.b.GetTransaction(ctx, txid)
+	if tx == nil || err != nil {
+		msg := fmt.Sprintf("not found withdraw tx, txid:%s", txid)
+		log.Error(msg)
+		return errors.New(msg)
+	}
+	if tx.To().String() != s.b.ChainConfig().BlackContractAddr {
+		msg := fmt.Sprintf("is not withdraw tx, txid:%s", hash)
+		return errors.New(msg)
+	}
+	err = withdrawfailedtx.ReceivedFailedWithdrawTx(hash, signature)
+	if err != nil {
+		log.Error("ReceivedFailedWithdrawTx", "error", err)
+	}
+	return err
 }
 
 // CallArgs represents the arguments for a call.

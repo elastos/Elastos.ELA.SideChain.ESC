@@ -28,6 +28,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/withdrawfailedtx"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
 	ecom "github.com/elastos/Elastos.ELA/common"
@@ -230,9 +231,16 @@ func (p *Pbft) subscribeEvent() {
 				}
 			}
 		case dpos.ETSmallCroTx:
-			croTx := e.Data.(*smallcrosstx.ETSmallCrossTx)
-			msg := dmsg.NewSmallCroTx(croTx.Signature, croTx.RawTx)
-			p.network.BroadcastMessage(msg)
+			if croTx, ok := e.Data.(*smallcrosstx.ETSmallCrossTx); ok {
+				msg := dmsg.NewSmallCroTx(croTx.Signature, croTx.RawTx)
+				p.network.BroadcastMessage(msg)
+			}
+
+		case dpos.ETFailedWithdrawTx:
+			if failEvt, ok := e.Data.(*withdrawfailedtx.FailedWithdrawEvent); ok {
+				msg := dmsg.NewFailedWithdrawTx(failEvt.Signature, failEvt.Txid)
+				p.network.BroadcastMessage(msg)
+			}
 		}
 	})
 }

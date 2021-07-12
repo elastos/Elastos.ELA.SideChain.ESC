@@ -6,6 +6,7 @@ const child_process = require("child_process");
 module.exports = async function (json_data, res) {
     try {
         let hash = json_data["params"]["hash"];
+        if (hash.indexOf("0x") !== 0) hash = "0x" + hash;
         let host = common.web3._provider.host
         let failedTx = ""
         var sendURL = 'curl -X POST --data' + " '" + '{"jsonrpc":"2.0","method":"eth_getFailedRechargeTxByHash","params":['  + '"' + hash  + '"],"id":1}' + "' " + host + ' -H "content-type: application/json"'

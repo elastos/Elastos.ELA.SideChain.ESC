@@ -27,6 +27,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/withdrawfailedtx"
 )
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
@@ -207,30 +208,61 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	)
 	isRechargeTx := false
 	//this is recharge tx
-	if blackAddr == addr && len(input) == 32 {
-		txHash = hexutil.Encode(input)
-		completeTxHash := evm.StateDB.GetState(blackAddr, common.HexToHash(txHash))
-		fee, address, output :=  spv.FindOutputFeeAndaddressByTxHash(txHash)
-		addr = address
-		if (completeTxHash == common.Hash{} && addr != blackAddr && output.Cmp(fee) > 0) {
-			isRechargeTx = true
-			to = AccountRef(addr)
-			value = new(big.Int).Sub(output, fee)
-			topics := make([]common.Hash, 5)
-			topics[0] = common.HexToHash("0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a")
-			topics[1] = common.HexToHash(caller.Address().String())
-			topics[2] = common.HexToHash(txHash)
-			topics[3] = common.HexToHash(addr.String())
-			topics[4] = common.BigToHash(value)
-			evm.StateDB.AddLog(&types.Log{
-				Address:blackAddr,
-				Topics:topics,
-				Data:nil,
-				// This is a non-consensus field, but assigned here because
-				// core/state doesn't know the current block number.
-				BlockNumber:evm.BlockNumber.Uint64(),
-			})
-			evm.StateDB.AddBalance(caller.Address(), value)
+	if blackAddr == addr {
+		emptyHash := common.Hash{}
+		isWithdrawTx, txid := withdrawfailedtx.IsWithdawFailedTx(input, evm.chainConfig.BlackContractAddr)
+		if isWithdrawTx {
+			completeTxHash := evm.StateDB.GetState(blackAddr, common.HexToHash(txid))
+			res := withdrawfailedtx.VerifySignatures(input)
+			if completeTxHash == emptyHash && res == true {
+				from, amount, err := withdrawfailedtx.GetWithdrawTxValue(txid)
+				if err != nil {
+					return nil, gas, err
+				}
+				to = AccountRef(common.HexToAddress(from))
+				value = amount
+				eventHash := withdrawfailedtx.GetRefundEventHash()
+				topics := make([]common.Hash, 5)
+				topics[0] = eventHash
+				topics[1] = common.HexToHash(evm.chainConfig.BlackContractAddr)
+				topics[2] = common.HexToHash(caller.Address().String())
+				topics[3] = common.HexToHash(from)
+				topics[4] = common.BigToHash(amount)
+				evm.StateDB.AddLog(&types.Log{
+					Address: common.HexToAddress(evm.chainConfig.BlackContractAddr),
+					Topics:topics,
+					Data:nil,
+					BlockNumber:evm.BlockNumber.Uint64(),
+				})
+				//first give caller, then caller transfer to target behind
+				evm.StateDB.AddBalance(caller.Address(), amount)
+				withdrawfailedtx.OnProcessFaildWithdrawTx(txid)
+			}
+		} else if len(input) == 32 {
+			txHash = hexutil.Encode(input)
+			completeTxHash := evm.StateDB.GetState(blackAddr, common.HexToHash(txHash))
+			fee, address, output :=  spv.FindOutputFeeAndaddressByTxHash(txHash)
+			addr = address
+			if completeTxHash == emptyHash && addr != blackAddr && output.Cmp(fee) > 0 {
+				isRechargeTx = true
+				to = AccountRef(addr)
+				value = new(big.Int).Sub(output, fee)
+				topics := make([]common.Hash, 5)
+				topics[0] = common.HexToHash("0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a")
+				topics[1] = common.HexToHash(caller.Address().String())
+				topics[2] = common.HexToHash(txHash)
+				topics[3] = common.HexToHash(addr.String())
+				topics[4] = common.BigToHash(value)
+				evm.StateDB.AddLog(&types.Log{
+					Address:blackAddr,
+					Topics:topics,
+					Data:nil,
+					// This is a non-consensus field, but assigned here because
+					// core/state doesn't know the current block number.
+					BlockNumber:evm.BlockNumber.Uint64(),
+				})
+				evm.StateDB.AddBalance(caller.Address(), value)
+			}
 		}
 	}
 	// Fail if we're trying to transfer more than the available balance
