@@ -833,7 +833,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 				if len(tx.Data()) == 32 && to == addr {
 					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
 					txhash := hexutil.Encode(tx.Data())
-					spv.OnTx2Failed(txhash)
+					_, addr, _ := spv.FindOutputFeeAndaddressByTxHash(txhash)
+					var blackAddr common.Address
+					if addr != blackAddr {
+						spv.OnTx2Failed(txhash)
+					}
 				}
 			}
 		}
