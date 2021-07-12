@@ -71,8 +71,8 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 			peers := DumpNextDposInfo()
 			events.Notify(dpos.ETNextProducers, peers)
 		} else if consensusMode == spv.POW {
-			SpvService.mux.Post(eevent.InitCurrentProducers{})
-			InitNextTurnDposInfo()
+			//SpvService.mux.Post(eevent.InitCurrentProducers{})//note: add this ,will use current producers to seal block
+			//InitNextTurnDposInfo()
 		}
 	}
 	if nextTurnDposInfo == nil {
