@@ -28,7 +28,7 @@ func SpvIsWorkingHeight() bool {
 }
 
 func MainChainIsPowMode() bool {
-	return consensusMode == spv.POW
+	return GetCurrentConsensusMode() == spv.POW
 }
 
 func GetProducers(elaHeight uint64) ([][]byte, int, error) {
@@ -36,6 +36,9 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	totalCount := 0
 	if SpvService == nil {
 		return producers, totalCount,  errors.New("spv is not start")
+	}
+	if GetCurrentConsensusMode() == spv.POW {
+		return producers, totalCount,  nil
 	}
 	crcArbiters, normalArbitrs, err := SpvService.GetArbiters(uint32(elaHeight))
 	if err != nil {

@@ -401,11 +401,10 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 }
 
 func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, currentBlock *types.Block) {
-	number := currentBlock.NumberU64()
-	log.Info("InitCurrentProducers", "nonce", currentBlock.Nonce(), "height", number)
 	if currentBlock == nil {
 		return
 	}
+	log.Info("InitCurrentProducers", "nonce", currentBlock.Nonce(), "height", currentBlock.NumberU64())
 	if !config.IsPBFTFork(currentBlock.Number()) {
 		return
 	}
@@ -414,7 +413,8 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		engine.OnInsertBlock(currentBlock)
 		return
 	}
-
+	spvHeight = spv.GetSpvHeight()
+	log.Info("InitCurrentProducers", "spvHeight", spvHeight)
 	producers, totalProducers, err := spv.GetProducers(spvHeight)
 	if err != nil {
 		log.Info("GetProducers error", "error", err)
