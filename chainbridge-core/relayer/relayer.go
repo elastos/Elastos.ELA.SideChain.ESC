@@ -12,6 +12,7 @@ type RelayedChain interface {
 	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message)
 	Write(message *Message) error
 	ChainID() uint8
+	Start() bool
 }
 
 func NewRelayer(chains []RelayedChain) *Relayer {
