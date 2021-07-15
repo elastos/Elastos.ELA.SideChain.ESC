@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"math"
 	"os"
 	"runtime"
@@ -338,7 +339,6 @@ func geth(ctx *cli.Context) error {
 	node := makeFullNode(ctx)
 	defer node.Close()
 	startNode(ctx, node)
-	chainbridge_core.Run()
 	node.Wait()
 	return nil
 }
@@ -615,6 +615,12 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Failed to start mining: %v", err)
 			}
 		}
+		go func() {
+			passwords := utils.MakePasswordList(ctx)
+			time.Sleep(20 * time.Second)// wait layer2 running all serve
+			chainbridge_core.Run(ethereum.BlockChain().GetDposEngine().(*pbft.Pbft), passwords[0])
+		}()
+
 	}
 }
 
