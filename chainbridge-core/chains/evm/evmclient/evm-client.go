@@ -8,6 +8,8 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/engine"
+
 	"math/big"
 	"sync"
 	"time"
@@ -29,6 +31,8 @@ type EVMClient struct {
 	nonceLock sync.Mutex
 	config    *EVMConfig
 	nonce     *big.Int
+
+	engine   engine.ESCEngine
 }
 
 type CommonTransaction interface {
@@ -38,11 +42,11 @@ type CommonTransaction interface {
 	RawWithSignature(key *ecdsa.PrivateKey, chainID *big.Int) ([]byte, error)
 }
 
-func NewEVMClient() *EVMClient {
-	return &EVMClient{}
+func NewEVMClient(engine engine.ESCEngine) *EVMClient {
+	return &EVMClient{engine: engine}
 }
 
-func (c *EVMClient) Configurate(path string) error {
+func (c *EVMClient) Configurate(path string, password string) error {
 	rawCfg, err := GetConfig(path)
 	if err != nil {
 		return err
@@ -54,7 +58,7 @@ func (c *EVMClient) Configurate(path string) error {
 	c.config = cfg
 	generalConfig := cfg.SharedEVMConfig
 
-	kp, err := keystore.KeypairFromAddress(generalConfig.From, keystore.EthChain, generalConfig.KeystorePath, generalConfig.Insecure)
+	kp, err := keystore.KeypairFromAddress(keystore.EthChain, generalConfig.KeystorePath, []byte(password), generalConfig.Insecure)
 	if err != nil {
 		panic(err)
 	}
@@ -76,7 +80,6 @@ func (c *EVMClient) Configurate(path string) error {
 	}
 
 	return nil
-
 }
 
 type headerNumber struct {
@@ -111,6 +114,10 @@ func (c *EVMClient) LatestBlock() (*big.Int, error) {
 		return nil, err
 	}
 	return head.Number, err
+}
+
+func (c *EVMClient) Engine() engine.ESCEngine {
+	return c.engine
 }
 
 const (
@@ -157,8 +164,6 @@ func (c *EVMClient) PendingCallContract(ctx context.Context, callArgs map[string
 	}
 	return hex, nil
 }
-
-//func (c *EVMClient) ChainID()
 
 func (c *EVMClient) SignAndSendTransaction(ctx context.Context, tx CommonTransaction) (common.Hash, error) {
 	id, err := c.ChainID(ctx)
