@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	_interface "github.com/elastos/Elastos.ELA.SPV/interface"
 	"math/big"
 	"runtime"
 	"sync"
@@ -408,8 +409,9 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	if !config.IsPBFTFork(currentBlock.Number()) {
 		return
 	}
+	mode := spv.GetCurrentConsensusMode()
 	spvHeight := currentBlock.Nonce()
-	if spvHeight <= 0 {
+	if spvHeight <= 0 && mode == _interface.DPOS && len(engine.GetCurrentProducers()) > 0  {
 		engine.OnInsertBlock(currentBlock)
 		return
 	}
