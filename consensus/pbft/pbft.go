@@ -837,3 +837,7 @@ func (p *Pbft) IsBadBlock(height uint64) bool {
 	}
 	return false
 }
+
+func (p *Pbft) GetDposAccount() *daccount.Account {
+	return &p.account
+}

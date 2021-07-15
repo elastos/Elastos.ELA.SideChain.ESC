@@ -8,6 +8,7 @@ package dpos
 import (
 	"bytes"
 	"errors"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -82,6 +83,8 @@ type NetworkEventListener interface {
 
 	OnSmallCroTxReceived(id dpeer.PID, c *dmsg.SmallCroTx)
 	OnFailedWithdrawTxReceived(id dpeer.PID, c *dmsg.FailedWithdrawTx)
+
+	OnLayer2Msg(id dpeer.PID,  c elap2p.Message)
 }
 
 type messageItem struct {
@@ -246,6 +249,11 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnFailedWithdrawTxReceived(msgItem.ID, withdrawTx)
 		}
+	case dpos_msg.CmdDepositproposal:
+		msg, processed := m.(*dpos_msg.DepositProposalMsg)
+		if processed {
+			n.listener.OnLayer2Msg(msgItem.ID, msg)
+		}
 	}
 }
 
@@ -380,6 +388,8 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &dmsg.SmallCroTx{}
 	case dmsg.CmdFailedWithdrawTx:
 		message = &dmsg.FailedWithdrawTx{}
+	case dpos_msg.CmdDepositproposal:
+		message = &dpos_msg.DepositProposalMsg{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}
