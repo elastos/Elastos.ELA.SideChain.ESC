@@ -37,6 +37,9 @@ type EVMMessageHandler struct {
 func (mh *EVMMessageHandler) HandleMessage(m *relayer.Message) (Proposer, error) {
 	// Matching resource ID with handler.
 	addr, err := mh.matchResourceIDToHandlerAddress(m.ResourceId)
+	if err != nil {
+		return nil, err
+	}
 	// Based on handler that registered on BridgeContract
 	log.Info("Handling new message", "type", m.Type, "src", m.Source, "dst", m.Destination, "nonce", m.DepositNonce, "rid", m.ResourceId, "handlerAddress", addr.String())
 	handleMessage, err := mh.MatchAddressWithHandlerFunc(addr)
@@ -61,6 +64,7 @@ func (mh *EVMMessageHandler) matchResourceIDToHandlerAddress(rID [32]byte) (comm
 	if err != nil {
 		return common.Address{}, err
 	}
+	log.Info("[matchResourceIDToHandlerAddress]", "to", mh.bridgeAddress.String())
 	msg := ethereum.CallMsg{From: common.Address{}, To: &mh.bridgeAddress, Data: input}
 	out, err := mh.client.CallContract(context.TODO(), toCallArg(msg), nil)
 	if err != nil {
@@ -109,13 +113,11 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 	recipientLen := big.NewInt(int64(len(recipient))).Bytes()
 	data = append(data, common.LeftPadBytes(recipientLen, 32)...) // length of recipient (uint256)
 	data = append(data, recipient...)                             // recipient ([]byte)
-
-	return &Proposal{
+	return &Proposal {
 		Source:         m.Source,
 		DepositNonce:   m.DepositNonce,
 		ResourceId:     m.ResourceId,
 		Data:           data,
-		HandlerAddress: handlerAddr,
 		BridgeAddress:  bridgeAddress,
 	}, nil
 }
@@ -152,7 +154,6 @@ func ERC721MessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress commo
 		DepositNonce:   msg.DepositNonce,
 		ResourceId:     msg.ResourceId,
 		Data:           data.Bytes(),
-		HandlerAddress: handlerAddr,
 		BridgeAddress:  bridgeAddress,
 	}, nil
 }
@@ -174,7 +175,6 @@ func GenericMessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress comm
 		DepositNonce:   msg.DepositNonce,
 		ResourceId:     msg.ResourceId,
 		Data:           data.Bytes(),
-		HandlerAddress: handlerAddr,
 		BridgeAddress:  bridgeAddress,
 	}, nil
 }
