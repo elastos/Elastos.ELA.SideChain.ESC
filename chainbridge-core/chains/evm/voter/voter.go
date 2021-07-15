@@ -5,11 +5,12 @@ package voter
 
 import (
 	"context"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 	"math/big"
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/evmclient"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/dpos_msg"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 )
@@ -27,13 +28,14 @@ type ChainClient interface {
 	UnsafeIncreaseNonce() error
 	GasPrice() (*big.Int, error)
 	ChainID(ctx context.Context) (*big.Int, error)
+	Engine() engine.ESCEngine
 }
 
 type Proposer interface {
-	Status(client ChainClient) (relayer.ProposalStatus, error)
-	VotedBy(client ChainClient, by common.Address) (bool, error)
+	//Status(client ChainClient) (relayer.ProposalStatus, error)
+	//VotedBy(client ChainClient, by common.Address) (bool, error)
 	Execute(client ChainClient) error
-	Vote(client ChainClient) error
+	//Vote(client ChainClient) error
 }
 
 type MessageHandler interface {
@@ -52,62 +54,30 @@ func NewVoter(mh MessageHandler, client ChainClient) *EVMVoter {
 		client: client,
 	}
 }
-
-func (w *EVMVoter) VoteProposal(m *relayer.Message) error {
+func (w *EVMVoter) HandleProposal(m *relayer.Message) (*Proposal, error) {
 	prop, err := w.mh.HandleMessage(m)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	ps, err := prop.Status(w.client)
-	if err != nil {
-		log.Error("error getting proposal status %+v", prop, "error", err)
-	}
+	return prop.(*Proposal), nil
+}
 
-	votedByCurrentExecutor, err := prop.VotedBy(w.client, w.client.RelayerAddress())
-	if err != nil {
-		return err
-	}
+func (w *EVMVoter) SignAndBroadProposal(proposal *Proposal) common.Hash {
+	msg := &dpos_msg.DepositProposalMsg{}
+	msg.SourceChainID = proposal.Source
+	msg.DestChainID = proposal.Destination
+	msg.DepositNonce = proposal.DepositNonce
+	copy(msg.ResourceId[:], proposal.ResourceId[:])
+	msg.Data = proposal.Data
 
-	if votedByCurrentExecutor || ps == relayer.ProposalStatusPassed || ps == relayer.ProposalStatusCanceled || ps == relayer.ProposalStatusExecuted {
-		if ps == relayer.ProposalStatusPassed {
-			// We should not vote for this proposal but it is ready to be executed
-			err = prop.Execute(w.client)
-			if err != nil {
-				log.Error("Executing failed", "error", err)
-				return err
-			}
-			return nil
-		} else {
-			return nil
-		}
-	}
-	err = prop.Vote(w.client)
-	if err != nil {
-		log.Error("Voting failed", "error", err)
-		return err
-	}
-	// Checking every 5 seconds does proposal is ready to be executed
-	// TODO: somehow update infinity loop to break after some period of time
-	for {
-		select {
-		case <-time.After(BlockRetryInterval):
-			ps, err := prop.Status(w.client)
-			if err != nil {
-				log.Error("error getting proposal status %+v", prop, "error", err)
-				return err
-			}
-			if ps == relayer.ProposalStatusPassed {
-				err = prop.Execute(w.client)
-				if err != nil {
-					log.Error("Executing failed", prop, "error", err)
-					return err
-				}
-				return nil
-			}
-			continue
-		case <-w.stop:
-			return nil
+	msg.Proposer = w.client.Engine().GetProducer()
+	sign := w.client.Engine().SignData(proposal.Hash().Bytes())
+	msg.Signature = sign
 
-		}
-	}
+	w.client.Engine().SendMsgProposal(msg)
+	return msg.GetHash()
+}
+
+func (w *EVMVoter) GetClient() ChainClient {
+	return w.client
 }
