@@ -233,13 +233,13 @@ func (p *Pbft) subscribeEvent() {
 		case dpos.ETSmallCroTx:
 			if croTx, ok := e.Data.(*smallcrosstx.ETSmallCrossTx); ok {
 				msg := dmsg.NewSmallCroTx(croTx.Signature, croTx.RawTx)
-				p.network.BroadcastMessage(msg)
+				p.BroadMessage(msg)
 			}
 
 		case dpos.ETFailedWithdrawTx:
 			if failEvt, ok := e.Data.(*withdrawfailedtx.FailedWithdrawEvent); ok {
 				msg := dmsg.NewFailedWithdrawTx(failEvt.Signature, failEvt.Txid)
-				p.network.BroadcastMessage(msg)
+				p.BroadMessage(msg)
 			}
 		}
 	})
@@ -752,7 +752,7 @@ func (p *Pbft) SetBlockChain(chain *core.BlockChain) {
 
 func (p *Pbft) broadConfirmMsg(confirm *payload.Confirm, height uint64) {
 	msg := dmsg.NewConfirmMsg(confirm, height)
-	p.network.BroadcastMessage(msg)
+	p.BroadMessage(msg)
 }
 
 func (p *Pbft) verifyConfirm(confirm *payload.Confirm, elaHeight uint64) error {

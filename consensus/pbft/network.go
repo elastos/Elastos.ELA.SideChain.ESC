@@ -27,6 +27,7 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
+	elap2p "github.com/elastos/Elastos.ELA/p2p"
 )
 
 func (p *Pbft) StartProposal(block *types.Block) error {
@@ -53,15 +54,27 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 		Proposal: *proposal,
 	}
 	log.Info("[StartProposal] send proposal message", "proposal", msg.GetMessageHash(m))
-	p.network.BroadcastMessage(m)
-
+	p.BroadMessage(m)
 	// Broadcast vote
 	voteMsg := p.dispatcher.AcceptProposal(proposal, p.account)
 	if voteMsg != nil {
 		go p.OnVoteAccepted(id, &voteMsg.Vote)
-		p.network.BroadcastMessage(voteMsg)
+		p.BroadMessage(voteMsg)
 	}
 	return nil
+}
+
+func (p *Pbft) BroadMessage(msg elap2p.Message) {
+	peers :=  p.network.DumpPeersInfo()
+
+	for _, peer := range peers {
+		pid := peer.PID[:]
+		producer := p.dispatcher.GetConsensusView().IsProducers(pid)
+		if producer == false {
+			continue
+		}
+		p.network.SendMessageToPeer(peer.PID, msg)
+	}
 }
 
 type peerInfo struct {
@@ -109,6 +122,10 @@ func (p *Pbft) UpdateCurrentProducers(producers [][]byte, totalCount int, spvHei
 	p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, spvHeight)
 }
 
+func (p *Pbft) GetCurrentProducers() [][]byte {
+	return p.dispatcher.GetConsensusView().GetProducers()
+}
+
 func (p *Pbft) BroadBlockMsg(block *types.Block) error {
 	sealHash := p.SealHash(block.Header())
 	log.Info("BroadPreBlock,", "block Height:", block.NumberU64(), "hash:", sealHash.String())
@@ -118,7 +135,7 @@ func (p *Pbft) BroadBlockMsg(block *types.Block) error {
 		return err
 	}
 	msg := dmsg.NewBlockMsg(buffer.Bytes())
-	p.network.BroadcastMessage(msg)
+	p.BroadMessage(msg)
 	p.blockPool.AppendDposBlock(block)
 	return nil
 }
@@ -127,7 +144,7 @@ func (p *Pbft) RequestAbnormalRecovering() {
 	height := p.chain.CurrentHeader().Height()
 	msgItem := &dmsg.RequestConsensus{Height: height}
 	log.Info("[RequestAbnormalRecovering]", "height", height)
-	p.network.BroadcastMessage(msgItem)
+	p.BroadMessage(msgItem)
 }
 
 func (p *Pbft) tryGetCurrentProposal(id peer.PID, v *payload.DPOSProposalVote) (elacom.Uint256, bool) {
@@ -198,7 +215,7 @@ func (p *Pbft) AccessFutureBlock(parent *types.Block) {
 	if p.blockPool.HandleParentBlock(parent) {
 		log.Info("----[Send RequestProposal]-----")
 		requestProposal := &msg.RequestProposal{ProposalHash: elacom.EmptyHash}
-		go p.network.BroadcastMessage(requestProposal)
+		go p.BroadMessage(requestProposal)
 	}
 }
 
@@ -208,6 +225,7 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 	}
 	dutyIndex := p.dispatcher.GetConsensusView().GetDutyIndex()
 	isWorkingHeight := spv.SpvIsWorkingHeight()
+	log.Info("[OnInsertBlock]", "dutyIndex", dutyIndex)
 	if dutyIndex == 0 && isWorkingHeight {
 		curProducers := p.dispatcher.GetConsensusView().GetProducers()
 		isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
@@ -391,7 +409,7 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 		p.notHandledProposal = make(map[string]struct{})
 	}
 	if voteMsg != nil && !p.dispatcher.GetProposalProcessFinished() {
-		p.network.BroadcastMessage(voteMsg)
+		p.BroadMessage(voteMsg)
 		p.dispatcher.SetProposalProcessFinished()
 	}
 }
