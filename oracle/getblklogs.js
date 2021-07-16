@@ -41,7 +41,11 @@ module.exports = async function (json_data, res) {
                 let paramsStr=tx.input
                 let gap = "23232323";//####
                 var index = paramsStr.indexOf(gap);
-                let paramsHex = paramsStr.substr(index + gap.length);
+                let paramsHex = "";
+                if (index >= 0) {
+                    paramsHex = paramsStr.substr(index + gap.length);
+                }
+
                 console.log("tx data", tx.input);
                 console.log("paramsHex", paramsHex);
                 const buf = Buffer.from(paramsHex, 'hex');

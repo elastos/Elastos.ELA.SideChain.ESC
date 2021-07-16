@@ -123,7 +123,10 @@ func (p *Pbft) UpdateCurrentProducers(producers [][]byte, totalCount int, spvHei
 }
 
 func (p *Pbft) GetCurrentProducers() [][]byte {
-	return p.dispatcher.GetConsensusView().GetProducers()
+	if p.dispatcher != nil {
+		return p.dispatcher.GetConsensusView().GetProducers()
+	}
+	return [][]byte{}
 }
 
 func (p *Pbft) BroadBlockMsg(block *types.Block) error {

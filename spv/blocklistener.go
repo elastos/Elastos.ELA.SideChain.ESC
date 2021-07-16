@@ -143,9 +143,12 @@ func InitNextTurnDposInfo() {
 
 func GetCurrentConsensusMode() spv.ConsensusAlgorithm {
 	if SpvService == nil {
+		log.Error("Spv is not started")
 		return spv.DPOS
 	}
-	mode , err := SpvService.GetConsensusAlgorithm(uint32(GetSpvHeight()))
+	spvHeight := uint32(GetSpvHeight())
+	mode , err := SpvService.GetConsensusAlgorithm(spvHeight)
+	log.Info("GetCurrentConsensusMode", "error", err, "spvHeight", spvHeight)
 	if err != nil {
 		return spv.DPOS
 	}
