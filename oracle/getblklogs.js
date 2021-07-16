@@ -37,6 +37,21 @@ module.exports = async function (json_data, res) {
                     }
                 }
 
+                let tx = await common.web3.eth.getTransaction(txhash)
+                let paramsStr=tx.input
+                let gap = "23232323";//####
+                var index = paramsStr.indexOf(gap);
+                let paramsHex = "";
+                if (index >= 0) {
+                    paramsHex = paramsStr.substr(index + gap.length);
+                }
+
+                console.log("tx data", tx.input);
+                console.log("paramsHex", paramsHex);
+                const buf = Buffer.from(paramsHex, 'hex');
+                let params = buf.toString("utf-8")
+                console.log("params", params);
+
                 if (txreceipt.status) {
                     let crosschainamount = String(common.retnum(log["returnValues"]["_crosschainamount"] / 1e18));
                     let outputamount = String(common.retnum(log["returnValues"]["_amount"] / 1e18));
@@ -45,7 +60,8 @@ module.exports = async function (json_data, res) {
                     txlog["crosschainassets"].push({
                         "crosschainaddress": log["returnValues"]["_addr"],
                         "crosschainamount": crosschainamount,
-                        "outputamount": outputamount
+                        "outputamount": outputamount,
+                        "targetdata": params
                     });
                 }
             }
