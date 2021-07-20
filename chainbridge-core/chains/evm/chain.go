@@ -5,6 +5,7 @@ package evm
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -15,11 +16,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/msg_pool"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 
-	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/events"
-
 )
 
 var Layer1ChainID uint8
@@ -44,9 +44,6 @@ type EVMChain struct {
 	bridgeContractAddress string
 	config                *config.GeneralChainConfig
 	msgPool               *msg_pool.MsgPool
-
-
-
 }
 
 func NewEVMChain(dr EventListener, writer ProposalVoter, kvdb blockstore.KeyValueReaderWriter, chainID uint8, config *config.GeneralChainConfig) *EVMChain {
@@ -74,9 +71,8 @@ func (c *EVMChain) subscribeEvent() {
 					if err != nil {
 						log.Error("OnProposal error", "error", err)
 					} else {
-						log.Info("proposal verify suc")
 						c.msgPool.OnProposalVerified(proposal.Hash(), msg.Proposer, msg.Signature)
-						fmt.Println("verifiedCount", c.msgPool.GetVerifiedCount(proposal.Hash()))
+						log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(proposal.Hash()))
 						if c.msgPool.GetVerifiedCount(proposal.Hash()) > c.getMaxArbitersSign() {
 							c.msgPool.PutAbleExecuteProposal(proposal)
 						}
@@ -114,14 +110,21 @@ func (c *EVMChain) getMaxArbitersSign() int {
 }
 
 func (c *EVMChain) OnProposal(msg *dpos_msg.DepositProposalMsg, proposalHash []byte) error {
-	pk, err := crypto.DecodePoint(msg.Proposer)
+	//pk, err := crypto.DecodePoint(msg.Proposer)
+	//if err != nil {
+	//	return err
+	//}
+	//if err := crypto.Verify(*pk, proposalHash, msg.Signature); err != nil {
+	//	return err
+	//}
+	pk, err := crypto.SigToPub(proposalHash, msg.Signature)
 	if err != nil {
 		return err
 	}
-	if err := crypto.Verify(*pk, proposalHash, msg.Signature); err != nil {
-		return err
+	pub := crypto.CompressPubkey(pk)
+	if bytes.Compare(msg.Proposer, pub) != 0 {
+		return errors.New(fmt.Sprintf("verified signature error, proposer:%s, publicKey:%s", common.Bytes2Hex(msg.Proposer), common.Bytes2Hex(pub)))
 	}
-
 	return nil
 }
 
