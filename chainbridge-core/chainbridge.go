@@ -2,25 +2,29 @@ package chainbridge_core
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/blockstore"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/evmclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/listener"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/config"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/lvldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"os"
-	"os/signal"
-	"syscall"
+
+	"github.com/elastos/Elastos.ELA/account"
 )
 
 var MsgReleayer *relayer.Relayer
 
-func Run(engine *pbft.Pbft, accountPassword string) error {
+func Run(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword string) error {
 	errChn := make(chan error)
 	stopChn := make(chan struct{})
 	db, err := lvldb.NewLvlDB(config.BlockstoreFlagName)
@@ -29,10 +33,10 @@ func Run(engine *pbft.Pbft, accountPassword string) error {
 	}
 
 	path := config.DefaultConfigDir + "layer1_config.json"
-	layer1 := createChain(path, db, nil, accountPassword)
+	layer1 := createChain(path, db, nil, accountPassword, arbiterKeystore, arbiterPassword)
 	evm.Layer1ChainID = layer1.ChainID()
 	path = config.DefaultConfigDir + "layer2_config.json"
-	layer2 := createChain(path, db, engine, accountPassword)
+	layer2 := createChain(path, db, engine, accountPassword, arbiterKeystore, arbiterPassword)
 	evm.Layer2ChainID = layer2.ChainID()
 
 	MsgReleayer = relayer.NewRelayer([]relayer.RelayedChain{layer1, layer2})
@@ -56,7 +60,7 @@ func Run(engine *pbft.Pbft, accountPassword string) error {
 	}
 }
 
-func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPassword string) *evm.EVMChain {
+func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword string) *evm.EVMChain {
 	ethClient := evmclient.NewEVMClient(engine)
 	err := ethClient.Configurate(path, accountPassword)
 	if err != nil {
@@ -71,8 +75,20 @@ func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.P
 	messageHandler := voter.NewEVMMessageHandler(ethClient, common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge))
 	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Erc20Handler), voter.ERC20MessageHandler)
 	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.WEthHandler), voter.ERC20MessageHandler)
-	voter := voter.NewVoter(messageHandler, ethClient)
+	kp, err := GetArbiterAccount(arbiterKeystore, []byte(arbiterPassword))
+	if err != nil {
+		panic("GetArbiterAccount error" + err.Error())
+	}
+	voter := voter.NewVoter(messageHandler, ethClient, kp)
 
 	chain := evm.NewEVMChain(evmListener, voter, db, ethCfg.SharedEVMConfig.Id, &ethCfg.SharedEVMConfig)
 	return chain
+}
+
+func GetArbiterAccount(keystorePath string, password []byte) (*secp256k1.Keypair, error) {
+	client, err := account.Open(keystorePath, password)
+	if err != nil {
+		return nil, err
+	}
+	return secp256k1.NewKeypairFromPrivateKey(client.GetMainAccount().PrivateKey)
 }
