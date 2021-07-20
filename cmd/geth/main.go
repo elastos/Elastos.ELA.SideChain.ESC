@@ -622,7 +622,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		go func() {
 			passwords := utils.MakePasswordList(ctx)
 			time.Sleep(20 * time.Second)// wait layer2 running all serve
-			chainbridge_core.Run(ethereum.BlockChain().GetDposEngine().(*pbft.Pbft), passwords[0])
+			chainbridge_core.Run(ethereum.BlockChain().GetDposEngine().(*pbft.Pbft), passwords[0], ethereum.BlockChain().Config().PbftKeyStore, ethereum.BlockChain().Config().PbftKeyStorePassWord)
 		}()
 
 	}
