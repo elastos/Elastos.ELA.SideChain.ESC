@@ -9,10 +9,13 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/evmclient"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 )
 
 var BlockRetryInterval = time.Second * 5
@@ -46,12 +49,14 @@ type EVMVoter struct {
 	stop   <-chan struct{}
 	mh     MessageHandler
 	client ChainClient
+	account *secp256k1.Keypair
 }
 
-func NewVoter(mh MessageHandler, client ChainClient) *EVMVoter {
+func NewVoter(mh MessageHandler, client ChainClient, arbiterAccount *secp256k1.Keypair) *EVMVoter {
 	return &EVMVoter{
 		mh:     mh,
 		client: client,
+		account: arbiterAccount,
 	}
 }
 func (w *EVMVoter) HandleProposal(m *relayer.Message) (*Proposal, error) {
@@ -70,14 +75,21 @@ func (w *EVMVoter) SignAndBroadProposal(proposal *Proposal) common.Hash {
 	copy(msg.ResourceId[:], proposal.ResourceId[:])
 	msg.Data = proposal.Data
 
-	msg.Proposer = w.client.Engine().GetProducer()
-	sign := w.client.Engine().SignData(proposal.Hash().Bytes())
-	msg.Signature = sign
-
+	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
+	msg.Signature = w.SignData(proposal.Hash().Bytes())
 	w.client.Engine().SendMsgProposal(msg)
 	return msg.GetHash()
 }
 
 func (w *EVMVoter) GetClient() ChainClient {
 	return w.client
+}
+
+func (w *EVMVoter) SignData(data []byte) []byte {
+	privateKey := w.account.PrivateKey()
+	sign, err := crypto.Sign(data, privateKey)
+	if err != nil {
+		return nil
+	}
+	return sign
 }
