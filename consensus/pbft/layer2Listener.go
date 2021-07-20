@@ -2,9 +2,6 @@ package pbft
 
 import (
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/dpos_msg"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-
 	dpeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 	elap2p "github.com/elastos/Elastos.ELA/p2p"
@@ -34,10 +31,10 @@ func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 	case dpos_msg.CmdDepositproposal:
 		msg, _ := c.(*dpos_msg.DepositProposalMsg)
 		msg.PID = id
-		if !p.dispatcher.GetConsensusView().IsProducers(msg.Proposer) {
-			log.Error("proposer is not a producer:" + common.Bytes2Hex(msg.Proposer))
-			return
-		}
+		//if !p.dispatcher.GetConsensusView().IsProducers(msg.Proposer) {
+		//	log.Error("proposer is not a producer:" + common.Bytes2Hex(msg.Proposer))
+		//	return
+		//}
 		events.Notify(dpos_msg.ETOnProposal, msg)
 	}
 }
