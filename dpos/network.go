@@ -304,8 +304,8 @@ func (n *Network) BroadcastMessage(msg elap2p.Message) {
 //
 // This function is safe for concurrent access and is part of the
 // IServer interface implementation.
-func (s *Network) DumpPeersInfo() []*p2p.PeerInfo {
-	return s.p2pServer.DumpPeersInfo()
+func (n *Network) DumpPeersInfo() []*p2p.PeerInfo {
+	return n.p2pServer.DumpPeersInfo()
 }
 
 func NewNetwork(cfg *NetworkConfig) (*Network, error) {
