@@ -5,7 +5,7 @@ package listener
 
 import (
 	"context"
-
+	"fmt"
 	"math/big"
 	"time"
 
@@ -77,7 +77,7 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8, kvrw bl
 						log.Error("HandleEvent error", "error", err)
 						return
 					}
-					log.Debug("Resolved message %+v in block %s", m, startBlock.String())
+					log.Info(fmt.Sprintf("Resolved message %+v in block %s", m, startBlock.String()))
 					ch <- m
 				}
 				if startBlock.Int64()%20 == 0 {
