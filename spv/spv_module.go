@@ -5,31 +5,35 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
-	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"math/big"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 
+	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/common/config"
+	core "github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/elanet/filter"
+	"github.com/elastos/Elastos.ELA/events"
+
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb/leveldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
+
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"golang.org/x/net/context"
-
-	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/common/config"
-	core "github.com/elastos/Elastos.ELA/core/types"
-	"github.com/elastos/Elastos.ELA/elanet/filter"
 )
 
 var (
@@ -201,6 +205,7 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *eve
 				IteratorUnTransaction(GetDefaultSingerAddr())
 			}
 		case <-ondutySub.Chan():
+			events.Notify(dpos_msg.ETSelfOnDuty, nil)
 			if i >= 2 {
 				i = 0
 				log.Info("receive onduty event")
