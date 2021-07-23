@@ -115,10 +115,12 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 	data = append(data, recipient...)                             // recipient ([]byte)
 	return &Proposal {
 		Source:         m.Source,
+		Destination:    m.Destination,
 		DepositNonce:   m.DepositNonce,
 		ResourceId:     m.ResourceId,
 		Data:           data,
 		BridgeAddress:  bridgeAddress,
+		HandlerAddress: handlerAddr,
 	}, nil
 }
 
@@ -155,6 +157,7 @@ func ERC721MessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress commo
 		ResourceId:     msg.ResourceId,
 		Data:           data.Bytes(),
 		BridgeAddress:  bridgeAddress,
+		HandlerAddress: handlerAddr,
 	}, nil
 }
 
@@ -176,6 +179,7 @@ func GenericMessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress comm
 		ResourceId:     msg.ResourceId,
 		Data:           data.Bytes(),
 		BridgeAddress:  bridgeAddress,
+		HandlerAddress: handlerAddr,
 	}, nil
 }
 

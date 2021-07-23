@@ -57,32 +57,60 @@ func (c *EVMChain) subscribeEvent() {
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case dpos_msg.ETOnProposal:
-			if msg, ok := e.Data.(*dpos_msg.DepositProposalMsg); ok {
-				proposal := c.msgPool.Get(msg.DepositNonce)
-				if proposal == nil {
-					return
-				}
-				if c.msgPool.IsInExecutePool(proposal) {
-					log.Info("all ready in execute pool", "proposal", proposal.Hash().String())
-					return
-				}
-				if compareMsg(msg, proposal) {
-					err := c.OnProposal(msg, proposal.Hash().Bytes())
-					if err != nil {
-						log.Error("OnProposal error", "error", err)
-					} else {
-						c.msgPool.OnProposalVerified(proposal.Hash(), msg.Proposer, msg.Signature)
-						log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(proposal.Hash()))
-						if c.msgPool.GetVerifiedCount(proposal.Hash()) > c.getMaxArbitersSign() {
-							c.msgPool.PutAbleExecuteProposal(proposal)
-						}
-					}
-				} else {
-					log.Error("received error deposit proposal")
-				}
-			}
+			 c.onProposalEvent(e)
+		case dpos_msg.ETSelfOnDuty:
+			c.selfOnDuty(e)
 		}
 	})
+}
+
+func (c *EVMChain) selfOnDuty(e *events.Event) {
+	list := c.msgPool.GetAbleExecuteProposal()
+	log.Info("selfOnDuty selfOnDuty", "list count", len(list))
+	for _, p := range list {
+		if p.ProposalIsComplete(c.writer.GetClient()) {
+			log.Info("Proposal is completed", "proposal", p.Hash().String())
+			continue
+		}
+		err := p.Execute(c.writer.GetClient())
+		if err != nil {
+			log.Error("proposal is execute error", "error", err)
+		}
+
+	}
+}
+
+
+
+func (c *EVMChain) onProposalEvent(e *events.Event) {
+	if msg, ok := e.Data.(*dpos_msg.DepositProposalMsg); ok {
+		proposal := c.msgPool.Get(msg.DepositNonce)
+		if proposal == nil {
+			return
+		}
+		if proposal.Destination != c.chainID {
+			log.Info("proposal destination is not correct", "destination", proposal.Destination)
+			return
+		}
+		if c.msgPool.IsInExecutePool(proposal) {
+			log.Info("all ready in execute pool", "proposal", proposal.Hash().String())
+			return
+		}
+		if compareMsg(msg, proposal) {
+			err := c.OnProposal(msg, proposal.Hash().Bytes())
+			if err != nil {
+				log.Error("OnProposal error", "error", err)
+			} else {
+				c.msgPool.OnProposalVerified(proposal.Hash(), msg.Proposer, msg.Signature)
+				log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(proposal.Hash()))
+				if c.msgPool.GetVerifiedCount(proposal.Hash()) > c.getMaxArbitersSign() {
+					c.msgPool.PutAbleExecuteProposal(proposal)
+				}
+			}
+		} else {
+			log.Error("received error deposit proposal")
+		}
+	}
 }
 
 func compareMsg(msg1 *dpos_msg.DepositProposalMsg, msg2 *voter.Proposal) bool {
@@ -155,6 +183,7 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 	if err != nil {
 		return err
 	}
+	log.Info("handle new relayer message", "source", proposal.Source, "target", proposal.Destination, "nonce", proposal.DepositNonce)
 	err = c.msgPool.Put(proposal)
 	if err != nil {
 		return err
