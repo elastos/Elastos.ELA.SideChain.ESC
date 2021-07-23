@@ -149,7 +149,6 @@ func (m *MsgPool) PutAbleExecuteProposal(proposal *voter.Proposal) {
 		log.Info("all ready in execute pool")
 		return
 	}
-
 	m.executeProposal.Push(proposal)
 }
 
@@ -158,8 +157,8 @@ func (m *MsgPool) GetAbleExecuteProposal() []*voter.Proposal {
 	defer m.proposalLock.RUnlock()
 
 	list := make([]*voter.Proposal, 0, len(m.executeProposal))
-	for _, msg := range m.executeProposal {
-		list = append(list, msg)
+	for i := 0; i < len(m.executeProposal); i++ {
+		list = append(list, m.executeProposal.Pop().(*voter.Proposal))
 	}
 	sort.Sort(NonceProposal(list))
 	return list
