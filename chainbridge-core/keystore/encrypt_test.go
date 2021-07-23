@@ -77,28 +77,3 @@ func createTestFile(t *testing.T) (*os.File, string) {
 
 	return file, fp
 }
-
-func TestEncryptAndDecryptFromFile_Secp256k1(t *testing.T) {
-	password := []byte("noot")
-	file, fp := createTestFile(t)
-	defer os.Remove(fp)
-
-	kp, err := secp256k1.GenerateKeypair()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = EncryptAndWriteToFile(file, kp, password)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	res, err := ReadFromFileAndDecrypt(fp, password, "secp256k1")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !bytes.Equal(kp.Encode(), res.Encode()) {
-		t.Fatalf("Fail: got %#v expected %#v", res, kp)
-	}
-}

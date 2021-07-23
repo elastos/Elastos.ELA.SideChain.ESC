@@ -6,13 +6,17 @@ package voter
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math/big"
 	"strings"
 
+	ethereum "github.com/elastos/Elastos.ELA.SideChain.ETH"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/evmtransaction"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
 
 	elaCom "github.com/elastos/Elastos.ELA/common"
@@ -25,6 +29,7 @@ type Proposal struct {
 	ResourceId     [32]byte
 	Data           []byte
 	BridgeAddress  common.Address
+	HandlerAddress common.Address
 }
 
 func (p *Proposal) Serialize(w io.Writer) error {
@@ -44,6 +49,9 @@ func (p *Proposal) Serialize(w io.Writer) error {
 		return err
 	}
 	if err := elaCom.WriteVarBytes(w, p.BridgeAddress[:]); err != nil {
+		return err
+	}
+	if err := elaCom.WriteVarBytes(w, p.HandlerAddress[:]); err != nil {
 		return err
 	}
 	return nil
@@ -83,6 +91,12 @@ func (p *Proposal) Deserialize(r io.Reader) error {
 		return err
 	}
 	copy(p.BridgeAddress[:], address[:])
+
+	handler, err := elaCom.ReadVarBytes(r, 20, "HandlerAddress")
+	if err != nil {
+		return err
+	}
+	copy(p.HandlerAddress[:], handler[:])
 	return nil
 }
 
@@ -92,34 +106,42 @@ func (p *Proposal) Hash() common.Hash {
 	return common.BytesToHash(buf.Bytes())
 }
 
-//func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error) {
-//	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"originChainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"name\":\"getProposal\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"_resourceID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_dataHash\",\"type\":\"bytes32\"},{\"internalType\":\"address[]\",\"name\":\"_yesVotes\",\"type\":\"address[]\"},{\"internalType\":\"address[]\",\"name\":\"_noVotes\",\"type\":\"address[]\"},{\"internalType\":\"enumBridge.ProposalStatus\",\"name\":\"_status\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"_proposedBlock\",\"type\":\"uint256\"}],\"internalType\":\"structBridge.Proposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
-//	a, err := abi.JSON(strings.NewReader(definition))
-//	if err != nil {
-//		return relayer.ProposalStatusInactive, err // Not sure what status to use here
-//	}
-//	input, err := a.Pack("getProposal", p.Source, p.DepositNonce, p.GetDataHash())
-//	if err != nil {
-//		return relayer.ProposalStatusInactive, err
-//	}
-//
-//	msg := ethereum.CallMsg{From: common.Address{}, To: &p.BridgeAddress, Data: input}
-//	out, err := evmCaller.CallContract(context.TODO(), toCallArg(msg), nil)
-//	if err != nil {
-//		return relayer.ProposalStatusInactive, err
-//	}
-//	type bridgeProposal struct {
-//		ResourceID    [32]byte
-//		DataHash      [32]byte
-//		YesVotes      []common.Address
-//		NoVotes       []common.Address
-//		Status        uint8
-//		ProposedBlock *big.Int
-//	}
-//	out0 := new(bridgeProposal)
-//	err = a.Unpack(out0, "getProposal", out)
-//	return relayer.ProposalStatus(out0.Status), nil
-//}
+// CreateProposalDataHash constructs and returns proposal data hash
+func (p *Proposal) GetDataHash() common.Hash {
+	fmt.Println("p.HandlerAddress >>>>>>>", p.HandlerAddress.String())
+	return crypto.Keccak256Hash(append(p.HandlerAddress.Bytes(), p.Data...))
+}
+
+func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error) {
+	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"originChainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"name\":\"getProposal\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"_resourceID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_dataHash\",\"type\":\"bytes32\"},{\"internalType\":\"address[]\",\"name\":\"_yesVotes\",\"type\":\"address[]\"},{\"internalType\":\"address[]\",\"name\":\"_noVotes\",\"type\":\"address[]\"},{\"internalType\":\"enumBridge.ProposalStatus\",\"name\":\"_status\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"_proposedBlock\",\"type\":\"uint256\"}],\"internalType\":\"structBridge.Proposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	if err != nil {
+		return relayer.ProposalStatusInactive, err // Not sure what status to use here
+	}
+	input, err := a.Pack("getProposal", p.Source, p.DepositNonce, p.GetDataHash())
+	//nonceAndID := (uint64(p.DepositNonce) << 8) | uint64(p.Source)
+	//log.Debug("[Status getProposal]", "source", p.Source, "DepositNonce", p.DepositNonce, "DataHash", p.GetDataHash().String(), "nonceAndID", nonceAndID, "nonceID", new(big.Int).SetUint64(nonceAndID).Bytes(), "nonceID2", common.Bytes2Hex(new(big.Int).SetUint64(nonceAndID).Bytes()))
+
+	if err != nil {
+		return relayer.ProposalStatusInactive, err
+	}
+	msg := ethereum.CallMsg{From: common.Address{}, To: &p.BridgeAddress, Data: input}
+	out, err := evmCaller.CallContract(context.TODO(), toCallArg(msg), nil)
+	if err != nil {
+		return relayer.ProposalStatusInactive, err
+	}
+	type bridgeProposal struct {
+		ResourceID    [32]byte
+		DataHash      [32]byte
+		YesVotes      []common.Address
+		NoVotes       []common.Address
+		Status        uint8
+		ProposedBlock *big.Int
+	}
+	out0 := new(bridgeProposal)
+	err = a.Unpack(out0, "getProposal", out)
+	return relayer.ProposalStatus(out0.Status), nil
+}
 
 //func (p *Proposal) VotedBy(evmCaller ChainClient, by common.Address) (bool, error) {
 //	definition := "[{\"inputs\":[{\"internalType\":\"uint72\",\"name\":\"\",\"type\":\"uint72\"},{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"_hasVotedOnProposal\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
@@ -141,8 +163,19 @@ func (p *Proposal) Hash() common.Hash {
 //	return out0, nil
 //}
 
+// proposalIsComplete returns true if the proposal state is either Passed, Transferred or Cancelled
+func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
+	propStates, err :=  p.Status(client)
+	if err != nil {
+		log.Error("Failed to check proposal existence", "err", err)
+		return false
+	}
+	log.Info("[ProposalIsComplete]", "status", propStates)
+	return propStates == relayer.ProposalStatusExecuted || propStates == relayer.ProposalStatusCanceled
+}
+
 func (p *Proposal) Execute(client ChainClient) error {
-	log.Debug("Executing proposal", "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce)
+	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data))
 	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"}],\"name\":\"executeProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
@@ -167,7 +200,7 @@ func (p *Proposal) Execute(client ChainClient) error {
 	if err != nil {
 		return err
 	}
-	log.Debug("Executed", "hash", hash.String(), "nonce", n.Uint64())
+	log.Info("Executed", "hash", hash.String(), "nonce", n.Uint64())
 	err = client.UnsafeIncreaseNonce()
 	if err != nil {
 		return err
