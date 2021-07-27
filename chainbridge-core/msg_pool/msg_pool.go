@@ -23,10 +23,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/voter"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/rlp"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 )
 
 // Transactions is a Transaction slice type for basic sorting.
