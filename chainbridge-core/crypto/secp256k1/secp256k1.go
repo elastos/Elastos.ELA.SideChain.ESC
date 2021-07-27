@@ -6,10 +6,10 @@ package secp256k1
 import (
 	"crypto/ecdsa"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 
-	secp256k1 "github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	secp256k1 "github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 )
 
 const PrivateKeyLength = 32
