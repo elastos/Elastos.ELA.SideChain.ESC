@@ -11,13 +11,13 @@ import (
 	"math/big"
 	"strings"
 
-	ethereum "github.com/elastos/Elastos.ELA.SideChain.ETH"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/evmtransaction"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+	ethereum "github.com/elastos/Elastos.ELA.SideChain.ESC"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
 	elaCom "github.com/elastos/Elastos.ELA/common"
 )

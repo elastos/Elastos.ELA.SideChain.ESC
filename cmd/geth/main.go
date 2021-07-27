@@ -20,8 +20,8 @@ package main
 import (
 	"errors"
 	"fmt"
-	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/pbft"
+	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"math"
 	"os"
 	"runtime"
