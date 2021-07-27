@@ -3,7 +3,7 @@ package blocksigner
 import (
 	"math/rand"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 )
 
 const defaultTestSignerNumber = 12

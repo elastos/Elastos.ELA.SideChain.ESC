@@ -8,7 +8,7 @@ package dpos
 import (
 	"bytes"
 	"errors"
-	dmsg "github.com/elastos/Elastos.ELA.SideChain.ETH/dpos/msg"
+	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"

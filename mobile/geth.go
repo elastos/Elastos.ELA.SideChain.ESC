@@ -1,18 +1,18 @@
-// Copyright 2016 The Elastos.ELA.SideChain.ETH Authors
-// This file is part of the Elastos.ELA.SideChain.ETH library.
+// Copyright 2016 The Elastos.ELA.SideChain.ESC Authors
+// This file is part of the Elastos.ELA.SideChain.ESC library.
 //
-// The Elastos.ELA.SideChain.ETH library is free software: you can redistribute it and/or modify
+// The Elastos.ELA.SideChain.ESC library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// The Elastos.ELA.SideChain.ETH library is distributed in the hope that it will be useful,
+// The Elastos.ELA.SideChain.ESC library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with the Elastos.ELA.SideChain.ETH library. If not, see <http://www.gnu.org/licenses/>.
+// along with the Elastos.ELA.SideChain.ESC library. If not, see <http://www.gnu.org/licenses/>.
 
 // Contains all the wrappers from the node package to support client side node
 // management on mobile platforms.
@@ -24,23 +24,23 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/downloader"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethclient"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethstats"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/internal/debug"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/les"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/node"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/nat"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	whisper "github.com/elastos/Elastos.ELA.SideChain.ETH/whisper/whisperv6"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/downloader"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethstats"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/debug"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/les"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/node"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p/nat"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
+	whisper "github.com/elastos/Elastos.ELA.SideChain.ESC/whisper/whisperv6"
 )
 
 // NodeConfig represents the collection of configuration values to fine tune the Geth
 // node embedded into a mobile process. The available values are a subset of the
-// entire API provided by Elastos.ELA.SideChain.ETH to reduce the maintenance surface and dev
+// entire API provided by Elastos.ELA.SideChain.ESC to reduce the maintenance surface and dev
 // complexity.
 type NodeConfig struct {
 	// Bootstrap nodes used to establish connectivity with the rest of the network.

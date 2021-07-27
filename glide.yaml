@@ -1,4 +1,4 @@
-package: github.com/elastos/Elastos.ELA.SideChain.ETH
+package: github.com/elastos/Elastos.ELA.SideChain.ESC
 import:
 - package: bazil.org/fuse
   subpackages:

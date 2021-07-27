@@ -1,18 +1,18 @@
-// Copyright 2017 The Elastos.ELA.SideChain.ETH Authors
-// This file is part of Elastos.ELA.SideChain.ETH.
+// Copyright 2017 The Elastos.ELA.SideChain.ESC Authors
+// This file is part of Elastos.ELA.SideChain.ESC.
 //
-// Elastos.ELA.SideChain.ETH is free software: you can redistribute it and/or modify
+// Elastos.ELA.SideChain.ESC is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Elastos.ELA.SideChain.ETH is distributed in the hope that it will be useful,
+// Elastos.ELA.SideChain.ESC is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Elastos.ELA.SideChain.ETH. If not, see <http://www.gnu.org/licenses/>.
+// along with Elastos.ELA.SideChain.ESC. If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
@@ -23,12 +23,12 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
-	math2 "github.com/elastos/Elastos.ELA.SideChain.ETH/common/math"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
+	math2 "github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 )
 
 // alethGenesisSpec represents the genesis specification format used by the
@@ -95,10 +95,10 @@ type alethGenesisSpecLinearPricing struct {
 	Word uint64 `json:"word"`
 }
 
-// newAlethGenesisSpec converts a Elastos.ELA.SideChain.ETH genesis block into a Aleth-specific
+// newAlethGenesisSpec converts a Elastos.ELA.SideChain.ESC genesis block into a Aleth-specific
 // chain specification format.
 func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSpec, error) {
-	// Only ethash is currently supported between Elastos.ELA.SideChain.ETH and aleth
+	// Only ethash is currently supported between Elastos.ELA.SideChain.ESC and aleth
 	if genesis.Config.Ethash == nil {
 		return nil, errors.New("unsupported consensus engine")
 	}
@@ -359,10 +359,10 @@ type parityChainSpecBlakePricing struct {
 	GasPerRound uint64 `json:"gas_per_round"`
 }
 
-// newParityChainSpec converts a Elastos.ELA.SideChain.ETH genesis block into a Parity specific
+// newParityChainSpec converts a Elastos.ELA.SideChain.ESC genesis block into a Parity specific
 // chain specification format.
 func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []string) (*parityChainSpec, error) {
-	// Only ethash is currently supported between Elastos.ELA.SideChain.ETH and Parity
+	// Only ethash is currently supported between Elastos.ELA.SideChain.ESC and Parity
 	if genesis.Config.Ethash == nil {
 		return nil, errors.New("unsupported consensus engine")
 	}
@@ -558,10 +558,10 @@ type pyEthereumGenesisSpec struct {
 	ParentHash common.Hash       `json:"parentHash"`
 }
 
-// newPyEthereumGenesisSpec converts a Elastos.ELA.SideChain.ETH genesis block into a Parity specific
+// newPyEthereumGenesisSpec converts a Elastos.ELA.SideChain.ESC genesis block into a Parity specific
 // chain specification format.
 func newPyEthereumGenesisSpec(network string, genesis *core.Genesis) (*pyEthereumGenesisSpec, error) {
-	// Only ethash is currently supported between Elastos.ELA.SideChain.ETH and pyethereum
+	// Only ethash is currently supported between Elastos.ELA.SideChain.ESC and pyethereum
 	if genesis.Config.Ethash == nil {
 		return nil, errors.New("unsupported consensus engine")
 	}

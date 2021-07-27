@@ -9,7 +9,7 @@ The client's UI uses [React][React] with JSX syntax, which is validated by the [
 
 ### Development and bundling
 
-As the dashboard depends on certain NPM packages (which are not included in the `Elastos.ELA.SideChain.ETH` repo), these need to be installed first:
+As the dashboard depends on certain NPM packages (which are not included in the `Elastos.ELA.SideChain.ESC` repo), these need to be installed first:
 
 ```
 $ (cd dashboard/assets && yarn install && yarn flow)

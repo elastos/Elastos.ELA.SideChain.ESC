@@ -10,8 +10,8 @@
   <packaging>aar</packaging>
 
   <name>Android Ethereum Client</name>
-  <description>Android port of the Elastos.ELA.SideChain.ETH libraries and node</description>
-  <url>https://github.com/elastos/Elastos.ELA.SideChain.ETH</url>
+  <description>Android port of the Elastos.ELA.SideChain.ESC libraries and node</description>
+  <url>https://github.com/elastos/Elastos.ELA.SideChain.ESC</url>
   <inceptionYear>2015</inceptionYear>
 
   <licenses>
@@ -48,10 +48,10 @@
 
   <issueManagement>
     <system>GitHub Issues</system>
-    <url>https://github.com/elastos/Elastos.ELA.SideChain.ETH/issues/</url>
+    <url>https://github.com/elastos/Elastos.ELA.SideChain.ESC/issues/</url>
   </issueManagement>
 
   <scm>
-    <url>https://github.com/elastos/Elastos.ELA.SideChain.ETH</url>
+    <url>https://github.com/elastos/Elastos.ELA.SideChain.ESC</url>
   </scm>
 </project>
