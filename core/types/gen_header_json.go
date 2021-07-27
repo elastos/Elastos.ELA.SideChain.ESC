@@ -7,8 +7,8 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 )
 
 var _ = (*headerMarshaling)(nil)

@@ -11,10 +11,10 @@ fi
 workspace="$PWD/build/_workspace"
 root="$PWD"
 ethdir="$workspace/src/github.com/elastos"
-if [ ! -L "$ethdir/Elastos.ELA.SideChain.ETH" ]; then
+if [ ! -L "$ethdir/Elastos.ELA.SideChain.ESC" ]; then
     mkdir -p "$ethdir"
     cd "$ethdir"
-    ln -s ../../../../../. Elastos.ELA.SideChain.ETH
+    ln -s ../../../../../. Elastos.ELA.SideChain.ESC
     cd "$root"
 fi
 
@@ -23,8 +23,8 @@ GOPATH="$workspace"
 export GOPATH
 
 # Run the command inside the workspace.
-cd "$ethdir/Elastos.ELA.SideChain.ETH"
-PWD="$ethdir/Elastos.ELA.SideChain.ETH"
+cd "$ethdir/Elastos.ELA.SideChain.ESC"
+PWD="$ethdir/Elastos.ELA.SideChain.ESC"
 
 # Launch the arguments with the configured environment.
 exec "$@"

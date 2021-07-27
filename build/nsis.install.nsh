@@ -3,9 +3,9 @@ InstallDir "$InstDir"
 OutFile "${OUTPUTFILE}" # set through command line arguments
 
 # Links for "Add/Remove Programs"
-!define HELPURL "https://github.com/elastos/Elastos.ELA.SideChain.ETH/issues"
-!define UPDATEURL "https://github.com/elastos/Elastos.ELA.SideChain.ETH/releases"
-!define ABOUTURL "https://github.com/elastos/Elastos.ELA.SideChain.ETH#ethereum-go"
+!define HELPURL "https://github.com/elastos/Elastos.ELA.SideChain.ESC/issues"
+!define UPDATEURL "https://github.com/elastos/Elastos.ELA.SideChain.ESC/releases"
+!define ABOUTURL "https://github.com/elastos/Elastos.ELA.SideChain.ESC#ethereum-go"
 !define /date NOW "%Y%m%d"
 
 PageEx license

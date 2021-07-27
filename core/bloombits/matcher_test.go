@@ -1,18 +1,18 @@
-// Copyright 2017 The Elastos.ELA.SideChain.ETH Authors
-// This file is part of the Elastos.ELA.SideChain.ETH library.
+// Copyright 2017 The Elastos.ELA.SideChain.ESC Authors
+// This file is part of the Elastos.ELA.SideChain.ESC library.
 //
-// The Elastos.ELA.SideChain.ETH library is free software: you can redistribute it and/or modify
+// The Elastos.ELA.SideChain.ESC library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// The Elastos.ELA.SideChain.ETH library is distributed in the hope that it will be useful,
+// The Elastos.ELA.SideChain.ESC library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with the Elastos.ELA.SideChain.ETH library. If not, see <http://www.gnu.org/licenses/>.
+// along with the Elastos.ELA.SideChain.ESC library. If not, see <http://www.gnu.org/licenses/>.
 
 package bloombits
 
@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 )
 
 const testSectionSize = 4096
@@ -82,7 +82,7 @@ func TestMatcherRandom(t *testing.T) {
 
 // Tests that the matcher can properly find matches if the starting block is
 // shifter from a multiple of 8. This is needed to cover an optimisation with
-// bitset matching https://github.com/elastos/Elastos.ELA.SideChain.ETH/issues/15309.
+// bitset matching https://github.com/elastos/Elastos.ELA.SideChain.ESC/issues/15309.
 func TestMatcherShifted(t *testing.T) {
 	// Block 0 always matches in the tests, skip ahead of first 8 blocks with the
 	// start to get a potential zero byte in the matcher bitset.

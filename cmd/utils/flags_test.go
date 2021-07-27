@@ -1,20 +1,20 @@
-// Copyright 2019 The Elastos.ELA.SideChain.ETH Authors
-// This file is part of Elastos.ELA.SideChain.ETH.
+// Copyright 2019 The Elastos.ELA.SideChain.ESC Authors
+// This file is part of Elastos.ELA.SideChain.ESC.
 //
-// Elastos.ELA.SideChain.ETH is free software: you can redistribute it and/or modify
+// Elastos.ELA.SideChain.ESC is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// Elastos.ELA.SideChain.ETH is distributed in the hope that it will be useful,
+// Elastos.ELA.SideChain.ESC is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Elastos.ELA.SideChain.ETH. If not, see <http://www.gnu.org/licenses/>.
+// along with Elastos.ELA.SideChain.ESC. If not, see <http://www.gnu.org/licenses/>.
 
-// Package utils contains internal helper functions for Elastos.ELA.SideChain.ETH commands.
+// Package utils contains internal helper functions for Elastos.ELA.SideChain.ESC commands.
 package utils
 
 import (

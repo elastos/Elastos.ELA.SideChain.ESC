@@ -1,18 +1,18 @@
-// Copyright 2016 The Elastos.ELA.SideChain.ETH Authors
-// This file is part of the Elastos.ELA.SideChain.ETH library.
+// Copyright 2016 The Elastos.ELA.SideChain.ESC Authors
+// This file is part of the Elastos.ELA.SideChain.ESC library.
 //
-// The Elastos.ELA.SideChain.ETH library is free software: you can redistribute it and/or modify
+// The Elastos.ELA.SideChain.ESC library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// The Elastos.ELA.SideChain.ETH library is distributed in the hope that it will be useful,
+// The Elastos.ELA.SideChain.ESC library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with the Elastos.ELA.SideChain.ETH library. If not, see <http://www.gnu.org/licenses/>.
+// along with the Elastos.ELA.SideChain.ESC library. If not, see <http://www.gnu.org/licenses/>.
 
 package les
 
@@ -20,19 +20,19 @@ import (
 	"crypto/ecdsa"
 	"time"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/abi/bind"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/mclock"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/les/flowcontrol"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/light"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/discv5"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/enode"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/p2p/enr"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi/bind"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/mclock"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/les/flowcontrol"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/light"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p/discv5"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p/enode"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p/enr"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 )
 
 type LesServer struct {

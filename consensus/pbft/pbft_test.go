@@ -18,15 +18,15 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/account"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/clique"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/dpos"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/clique"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/rawdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 )
 
 func TestReimportMirroredState(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/math"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
 )
 
 var _ = (*genesisAccountMarshaling)(nil)

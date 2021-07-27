@@ -1,18 +1,18 @@
-// Copyright 2014 The Elastos.ELA.SideChain.ETH Authors
-// This file is part of the Elastos.ELA.SideChain.ETH library.
+// Copyright 2014 The Elastos.ELA.SideChain.ESC Authors
+// This file is part of the Elastos.ELA.SideChain.ESC library.
 //
-// The Elastos.ELA.SideChain.ETH library is free software: you can redistribute it and/or modify
+// The Elastos.ELA.SideChain.ESC library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// The Elastos.ELA.SideChain.ETH library is distributed in the hope that it will be useful,
+// The Elastos.ELA.SideChain.ESC library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with the Elastos.ELA.SideChain.ETH library. If not, see <http://www.gnu.org/licenses/>.
+// along with the Elastos.ELA.SideChain.ESC library. If not, see <http://www.gnu.org/licenses/>.
 
 package core
 
@@ -26,17 +26,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/state"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/types"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/blocksigner"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/rawdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/state"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 )
 
 // So we can deterministically seed different blockchains
@@ -1486,7 +1486,7 @@ func TestEIP161AccountRemoval(t *testing.T) {
 // tests that under weird reorg conditions the blockchain and its internal header-
 // chain return the same latest block/header.
 //
-// https://github.com/elastos/Elastos.ELA.SideChain.ETH/pull/15941
+// https://github.com/elastos/Elastos.ELA.SideChain.ESC/pull/15941
 func TestBlockchainHeaderchainReorgConsistency(t *testing.T) {
 	// Generate a canonical chain to act as the main dataset
 	engine := ethash.NewFaker()
@@ -1747,8 +1747,8 @@ func TestIncompleteAncientReceiptChainInsertion(t *testing.T) {
 // overtake the 'canon' chain until after it's passed canon by about 200 blocks.
 //
 // Details at:
-//  - https://github.com/elastos/Elastos.ELA.SideChain.ETH/issues/18977
-//  - https://github.com/elastos/Elastos.ELA.SideChain.ETH/pull/18988
+//  - https://github.com/elastos/Elastos.ELA.SideChain.ESC/issues/18977
+//  - https://github.com/elastos/Elastos.ELA.SideChain.ESC/pull/18988
 func TestLowDiffLongChain(t *testing.T) {
 	// Generate a canonical chain to act as the main dataset
 	engine := ethash.NewFaker()

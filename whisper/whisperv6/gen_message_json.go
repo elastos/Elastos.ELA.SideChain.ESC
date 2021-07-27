@@ -5,7 +5,7 @@ package whisperv6
 import (
 	"encoding/json"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 )
 
 var _ = (*messageOverride)(nil)
