@@ -9,10 +9,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/blockstore"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
 var BlockRetryInterval = time.Second * 5

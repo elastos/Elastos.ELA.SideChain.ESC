@@ -6,7 +6,7 @@ package secp256sender
 import (
 	"crypto/ecdsa"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 )
 
 type SecpInMemory256Sender struct {
