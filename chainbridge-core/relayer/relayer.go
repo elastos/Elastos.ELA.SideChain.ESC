@@ -5,7 +5,7 @@ package relayer
 
 import (
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
 type RelayedChain interface {
