@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
 	elaCom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
