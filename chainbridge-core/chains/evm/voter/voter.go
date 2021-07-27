@@ -8,14 +8,14 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/chains/evm/evmclient"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto/secp256k1"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/dpos_msg"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/engine"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/relayer"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common/hexutil"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 )
 
 var BlockRetryInterval = time.Second * 5
