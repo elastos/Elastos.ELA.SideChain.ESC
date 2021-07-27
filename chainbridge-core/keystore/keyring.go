@@ -5,8 +5,8 @@ package keystore
 
 import (
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto/secp256k1"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 )
 
 // The Constant "keys". These are the name that the keys are based on. This can be expanded, but
