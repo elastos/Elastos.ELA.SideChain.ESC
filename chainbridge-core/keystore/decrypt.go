@@ -9,9 +9,9 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/accounts/keystore"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto/secp256k1"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 )
 
 // Decrypt uses AES to decrypt ciphertext with the symmetric key deterministically created from `password`
