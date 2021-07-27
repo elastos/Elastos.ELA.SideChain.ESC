@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/chainbridge-core/crypto/secp256k1"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 )
 
 func TestEncryptAndDecrypt(t *testing.T) {
