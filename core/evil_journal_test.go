@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 )
 
 func TestEvilJoural(t *testing.T) {

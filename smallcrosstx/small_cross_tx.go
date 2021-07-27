@@ -9,12 +9,12 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/ethdb/leveldb"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/event"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb/leveldb"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 
 	elaType "github.com/elastos/Elastos.ELA/core/types"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"

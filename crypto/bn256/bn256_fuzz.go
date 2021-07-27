@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"math/big"
 
-	cloudflare "github.com/elastos/Elastos.ELA.SideChain.ETH/crypto/bn256/cloudflare"
-	google "github.com/elastos/Elastos.ELA.SideChain.ETH/crypto/bn256/google"
+	cloudflare "github.com/elastos/Elastos.ELA.SideChain.ESC/crypto/bn256/cloudflare"
+	google "github.com/elastos/Elastos.ELA.SideChain.ESC/crypto/bn256/google"
 )
 
 // FuzzAdd fuzzez bn256 addition between the Google and Cloudflare libraries.

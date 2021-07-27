@@ -6,13 +6,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/consensus/ethash"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/downloader"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/eth/gasprice"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/miner"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/downloader"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/gasprice"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/miner"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 )
 
 // MarshalTOML marshals as TOML.

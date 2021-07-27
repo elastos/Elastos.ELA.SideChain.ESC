@@ -5,8 +5,8 @@ Maintainer: {{.Author}}
 Build-Depends: debhelper (>= 8.0.0), {{.GoBootPackage}}
 Standards-Version: 3.9.5
 Homepage: https://elastos.org
-Vcs-Git: git://github.com/elastos/Elastos.ELA.SideChain.ETH.git
-Vcs-Browser: https://github.com/elastos/Elastos.ELA.SideChain.ETH
+Vcs-Git: git://github.com/elastos/Elastos.ELA.SideChain.ESC.git
+Vcs-Browser: https://github.com/elastos/Elastos.ELA.SideChain.ESC
 
 Package: {{.Name}}
 Architecture: any
