@@ -4,9 +4,7 @@
 package voter
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"math/big"
 	"strings"
@@ -18,8 +16,11 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 
 	elaCom "github.com/elastos/Elastos.ELA/common"
+
+	"golang.org/x/crypto/sha3"
 )
 
 type Proposal struct {
@@ -100,15 +101,19 @@ func (p *Proposal) Deserialize(r io.Reader) error {
 	return nil
 }
 
-func (p *Proposal) Hash() common.Hash {
-	buf := new(bytes.Buffer)
-	p.Serialize(buf)
-	return common.BytesToHash(buf.Bytes())
+func (p *Proposal) Hash() (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+	err := rlp.Encode(hasher, p)
+	if err != nil {
+		log.Error("Proposal rlp error", "error", err)
+		return common.Hash{}
+	}
+	hasher.Sum(hash[:0])
+	return hash
 }
 
 // CreateProposalDataHash constructs and returns proposal data hash
 func (p *Proposal) GetDataHash() common.Hash {
-	fmt.Println("p.HandlerAddress >>>>>>>", p.HandlerAddress.String())
 	return crypto.Keccak256Hash(append(p.HandlerAddress.Bytes(), p.Data...))
 }
 
