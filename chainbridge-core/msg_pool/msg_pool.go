@@ -29,6 +29,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 )
 
+const MAX_BATCH_SIZE = 100
+
 // Transactions is a Transaction slice type for basic sorting.
 type NonceProposal []*voter.Proposal
 
@@ -59,53 +61,66 @@ func (s *NonceProposal) Pop() interface{} {
 }
 
 type MsgPool struct {
-	items map[uint64]*voter.Proposal // Hash map storing the transaction data
-	lock sync.RWMutex
+	toLayer2Items map[uint64]*voter.Proposal // Hash map storing the transaction data
+	lock2 sync.RWMutex
+
+	toLayer1Items map[uint64]*voter.Proposal // Hash map storing the transaction data
+	lock1 sync.RWMutex
 
 	verifiedProposalSignatures map[common.Hash][][]byte
 	verifiedProposalArbiter map[common.Hash][][]byte
 	arbiterLock sync.RWMutex
 
-	executeProposal NonceProposal
+	executeLayer1Proposal NonceProposal
+	proposal1Lock sync.RWMutex
+
+	executeLayer2Proposal NonceProposal
 	proposalLock sync.RWMutex
 }
 
 func NewMsgPool() *MsgPool {
 	return &MsgPool{
-		items: make(map[uint64]*voter.Proposal),
+		toLayer2Items: make(map[uint64]*voter.Proposal),
+		toLayer1Items: make(map[uint64]*voter.Proposal),
 		verifiedProposalSignatures: make(map[common.Hash][][]byte),
 		verifiedProposalArbiter: make(map[common.Hash][][]byte),
-		executeProposal: make(NonceProposal, 0),
+		executeLayer2Proposal: make(NonceProposal, 0),
+		executeLayer1Proposal: make(NonceProposal, 0),
 	}
 }
 
-// Get retrieves the current transactions associated with the given nonce.
-func (m *MsgPool) Get(nonce uint64) *voter.Proposal {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-	return m.items[nonce]
+func (m *MsgPool) GetToLayer2Proposal(nonce uint64) *voter.Proposal {
+	m.lock2.RLock()
+	defer m.lock2.RUnlock()
+	return m.toLayer2Items[nonce]
 }
 
-func (m *MsgPool) Put(msg *voter.Proposal) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+func (m *MsgPool) PutToLayer2Proposal(msg *voter.Proposal) error {
+	m.lock2.Lock()
+	defer m.lock2.Unlock()
 	nonce := msg.DepositNonce
-	if m.items[nonce] != nil {
+	if m.toLayer2Items[nonce] != nil {
 		return errors.New(fmt.Sprintf("error nonce %d", nonce))
 	}
-	m.items[nonce] = msg
+	m.toLayer2Items[nonce] = msg
 	return nil
 }
 
-func (m *MsgPool) Remove(nonce uint64) bool {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	_, ok := m.items[nonce]
-	if !ok {
-		return false
+func (m *MsgPool) GetToLayer1Proposal(nonce uint64) *voter.Proposal {
+	m.lock1.RLock()
+	defer m.lock1.RUnlock()
+	return m.toLayer1Items[nonce]
+}
+
+func (m *MsgPool) PutToLayer1Proposal(msg *voter.Proposal) error {
+	m.lock1.Lock()
+	defer m.lock1.Unlock()
+	nonce := msg.DepositNonce
+	if m.toLayer1Items[nonce] != nil {
+		return errors.New(fmt.Sprintf("PutToLayer1Proposal error nonce %d", nonce))
 	}
-	delete(m.items, nonce)
-	return true
+	m.toLayer1Items[nonce] = msg
+	return nil
 }
 
 func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte)  {
@@ -145,27 +160,49 @@ func (m *MsgPool) PutAbleExecuteProposal(proposal *voter.Proposal) {
 	m.proposalLock.Lock()
 	defer m.proposalLock.Unlock()
 
-	if m.IsInExecutePool(proposal) {
+	if m.IsInLayer2ExecutePool(proposal) {
 		log.Info("all ready in execute pool")
 		return
 	}
-	m.executeProposal.Push(proposal)
+	m.executeLayer2Proposal.Push(proposal)
 }
 
-func (m *MsgPool) GetAbleExecuteProposal() []*voter.Proposal {
+func (m *MsgPool) GetToLayer2ExecuteProposal() []*voter.Proposal {
 	m.proposalLock.RLock()
 	defer m.proposalLock.RUnlock()
 
-	list := make([]*voter.Proposal, 0, len(m.executeProposal))
-	for i := 0; i < len(m.executeProposal); i++ {
-		list = append(list, m.executeProposal.Pop().(*voter.Proposal))
+	list := make([]*voter.Proposal, 0, len(m.executeLayer2Proposal))
+	for i := 0; i < len(m.executeLayer2Proposal); i++ {
+		list = append(list, m.executeLayer2Proposal.Pop().(*voter.Proposal))
 	}
 	sort.Sort(NonceProposal(list))
 	return list
 }
 
-func (m *MsgPool) IsInExecutePool(proposal *voter.Proposal) bool {
-	for _, msg := range m.executeProposal {
+func (m *MsgPool) IsInLayer2ExecutePool(proposal *voter.Proposal) bool {
+	for _, msg := range m.executeLayer2Proposal {
+		if msg.Hash().String() == proposal.Hash().String() {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *MsgPool) GetToLayer1Batch() []*voter.Proposal {
+	count := len(m.toLayer1Items)
+	if count > MAX_BATCH_SIZE {
+		count = MAX_BATCH_SIZE
+	}
+	list := make([]*voter.Proposal, 0, count)
+	for _, msg := range m.toLayer1Items {
+		list = append(list, msg)
+	}
+	sort.Sort(NonceProposal(list))
+	return list
+}
+
+func (m *MsgPool) IsInLayer1ExecutePool(proposal *voter.Proposal) bool {
+	for _, msg := range m.executeLayer1Proposal {
 		if msg.Hash().String() == proposal.Hash().String() {
 			return true
 		}
