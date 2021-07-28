@@ -29,12 +29,15 @@ func (p *Pbft) GetTotalProducerCount() int {
 func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 	switch c.CMD() {
 	case dpos_msg.CmdDepositproposal:
-		msg, _ := c.(*dpos_msg.DepositProposalMsg)
-		msg.PID = id
-		//if !p.dispatcher.GetConsensusView().IsProducers(msg.Proposer) {
-		//	log.Error("proposer is not a producer:" + common.Bytes2Hex(msg.Proposer))
-		//	return
-		//}
-		events.Notify(dpos_msg.ETOnProposal, msg)
+		msg, ok := c.(*dpos_msg.DepositProposalMsg)
+		if ok {
+			events.Notify(dpos_msg.ETOnProposal, msg)
+		}
+	case dpos_msg.CmdBatchProposal:
+		msg, ok := c.(*dpos_msg.BatchMsg)
+		if ok {
+			events.Notify(dpos_msg.ETOnProposal, msg)
+		}
+
 	}
 }
