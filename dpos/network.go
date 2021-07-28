@@ -254,6 +254,11 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnLayer2Msg(msgItem.ID, msg)
 		}
+	case dpos_msg.CmdBatchProposal:
+		msg, processed := m.(*dpos_msg.BatchMsg)
+		if processed {
+			n.listener.OnLayer2Msg(msgItem.ID, msg)
+		}
 	}
 }
 
@@ -390,6 +395,8 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &dmsg.FailedWithdrawTx{}
 	case dpos_msg.CmdDepositproposal:
 		message = &dpos_msg.DepositProposalMsg{}
+	case dpos_msg.CmdBatchProposal:
+		message = &dpos_msg.BatchMsg{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}
