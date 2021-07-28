@@ -33,7 +33,7 @@ func Run(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword st
 	}
 
 	path := config.DefaultConfigDir + "layer1_config.json"
-	layer1 := createChain(path, db, nil, accountPassword, arbiterKeystore, arbiterPassword)
+	layer1 := createChain(path, db, engine, accountPassword, arbiterKeystore, arbiterPassword)
 	evm.Layer1ChainID = layer1.ChainID()
 	path = config.DefaultConfigDir + "layer2_config.json"
 	layer2 := createChain(path, db, engine, accountPassword, arbiterKeystore, arbiterPassword)
