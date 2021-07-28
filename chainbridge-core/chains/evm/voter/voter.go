@@ -69,14 +69,31 @@ func (w *EVMVoter) HandleProposal(m *relayer.Message) (*Proposal, error) {
 
 func (w *EVMVoter) SignAndBroadProposal(proposal *Proposal) common.Hash {
 	msg := &dpos_msg.DepositProposalMsg{}
-	msg.SourceChainID = proposal.Source
-	msg.DestChainID = proposal.Destination
-	msg.DepositNonce = proposal.DepositNonce
-	copy(msg.ResourceId[:], proposal.ResourceId[:])
-	msg.Data = proposal.Data
+	msg.Item.SourceChainID = proposal.Source
+	msg.Item.DestChainID = proposal.Destination
+	msg.Item.DepositNonce = proposal.DepositNonce
+	copy(msg.Item.ResourceId[:], proposal.ResourceId[:])
+	msg.Item.Data = proposal.Data
 
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
 	msg.Signature = w.SignData(proposal.Hash().Bytes())
+	w.client.Engine().SendMsgProposal(msg)
+	return msg.GetHash()
+}
+
+func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) common.Hash {
+	msg := &dpos_msg.BatchMsg{}
+	for _, pro := range list {
+		it := dpos_msg.DepositItem{}
+		it.SourceChainID = pro.Source
+		it.DestChainID = pro.Destination
+		it.DepositNonce = pro.DepositNonce
+		copy(it.ResourceId[:], pro.ResourceId[:])
+		it.Data = pro.Data
+		msg.Items = append(msg.Items, it)
+	}
+	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
+	msg.Signature = w.SignData(msg.GetHash().Bytes())
 	w.client.Engine().SendMsgProposal(msg)
 	return msg.GetHash()
 }
