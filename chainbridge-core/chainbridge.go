@@ -49,10 +49,10 @@ func Start(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword 
 			for _, p := range peers {
 				if bytes.Equal(pbk, p[:]) {
 					isProducer = true
+					if MsgReleayer == nil {
+						initRelayer(engine, accountPassword, arbiterKeystore, arbiterPassword)
+					}
 					go func() {
-						if MsgReleayer == nil {
-							initRelayer(engine, accountPassword, arbiterKeystore, arbiterPassword)
-						}
 						if !relayStarted {
 							relayStarted = true
 							err := relayerStart()
