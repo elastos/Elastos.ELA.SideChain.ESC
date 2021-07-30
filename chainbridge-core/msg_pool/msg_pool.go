@@ -60,6 +60,19 @@ func (s *NonceProposal) Pop() interface{} {
 	return x
 }
 
+func (s *NonceProposal) Delete(index int) {
+	if index < 0 || index >= s.Len() {
+		return
+	}
+	if index == s.Len() - 1 {
+		s.Pop()
+		return
+	}
+
+	list := *s
+	*s = append(list[:index], list[index+1:]...)
+}
+
 type MsgPool struct {
 	toLayer2Items map[uint64]*voter.Proposal // Hash map storing the transaction data
 	lock2 sync.RWMutex
@@ -93,6 +106,19 @@ func (m *MsgPool) GetToLayer2Proposal(nonce uint64) *voter.Proposal {
 	m.lock2.RLock()
 	defer m.lock2.RUnlock()
 	return m.toLayer2Items[nonce]
+}
+
+func (m *MsgPool) GetToLayer2Proposals() []*voter.Proposal  {
+	count := len(m.toLayer2Items)
+	if count > MAX_BATCH_SIZE {
+		count = MAX_BATCH_SIZE
+	}
+	list := make([]*voter.Proposal, 0, count)
+	for _, msg := range m.toLayer2Items {
+		list = append(list, msg)
+	}
+	sort.Sort(NonceProposal(list))
+	return list
 }
 
 func (m *MsgPool) PutToLayer2Proposal(msg *voter.Proposal) error {
@@ -173,7 +199,7 @@ func (m *MsgPool) GetToLayer2ExecuteProposal() []*voter.Proposal {
 
 	list := make([]*voter.Proposal, 0, len(m.executeLayer2Proposal))
 	for i := 0; i < len(m.executeLayer2Proposal); i++ {
-		list = append(list, m.executeLayer2Proposal.Pop().(*voter.Proposal))
+		list = append(list, m.executeLayer2Proposal[i])
 	}
 	sort.Sort(NonceProposal(list))
 	return list
@@ -208,4 +234,16 @@ func (m *MsgPool) IsInLayer1ExecutePool(proposal *voter.Proposal) bool {
 		}
 	}
 	return false
+}
+
+func (m *MsgPool) OnTolayer2ProposalCompleted(nonce uint64) {
+	m.proposalLock.RLock()
+	defer m.proposalLock.RUnlock()
+	for i := 0; i < len(m.executeLayer2Proposal); i++ {
+		if m.executeLayer2Proposal[i].DepositNonce == nonce {
+			m.executeLayer2Proposal.Delete(i)
+			break
+		}
+	}
+	delete(m.toLayer2Items, nonce)
 }
