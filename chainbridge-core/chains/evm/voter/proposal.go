@@ -5,6 +5,7 @@ package voter
 
 import (
 	"context"
+	"errors"
 	"io"
 	"math/big"
 	"strings"
@@ -180,7 +181,8 @@ func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 }
 
 func (p *Proposal) Execute(client ChainClient) error {
-	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data))
+	nowBlock, _ := client.LatestBlock()
+	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "nowBlock", nowBlock.Uint64())
 	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"}],\"name\":\"executeProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
@@ -190,7 +192,7 @@ func (p *Proposal) Execute(client ChainClient) error {
 	if err != nil {
 		return err
 	}
-	gasLimit := uint64(2000000)
+	gasLimit := uint64(0)
 	gp, err := client.GasPrice()
 	if err != nil {
 		return err
@@ -200,12 +202,22 @@ func (p *Proposal) Execute(client ChainClient) error {
 	if err != nil {
 		return err
 	}
+
+	msg := ethereum.CallMsg{From: client.GetClientAddress(), To: &p.BridgeAddress, Data: input}
+	gasLimit, err = client.EstimateGasLimit(context.TODO(), msg)
+	if err != nil {
+		return err
+	}
+	if gasLimit == 0 {
+		return errors.New("EstimateGasLimit is 0")
+	}
 	tx := evmtransaction.NewTransaction(n.Uint64(), p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
 	if err != nil {
 		return err
 	}
-	log.Info("Executed", "hash", hash.String(), "nonce", n.Uint64())
+	nowBlock, _ = client.LatestBlock()
+	log.Info("Executed proposal","hash", hash.String(), "nonce", n.Uint64(), "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64())
 	err = client.UnsafeIncreaseNonce()
 	if err != nil {
 		return err
