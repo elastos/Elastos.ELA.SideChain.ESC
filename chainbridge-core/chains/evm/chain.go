@@ -53,7 +53,7 @@ type EVMChain struct {
 func NewEVMChain(dr EventListener, writer ProposalVoter, kvdb blockstore.KeyValueReaderWriter, chainID uint8, config *config.GeneralChainConfig) *EVMChain {
 	chain := &EVMChain{listener: dr, writer: writer, kvdb: kvdb, chainID: chainID, config: config}
 	chain.msgPool = msg_pool.NewMsgPool()
-	chain.subscribeEvent()
+	go chain.subscribeEvent()
 	return chain
 }
 
@@ -267,17 +267,24 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 	return nil
 }
 
-func (c *EVMChain) GenerateBatchProposal() {
+func (c *EVMChain) GenerateBatchProposal(stop <-chan struct{}) {
 	if c.chainID != Layer1ChainID {
 		return
 	}
 	go func() {
 		for {
-			time.Sleep(listener.BatchMsgInterval)
-			list := c.msgPool.GetToLayer1Batch()
-			log.Info("GenerateBatchProposal...", "list count", len(list))
-			if len(list) > 0 {
-				c.writer.SignAndBroadProposalBatch(list)
+			for {
+				select {
+				case <-stop:
+					return
+				case  <-time.After(listener.BatchMsgInterval):
+					list := c.msgPool.GetToLayer1Batch()
+					log.Info("GenerateBatchProposal...", "list count", len(list))
+					if len(list) > 0 {
+						c.writer.SignAndBroadProposalBatch(list)
+					}
+					continue
+				}
 			}
 		}
 	}()
