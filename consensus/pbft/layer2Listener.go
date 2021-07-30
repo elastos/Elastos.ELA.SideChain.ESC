@@ -19,7 +19,10 @@ func (p *Pbft) SignData(data []byte) []byte {
 }
 
 func (p *Pbft) GetProducer() []byte {
-	return p.account.PublicKeyBytes()
+	if p.account != nil {
+		return p.account.PublicKeyBytes()
+	}
+	return nil
 }
 
 func (p *Pbft) GetTotalProducerCount() int {
