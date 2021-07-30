@@ -8,8 +8,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
-
 	"math/big"
 	"sync"
 	"time"
@@ -17,6 +15,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/listener"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
@@ -118,6 +117,10 @@ func (c *EVMClient) LatestBlock() (*big.Int, error) {
 
 func (c *EVMClient) Engine() engine.ESCEngine {
 	return c.engine
+}
+
+func (c *EVMClient) GetClientAddress() common.Address {
+	return common.HexToAddress(c.config.kp.Address())
 }
 
 const (
@@ -243,6 +246,10 @@ func (c *EVMClient) SafeEstimateGas(ctx context.Context) (*big.Int, error) {
 	} else {
 		return gasPrice, nil
 	}
+}
+
+func (c *EVMClient) EstimateGasLimit(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	return c.EstimateGas(ctx, msg)
 }
 
 func multiplyGasPrice(gasEstimate *big.Int, gasMultiplier *big.Float) *big.Int {
