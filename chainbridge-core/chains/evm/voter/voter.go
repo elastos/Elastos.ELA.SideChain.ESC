@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
@@ -30,8 +31,10 @@ type ChainClient interface {
 	UnlockNonce()
 	UnsafeIncreaseNonce() error
 	GasPrice() (*big.Int, error)
+	EstimateGasLimit(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	ChainID(ctx context.Context) (*big.Int, error)
 	Engine() engine.ESCEngine
+	GetClientAddress() common.Address
 }
 
 type Proposer interface {
