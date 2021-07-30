@@ -68,7 +68,7 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8, kvrw bl
 				if err != nil {
 					// Filtering logs error really can appear only on wrong configuration or temporary network problem
 					// so i do no see any reason to break execution
-					log.Error("FetchDepositLogs errors", "ChainID", chainID,)
+					log.Error("FetchDepositLogs errors", "ChainID", chainID)
 					continue
 				}
 				for _, eventLog := range logs {
