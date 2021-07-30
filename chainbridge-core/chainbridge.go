@@ -36,6 +36,7 @@ func init() {
 }
 
 func Start(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword string) {
+	log.Info("chain bridge start")
 	if MsgReleayer != nil {
 		log.Warn("chain bridge is started")
 		return
@@ -57,6 +58,8 @@ func Start(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword 
 							relayStarted = true
 							err := relayerStart()
 							log.Error("bridge relay error", "error", err)
+						} else {
+							log.Info("bridge is starting relay")
 						}
 					}()
 					break
@@ -104,7 +107,7 @@ func relayerStart() error {
 		close(stopChn)
 		return err
 	case sig := <-sysErr:
-		log.Info(fmt.Sprintf("terminating got [%v] signal", sig))
+		log.Error(fmt.Sprintf("terminating got [%v] signal", sig))
 		return nil
 	}
 	return nil

@@ -69,22 +69,52 @@ func (c *EVMChain) subscribeEvent() {
 }
 
 func (c *EVMChain) selfOnDuty(e *events.Event) {
-	list := c.msgPool.GetToLayer2ExecuteProposal()
-	log.Info("selfOnDuty selfOnDuty", "list count", len(list))
+	log.Info("selfOnDuty selfOnDuty", "chainID", c.chainID)
+	if c.chainID == Layer2ChainID {
+		queueList := c.msgPool.GetToLayer2Proposals()
+		verifiedlist := c.msgPool.GetToLayer2ExecuteProposal()
+		if len(queueList) > 0 && len(verifiedlist) == 0 {
+			for _, p := range queueList {
+				c.broadProposal(p)
+			}
+		} else if len(verifiedlist) > 0 {
+			c.ExecuteToLayer2Proposal(verifiedlist)
+		}
+
+	} else if c.chainID == Layer1ChainID {
+		//TODO complete this
+	}
+}
+
+func (c *EVMChain) broadProposal(p *voter.Proposal) {
+	if p.ProposalIsComplete(c.writer.GetClient()) {
+		log.Info("Proposal is executed", "proposal", p.Hash().String())
+		c.msgPool.OnTolayer2ProposalCompleted(p.DepositNonce)
+		return
+	}
+	hash := c.writer.SignAndBroadProposal(p)
+	log.Info("SignAndBroadProposal", "hash", hash.String())
+}
+
+func (c *EVMChain) ExecuteToLayer2Proposal(list []*voter.Proposal) error {
+	log.Info("ExecuteToLayer2Proposal", "list count", len(list))
 	for _, p := range list {
 		if p.ProposalIsComplete(c.writer.GetClient()) {
 			log.Info("Proposal is completed", "proposal", p.Hash().String())
+			c.msgPool.OnTolayer2ProposalCompleted(p.DepositNonce)
 			continue
 		}
 		err := p.Execute(c.writer.GetClient())
 		if err != nil {
 			log.Error("proposal is execute error", "error", err)
+			return err
 		}
-
 	}
+	return nil
 }
 
 func (c *EVMChain) onProposalEvent(e *events.Event) {
+	log.Info("on deposit proposal event")
 	if msg, ok := e.Data.(*dpos_msg.DepositProposalMsg); ok {
 		if c.chainID != Layer2ChainID {
 			return
@@ -255,8 +285,7 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 		if err != nil {
 			return err
 		}
-		hash := c.writer.SignAndBroadProposal(proposal)
-		log.Info("SignAndBroadProposal", "hash", hash.String())
+		c.broadProposal(proposal)
 	} else if msg.Destination == Layer1ChainID {
 		log.Info("Put to layer1 msg pool", "chainID", c.chainID)
 		err := c.msgPool.PutToLayer1Proposal(proposal)
