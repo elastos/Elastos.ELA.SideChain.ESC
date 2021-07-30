@@ -1,6 +1,7 @@
 package chainbridge_core
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/signal"
@@ -18,15 +19,61 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/events"
 
 	"github.com/elastos/Elastos.ELA/account"
 )
 
 var MsgReleayer *relayer.Relayer
+var errChn chan error
+var stopChn chan struct{}
+var relayStarted bool
 
-func Run(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword string) error {
-	errChn := make(chan error)
-	stopChn := make(chan struct{})
+func init() {
+	errChn = make(chan error)
+	relayStarted = false
+}
+
+func Start(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword string) {
+	if MsgReleayer != nil {
+		log.Warn("chain bridge is started")
+		return
+	}
+	events.Subscribe(func(e *events.Event) {
+		pbk := engine.GetProducer()
+		switch e.Type {
+		case events.ETDirectPeersChanged:
+			peers := e.Data.([]peer.PID)
+			isProducer := false
+			for _, p := range peers {
+				if bytes.Equal(pbk, p[:]) {
+					isProducer = true
+					go func() {
+						if MsgReleayer == nil {
+							initRelayer(engine, accountPassword, arbiterKeystore, arbiterPassword)
+						}
+						if !relayStarted {
+							relayStarted = true
+							err := relayerStart()
+							log.Error("bridge relay error", "error", err)
+						}
+					}()
+					break
+				}
+			}
+			if !isProducer {
+				relayStarted = false
+				errChn <- fmt.Errorf("chain bridge is not a super node")
+			}
+		}
+	})
+}
+
+func initRelayer(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword string) {
+	if MsgReleayer != nil {
+		return
+	}
 	db, err := lvldb.NewLvlDB(config.BlockstoreFlagName)
 	if err != nil {
 		panic(err)
@@ -40,14 +87,16 @@ func Run(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword st
 	evm.Layer2ChainID = layer2.ChainID()
 
 	MsgReleayer = relayer.NewRelayer([]relayer.RelayedChain{layer1, layer2})
+}
+
+func relayerStart() error {
+	stopChn = make(chan struct{})
 	go MsgReleayer.Start(stopChn, errChn)
 
 	sysErr := make(chan os.Signal, 1)
 	signal.Notify(sysErr,
 		syscall.SIGTERM,
-		syscall.SIGINT,
-		syscall.SIGHUP,
-		syscall.SIGQUIT)
+		syscall.SIGINT)
 
 	select {
 	case err := <-errChn:
@@ -58,6 +107,7 @@ func Run(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword st
 		log.Info(fmt.Sprintf("terminating got [%v] signal", sig))
 		return nil
 	}
+	return nil
 }
 
 func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword string) *evm.EVMChain {
