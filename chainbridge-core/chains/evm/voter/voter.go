@@ -17,6 +17,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+
+	"github.com/elastos/Elastos.ELA/events"
 )
 
 var BlockRetryInterval = time.Second * 5
@@ -81,6 +83,7 @@ func (w *EVMVoter) SignAndBroadProposal(proposal *Proposal) common.Hash {
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
 	msg.Signature = w.SignData(proposal.Hash().Bytes())
 	w.client.Engine().SendMsgProposal(msg)
+	go events.Notify(dpos_msg.ETOnProposal, msg)//self is a signature
 	return msg.GetHash()
 }
 
@@ -98,6 +101,7 @@ func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) common.Hash {
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
 	msg.Signature = w.SignData(msg.GetHash().Bytes())
 	w.client.Engine().SendMsgProposal(msg)
+	events.Notify(dpos_msg.ETOnProposal, msg)//self is a signature
 	return msg.GetHash()
 }
 
