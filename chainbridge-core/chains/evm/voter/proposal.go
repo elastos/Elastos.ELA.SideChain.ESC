@@ -198,6 +198,7 @@ func (p *Proposal) Execute(client ChainClient) error {
 		return err
 	}
 	client.LockNonce()
+	defer client.UnlockNonce()
 	n, err := client.UnsafeNonce()
 	if err != nil {
 		return err
@@ -222,7 +223,6 @@ func (p *Proposal) Execute(client ChainClient) error {
 	if err != nil {
 		return err
 	}
-	client.UnlockNonce()
 	return nil
 }
 //
