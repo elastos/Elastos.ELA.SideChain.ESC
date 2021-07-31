@@ -237,8 +237,8 @@ func (m *MsgPool) IsInLayer1ExecutePool(proposal *voter.Proposal) bool {
 }
 
 func (m *MsgPool) OnTolayer2ProposalCompleted(nonce uint64) {
-	m.proposalLock.RLock()
-	defer m.proposalLock.RUnlock()
+	m.proposalLock.Lock()
+	defer m.proposalLock.Unlock()
 	for i := 0; i < len(m.executeLayer2Proposal); i++ {
 		if m.executeLayer2Proposal[i].DepositNonce == nonce {
 			m.executeLayer2Proposal.Delete(i)
