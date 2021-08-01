@@ -248,7 +248,7 @@ func (pm *ProtocolManager) removePeer(id string) {
 	}
 	// Hard disconnect at the networking layer
 	if peer != nil {
-		events.Notify(dpos.ETDonePeer, peer)
+		go events.Notify(dpos.ETDonePeer, peer)
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
 	}
 }
