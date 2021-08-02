@@ -623,6 +623,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			pbft := ethereum.BlockChain().GetDposEngine().(*pbft.Pbft)
 			if pbft.GetProducer() != nil {
 				chainbridge_core.Start(pbft, passwords[0], ethereum.BlockChain().Config().PbftKeyStore, ethereum.BlockChain().Config().PbftKeyStorePassWord)
+				pbft.AnnounceDAddr()
 			}
 		}()
 	}
