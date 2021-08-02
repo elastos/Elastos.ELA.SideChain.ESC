@@ -70,16 +70,17 @@ func (c *EVMChain) subscribeEvent() {
 }
 
 func (c *EVMChain) selfOnDuty(e *events.Event) {
-	log.Info("selfOnDuty selfOnDuty", "chainID", c.chainID)
+	queueList := c.msgPool.GetQueueList()
+	pendingList := c.msgPool.GetPendingList()
+
+	log.Info("selfOnDuty selfOnDuty", "chainID", c.chainID, "queueList", len(queueList), "pendingList", len(pendingList))
 	if c.chainID == Layer2ChainID {
-		queueList := c.msgPool.GetToLayer2Proposals()
-		verifiedlist := c.msgPool.GetToLayer2ExecuteProposal()
-		if len(queueList) > 0 && len(verifiedlist) == 0 {
+		if len(queueList) > 0 && len(pendingList) == 0 {
 			for _, p := range queueList {
 				c.broadProposal(p)
 			}
-		} else if len(verifiedlist) > 0 {
-			c.ExecuteToLayer2Proposal(verifiedlist)
+		} else if len(pendingList) > 0 {
+			c.ExecuteProposals(pendingList)
 		}
 
 	} else if c.chainID == Layer1ChainID {
@@ -90,19 +91,19 @@ func (c *EVMChain) selfOnDuty(e *events.Event) {
 func (c *EVMChain) broadProposal(p *voter.Proposal) {
 	if p.ProposalIsComplete(c.writer.GetClient()) {
 		log.Info("Proposal is executed", "proposal", p.Hash().String())
-		c.msgPool.OnTolayer2ProposalCompleted(p.DepositNonce)
+		c.msgPool.OnProposalExecuted(p.DepositNonce)
 		return
 	}
 	hash := c.writer.SignAndBroadProposal(p)
 	log.Info("SignAndBroadProposal", "hash", hash.String())
 }
 
-func (c *EVMChain) ExecuteToLayer2Proposal(list []*voter.Proposal) error {
+func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
 	log.Info("ExecuteToLayer2Proposal", "list count", len(list))
 	for _, p := range list {
 		if p.ProposalIsComplete(c.writer.GetClient()) {
 			log.Info("Proposal is completed", "proposal", p.Hash().String())
-			c.msgPool.OnTolayer2ProposalCompleted(p.DepositNonce)
+			c.msgPool.OnProposalExecuted(p.DepositNonce)
 			continue
 		}
 		err := p.Execute(c.writer.GetClient())
@@ -145,7 +146,7 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 		return errors.New("batch msg count is 0")
 	}
 	for _, item := range msg.Items {
-		proposal := c.msgPool.GetToLayer1Proposal(item.DepositNonce)
+		proposal := c.msgPool.GetQueueProposal(item.DepositNonce)
 		if proposal == nil {
 			return errors.New(fmt.Sprintf("not have this proposal:%d", item.DepositNonce))
 		}
@@ -153,8 +154,8 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 			return errors.New(fmt.Sprintf("proposal destination is not correct, chainID:%d, propsal destination:%d", c.chainID, proposal.Destination))
 		}
 		if proposal.Destination == Layer1ChainID {
-			if c.msgPool.IsInLayer1ExecutePool(proposal) {
-				return errors.New("all ready in execute pool")
+			if c.msgPool.IsPeningProposal(proposal) {
+				return errors.New("all ready in pending pool")
 			}
 		}
 		if !compareMsg(&item, proposal) {
@@ -174,7 +175,7 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 }
 
 func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
-	proposal := c.msgPool.GetToLayer2Proposal(msg.Item.DepositNonce)
+	proposal := c.msgPool.GetQueueProposal(msg.Item.DepositNonce)
 	if proposal == nil {
 		return errors.New(fmt.Sprintf("not have this proposal, nonce:%d", msg.Item.DepositNonce))
 	}
@@ -182,7 +183,7 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		return errors.New(fmt.Sprintf("proposal destination is not correct, chainID:%d, propsal destination:%d", c.chainID, proposal.Destination))
 	}
 	if proposal.Destination == Layer2ChainID {
-		if c.msgPool.IsInLayer2ExecutePool(proposal) {
+		if c.msgPool.IsPeningProposal(proposal) {
 			return errors.New("all ready in execute pool")
 		}
 	}
@@ -195,7 +196,7 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 			c.msgPool.OnProposalVerified(proposal.Hash(), msg.Proposer, msg.Signature)
 			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(proposal.Hash()))
 			if c.msgPool.GetVerifiedCount(proposal.Hash()) > c.getMaxArbitersSign() {
-				c.msgPool.PutAbleExecuteProposal(proposal)
+				c.msgPool.PutExecuteProposal(proposal)
 			}
 		}
 	} else {
@@ -280,19 +281,14 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 		return err
 	}
 	log.Info("handle new relayer message", "source", proposal.Source, "target", proposal.Destination, "nonce", proposal.DepositNonce)
-
+	err = c.msgPool.PutProposal(proposal)
+	if err != nil {
+		return err
+	}
 	if msg.Destination == Layer2ChainID {
-		err = c.msgPool.PutToLayer2Proposal(proposal)
-		if err != nil {
-			return err
-		}
 		c.broadProposal(proposal)
 	} else if msg.Destination == Layer1ChainID {
-		log.Info("Put to layer1 msg pool", "chainID", c.chainID)
-		err := c.msgPool.PutToLayer1Proposal(proposal)
-		if err != nil {
-			return err
-		}
+		//TODO complete this
 	}
 	return nil
 }
@@ -308,7 +304,7 @@ func (c *EVMChain) GenerateBatchProposal(stop <-chan struct{}) {
 				case <-stop:
 					return
 				case  <-time.After(listener.BatchMsgInterval):
-					list := c.msgPool.GetToLayer1Batch()
+					list := c.msgPool.GetQueueList()
 					log.Info("GenerateBatchProposal...", "list count", len(list))
 					if len(list) > 0 {
 						c.writer.SignAndBroadProposalBatch(list)
