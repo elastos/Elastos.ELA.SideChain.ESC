@@ -74,78 +74,55 @@ func (s *NonceProposal) Delete(index int) {
 }
 
 type MsgPool struct {
-	toLayer2Items map[uint64]*voter.Proposal // Hash map storing the transaction data
-	lock2 sync.RWMutex
-
-	toLayer1Items map[uint64]*voter.Proposal // Hash map storing the transaction data
-	lock1 sync.RWMutex
+	queueList map[uint64]*voter.Proposal // Hash map storing the transaction data
+	queueLock sync.RWMutex
 
 	verifiedProposalSignatures map[common.Hash][][]byte
 	verifiedProposalArbiter map[common.Hash][][]byte
 	arbiterLock sync.RWMutex
 
-	executeLayer1Proposal NonceProposal
-	proposal1Lock sync.RWMutex
-
-	executeLayer2Proposal NonceProposal
-	proposalLock sync.RWMutex
+	pendingList NonceProposal
+	pendingLock sync.RWMutex
 }
 
 func NewMsgPool() *MsgPool {
 	return &MsgPool{
-		toLayer2Items: make(map[uint64]*voter.Proposal),
-		toLayer1Items: make(map[uint64]*voter.Proposal),
+		queueList: make(map[uint64]*voter.Proposal),
 		verifiedProposalSignatures: make(map[common.Hash][][]byte),
 		verifiedProposalArbiter: make(map[common.Hash][][]byte),
-		executeLayer2Proposal: make(NonceProposal, 0),
-		executeLayer1Proposal: make(NonceProposal, 0),
+		pendingList: make(NonceProposal, 0),
 	}
 }
 
-func (m *MsgPool) GetToLayer2Proposal(nonce uint64) *voter.Proposal {
-	m.lock2.RLock()
-	defer m.lock2.RUnlock()
-	return m.toLayer2Items[nonce]
+func (m *MsgPool) GetQueueProposal(nonce uint64) *voter.Proposal {
+	m.queueLock.RLock()
+	defer m.queueLock.RUnlock()
+	return m.queueList[nonce]
 }
 
-func (m *MsgPool) GetToLayer2Proposals() []*voter.Proposal  {
-	count := len(m.toLayer2Items)
+func (m *MsgPool) GetQueueList() []*voter.Proposal  {
+	m.queueLock.RLock()
+	defer m.queueLock.RUnlock()
+	count := len(m.queueList)
 	if count > MAX_BATCH_SIZE {
 		count = MAX_BATCH_SIZE
 	}
 	list := make([]*voter.Proposal, 0, count)
-	for _, msg := range m.toLayer2Items {
+	for _, msg := range m.queueList {
 		list = append(list, msg)
 	}
 	sort.Sort(NonceProposal(list))
 	return list
 }
 
-func (m *MsgPool) PutToLayer2Proposal(msg *voter.Proposal) error {
-	m.lock2.Lock()
-	defer m.lock2.Unlock()
+func (m *MsgPool) PutProposal(msg *voter.Proposal) error {
+	m.queueLock.Lock()
+	defer m.queueLock.Unlock()
 	nonce := msg.DepositNonce
-	if m.toLayer2Items[nonce] != nil {
+	if m.queueList[nonce] != nil {
 		return errors.New(fmt.Sprintf("error nonce %d", nonce))
 	}
-	m.toLayer2Items[nonce] = msg
-	return nil
-}
-
-func (m *MsgPool) GetToLayer1Proposal(nonce uint64) *voter.Proposal {
-	m.lock1.RLock()
-	defer m.lock1.RUnlock()
-	return m.toLayer1Items[nonce]
-}
-
-func (m *MsgPool) PutToLayer1Proposal(msg *voter.Proposal) error {
-	m.lock1.Lock()
-	defer m.lock1.Unlock()
-	nonce := msg.DepositNonce
-	if m.toLayer1Items[nonce] != nil {
-		return errors.New(fmt.Sprintf("PutToLayer1Proposal error nonce %d", nonce))
-	}
-	m.toLayer1Items[nonce] = msg
+	m.queueList[nonce] = msg
 	return nil
 }
 
@@ -182,31 +159,32 @@ func (m *MsgPool) arbiterIsVerified(proposalHash common.Hash, arbiter []byte) bo
 	return false
 }
 
-func (m *MsgPool) PutAbleExecuteProposal(proposal *voter.Proposal) {
-	m.proposalLock.Lock()
-	defer m.proposalLock.Unlock()
-
-	if m.IsInLayer2ExecutePool(proposal) {
+func (m *MsgPool) PutExecuteProposal(proposal *voter.Proposal) {
+	if m.IsPeningProposal(proposal) {
 		log.Info("all ready in execute pool")
 		return
 	}
-	m.executeLayer2Proposal.Push(proposal)
+	m.pendingLock.Lock()
+	defer m.pendingLock.Unlock()
+	m.pendingList.Push(proposal)
 }
 
-func (m *MsgPool) GetToLayer2ExecuteProposal() []*voter.Proposal {
-	m.proposalLock.RLock()
-	defer m.proposalLock.RUnlock()
+func (m *MsgPool) GetPendingList() []*voter.Proposal {
+	m.pendingLock.RLock()
+	defer m.pendingLock.RUnlock()
 
-	list := make([]*voter.Proposal, 0, len(m.executeLayer2Proposal))
-	for i := 0; i < len(m.executeLayer2Proposal); i++ {
-		list = append(list, m.executeLayer2Proposal[i])
+	list := make([]*voter.Proposal, 0, len(m.pendingList))
+	for i := 0; i < len(m.pendingList); i++ {
+		list = append(list, m.pendingList[i])
 	}
 	sort.Sort(NonceProposal(list))
 	return list
 }
 
-func (m *MsgPool) IsInLayer2ExecutePool(proposal *voter.Proposal) bool {
-	for _, msg := range m.executeLayer2Proposal {
+func (m *MsgPool) IsPeningProposal(proposal *voter.Proposal) bool {
+	m.pendingLock.RLock()
+	defer m.pendingLock.RUnlock()
+	for _, msg := range m.pendingList {
 		if msg.Hash().String() == proposal.Hash().String() {
 			return true
 		}
@@ -214,36 +192,18 @@ func (m *MsgPool) IsInLayer2ExecutePool(proposal *voter.Proposal) bool {
 	return false
 }
 
-func (m *MsgPool) GetToLayer1Batch() []*voter.Proposal {
-	count := len(m.toLayer1Items)
-	if count > MAX_BATCH_SIZE {
-		count = MAX_BATCH_SIZE
-	}
-	list := make([]*voter.Proposal, 0, count)
-	for _, msg := range m.toLayer1Items {
-		list = append(list, msg)
-	}
-	sort.Sort(NonceProposal(list))
-	return list
-}
-
-func (m *MsgPool) IsInLayer1ExecutePool(proposal *voter.Proposal) bool {
-	for _, msg := range m.executeLayer1Proposal {
-		if msg.Hash().String() == proposal.Hash().String() {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *MsgPool) OnTolayer2ProposalCompleted(nonce uint64) {
-	m.proposalLock.Lock()
-	defer m.proposalLock.Unlock()
-	for i := 0; i < len(m.executeLayer2Proposal); i++ {
-		if m.executeLayer2Proposal[i].DepositNonce == nonce {
-			m.executeLayer2Proposal.Delete(i)
+func (m *MsgPool) OnProposalExecuted(nonce uint64) {
+	m.pendingLock.Lock()
+	for i := 0; i < len(m.pendingList); i++ {
+		if m.pendingList[i].DepositNonce == nonce {
+			m.pendingList.Delete(i)
 			break
 		}
 	}
-	delete(m.toLayer2Items, nonce)
+
+	m.pendingLock.Unlock()
+
+	m.queueLock.Lock()
+	delete(m.queueList, nonce)
+	m.queueLock.Unlock()
 }
