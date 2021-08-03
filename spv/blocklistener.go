@@ -68,14 +68,13 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 	isWorkingHeight := SpvIsWorkingHeight()
 	if nextTurnDposInfo == nil {
 		InitNextTurnDposInfo()
-		isWorkingHeight = SpvIsWorkingHeight()
-	} else if !isWorkingHeight {
+	}
+	if !isWorkingHeight {
 		if IsNexturnBlock(block) {
 			log.Info("------------------ force change next turn arbiters-----------")
 			peers := DumpNextDposInfo()
 			events.Notify(dpos.ETNextProducers, peers)
-		} else if GetCurrentConsensusMode() == spv.POW {
-			SpvService.mux.Post(eevent.InitCurrentProducers{})
+		} else {
 			InitNextTurnDposInfo()
 		}
 	}
@@ -91,7 +90,7 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 		InitNextTurnDposInfo()
 	}
-	if isWorkingHeight {
+	if SpvIsWorkingHeight() {
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 	}
 	consensusMode = GetCurrentConsensusMode()
