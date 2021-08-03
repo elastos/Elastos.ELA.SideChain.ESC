@@ -25,20 +25,31 @@ const (
 	// checkpointHeight defines interval height between two neighbor check
 	// points.
 	checkpointHeight = uint32(720)
+
+	// EffectiveHeight defines interval to change src file to default file.
+	EffectiveHeight = uint32(7)
 )
 
 // Checkpoint hold all CR related states to recover from scratch.
 type Checkpoint struct {
 	KeyFrame
 	StateKeyFrame
-
+	ProposalKeyFrame
 	height    uint32
 	committee *Committee
 }
 
-func (c *Checkpoint) OnBlockSaved(block *types.DposBlock) {
+func (c *Checkpoint) OnBlockSaved(block *types.DposBlock,needRollBack bool) {
 	if block.Height <= c.GetHeight() {
 		return
+	}
+	if needRollBack {
+		c.committee.firstHistory.RollbackSeekTo(block.Height)
+		c.committee.lastHistory.RollbackSeekTo(block.Height)
+		c.committee.appropriationHistory.RollbackSeekTo(block.Height)
+		c.committee.manager.history.RollbackSeekTo(block.Height)
+		c.committee.state.history.RollbackSeekTo(block.Height)
+		c.committee.state.manager.history.RollbackSeekTo(block.Height)
 	}
 	c.committee.ProcessBlock(block.Block, block.Confirm)
 }
@@ -69,6 +80,9 @@ func (c *Checkpoint) Key() string {
 }
 
 func (c *Checkpoint) Snapshot() checkpoint.ICheckPoint {
+	// init check point
+	c.initFromCommittee(c.committee)
+
 	buf := new(bytes.Buffer)
 	if err := c.Serialize(buf); err != nil {
 		c.LogError(err)
@@ -95,7 +109,7 @@ func (c *Checkpoint) SavePeriod() uint32 {
 }
 
 func (c *Checkpoint) EffectivePeriod() uint32 {
-	return checkpointHeight
+	return EffectiveHeight
 }
 
 func (c *Checkpoint) DataExtension() string {
@@ -140,8 +154,10 @@ func (c *Checkpoint) Serialize(w io.Writer) (err error) {
 	if err = c.KeyFrame.Serialize(w); err != nil {
 		return
 	}
-
-	return c.StateKeyFrame.Serialize(w)
+	if err = c.StateKeyFrame.Serialize(w); err != nil {
+		return
+	}
+	return c.ProposalKeyFrame.Serialize(w)
 }
 
 func (c *Checkpoint) Deserialize(r io.Reader) (err error) {
@@ -152,13 +168,18 @@ func (c *Checkpoint) Deserialize(r io.Reader) (err error) {
 	if err = c.KeyFrame.Deserialize(r); err != nil {
 		return
 	}
-
-	return c.StateKeyFrame.Deserialize(r)
+	if err = c.StateKeyFrame.Deserialize(r); err != nil {
+		return
+	}
+	return c.ProposalKeyFrame.Deserialize(r)
 }
 
 func (c *Checkpoint) initFromCommittee(committee *Committee) {
 	c.StateKeyFrame = committee.state.StateKeyFrame
 	c.KeyFrame = committee.KeyFrame
+	if committee.manager != nil {
+		c.ProposalKeyFrame = committee.manager.ProposalKeyFrame
+	}
 }
 
 func NewCheckpoint(committee *Committee) *Checkpoint {
