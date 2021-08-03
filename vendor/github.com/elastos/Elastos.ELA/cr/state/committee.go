@@ -417,7 +417,7 @@ func (c *Committee) updateInactiveCountPenalty(history *utils.History, height ui
 func (c *Committee) checkAndSetMemberToInactive(history *utils.History, height uint32) {
 	for _, v := range c.Members {
 		m := v
-		if m.DPOSPublicKey == nil && m.MemberState == MemberElected {
+		if len(m.DPOSPublicKey) == 0 && m.MemberState == MemberElected {
 			history.Append(height, func() {
 				m.MemberState = MemberInactive
 				if height >= c.params.ChangeCommitteeNewCRHeight {
@@ -534,7 +534,7 @@ func (c *Committee) createCustomIDResultTransaction(height uint32) {
 		})
 		tx := &types.Transaction{
 			Version: types.TxVersion09,
-			TxType:  types.CustomIDResult,
+			TxType:  types.ProposalResult,
 			Payload: &payload.CustomIDProposalResult{
 				ProposalResults: c.CustomIDProposalResults,
 			},
@@ -1009,6 +1009,8 @@ func (c *Committee) Recover(checkpoint *Checkpoint) {
 	defer c.mtx.Unlock()
 	c.state.StateKeyFrame = checkpoint.StateKeyFrame
 	c.KeyFrame = checkpoint.KeyFrame
+
+	c.manager.ProposalKeyFrame = checkpoint.ProposalKeyFrame
 }
 
 func (c *Committee) shouldChange(height uint32) bool {

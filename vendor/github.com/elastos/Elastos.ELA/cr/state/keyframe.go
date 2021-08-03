@@ -252,7 +252,7 @@ func NewProposalMap() ProposalsMap {
 }
 
 func (c *CRMember) Serialize(w io.Writer) (err error) {
-	if err = c.Info.SerializeUnsigned(w, payload.CRInfoVersion); err != nil {
+	if err = c.Info.SerializeUnsigned(w, payload.CRInfoDIDVersion); err != nil {
 		return
 	}
 
@@ -290,7 +290,7 @@ func (c *CRMember) Serialize(w io.Writer) (err error) {
 }
 
 func (c *CRMember) Deserialize(r io.Reader) (err error) {
-	if err = c.Info.DeserializeUnsigned(r, payload.CRInfoVersion); err != nil {
+	if err = c.Info.DeserializeUnsigned(r, payload.CRInfoDIDVersion); err != nil {
 		return
 	}
 
@@ -347,7 +347,7 @@ func (kf *KeyFrame) Serialize(w io.Writer) (err error) {
 	return common.WriteElements(w, kf.LastCommitteeHeight,
 		kf.LastVotingStartHeight, kf.InElectionPeriod, kf.NeedAppropriation,
 		kf.NeedCIDProposalResult, kf.CRCFoundationBalance,
-		kf.CRCCommitteeBalance, kf.CRCCommitteeUsedAmount,
+		kf.CRCCommitteeBalance, kf.CRCCommitteeUsedAmount, kf.CRCCurrentStageAmount,
 		kf.DestroyedAmount, kf.CirculationAmount, kf.AppropriationAmount,
 		kf.CommitteeUsedAmount, kf.CRAssetsAddressUTXOCount)
 }
@@ -368,7 +368,7 @@ func (kf *KeyFrame) Deserialize(r io.Reader) (err error) {
 	err = common.ReadElements(r, &kf.LastCommitteeHeight,
 		&kf.LastVotingStartHeight, &kf.InElectionPeriod, &kf.NeedAppropriation,
 		&kf.NeedCIDProposalResult, &kf.CRCFoundationBalance, &kf.CRCCommitteeBalance,
-		&kf.CRCCommitteeUsedAmount, &kf.DestroyedAmount, &kf.CirculationAmount,
+		&kf.CRCCommitteeUsedAmount, &kf.CRCCurrentStageAmount, &kf.DestroyedAmount, &kf.CirculationAmount,
 		&kf.AppropriationAmount, &kf.CommitteeUsedAmount, &kf.CRAssetsAddressUTXOCount)
 	return
 }
@@ -518,9 +518,13 @@ func (kf *KeyFrame) Snapshot() *KeyFrame {
 	frame.LastVotingStartHeight = kf.LastVotingStartHeight
 	frame.InElectionPeriod = kf.InElectionPeriod
 	frame.NeedAppropriation = kf.NeedAppropriation
+	frame.NeedCIDProposalResult = kf.NeedCIDProposalResult
+
 	frame.CRCFoundationBalance = kf.CRCFoundationBalance
 	frame.CRCCommitteeBalance = kf.CRCCommitteeBalance
 	frame.CRCCommitteeUsedAmount = kf.CRCCommitteeUsedAmount
+	frame.CRCCurrentStageAmount = kf.CRCCurrentStageAmount
+
 	frame.DestroyedAmount = kf.DestroyedAmount
 	frame.CirculationAmount = kf.CirculationAmount
 	frame.AppropriationAmount = kf.AppropriationAmount
@@ -906,8 +910,8 @@ func (kf *StateKeyFrame) Snapshot() *StateKeyFrame {
 	state.Nicknames = utils.CopyStringSet(kf.Nicknames)
 	state.Votes = utils.CopyStringSet(kf.Votes)
 	state.DepositOutputs = copyFixed64Map(kf.DepositOutputs)
-	state.CRCFoundationOutputs = copyFixed64Map(kf.DepositOutputs)
-	state.CRCCommitteeOutputs = copyFixed64Map(kf.DepositOutputs)
+	state.CRCFoundationOutputs = copyFixed64Map(kf.CRCFoundationOutputs)
+	state.CRCCommitteeOutputs = copyFixed64Map(kf.CRCCommitteeOutputs)
 
 	return state
 }
@@ -965,6 +969,9 @@ func (p *ProposalState) Serialize(w io.Writer) (err error) {
 		return
 	}
 	if err := common.WriteVarBytes(w, p.ProposalOwner); err != nil {
+		return err
+	}
+	if err := p.Recipient.Serialize(w); err != nil {
 		return err
 	}
 
@@ -1037,6 +1044,10 @@ func (p *ProposalState) Deserialize(r io.Reader) (err error) {
 		"proposal owner"); err != nil {
 		return err
 	}
+	if err = p.Recipient.Deserialize(r); err != nil {
+		return err
+	}
+
 	return p.TxHash.Deserialize(r)
 }
 

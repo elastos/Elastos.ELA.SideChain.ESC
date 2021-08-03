@@ -100,7 +100,7 @@ func (b *dataBatch) DeleteCustomID(tx *types.Transaction) error {
 			b.customID.BatchDeleteControversialChangeCustomIDFee(
 				p.Hash(tx.PayloadVersion), b.Batch)
 		}
-	case types.CustomIDResult:
+	case types.ProposalResult:
 		p, ok := tx.Payload.(*payload.CustomIDProposalResult)
 		if !ok {
 			return errors.New("invalid custom ID result tx")
