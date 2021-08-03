@@ -734,6 +734,9 @@ func OnTx2Failed(elaTx string) {
 	if IsPackagedElaTx(elaTx) {
 		return
 	}
+	if IsFailedElaTx (elaTx) {
+		return
+	}
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
