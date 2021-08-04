@@ -124,6 +124,12 @@ func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error)
 	if err != nil {
 		return relayer.ProposalStatusInactive, err // Not sure what status to use here
 	}
+	chainID, err := evmCaller.ChainID(context.TODO())
+	if err != nil {
+		log.Error("evm caller chainID is error", "error", err)
+		return relayer.ProposalStatusInactive, err
+	}
+	log.Info("[Status getProposal]", "toChain", chainID, "source", p.Source, "depositNonce", p.DepositNonce)
 	input, err := a.Pack("getProposal", p.Source, p.DepositNonce, p.GetDataHash())
 	//nonceAndID := (uint64(p.DepositNonce) << 8) | uint64(p.Source)
 	//log.Debug("[Status getProposal]", "source", p.Source, "DepositNonce", p.DepositNonce, "DataHash", p.GetDataHash().String(), "nonceAndID", nonceAndID, "nonceID", new(big.Int).SetUint64(nonceAndID).Bytes(), "nonceID2", common.Bytes2Hex(new(big.Int).SetUint64(nonceAndID).Bytes()))
@@ -176,7 +182,8 @@ func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 		log.Error("Failed to check proposal existence", "err", err)
 		return false
 	}
-	log.Info("[ProposalIsComplete]", "status", propStates)
+	chainID, _ := client.ChainID(context.TODO())
+	log.Info("[ProposalIsComplete]", "status", propStates, "chainID", chainID.Uint64())
 	return propStates == relayer.ProposalStatusExecuted || propStates == relayer.ProposalStatusCanceled
 }
 
@@ -212,17 +219,23 @@ func (p *Proposal) Execute(client ChainClient) error {
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
 	}
-	tx := evmtransaction.NewTransaction(n.Uint64(), p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
+	nonce := n.Uint64()
+	tx := evmtransaction.NewTransaction(nonce, p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
 	if err != nil {
 		return err
 	}
-	nowBlock, _ = client.LatestBlock()
-	log.Info("Executed proposal","hash", hash.String(), "nonce", n.Uint64(), "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64())
+
 	err = client.UnsafeIncreaseNonce()
 	if err != nil {
+		log.Error("UnsafeIncreaseNonce error", "error", err)
 		return err
 	}
+
+	chainID, _ := client.ChainID(context.TODO())
+	nowNonce, _ := client.UnsafeNonce()
+	log.Info("Executed proposal","hash", hash.String(), "chainID", chainID.Uint64(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "dest", p.Destination, "increcedNonce", nowNonce.Uint64())
+
 	return nil
 }
 //

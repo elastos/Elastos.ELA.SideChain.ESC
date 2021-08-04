@@ -1,7 +1,6 @@
 package chainbridge_core
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/signal"
@@ -19,7 +18,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
-	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 
 	"github.com/elastos/Elastos.ELA/account"
@@ -42,29 +40,26 @@ func Start(engine *pbft.Pbft, accountPassword, arbiterKeystore, arbiterPassword 
 		return
 	}
 	events.Subscribe(func(e *events.Event) {
-		pbk := engine.GetProducer()
+		engine.IsProducer()
 		switch e.Type {
 		case events.ETDirectPeersChanged:
-			peers := e.Data.([]peer.PID)
-			isProducer := false
-			for _, p := range peers {
-				if bytes.Equal(pbk, p[:]) {
-					isProducer = true
-					if MsgReleayer == nil {
-						initRelayer(engine, accountPassword, arbiterKeystore, arbiterPassword)
-					}
-					go func() {
-						if !relayStarted {
-							relayStarted = true
-							err := relayerStart()
-							log.Error("bridge relay error", "error", err)
-						} else {
-							log.Info("bridge is starting relay")
-						}
-					}()
-					break
+			isProducer := engine.IsProducer()
+			if isProducer {
+				if MsgReleayer == nil {
+					initRelayer(engine, accountPassword, arbiterKeystore, arbiterPassword)
 				}
+
+				go func() {
+					if !relayStarted {
+						relayStarted = true
+						err := relayerStart()
+						log.Error("bridge relay error", "error", err)
+					} else {
+						log.Info("bridge is starting relay")
+					}
+				}()
 			}
+
 			if !isProducer {
 				relayStarted = false
 				errChn <- fmt.Errorf("chain bridge is not a super node")
