@@ -4,7 +4,6 @@ import (
 	"bytes"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	eevent "github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
@@ -68,8 +67,7 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 	isWorkingHeight := SpvIsWorkingHeight()
 	if nextTurnDposInfo == nil {
 		InitNextTurnDposInfo()
-	}
-	if !isWorkingHeight {
+	} else if !isWorkingHeight {
 		if IsNexturnBlock(block) {
 			log.Info("------------------ force change next turn arbiters-----------")
 			peers := DumpNextDposInfo()
@@ -131,6 +129,10 @@ func InitNextTurnDposInfo() {
 		return
 	}
 
+	if isSameNexturnArbiters(workingHeight, crcArbiters, normalArbiters) {
+		return
+	}
+
 	nextTurnDposInfo = &payload.NextTurnDPOSInfo{
 		WorkingHeight: workingHeight,
 		CRPublicKeys: crcArbiters,
@@ -139,6 +141,53 @@ func InitNextTurnDposInfo() {
 	peers := DumpNextDposInfo()
 	events.Notify(dpos.ETNextProducers, peers)
 }
+
+func isSameNexturnArbiters(workingHeight uint32, crcArbiters, normalArbiters [][]byte) bool {
+	if nextTurnDposInfo == nil {
+		return false
+	}
+	if nextTurnDposInfo.WorkingHeight != workingHeight {
+		return false
+	}
+	if len(crcArbiters) != len(nextTurnDposInfo.CRPublicKeys) {
+		return false
+	}
+	if len(normalArbiters) != len(nextTurnDposInfo.DPOSPublicKeys) {
+		return false
+	}
+	for index, v := range crcArbiters {
+		if !bytes.Equal(v, nextTurnDposInfo.CRPublicKeys[index][:]) {
+			return false
+		}
+	}
+	for index, v := range normalArbiters {
+		if !bytes.Equal(v, nextTurnDposInfo.DPOSPublicKeys[index][:]) {
+			return false
+		}
+	}
+	return true
+}
+
+//func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
+//	nextProducers := v.producers.nextProducers
+//	if len(curProducers) != len(nextProducers) {
+//		return false
+//	}
+//	sort.Slice(nextProducers, func(i, j int) bool {
+//		return bytes.Compare(nextProducers[i][:], nextProducers[j][:]) < 0
+//	})
+//
+//	sort.Slice(curProducers, func(i, j int) bool {
+//		return bytes.Compare(curProducers[i], curProducers[j]) < 0
+//	})
+//
+//	for index, v := range curProducers {
+//		if !bytes.Equal(v, nextProducers[index][:]) {
+//			return false
+//		}
+//	}
+//	return true
+//}
 
 func GetCurrentConsensusMode() spv.ConsensusAlgorithm {
 	if SpvService == nil {
