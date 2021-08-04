@@ -101,7 +101,7 @@ func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) common.Hash {
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
 	msg.Signature = w.SignData(msg.GetHash().Bytes())
 	w.client.Engine().SendMsgProposal(msg)
-	events.Notify(dpos_msg.ETOnProposal, msg)//self is a signature
+	go events.Notify(dpos_msg.ETOnProposal, msg)//self is a signature
 	return msg.GetHash()
 }
 
