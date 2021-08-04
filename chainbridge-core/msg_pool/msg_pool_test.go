@@ -21,13 +21,13 @@ func TestNonceProposal(t *testing.T)  {
 	var count = 10
 	pool := NewMsgPool()
 	for i := 0; i < count; i++ {
-		pool.PutToLayer2Proposal(GenerateProposal(uint64(i)))
+		pool.PutProposal(GenerateProposal(uint64(i)))
 	}
-	list := pool.GetToLayer2Proposals()
+	list := pool.GetQueueList()
 	assert.Equal(t, len(list), count)
 	for i := 0; i< count; i++ {
 		assert.Equal(t, list[count - i -1].DepositNonce, uint64(i))
-		pool.OnTolayer2ProposalCompleted(uint64(i))
+		pool.OnProposalExecuted(uint64(i))
 	}
-	assert.Equal(t, len(pool.toLayer2Items), 0)
+	assert.Equal(t, len(pool.queueList), 0)
 }
