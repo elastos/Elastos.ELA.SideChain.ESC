@@ -12,7 +12,6 @@ type RelayedChain interface {
 	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message)
 	Write(message *Message) error
 	ChainID() uint8
-	Start() bool
 	GenerateBatchProposal(stop <-chan struct{})
 }
 
@@ -54,7 +53,6 @@ func (r *Relayer) route(m *Message) {
 		log.Error(fmt.Sprintf("no resolver for destID %v to send message registered", m.Destination))
 		return
 	}
-	log.Info(fmt.Sprintf("Sending message %+v to destination %v", m, m.Destination))
 	if err := w.Write(m); err != nil {
 		log.Error("rout error", "error", err, "msg", fmt.Sprint(m))
 		return
