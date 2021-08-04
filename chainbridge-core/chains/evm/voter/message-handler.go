@@ -75,6 +75,7 @@ func (mh *EVMMessageHandler) matchResourceIDToHandlerAddress(rID [32]byte) (comm
 	if err != nil {
 		return common.Address{}, errors.New("no handler associated with such resourceID")
 	}
+	fmt.Println("")
 	return out0, nil
 }
 
@@ -113,6 +114,8 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 	recipientLen := big.NewInt(int64(len(recipient))).Bytes()
 	data = append(data, common.LeftPadBytes(recipientLen, 32)...) // length of recipient (uint256)
 	data = append(data, recipient...)                             // recipient ([]byte)
+
+	log.Info("ERC20MessageHandler", "source", m.Source, "Destination", m.Destination)
 	return &Proposal {
 		Source:         m.Source,
 		Destination:    m.Destination,

@@ -16,7 +16,7 @@ import (
 )
 
 var BlockRetryInterval = time.Second * 5
-var BlockDelay = big.NewInt(10) //TODO: move to config
+var BlockDelay = big.NewInt(6) //TODO: move to config
 var BatchMsgInterval = time.Second * 15
 
 type DepositLogs struct {
@@ -64,6 +64,7 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8, kvrw bl
 					time.Sleep(BlockRetryInterval)
 					continue
 				}
+				log.Info("FetchDepositLogs", "startBlock", startBlock.Uint64(), "chainID", chainID)
 				logs, err := l.chainReader.FetchDepositLogs(context.Background(), l.bridgeAddress, startBlock, startBlock)
 				if err != nil {
 					// Filtering logs error really can appear only on wrong configuration or temporary network problem
