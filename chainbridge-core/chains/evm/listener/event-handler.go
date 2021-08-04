@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"math/big"
 	"strings"
 
@@ -38,7 +39,7 @@ func (e *ETHEventHandler) HandleEvent(sourceID, destID uint8, depositNonce uint6
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("handlerAddress", addr.String(), "addr", addr)
+	fmt.Println("handlerAddress", addr.String(), "chainID", sourceID, "dest", destID, "depositNonce", depositNonce)
 	eventHandler, err := e.matchAddressWithHandlerFunc(addr)
 	if err != nil {
 		return nil, err
@@ -135,7 +136,7 @@ func Erc20EventHandler(sourceID, destId uint8, nonce uint64, handlerContractAddr
 		return nil, errors.New("no handler associated with such resourceID")
 	}
 
-
+	log.Info("Erc20EventHandler", "source", sourceID, "Destination", destId, "out0", out0)
 	return &relayer.Message{
 		Source:       sourceID,
 		Destination:  destId,
