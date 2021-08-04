@@ -22,7 +22,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
 	"github.com/elastos/Elastos.ELA/events"
-
 )
 
 var Layer1ChainID uint8
@@ -80,11 +79,16 @@ func (c *EVMChain) selfOnDuty(e *events.Event) {
 				c.broadProposal(p)
 			}
 		} else if len(pendingList) > 0 {
+			log.Info("ExecuteToLayer2Proposal", "list count", len(pendingList))
 			c.ExecuteProposals(pendingList)
 		}
-
 	} else if c.chainID == Layer1ChainID {
-		//TODO complete this
+		if len(queueList) > 0 && len(pendingList) == 0 {
+			c.writer.SignAndBroadProposalBatch(queueList)
+		} else if len(pendingList) > 0 {
+			log.Info("ExecuteToLayer1Proposal", "list count", len(pendingList))
+			c.ExecuteProposals(pendingList)
+		}
 	}
 }
 
@@ -99,10 +103,10 @@ func (c *EVMChain) broadProposal(p *voter.Proposal) {
 }
 
 func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
-	log.Info("ExecuteToLayer2Proposal", "list count", len(list))
+	fmt.Println("ExecuteProposals", "chain", c.chainID)
 	for _, p := range list {
 		if p.ProposalIsComplete(c.writer.GetClient()) {
-			log.Info("Proposal is completed", "proposal", p.Hash().String())
+			log.Info("Proposal is completed", "proposal", p.Hash().String(), "dest", p.Destination, "chainid", c.chainID)
 			c.msgPool.OnProposalExecuted(p.DepositNonce)
 			continue
 		}
@@ -145,6 +149,7 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 	if len(msg.Items) <= 0 {
 		return errors.New("batch msg count is 0")
 	}
+	list := make([]*voter.Proposal, 0)
 	for _, item := range msg.Items {
 		proposal := c.msgPool.GetQueueProposal(item.DepositNonce)
 		if proposal == nil {
@@ -161,6 +166,7 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 		if !compareMsg(&item, proposal) {
 			return errors.New("received error deposit proposal")
 		}
+		list = append(list, proposal)
 	}
 
 	err := c.onBatchProposal(msg, msg.GetHash().Bytes())
@@ -168,7 +174,14 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 		return errors.New(fmt.Sprintf("onBatchProposal error: %s", err.Error()))
 	} else {
 		log.Info("onBatchProposal verified success")
-		//TODO complete this add to verifyed list
+		c.msgPool.OnProposalVerified(msg.GetHash(), msg.Proposer, msg.Signature)
+		log.Info("batch proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(msg.GetHash()))
+		if c.msgPool.GetVerifiedCount(msg.GetHash()) > c.getMaxArbitersSign() {
+			for _, p := range list {
+				c.msgPool.PutExecuteProposal(p)
+			}
+		}
+
 	}
 
 	return nil
@@ -288,7 +301,6 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 	if msg.Destination == Layer2ChainID {
 		c.broadProposal(proposal)
 	} else if msg.Destination == Layer1ChainID {
-		//TODO complete this
 	}
 	return nil
 }
@@ -318,8 +330,4 @@ func (c *EVMChain) GenerateBatchProposal(stop <-chan struct{}) {
 
 func (c *EVMChain) ChainID() uint8 {
 	return c.chainID
-}
-
-func (c *EVMChain) Start() bool {
-	return true
 }
