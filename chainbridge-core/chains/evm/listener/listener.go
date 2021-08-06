@@ -17,7 +17,7 @@ import (
 
 var BlockRetryInterval = time.Second * 5
 var BlockDelay = big.NewInt(6) //TODO: move to config
-var BatchMsgInterval = time.Second * 15
+var BatchMsgInterval = time.Second * 30
 
 type DepositLogs struct {
 	DestinationID uint8
