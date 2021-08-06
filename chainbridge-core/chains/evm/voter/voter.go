@@ -6,7 +6,6 @@ package voter
 import (
 	"context"
 	"math/big"
-	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
@@ -20,8 +19,6 @@ import (
 
 	"github.com/elastos/Elastos.ELA/events"
 )
-
-var BlockRetryInterval = time.Second * 5
 
 type ChainClient interface {
 	LatestBlock() (*big.Int, error)
