@@ -80,14 +80,18 @@ func (c *EVMChain) selfOnDuty(e *events.Event) {
 			}
 		} else if len(pendingList) > 0 {
 			log.Info("ExecuteToLayer2Proposal", "list count", len(pendingList))
-			c.ExecuteProposals(pendingList)
+			err := c.ExecuteProposals(pendingList)
+			if err != nil {
+				log.Error("ExecuteProposals error", "error", err)
+			}
 		}
 	} else if c.chainID == Layer1ChainID {
-		if len(queueList) > 0 && len(pendingList) == 0 {
-			c.writer.SignAndBroadProposalBatch(queueList)
-		} else if len(pendingList) > 0 {
+		 if len(pendingList) > 0 {
 			log.Info("ExecuteToLayer1Proposal", "list count", len(pendingList))
-			c.ExecuteProposals(pendingList)
+			err := c.ExecuteProposalBatch(pendingList)
+			if err != nil {
+				log.Error("ExecuteProposalBatch error", "error", err)
+			}
 		}
 	}
 }
@@ -113,6 +117,25 @@ func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
 		err := p.Execute(c.writer.GetClient())
 		if err != nil {
 			log.Error("proposal is execute error", "error", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *EVMChain) ExecuteProposalBatch(list []*voter.Proposal) error {
+	items := make([]*voter.Proposal, 0)
+	for _, p := range list {
+		if p.ProposalIsComplete(c.writer.GetClient()) {
+			log.Info("Proposal is completed", "proposal", p.Hash().String(), "dest", p.Destination, "chainid", c.chainID)
+			c.msgPool.OnProposalExecuted(p.DepositNonce)
+			continue
+		}
+		items = append(items, p)
+	}
+	if len(items) > 0 {
+		err := voter.ExecuteBatch(c.writer.GetClient(), items)
+		if err != nil {
 			return err
 		}
 	}
@@ -160,7 +183,7 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 		}
 		if proposal.Destination == Layer1ChainID {
 			if c.msgPool.IsPeningProposal(proposal) {
-				return errors.New("all ready in pending pool")
+				continue
 			}
 		}
 		if !compareMsg(&item, proposal) {
@@ -181,7 +204,6 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 				c.msgPool.PutExecuteProposal(p)
 			}
 		}
-
 	}
 
 	return nil
