@@ -235,6 +235,67 @@ func (p *Proposal) Execute(client ChainClient) error {
 	chainID, _ := client.ChainID(context.TODO())
 	nowNonce, _ := client.UnsafeNonce()
 	log.Info("Executed proposal","hash", hash.String(), "chainID", chainID.Uint64(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "dest", p.Destination, "increcedNonce", nowNonce.Uint64())
+	return nil
+}
+
+func ExecuteBatch(client ChainClient, list []*Proposal) error {
+	nowBlock, _ := client.LatestBlock()
+	log.Info("Executing ExecuteBatch", "list", len(list))
+	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"internalType\":\"bytes[]\",\"name\":\"data\",\"type\":\"bytes[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"}],\"name\":\"executeProposalBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\", \"type\":\"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	if err != nil {
+		return err // Not sure what status to use here
+	}
+	source := list[0].Source
+	BridgeAddress := list[0].BridgeAddress
+	nonceList := make([]uint64, 0)
+	dataList := make([][]byte, 0)
+	resourceID := make([][32]byte, 0)
+	for _, p := range list {
+		nonceList = append(nonceList, p.DepositNonce)
+		dataList = append(dataList, p.Data)
+		resourceID = append(resourceID, p.ResourceId)
+	}
+	input, err := a.Pack("executeProposalBatch", source, nonceList, dataList, resourceID)
+	if err != nil {
+		return err
+	}
+	gasLimit := uint64(0)
+	gp, err := client.GasPrice()
+	if err != nil {
+		return err
+	}
+	client.LockNonce()
+	defer client.UnlockNonce()
+	n, err := client.UnsafeNonce()
+	if err != nil {
+		return err
+	}
+
+	msg := ethereum.CallMsg{From: client.GetClientAddress(), To: &BridgeAddress, Data: input}
+	gasLimit, err = client.EstimateGasLimit(context.TODO(), msg)
+	if err != nil {
+		return err
+	}
+	if gasLimit == 0 {
+		return errors.New("EstimateGasLimit is 0")
+	}
+	nonce := n.Uint64()
+	tx := evmtransaction.NewTransaction(nonce, BridgeAddress, big.NewInt(0), gasLimit, gp, input)
+	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
+	if err != nil {
+		return err
+	}
+
+	err = client.UnsafeIncreaseNonce()
+	if err != nil {
+		log.Error("UnsafeIncreaseNonce error", "error", err)
+		return err
+	}
+
+	chainID, _ := client.ChainID(context.TODO())
+	nowNonce, _ := client.UnsafeNonce()
+	log.Info("Executed proposal batch ","hash", hash.String(), "chainID", chainID.Uint64(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "increcedNonce", nowNonce.Uint64())
 
 	return nil
 }
