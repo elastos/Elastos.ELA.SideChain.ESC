@@ -26,6 +26,7 @@ import (
 
 var Layer1ChainID uint8
 var Layer2ChainID uint8
+const MaxBatchCount = 100
 
 type EventListener interface {
 	ListenToEvents(startBlock *big.Int, chainID uint8, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.Message
@@ -186,6 +187,11 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 				continue
 			}
 		}
+		if proposal.ProposalIsComplete(c.writer.GetClient()) {
+			log.Info("Proposal is completed", "proposal", proposal.Hash().String(), "dest", proposal.Destination, "chainid", c.chainID)
+			c.msgPool.OnProposalExecuted(proposal.DepositNonce)
+			continue
+		}
 		if !compareMsg(&item, proposal) {
 			return errors.New("received error deposit proposal")
 		}
@@ -203,6 +209,8 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 			for _, p := range list {
 				c.msgPool.PutExecuteProposal(p)
 			}
+		} else {
+
 		}
 	}
 
@@ -221,6 +229,10 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		if c.msgPool.IsPeningProposal(proposal) {
 			return errors.New("all ready in execute pool")
 		}
+	}
+	if proposal.ProposalIsComplete(c.writer.GetClient()) {
+		c.msgPool.OnProposalExecuted(proposal.DepositNonce)
+		return errors.New("all ready executed proposal")
 	}
 
 	if compareMsg(&msg.Item, proposal) {
@@ -322,7 +334,6 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 	}
 	if msg.Destination == Layer2ChainID {
 		c.broadProposal(proposal)
-	} else if msg.Destination == Layer1ChainID {
 	}
 	return nil
 }
@@ -338,16 +349,33 @@ func (c *EVMChain) GenerateBatchProposal(stop <-chan struct{}) {
 				case <-stop:
 					return
 				case  <-time.After(listener.BatchMsgInterval):
-					list := c.msgPool.GetQueueList()
-					log.Info("GenerateBatchProposal...", "list count", len(list))
-					if len(list) > 0 {
-						c.writer.SignAndBroadProposalBatch(list)
-					}
+					c.generateBatchProposal()
 					continue
 				}
 			}
 		}
 	}()
+}
+
+func (c *EVMChain) generateBatchProposal() {
+	list := c.msgPool.GetQueueList()
+	items := make([]*voter.Proposal, 0)
+	count := len(list)
+	for i := 0; i < count; i++ {
+		if list[i].ProposalIsComplete(c.writer.GetClient()) {
+			c.msgPool.OnProposalExecuted(list[i].DepositNonce)
+			continue
+		}
+		items = append(items, list[i])
+	}
+	count = len(items)
+	log.Info("GenerateBatchProposal...", "list count", count)
+	if count > 0 {
+		if count > MaxBatchCount {
+			items = items[0 :MaxBatchCount]
+		}
+		c.writer.SignAndBroadProposalBatch(items)
+	}
 }
 
 func (c *EVMChain) ChainID() uint8 {
