@@ -63,8 +63,10 @@ func (c *EVMChain) subscribeEvent() {
 		case dpos_msg.ETOnProposal:
 			 c.onProposalEvent(e)
 		case dpos_msg.ETSelfOnDuty:
-			time.Sleep(1000)//wait data write to db
-			c.selfOnDuty(e)
+			go func() {
+				time.Sleep(1 * time.Second)//wait block data write to db
+				c.selfOnDuty(e)
+			}()
 		}
 	})
 }
