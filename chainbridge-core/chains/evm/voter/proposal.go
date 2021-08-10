@@ -4,6 +4,7 @@
 package voter
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -17,11 +18,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
-
 	elaCom "github.com/elastos/Elastos.ELA/common"
-
-	"golang.org/x/crypto/sha3"
 )
 
 type Proposal struct {
@@ -38,22 +35,15 @@ func (p *Proposal) Serialize(w io.Writer) error {
 	if err := elaCom.WriteUint8(w, p.Source); err != nil {
 		return err
 	}
-	if err := elaCom.WriteUint8(w, p.Destination); err != nil {
-		return err
-	}
 	if err := elaCom.WriteUint64(w, p.DepositNonce); err != nil {
 		return err
 	}
-	if err := elaCom.WriteVarBytes(w, p.ResourceId[:]); err != nil {
+
+	if _, err := w.Write(p.ResourceId[:]); err != nil {
 		return err
 	}
-	if err := elaCom.WriteVarBytes(w, p.Data); err != nil {
-		return err
-	}
-	if err := elaCom.WriteVarBytes(w, p.BridgeAddress[:]); err != nil {
-		return err
-	}
-	if err := elaCom.WriteVarBytes(w, p.HandlerAddress[:]); err != nil {
+
+	if _, err := w.Write(p.Data); err != nil {
 		return err
 	}
 	return nil
@@ -66,50 +56,34 @@ func (p *Proposal) Deserialize(r io.Reader) error {
 	}
 	p.Source = source
 
-	dest, err := elaCom.ReadUint8(r)
-	if err != nil {
-		return err
-	}
-	p.Destination = dest
-
 	nonce, err := elaCom.ReadUint64(r)
 	if err != nil {
 		return err
 	}
 	p.DepositNonce = nonce
-
-	resource, err := elaCom.ReadVarBytes(r, 32, "resourceID")
+	resource, err := elaCom.ReadBytes(r, 32)
 	if err != nil {
 		return err
 	}
 	copy(p.ResourceId[:], resource[:])
-	data, err := elaCom.ReadVarBytes(r, 1000, "data")
+
+	buffer := r.(*bytes.Buffer)
+	data, err := elaCom.ReadBytes(r, uint64(buffer.Len()))
 	if err != nil {
 		return err
 	}
 	p.Data = data
-	address, err := elaCom.ReadVarBytes(r, 20, "BridgeAddress")
-	if err != nil {
-		return err
-	}
-	copy(p.BridgeAddress[:], address[:])
-
-	handler, err := elaCom.ReadVarBytes(r, 20, "HandlerAddress")
-	if err != nil {
-		return err
-	}
-	copy(p.HandlerAddress[:], handler[:])
 	return nil
 }
 
 func (p *Proposal) Hash() (hash common.Hash) {
-	hasher := sha3.NewLegacyKeccak256()
-	err := rlp.Encode(hasher, p)
+	w := bytes.NewBuffer([]byte{})
+	err := p.Serialize(w)
 	if err != nil {
-		log.Error("Proposal rlp error", "error", err)
-		return common.Hash{}
+		log.Error("Proposal Serialize error", "error", err)
+		return hash
 	}
-	hasher.Sum(hash[:0])
+	hash = crypto.Keccak256Hash(w.Bytes())
 	return hash
 }
 
