@@ -4,7 +4,9 @@
 package voter
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
@@ -48,16 +50,16 @@ type MessageHandler interface {
 }
 
 type EVMVoter struct {
-	stop   <-chan struct{}
-	mh     MessageHandler
-	client ChainClient
+	stop    <-chan struct{}
+	mh      MessageHandler
+	client  ChainClient
 	account *secp256k1.Keypair
 }
 
 func NewVoter(mh MessageHandler, client ChainClient, arbiterAccount *secp256k1.Keypair) *EVMVoter {
 	return &EVMVoter{
-		mh:     mh,
-		client: client,
+		mh:      mh,
+		client:  client,
 		account: arbiterAccount,
 	}
 }
@@ -80,11 +82,11 @@ func (w *EVMVoter) SignAndBroadProposal(proposal *Proposal) common.Hash {
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
 	msg.Signature = w.SignData(proposal.Hash().Bytes())
 	w.client.Engine().SendMsgProposal(msg)
-	go events.Notify(dpos_msg.ETOnProposal, msg)//self is a signature
+	go events.Notify(dpos_msg.ETOnProposal, msg) //self is a signature
 	return msg.GetHash()
 }
 
-func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) common.Hash {
+func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) *dpos_msg.BatchMsg {
 	msg := &dpos_msg.BatchMsg{}
 	for _, pro := range list {
 		it := dpos_msg.DepositItem{}
@@ -98,8 +100,36 @@ func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) common.Hash {
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
 	msg.Signature = w.SignData(msg.GetHash().Bytes())
 	w.client.Engine().SendMsgProposal(msg)
-	go events.Notify(dpos_msg.ETOnProposal, msg)//self is a signature
-	return msg.GetHash()
+	return msg
+}
+
+func (w *EVMVoter) FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash {
+	signer, err := w.GetPublicKey()
+	if err != nil {
+		return common.Hash{}
+	}
+
+	batchHash := msg.GetHash()
+	feedback := &dpos_msg.FeedbackBatchMsg{
+		BatchMsgHash: batchHash,
+		Proposer:     msg.Proposer,
+		Signer:       signer,
+		Signature:    w.SignData(batchHash.Bytes()),
+	}
+	if bytes.Equal(msg.Proposer, signer) {
+		events.Notify(dpos_msg.ETOnProposal, feedback) //self is a signature
+		return batchHash
+	}
+	w.client.Engine().SendMsgToPeer(feedback, msg.PID)
+	return batchHash
+}
+
+func (w *EVMVoter) GetPublicKey() ([]byte, error) {
+	if w.account == nil {
+		return nil, errors.New("account is nil")
+	}
+	pbk, err := hexutil.Decode(w.account.PublicKey())
+	return pbk, err
 }
 
 func (w *EVMVoter) GetClient() ChainClient {

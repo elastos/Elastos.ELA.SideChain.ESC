@@ -10,11 +10,12 @@ import (
 	"golang.org/x/crypto/sha3"
 
 	elaCom "github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/p2p"
 )
 
 
-// Ensure BlockMsg implement p2p.Message interface.
+// Ensure BatchMsg implement p2p.Message interface.
 var _ p2p.Message = (*BatchMsg)(nil)
 
 type BatchMsg struct {
@@ -22,6 +23,8 @@ type BatchMsg struct {
 
 	Proposer  []byte
 	Signature []byte
+
+	PID peer.PID
 }
 
 func (m *BatchMsg) CMD() string {
