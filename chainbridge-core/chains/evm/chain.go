@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/listener"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
@@ -26,6 +25,7 @@ import (
 
 var Layer1ChainID uint8
 var Layer2ChainID uint8
+
 const MaxBatchCount = 100
 
 type EventListener interface {
@@ -34,9 +34,11 @@ type EventListener interface {
 
 type ProposalVoter interface {
 	HandleProposal(message *relayer.Message) (*voter.Proposal, error)
-    GetClient() voter.ChainClient
+	GetClient() voter.ChainClient
 	SignAndBroadProposal(proposal *voter.Proposal) common.Hash
-	SignAndBroadProposalBatch(list []*voter.Proposal) common.Hash
+	SignAndBroadProposalBatch(list []*voter.Proposal) *dpos_msg.BatchMsg
+	FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash
+	GetPublicKey() ([]byte, error)
 }
 
 // EVMChain is struct that aggregates all data required for
@@ -48,6 +50,7 @@ type EVMChain struct {
 	bridgeContractAddress string
 	config                *config.GeneralChainConfig
 	msgPool               *msg_pool.MsgPool
+	currentProposal       *dpos_msg.BatchMsg
 }
 
 func NewEVMChain(dr EventListener, writer ProposalVoter, kvdb blockstore.KeyValueReaderWriter, chainID uint8, config *config.GeneralChainConfig) *EVMChain {
@@ -61,10 +64,10 @@ func (c *EVMChain) subscribeEvent() {
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case dpos_msg.ETOnProposal:
-			 c.onProposalEvent(e)
+			c.onProposalEvent(e)
 		case dpos_msg.ETSelfOnDuty:
 			go func() {
-				time.Sleep(1 * time.Second)//wait block data write to db
+				time.Sleep(1 * time.Second) //wait block data write to db
 				c.selfOnDuty(e)
 			}()
 		}
@@ -89,13 +92,7 @@ func (c *EVMChain) selfOnDuty(e *events.Event) {
 			}
 		}
 	} else if c.chainID == Layer1ChainID {
-		 if len(pendingList) > 0 {
-			log.Info("ExecuteToLayer1Proposal", "list count", len(pendingList))
-			err := c.ExecuteProposalBatch(pendingList)
-			if err != nil {
-				log.Error("ExecuteProposalBatch error", "error", err)
-			}
-		}
+		c.generateBatchProposal()
 	}
 }
 
@@ -126,9 +123,10 @@ func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
 	return nil
 }
 
-func (c *EVMChain) ExecuteProposalBatch(list []*voter.Proposal) error {
+func (c *EVMChain) ExecuteProposalBatch(msg *dpos_msg.BatchMsg) error {
 	items := make([]*voter.Proposal, 0)
-	for _, p := range list {
+	for _, it := range msg.Items {
+		p := c.msgPool.GetQueueProposal(it.DepositNonce)
 		if p.ProposalIsComplete(c.writer.GetClient()) {
 			log.Info("Proposal is completed", "proposal", p.Hash().String(), "dest", p.Destination, "chainid", c.chainID)
 			c.msgPool.OnProposalExecuted(p.DepositNonce)
@@ -169,13 +167,62 @@ func (c *EVMChain) onProposalEvent(e *events.Event) {
 		return
 	}
 
+	if msg, ok := e.Data.(*dpos_msg.FeedbackBatchMsg); ok {
+		if c.chainID != Layer1ChainID {
+			return
+		}
+		err := c.onFeedbackBatchMsg(msg)
+		if err != nil {
+			log.Error("onFeedbackBatchMsg error", "error", err)
+		}
+		return
+	}
+}
+
+func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
+	if msg.BatchMsgHash.String() != c.currentProposal.GetHash().String() {
+		return errors.New("The feedback  is not current proposal")
+	}
+	if c.msgPool.ArbiterIsVerified(msg.BatchMsgHash, msg.Signer) {
+		return errors.New(fmt.Sprintf("is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
+	}
+	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > c.getMaxArbitersSign() {
+		return errors.New("is collect enough feedback")
+	}
+
+	if err := c.verifySignature(msg); err != nil {
+		return err
+	}
+
+	c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature)
+	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash))
+	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > c.getMaxArbitersSign() {
+		err := c.ExecuteProposalBatch(c.currentProposal)
+		if err != nil {
+			log.Error("ExecuteProposalBatch error", "error", err)
+		}
+	}
+	return nil
+}
+
+func (c *EVMChain) verifySignature(msg *dpos_msg.FeedbackBatchMsg) error {
+	pk, err := crypto.SigToPub(c.currentProposal.GetHash().Bytes(), msg.Signature)
+	if err != nil {
+		return err
+	}
+	pub := crypto.CompressPubkey(pk)
+	if bytes.Compare(msg.Signer, pub) != 0 {
+		return errors.New(fmt.Sprintf("verified signature error, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
+	}
+
+	//TODO need judge pub is a arbiter
+	return nil
 }
 
 func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 	if len(msg.Items) <= 0 {
 		return errors.New("batch msg count is 0")
 	}
-	list := make([]*voter.Proposal, 0)
 	for _, item := range msg.Items {
 		proposal := c.msgPool.GetQueueProposal(item.DepositNonce)
 		if proposal == nil {
@@ -184,36 +231,21 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 		if proposal.Destination != c.chainID {
 			return errors.New(fmt.Sprintf("proposal destination is not correct, chainID:%d, propsal destination:%d", c.chainID, proposal.Destination))
 		}
-		if proposal.Destination == Layer1ChainID {
-			if c.msgPool.IsPeningProposal(proposal) {
-				continue
-			}
-		}
+
 		if proposal.ProposalIsComplete(c.writer.GetClient()) {
-			log.Info("Proposal is completed", "proposal", proposal.Hash().String(), "dest", proposal.Destination, "chainid", c.chainID)
 			c.msgPool.OnProposalExecuted(proposal.DepositNonce)
-			continue
+			return errors.New(fmt.Sprintf("proposal is completed, hash:%s, dest:%d, source:%d", proposal.Hash().String(), proposal.Destination, c.chainID))
 		}
 		if !compareMsg(&item, proposal) {
 			return errors.New("received error deposit proposal")
 		}
-		list = append(list, proposal)
 	}
 
 	err := c.onBatchProposal(msg, msg.GetHash().Bytes())
 	if err != nil {
 		return errors.New(fmt.Sprintf("onBatchProposal error: %s", err.Error()))
 	} else {
-		log.Info("onBatchProposal verified success")
-		c.msgPool.OnProposalVerified(msg.GetHash(), msg.Proposer, msg.Signature)
-		log.Info("batch proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(msg.GetHash()))
-		if c.msgPool.GetVerifiedCount(msg.GetHash()) > c.getMaxArbitersSign() {
-			for _, p := range list {
-				c.msgPool.PutExecuteProposal(p)
-			}
-		} else {
-
-		}
+		c.writer.FeedbackBatchMsg(msg)
 	}
 
 	return nil
@@ -291,6 +323,14 @@ func (c *EVMChain) onProposal(msg *dpos_msg.DepositProposalMsg, proposalHash []b
 }
 
 func (c *EVMChain) onBatchProposal(msg *dpos_msg.BatchMsg, proposalHash []byte) error {
+	pbk, err := c.writer.GetPublicKey()
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(msg.Proposer, pbk) {
+		return errors.New("is self submit proposal")
+	}
+
 	pk, err := crypto.SigToPub(proposalHash, msg.Signature)
 	if err != nil {
 		return err
@@ -330,6 +370,11 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 		return err
 	}
 	log.Info("handle new relayer message", "source", proposal.Source, "target", proposal.Destination, "nonce", proposal.DepositNonce)
+
+	if proposal.ProposalIsComplete(c.writer.GetClient()) {
+		return err
+	}
+
 	err = c.msgPool.PutProposal(proposal)
 	if err != nil {
 		return err
@@ -338,25 +383,6 @@ func (c *EVMChain) Write(msg *relayer.Message) error {
 		c.broadProposal(proposal)
 	}
 	return nil
-}
-
-func (c *EVMChain) GenerateBatchProposal(stop <-chan struct{}) {
-	if c.chainID != Layer1ChainID {
-		return
-	}
-	go func() {
-		for {
-			for {
-				select {
-				case <-stop:
-					return
-				case  <-time.After(listener.BatchMsgInterval):
-					c.generateBatchProposal()
-					continue
-				}
-			}
-		}
-	}()
 }
 
 func (c *EVMChain) generateBatchProposal() {
@@ -371,12 +397,13 @@ func (c *EVMChain) generateBatchProposal() {
 		items = append(items, list[i])
 	}
 	count = len(items)
-	log.Info("GenerateBatchProposal...", "list count", count)
 	if count > 0 {
 		if count > MaxBatchCount {
-			items = items[0 :MaxBatchCount]
+			items = items[0:MaxBatchCount]
 		}
-		c.writer.SignAndBroadProposalBatch(items)
+		c.currentProposal = c.writer.SignAndBroadProposalBatch(items)
+		log.Info("GenerateBatchProposal...", "list count", count, "proposal", c.currentProposal.GetHash().String())
+		c.writer.FeedbackBatchMsg(c.currentProposal)
 	}
 }
 

@@ -14,6 +14,12 @@ func (p *Pbft) SendMsgProposal(proposalMsg elap2p.Message) {
 	p.BroadMessage(proposalMsg)
 }
 
+func (p *Pbft) SendMsgToPeer(proposalMsg elap2p.Message, pid dpeer.PID) {
+	if p.network != nil {
+		p.network.SendMessageToPeer(pid, proposalMsg)
+	}
+}
+
 func (p *Pbft) SignData(data []byte) []byte {
 	return p.account.Sign(data)
 }
@@ -39,8 +45,13 @@ func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 	case dpos_msg.CmdBatchProposal:
 		msg, ok := c.(*dpos_msg.BatchMsg)
 		if ok {
+			msg.PID = id
 			events.Notify(dpos_msg.ETOnProposal, msg)
 		}
-
+	case dpos_msg.CmdFeedbackBatch:
+		msg, ok := c.(*dpos_msg.FeedbackBatchMsg)
+		if ok {
+			events.Notify(dpos_msg.ETOnProposal, msg)
+		}
 	}
 }
