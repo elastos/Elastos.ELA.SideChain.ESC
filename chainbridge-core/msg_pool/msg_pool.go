@@ -126,13 +126,9 @@ func (m *MsgPool) PutProposal(msg *voter.Proposal) error {
 	return nil
 }
 
-func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte)  {
+func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte) error {
 	m.arbiterLock.Lock()
 	defer m.arbiterLock.Unlock()
-	if m.arbiterIsVerified(proposalHash, arbiter) {
-		log.Info("is verified arbiter", "arbiter", common.Bytes2Hex(arbiter))
-		return
-	}
 	arbiterList := m.verifiedProposalArbiter[proposalHash]
 	arbiterList = append(arbiterList, arbiter)
 	m.verifiedProposalArbiter[proposalHash] = arbiterList
@@ -140,6 +136,7 @@ func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signatur
 	sigList := m.verifiedProposalSignatures[proposalHash]
 	sigList = append(sigList, signature)
 	m.verifiedProposalSignatures[proposalHash] = sigList
+	return nil
 }
 
 func (m *MsgPool) GetVerifiedCount(proposalHash common.Hash) int {
@@ -149,7 +146,7 @@ func (m *MsgPool) GetVerifiedCount(proposalHash common.Hash) int {
 	return len(arbiterList)
 }
 
-func (m *MsgPool) arbiterIsVerified(proposalHash common.Hash, arbiter []byte) bool {
+func (m *MsgPool) ArbiterIsVerified(proposalHash common.Hash, arbiter []byte) bool {
 	arbiterList := m.verifiedProposalArbiter[proposalHash]
 	for _, arb := range arbiterList {
 		if bytes.Compare(arb, arbiter) == 0 {
@@ -193,6 +190,15 @@ func (m *MsgPool) IsPeningProposal(proposal *voter.Proposal) bool {
 }
 
 func (m *MsgPool) OnProposalExecuted(nonce uint64) {
+    proposal := m.GetQueueProposal(nonce)
+    if proposal == nil {
+		return
+	}
+	m.arbiterLock.Lock()
+    delete(m.verifiedProposalArbiter, proposal.Hash())
+	delete(m.verifiedProposalSignatures, proposal.Hash())
+	m.arbiterLock.Unlock()
+
 	m.pendingLock.Lock()
 	for i := 0; i < len(m.pendingList); i++ {
 		if m.pendingList[i].DepositNonce == nonce {
