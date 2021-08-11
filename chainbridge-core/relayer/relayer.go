@@ -12,7 +12,6 @@ type RelayedChain interface {
 	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message)
 	Write(message *Message) error
 	ChainID() uint8
-	GenerateBatchProposal(stop <-chan struct{})
 }
 
 func NewRelayer(chains []RelayedChain) *Relayer {
@@ -33,7 +32,6 @@ func (r *Relayer) Start(stop <-chan struct{}, sysErr chan error) {
 		log.Info("Starting chain", "chainid", c.ChainID())
 		r.addRelayedChain(c)
 		go c.PollEvents(stop, sysErr, messagesChannel)
-		go c.GenerateBatchProposal(stop)
 	}
 	for {
 		select {

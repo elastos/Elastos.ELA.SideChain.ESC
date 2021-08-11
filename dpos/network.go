@@ -8,6 +8,7 @@ package dpos
 import (
 	"bytes"
 	"errors"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
 
@@ -258,6 +259,11 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnLayer2Msg(msgItem.ID, msg)
 		}
+	case dpos_msg.CmdFeedbackBatch:
+		msg, processed := m.(*dpos_msg.FeedbackBatchMsg)
+		if processed {
+			n.listener.OnLayer2Msg(msgItem.ID, msg)
+		}
 	}
 }
 
@@ -395,6 +401,8 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &dpos_msg.DepositProposalMsg{}
 	case dpos_msg.CmdBatchProposal:
 		message = &dpos_msg.BatchMsg{}
+	case dpos_msg.CmdFeedbackBatch:
+		message = &dpos_msg.FeedbackBatchMsg{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}
