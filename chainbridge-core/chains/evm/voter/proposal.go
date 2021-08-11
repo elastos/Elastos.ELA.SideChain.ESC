@@ -156,8 +156,11 @@ func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 		log.Error("Failed to check proposal existence", "err", err)
 		return false
 	}
-	chainID, _ := client.ChainID(context.TODO())
-	log.Info("[ProposalIsComplete]", "status", propStates, "chainID", chainID.Uint64())
+	chainID, err := client.ChainID(context.TODO())
+	if err == nil {
+		log.Info("[ProposalIsComplete]", "status", propStates, "chainID", chainID.Uint64())
+	}
+
 	return propStates == relayer.ProposalStatusExecuted || propStates == relayer.ProposalStatusCanceled
 }
 
@@ -264,7 +267,6 @@ func ExecuteBatch(client ChainClient, list []*Proposal) error {
 	err = client.UnsafeIncreaseNonce()
 	if err != nil {
 		log.Error("UnsafeIncreaseNonce error", "error", err)
-		return err
 	}
 
 	chainID, _ := client.ChainID(context.TODO())

@@ -217,8 +217,8 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *eve
 				atomic.StoreInt32(&candSend, 1)
 				IteratorUnTransaction(GetDefaultSingerAddr())
 			}
-		case <-ondutySub.Chan():
 			events.Notify(dpos_msg.ETSelfOnDuty, nil)
+		case <-ondutySub.Chan():
 			if i >= 2 {
 				i = 0
 				log.Info("receive onduty event")
