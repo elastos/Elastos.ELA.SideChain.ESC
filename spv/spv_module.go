@@ -33,11 +33,11 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	core "github.com/elastos/Elastos.ELA/core/types"
-	elaEvents "github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
+	elaEvents "github.com/elastos/Elastos.ELA/events"
 )
 
 var (
