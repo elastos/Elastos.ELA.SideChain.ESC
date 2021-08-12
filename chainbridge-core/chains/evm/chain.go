@@ -39,6 +39,9 @@ type ProposalVoter interface {
 	SignAndBroadProposalBatch(list []*voter.Proposal) *dpos_msg.BatchMsg
 	FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash
 	GetPublicKey() ([]byte, error)
+	GetSignerAddress() (common.Address, error)
+	SetArbiterList(bridgeAddress string) error
+	GetArbiterList(bridgeAddress string) ([]common.Address, error)
 }
 
 // EVMChain is struct that aggregates all data required for
@@ -55,6 +58,7 @@ type EVMChain struct {
 
 func NewEVMChain(dr EventListener, writer ProposalVoter, kvdb blockstore.KeyValueReaderWriter, chainID uint8, config *config.GeneralChainConfig) *EVMChain {
 	chain := &EVMChain{listener: dr, writer: writer, kvdb: kvdb, chainID: chainID, config: config}
+	chain.bridgeContractAddress = config.Opts.Bridge
 	chain.msgPool = msg_pool.NewMsgPool()
 	go chain.subscribeEvent()
 	return chain
@@ -107,14 +111,14 @@ func (c *EVMChain) broadProposal(p *voter.Proposal) {
 }
 
 func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
-	fmt.Println("ExecuteProposals", "chain", c.chainID)
 	for _, p := range list {
 		if p.ProposalIsComplete(c.writer.GetClient()) {
 			log.Info("Proposal is completed", "proposal", p.Hash().String(), "dest", p.Destination, "chainid", c.chainID)
 			c.msgPool.OnProposalExecuted(p.DepositNonce)
 			continue
 		}
-		err := p.Execute(c.writer.GetClient())
+		signature := c.msgPool.GetSignatures(p.Hash())
+		err := p.Execute(c.writer.GetClient(), signature)
 		if err != nil {
 			log.Error("proposal is execute error", "error", err)
 			return err
@@ -362,6 +366,10 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 			continue
 		}
 	}
+}
+
+func (c *EVMChain) WriteArbiters() error {
+	return c.writer.SetArbiterList(c.bridgeContractAddress)
 }
 
 func (c *EVMChain) Write(msg *relayer.Message) error {
