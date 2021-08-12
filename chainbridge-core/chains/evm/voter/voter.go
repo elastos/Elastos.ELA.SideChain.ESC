@@ -8,9 +8,12 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
@@ -18,6 +21,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
 	"github.com/elastos/Elastos.ELA/events"
 )
@@ -25,7 +29,6 @@ import (
 type ChainClient interface {
 	LatestBlock() (*big.Int, error)
 	SignAndSendTransaction(ctx context.Context, tx evmclient.CommonTransaction) (common.Hash, error)
-	RelayerAddress() common.Address
 	CallContract(ctx context.Context, callArgs map[string]interface{}, blockNumber *big.Int) ([]byte, error)
 	UnsafeNonce() (*big.Int, error)
 	LockNonce()
@@ -39,10 +42,8 @@ type ChainClient interface {
 }
 
 type Proposer interface {
-	//Status(client ChainClient) (relayer.ProposalStatus, error)
-	//VotedBy(client ChainClient, by common.Address) (bool, error)
-	Execute(client ChainClient) error
-	//Vote(client ChainClient) error
+	Status(client ChainClient) (relayer.ProposalStatus, error)
+	Execute(client ChainClient, signatures [][]byte) error
 }
 
 type MessageHandler interface {
@@ -130,6 +131,83 @@ func (w *EVMVoter) GetPublicKey() ([]byte, error) {
 	}
 	pbk, err := hexutil.Decode(w.account.PublicKey())
 	return pbk, err
+}
+
+func (w *EVMVoter) GetSignerAddress() (common.Address, error) {
+	if w.account == nil {
+		return common.Address{}, errors.New("account is nil")
+	}
+	return w.account.CommonAddress(), nil
+}
+
+func (w *EVMVoter) SetArbiterList(bridgeAddress string) error {
+	definition := "[{\"inputs\":[{\"internalType\":\"bytes[]\",\"name\":\"_pubKeyList\",\"type\":\"bytes[]\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	if err != nil {
+		return err
+	}
+	//arbiters := w.GetClient().Engine().GetBridgeArbiters()
+	arbiters := make([][]byte, 0)
+	arbiters = append(arbiters, w.account.PublicKeyBytes())
+	log.Info("SetArbiterList", "arbiters", len(arbiters), "selfAccount", w.account.PublicKey())
+
+	gasPrice, err := w.client.GasPrice()
+	if err != nil {
+		return err
+	}
+
+	input, err := a.Pack("setAbiterList", arbiters)
+	if err != nil {
+		return err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input, GasPrice: gasPrice}
+	//_, err = w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+
+	gasLimit, err := w.client.EstimateGasLimit(context.TODO(), msg)
+	if err != nil {
+		return err
+	}
+	if gasLimit == 0 {
+		return errors.New("SetArbiterList EstimateGasLimit is 0")
+	}
+	w.client.LockNonce()
+	defer w.client.UnlockNonce()
+	n, err := w.client.UnsafeNonce()
+	if err != nil {
+		return err
+	}
+
+	tx := evmtransaction.NewTransaction(n.Uint64(), bridge, big.NewInt(0), gasLimit, gasPrice, input)
+	hash, err := w.client.SignAndSendTransaction(context.TODO(), tx)
+	if err != nil {
+		return err
+	}
+
+	err = w.client.UnsafeIncreaseNonce()
+	if err != nil {
+		log.Error("UnsafeIncreaseNonce error", "error", err)
+	}
+
+	log.Info("SetArbiterList", "error", err, "hash", hash.String())
+	return err
+}
+
+func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error) {
+	definition := "[{\"inputs\":[],\"name\":\"getArbiterList\",\"outputs\":[{\"internalType\":\"bytes[]\",\"name\":\"\",\"type\":\"bytes[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	if err != nil {
+		return []common.Address{}, err
+	}
+	input, err := a.Pack("getArbiterList")
+	if err != nil {
+		return []common.Address{}, err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
+	out, err:= w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	log.Info("GetArbiterList", "error", err, "out", out)
+	return []common.Address{}, err
 }
 
 func (w *EVMVoter) GetClient() ChainClient {
