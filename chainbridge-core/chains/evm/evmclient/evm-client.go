@@ -185,10 +185,6 @@ func (c *EVMClient) SignAndSendTransaction(ctx context.Context, tx CommonTransac
 	return tx.Hash(), nil
 }
 
-func (c *EVMClient) RelayerAddress() common.Address {
-	return c.config.kp.CommonAddress()
-}
-
 func (c *EVMClient) LockNonce() {
 	c.nonceLock.Lock()
 }
