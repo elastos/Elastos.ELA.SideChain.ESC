@@ -31,8 +31,17 @@ func (p *Pbft) GetProducer() []byte {
 	return nil
 }
 
+func (p *Pbft) GetBridgeArbiters() [][]byte {
+	//TODO complete this
+	return [][]byte{}
+}
+
 func (p *Pbft) GetTotalProducerCount() int {
 	return len(p.dispatcher.GetConsensusView().GetProducers())
+}
+
+func (p *Pbft) IsSyncFinished() bool {
+	return p.IsCurrent()
 }
 
 func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {

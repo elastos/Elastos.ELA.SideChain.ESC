@@ -32,10 +32,13 @@ type Proposal struct {
 }
 
 func (p *Proposal) Serialize(w io.Writer) error {
-	if err := elaCom.WriteUint8(w, p.Source); err != nil {
+	source := big.NewInt(0).SetUint64(uint64(p.Source)).Bytes()
+	if _, err := w.Write(common.LeftPadBytes(source, 32)); err != nil {
 		return err
 	}
-	if err := elaCom.WriteUint64(w, p.DepositNonce); err != nil {
+
+	nonce := big.NewInt(0).SetUint64(p.DepositNonce).Bytes()
+	if _, err := w.Write(common.LeftPadBytes(nonce, 32)); err != nil {
 		return err
 	}
 
@@ -50,17 +53,17 @@ func (p *Proposal) Serialize(w io.Writer) error {
 }
 
 func (p *Proposal) Deserialize(r io.Reader) error {
-	source, err := elaCom.ReadUint8(r)
+	source, err := elaCom.ReadBytes(r, 32)
 	if err != nil {
 		return err
 	}
-	p.Source = source
+	p.Source = uint8(big.NewInt(0).SetBytes(source).Uint64())
 
-	nonce, err := elaCom.ReadUint64(r)
+	nonce, err := elaCom.ReadBytes(r, 32)
 	if err != nil {
 		return err
 	}
-	p.DepositNonce = nonce
+	p.DepositNonce = big.NewInt(0).SetBytes(nonce).Uint64()
 	resource, err := elaCom.ReadBytes(r, 32)
 	if err != nil {
 		return err
@@ -105,8 +108,6 @@ func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error)
 	}
 	log.Info("[Status getProposal]", "toChain", chainID, "source", p.Source, "depositNonce", p.DepositNonce)
 	input, err := a.Pack("getProposal", p.Source, p.DepositNonce, p.GetDataHash())
-	//nonceAndID := (uint64(p.DepositNonce) << 8) | uint64(p.Source)
-	//log.Debug("[Status getProposal]", "source", p.Source, "DepositNonce", p.DepositNonce, "DataHash", p.GetDataHash().String(), "nonceAndID", nonceAndID, "nonceID", new(big.Int).SetUint64(nonceAndID).Bytes(), "nonceID2", common.Bytes2Hex(new(big.Int).SetUint64(nonceAndID).Bytes()))
 
 	if err != nil {
 		return relayer.ProposalStatusInactive, err
@@ -129,26 +130,6 @@ func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error)
 	return relayer.ProposalStatus(out0.Status), nil
 }
 
-//func (p *Proposal) VotedBy(evmCaller ChainClient, by common.Address) (bool, error) {
-//	definition := "[{\"inputs\":[{\"internalType\":\"uint72\",\"name\":\"\",\"type\":\"uint72\"},{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"_hasVotedOnProposal\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
-//	a, err := abi.JSON(strings.NewReader(definition))
-//	if err != nil {
-//		return false, err // Not sure what status to use here
-//	}
-//	input, err := a.Pack("_hasVotedOnProposal", idAndNonce(p.Source, p.DepositNonce), p.GetDataHash(), by)
-//	if err != nil {
-//		return false, err
-//	}
-//	msg := ethereum.CallMsg{From: common.Address{}, To: &p.BridgeAddress, Data: input}
-//	out, err := evmCaller.CallContract(context.TODO(), toCallArg(msg), nil)
-//	if err != nil {
-//		return false, err
-//	}
-//	out0 := false
-//	err = a.Unpack(out0, "_hasVotedOnProposal", out)
-//	return out0, nil
-//}
-
 // proposalIsComplete returns true if the proposal state is either Passed, Transferred or Cancelled
 func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 	propStates, err :=  p.Status(client)
@@ -164,15 +145,18 @@ func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 	return propStates == relayer.ProposalStatusExecuted || propStates == relayer.ProposalStatusCanceled
 }
 
-func (p *Proposal) Execute(client ChainClient) error {
+func (p *Proposal) Execute(client ChainClient, signature [][]byte) error {
 	nowBlock, _ := client.LatestBlock()
 	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "nowBlock", nowBlock.Uint64())
-	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"}],\"name\":\"executeProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+	//definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"}],\"name\":\"executeProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+
+	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes[]\",\"name\":\"sig\",\"type\":\"bytes[]\"}],\"name\":\"executeProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return err // Not sure what status to use here
 	}
-	input, err := a.Pack("executeProposal", p.Source, p.DepositNonce, p.Data, p.ResourceId)
+	input, err := a.Pack("executeProposal", p.Source, p.DepositNonce, p.Data, p.ResourceId, signature)
 	if err != nil {
 		return err
 	}
@@ -275,46 +259,6 @@ func ExecuteBatch(client ChainClient, list []*Proposal) error {
 
 	return nil
 }
-//
-//func (p *Proposal) Vote(client ChainClient) error {
-//
-//	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"name\":\"voteProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
-//	a, err := abi.JSON(strings.NewReader(definition))
-//	if err != nil {
-//		return err // Not sure what status to use here
-//	}
-//	input, err := a.Pack("voteProposal", p.Source, p.DepositNonce, p.ResourceId, p.GetDataHash())
-//	if err != nil {
-//		return err
-//	}
-//	gasLimit := uint64(1000000)
-//	gp, err := client.GasPrice()
-//	if err != nil {
-//		return err
-//	}
-//	client.LockNonce()
-//	n, err := client.UnsafeNonce()
-//	if err != nil {
-//		return err
-//	}
-//	tx := evmtransaction.NewTransaction(n.Uint64(), p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
-//	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
-//	if err != nil {
-//		return err
-//	}
-//	log.Debug("Voted", "hash", hash.String(), "nonce", n.Uint64())
-//	err = client.UnsafeIncreaseNonce()
-//	if err != nil {
-//		return err
-//	}
-//	client.UnlockNonce()
-//	return nil
-//}
-
-//// CreateProposalDataHash constructs and returns proposal data hash
-//func (p *Proposal) GetDataHash() common.Hash {
-//	return crypto.Keccak256Hash(append(p.HandlerAddress.Bytes(), p.Data...))
-//}
 
 //func idAndNonce(srcId uint8, nonce uint64) *big.Int {
 //	var data []byte
