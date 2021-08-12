@@ -11,5 +11,7 @@ type ESCEngine interface {
 	SendMsgToPeer(proposalMsg p2p.Message, pid peer.PID)
 	SignData(data []byte) []byte
 	GetProducer() []byte
+	GetBridgeArbiters() [][]byte
 	GetTotalProducerCount() int
+	IsSyncFinished() bool
 }
