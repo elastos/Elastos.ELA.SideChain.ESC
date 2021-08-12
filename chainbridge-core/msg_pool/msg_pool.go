@@ -146,6 +146,20 @@ func (m *MsgPool) GetVerifiedCount(proposalHash common.Hash) int {
 	return len(arbiterList)
 }
 
+func (m *MsgPool) GetSignatures(proposalHash common.Hash) [][]byte {
+	m.arbiterLock.Lock()
+	defer m.arbiterLock.Unlock()
+	signatures := m.verifiedProposalSignatures[proposalHash]
+	return signatures
+}
+
+func (m *MsgPool) GetArbiters(proposalHash common.Hash) [][]byte {
+	m.arbiterLock.Lock()
+	defer m.arbiterLock.Unlock()
+	signers := m.verifiedProposalArbiter[proposalHash]
+	return signers
+}
+
 func (m *MsgPool) ArbiterIsVerified(proposalHash common.Hash, arbiter []byte) bool {
 	arbiterList := m.verifiedProposalArbiter[proposalHash]
 	for _, arb := range arbiterList {
