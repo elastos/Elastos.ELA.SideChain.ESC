@@ -96,6 +96,10 @@ func (kp *Keypair) PublicKey() string {
 	return hexutil.Encode(secp256k1.CompressPubkey(kp.public))
 }
 
+func (kp *Keypair) PublicKeyBytes() []byte {
+	return secp256k1.CompressPubkey(kp.public)
+}
+
 // PrivateKey returns the keypair's private key
 func (kp *Keypair) PrivateKey() *ecdsa.PrivateKey {
 	return kp.private
