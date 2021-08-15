@@ -140,15 +140,12 @@ func (w *EVMVoter) GetSignerAddress() (common.Address, error) {
 	return w.account.CommonAddress(), nil
 }
 
-func (w *EVMVoter) SetArbiterList(bridgeAddress string) error {
+func (w *EVMVoter) SetArbiterList(arbiters [][]byte, bridgeAddress string) error {
 	definition := "[{\"inputs\":[{\"internalType\":\"bytes[]\",\"name\":\"_pubKeyList\",\"type\":\"bytes[]\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return err
 	}
-	//arbiters := w.GetClient().Engine().GetBridgeArbiters()
-	arbiters := make([][]byte, 0)
-	arbiters = append(arbiters, w.account.PublicKeyBytes())
 	log.Info("SetArbiterList", "arbiters", len(arbiters), "selfAccount", w.account.PublicKey())
 
 	gasPrice, err := w.client.GasPrice()
@@ -156,13 +153,12 @@ func (w *EVMVoter) SetArbiterList(bridgeAddress string) error {
 		return err
 	}
 
-	input, err := a.Pack("setAbiterList", arbiters)
+	input, err := a.Pack("setAbiterList","arbiters", arbiters)
 	if err != nil {
 		return err
 	}
 	bridge := common.HexToAddress(bridgeAddress)
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input, GasPrice: gasPrice}
-	//_, err = w.client.CallContract(context.TODO(), toCallArg(msg), nil)
 
 	gasLimit, err := w.client.EstimateGasLimit(context.TODO(), msg)
 	if err != nil {
