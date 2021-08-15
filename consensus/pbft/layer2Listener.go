@@ -1,6 +1,7 @@
 package pbft
 
 import (
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	dpeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
@@ -24,6 +25,15 @@ func (p *Pbft) SignData(data []byte) []byte {
 	return p.account.Sign(data)
 }
 
+func (p *Pbft) DecryptArbiter(cipher []byte) (arbiter []byte, err error) {
+	a, err := p.account.DecryptAddr(cipher)
+	if err != nil {
+		return nil, err
+	}
+	arbiter = []byte(a)
+	return arbiter, nil
+}
+
 func (p *Pbft) GetProducer() []byte {
 	if p.account != nil {
 		return p.account.PublicKeyBytes()
@@ -31,9 +41,15 @@ func (p *Pbft) GetProducer() []byte {
 	return nil
 }
 
-func (p *Pbft) GetBridgeArbiters() [][]byte {
-	//TODO complete this
-	return [][]byte{}
+func (p *Pbft) HasProducerMajorityCount(count int) bool {
+	if p.dispatcher == nil {
+		return false
+	}
+	return p.dispatcher.GetConsensusView().HasProducerMajorityCount(count)
+}
+
+func (p *Pbft) GetBridgeArbiters() crypto.Keypair {
+	return p.bridgeAccount
 }
 
 func (p *Pbft) GetTotalProducerCount() int {
@@ -61,6 +77,11 @@ func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 		msg, ok := c.(*dpos_msg.FeedbackBatchMsg)
 		if ok {
 			events.Notify(dpos_msg.ETOnProposal, msg)
+		}
+	case dpos_msg.CmdDArbiter:
+		msg, ok := c.(*dpos_msg.DArbiter)
+		if ok {
+			events.Notify(dpos_msg.ETOnArbiter, msg)
 		}
 	}
 }
