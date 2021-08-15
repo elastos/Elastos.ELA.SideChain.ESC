@@ -40,7 +40,7 @@ type ProposalVoter interface {
 	FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash
 	GetPublicKey() ([]byte, error)
 	GetSignerAddress() (common.Address, error)
-	SetArbiterList(bridgeAddress string) error
+	SetArbiterList(arbiters [][]byte, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
 }
 
@@ -368,8 +368,8 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 	}
 }
 
-func (c *EVMChain) WriteArbiters() error {
-	return c.writer.SetArbiterList(c.bridgeContractAddress)
+func (c *EVMChain) WriteArbiters(arbiters [][]byte) error {
+	return c.writer.SetArbiterList(arbiters, c.bridgeContractAddress)
 }
 
 func (c *EVMChain) Write(msg *relayer.Message) error {

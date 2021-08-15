@@ -32,4 +32,5 @@ type Keypair interface {
 	Address() string
 	// PublicKey returns the keypair's public key an encoded a string
 	PublicKey() string
+	PublicKeyBytes() []byte
 }
