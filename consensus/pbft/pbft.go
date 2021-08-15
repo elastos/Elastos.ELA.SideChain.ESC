@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
 	"io"
 	"math/big"
 	"path/filepath"
@@ -93,21 +94,22 @@ var (
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
 type Pbft struct {
-	datadir     string
-	cfg         params.PbftConfig
-	dispatcher  *dpos.Dispatcher
-	confirmCh   chan *payload.Confirm
-	unConfirmCh chan *payload.Confirm
-	account     daccount.Account
-	network     *dpos.Network
-	blockPool   *dpos.BlockPool
-	chain       *core.BlockChain
-	timeSource  dtime.MedianTimeSource
+	datadir       string
+	cfg           params.PbftConfig
+	dispatcher    *dpos.Dispatcher
+	confirmCh     chan *payload.Confirm
+	unConfirmCh   chan *payload.Confirm
+	account       daccount.Account
+	bridgeAccount crypto.Keypair
+	network       *dpos.Network
+	blockPool     *dpos.BlockPool
+	chain         *core.BlockChain
+	timeSource    dtime.MedianTimeSource
 
 	// IsCurrent returns whether BlockChain synced to best height.
-	IsCurrent func() bool
-	StartMine func()
-	OnDuty func()
+	IsCurrent          func() bool
+	StartMine          func()
+	OnDuty             func()
 	OnInsertChainError func(id peer.PID, block *types.Block, err error)
 
 	requestedBlocks    map[common.Hash]struct{}
@@ -148,6 +150,10 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		}
 		//can't return, because common node need verify use this engine
 	}
+	bridgeAccount, err := dpos.GetBridgeAccount(pbftKeystore, password)
+	if err != nil {
+		fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
+	}
 	medianTimeSouce := dtime.NewMedianTime()
 
 	pbft := &Pbft{
@@ -156,6 +162,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		confirmCh:          make(chan *payload.Confirm),
 		unConfirmCh:        make(chan *payload.Confirm),
 		account:            account,
+		bridgeAccount:      bridgeAccount,
 		requestedBlocks:    make(map[common.Hash]struct{}),
 		requestedProposals: make(map[ecom.Uint256]struct{}),
 		statusMap:          make(map[uint32]map[string]*dmsg.ConsensusStatus),
@@ -205,7 +212,7 @@ func (p *Pbft) subscribeEvent() {
 			log.Info("new peer accept", "active peer count", count)
 			height := p.chain.CurrentHeader().Number.Uint64()
 			cfg := p.chain.Config()
-			if cfg.PBFTBlock != nil && height >= cfg.PBFTBlock.Uint64() -cfg.PreConnectOffset && height < cfg.PBFTBlock.Uint64() {
+			if cfg.PBFTBlock != nil && height >= cfg.PBFTBlock.Uint64()-cfg.PreConnectOffset && height < cfg.PBFTBlock.Uint64() {
 				log.Info("before change engine AnnounceDAddr")
 				go p.AnnounceDAddr()
 			}
@@ -221,7 +228,7 @@ func (p *Pbft) subscribeEvent() {
 		case dpos.ETOnSPVHeight:
 			height := e.Data.(uint32)
 			if spv.GetWorkingHeight() >= height {
-				if uint64(spv.GetWorkingHeight() - height) <= p.chain.Config().PreConnectOffset {
+				if uint64(spv.GetWorkingHeight()-height) <= p.chain.Config().PreConnectOffset {
 					curProducers := p.dispatcher.GetConsensusView().GetProducers()
 					isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
 					if !isSame {
@@ -246,11 +253,11 @@ func (p *Pbft) subscribeEvent() {
 	})
 }
 
-func (p *Pbft) IsSameProducers(curProducers[][]byte) bool {
+func (p *Pbft) IsSameProducers(curProducers [][]byte) bool {
 	return p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
 }
 
-func (p *Pbft) IsCurrentProducers(curProducers[][]byte) bool {
+func (p *Pbft) IsCurrentProducers(curProducers [][]byte) bool {
 	return p.dispatcher.GetConsensusView().IsCurrentProducers(curProducers)
 }
 
@@ -496,7 +503,7 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		return ErrWaitRecoverStatus
 	}
 
-	parent := chain.GetHeader(block.ParentHash(), block.NumberU64() - 1)
+	parent := chain.GetHeader(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
