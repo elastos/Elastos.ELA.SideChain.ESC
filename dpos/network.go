@@ -264,6 +264,11 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnLayer2Msg(msgItem.ID, msg)
 		}
+	case dpos_msg.CmdDArbiter:
+		msg, processed := m.(*dpos_msg.DArbiter)
+		if processed {
+			n.listener.OnLayer2Msg(msgItem.ID, msg)
+		}
 	}
 }
 
@@ -403,6 +408,8 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &dpos_msg.BatchMsg{}
 	case dpos_msg.CmdFeedbackBatch:
 		message = &dpos_msg.FeedbackBatchMsg{}
+	case dpos_msg.CmdDArbiter:
+		message = &dpos_msg.DArbiter{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}
