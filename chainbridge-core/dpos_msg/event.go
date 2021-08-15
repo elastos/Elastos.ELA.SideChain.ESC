@@ -6,4 +6,5 @@ import "github.com/elastos/Elastos.ELA/events"
 const (
 	ETOnProposal events.EventType = 2001
 	ETSelfOnDuty events.EventType = 2002
+	ETOnArbiter events.EventType = 2003
 )
