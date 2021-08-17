@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	_interface "github.com/elastos/Elastos.ELA.SPV/interface"
 	"math/big"
 	"runtime"
 	"sync"
@@ -31,6 +30,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi/bind"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
+	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
@@ -59,6 +59,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+
+	_interface "github.com/elastos/Elastos.ELA.SPV/interface"
 
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elapeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
@@ -555,6 +557,8 @@ func (s *Ethereum) APIs() []rpc.API {
 	if s.lesServer != nil {
 		apis = append(apis, s.lesServer.APIs()...)
 	}
+
+	apis = append(apis, chainbridge_core.APIs(s.BlockChain().GetDposEngine().(*pbft.Pbft))...)
 
 	// Append all the local APIs and return
 	return append(apis, []rpc.API{
