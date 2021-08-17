@@ -39,6 +39,7 @@ type ChainClient interface {
 	ChainID(ctx context.Context) (*big.Int, error)
 	Engine() engine.ESCEngine
 	GetClientAddress() common.Address
+	IsContractAddress(address string) bool
 }
 
 type Proposer interface {
@@ -153,7 +154,7 @@ func (w *EVMVoter) SetArbiterList(arbiters [][]byte, bridgeAddress string) error
 		return err
 	}
 
-	input, err := a.Pack("setAbiterList","arbiters", arbiters)
+	input, err := a.Pack("setAbiterList", arbiters)
 	if err != nil {
 		return err
 	}
@@ -190,12 +191,12 @@ func (w *EVMVoter) SetArbiterList(arbiters [][]byte, bridgeAddress string) error
 }
 
 func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error) {
-	definition := "[{\"inputs\":[],\"name\":\"getArbiterList\",\"outputs\":[{\"internalType\":\"bytes[]\",\"name\":\"\",\"type\":\"bytes[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+	definition := "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"_signers\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return []common.Address{}, err
 	}
-	input, err := a.Pack("getArbiterList")
+	input, err := a.Pack("_signers")
 	if err != nil {
 		return []common.Address{}, err
 	}
@@ -203,7 +204,15 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
 	out, err:= w.client.CallContract(context.TODO(), toCallArg(msg), nil)
 	log.Info("GetArbiterList", "error", err, "out", out)
-	return []common.Address{}, err
+
+	out0 := make([]common.Address, 0)
+	err = a.Unpack(out0, "getProposal", out)
+
+	return out0, err
+}
+
+func (w *EVMVoter) IsDeployedBridgeContract(bridgeAddress string) bool {
+	return w.client.IsContractAddress(bridgeAddress)
 }
 
 func (w *EVMVoter) GetClient() ChainClient {

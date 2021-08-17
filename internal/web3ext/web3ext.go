@@ -34,7 +34,27 @@ var Modules = map[string]string{
 	"swarmfs":    SwarmfsJs,
 	"txpool":     TxpoolJs,
 	"les":        LESJs,
+	"bridge":     BridgeJs,
 }
+
+
+const BridgeJs = `
+web3._extend({
+	property: 'bridge',
+	methods: [
+		new web3._extend.Method({
+			name: 'updateArbiters',
+			call: 'bridge_updateArbiters',
+		}),
+		new web3._extend.Method({
+			name: 'getArbiters',
+			call: 'bridge_getArbiters',
+			params: 1,
+		    inputFormatter: [null]
+		})
+	]
+});
+`
 
 const ChequebookJs = `
 web3._extend({
