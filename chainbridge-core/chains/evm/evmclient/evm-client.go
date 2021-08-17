@@ -284,3 +284,11 @@ func buildQuery(contract common.Address, sig string, startBlock *big.Int, endBlo
 func (c *EVMClient) GetConfig() *EVMConfig {
 	return c.config
 }
+
+func (c *EVMClient) IsContractAddress(address string) bool {
+	code, err := c.CodeAt(context.TODO(), common.HexToAddress(address), nil)
+	if err != nil || len(code) == 0 {
+		return false
+	}
+	return true
+}
