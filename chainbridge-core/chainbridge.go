@@ -24,6 +24,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
@@ -47,6 +48,15 @@ func init() {
 	atomic.StoreInt32(&canStart, 1)
 }
 
+func APIs(engine *pbft.Pbft) []rpc.API {
+	return []rpc.API{{
+		Namespace: "bridge",
+		Version:   "1.0",
+		Service:   &API{engine},
+		Public:    true,
+	}}
+}
+
 func Start(engine *pbft.Pbft, accountPassword string) {
 	log.Info("chain bridge start")
 	if MsgReleayer != nil {
@@ -54,6 +64,7 @@ func Start(engine *pbft.Pbft, accountPassword string) {
 		return
 	}
 	initRelayer(engine, accountPassword)
+	arbiterManager.AddArbiter(engine.GetBridgeArbiters().PublicKeyBytes())//add self
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
@@ -73,7 +84,6 @@ func Start(engine *pbft.Pbft, accountPassword string) {
 		case dpos_msg.ETOnArbiter:
 			if hanleDArbiter(engine, e) {
 				list := arbiterManager.GetArbiterList()
-				list = append(list, engine.GetBridgeArbiters().PublicKeyBytes())//add self
 				if engine.HasProducerMajorityCount(len(list)) {
 					go func() {
 						time.Sleep(2 * time.Second)
