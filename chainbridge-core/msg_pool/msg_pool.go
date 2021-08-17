@@ -46,7 +46,7 @@ func (s NonceProposal) GetRlp(i int) []byte {
 	return enc
 }
 
-func (s NonceProposal) Less(i, j int) bool { return s[i].DepositNonce > s[j].DepositNonce }
+func (s NonceProposal) Less(i, j int) bool { return s[i].DepositNonce < s[j].DepositNonce }
 
 func (s *NonceProposal) Push(x interface{}) {
 	*s = append(*s, x.(*voter.Proposal))
