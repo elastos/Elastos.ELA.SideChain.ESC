@@ -5,6 +5,7 @@ package relayer
 
 import (
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
@@ -13,6 +14,7 @@ type RelayedChain interface {
 	Write(message *Message) error
 	ChainID() uint8
 	WriteArbiters(aribters [][]byte) error
+	GetArbiters() []common.Address
 }
 
 func NewRelayer(chains []RelayedChain) *Relayer {
@@ -66,11 +68,22 @@ func (r *Relayer) addRelayedChain(c RelayedChain) {
 	r.registry[chainID] = c
 }
 
-func (r *Relayer) UpdateArbiters(arbiters [][]byte) {
+func (r *Relayer) UpdateArbiters(arbiters [][]byte) error {
 	for _, c := range r.relayedChains {
 		err := c.WriteArbiters(arbiters)
 		if err != nil {
 			log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
+			return err
 		}
 	}
+	return nil
+}
+
+func (r *Relayer) GetArbiters(chainID uint8) []common.Address {
+	c := r.registry[chainID]
+	if c == nil {
+		log.Error("not register chainID", "chainID", chainID)
+		return []common.Address{}
+	}
+	return c.GetArbiters()
 }
