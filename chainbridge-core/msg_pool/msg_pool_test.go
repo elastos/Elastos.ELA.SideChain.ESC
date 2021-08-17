@@ -21,12 +21,13 @@ func TestNonceProposal(t *testing.T)  {
 	var count = 10
 	pool := NewMsgPool()
 	for i := 0; i < count; i++ {
-		pool.PutProposal(GenerateProposal(uint64(i)))
+		pool.PutProposal(GenerateProposal(uint64(count - i - 1)))
 	}
+
 	list := pool.GetQueueList()
 	assert.Equal(t, len(list), count)
 	for i := 0; i< count; i++ {
-		assert.Equal(t, list[count - i -1].DepositNonce, uint64(i))
+		assert.Equal(t, list[i].DepositNonce, uint64(i))
 		pool.OnProposalExecuted(uint64(i))
 	}
 	assert.Equal(t, len(pool.queueList), 0)
