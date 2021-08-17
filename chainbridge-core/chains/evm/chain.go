@@ -42,6 +42,7 @@ type ProposalVoter interface {
 	GetSignerAddress() (common.Address, error)
 	SetArbiterList(arbiters [][]byte, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
+	IsDeployedBridgeContract(bridgeAddress string) bool
 }
 
 // EVMChain is struct that aggregates all data required for
@@ -369,7 +370,20 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 }
 
 func (c *EVMChain) WriteArbiters(arbiters [][]byte) error {
+	if c.writer.IsDeployedBridgeContract(c.bridgeContractAddress) == false {
+		return errors.New(fmt.Sprintf("%d is not deploy chainbridge contract", c.chainID))
+	}
+
 	return c.writer.SetArbiterList(arbiters, c.bridgeContractAddress)
+}
+
+func (c *EVMChain) GetArbiters() []common.Address {
+	list, err := c.writer.GetArbiterList(c.bridgeContractAddress)
+	if err != nil {
+		log.Error("GetArbiterList error", "error", err)
+		return []common.Address{}
+	}
+	return list
 }
 
 func (c *EVMChain) Write(msg *relayer.Message) error {
