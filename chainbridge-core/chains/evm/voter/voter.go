@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
@@ -82,7 +83,7 @@ func (w *EVMVoter) SignAndBroadProposal(proposal *Proposal) common.Hash {
 	msg.Item.Data = proposal.Data
 
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
-	msg.Signature = w.SignData(proposal.Hash().Bytes())
+	msg.Signature = w.SignData(accounts.TextHash(proposal.Hash().Bytes()))
 	w.client.Engine().SendMsgProposal(msg)
 	go events.Notify(dpos_msg.ETOnProposal, msg) //self is a signature
 	return msg.GetHash()
@@ -141,8 +142,8 @@ func (w *EVMVoter) GetSignerAddress() (common.Address, error) {
 	return w.account.CommonAddress(), nil
 }
 
-func (w *EVMVoter) SetArbiterList(arbiters []common.Address, bridgeAddress string) error {
-	definition := "[{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addressList\",\"type\":\"address[]\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, bridgeAddress string) error {
+	definition := "[{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addressList\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_totalCount\",\"type\":\"uint256\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return err
@@ -153,8 +154,8 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, bridgeAddress strin
 	if err != nil {
 		return err
 	}
-
-	input, err := a.Pack("setAbiterList", arbiters)
+	count := big.NewInt(int64(totalCount))
+	input, err := a.Pack("setAbiterList", arbiters, &count)
 	if err != nil {
 		return err
 	}
