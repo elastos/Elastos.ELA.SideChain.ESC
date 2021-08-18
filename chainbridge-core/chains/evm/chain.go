@@ -40,7 +40,7 @@ type ProposalVoter interface {
 	FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash
 	GetPublicKey() ([]byte, error)
 	GetSignerAddress() (common.Address, error)
-	SetArbiterList(arbiters [][]byte, bridgeAddress string) error
+	SetArbiterList(arbiters []common.Address, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 }
@@ -369,7 +369,7 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 	}
 }
 
-func (c *EVMChain) WriteArbiters(arbiters [][]byte) error {
+func (c *EVMChain) WriteArbiters(arbiters []common.Address) error {
 	if c.writer.IsDeployedBridgeContract(c.bridgeContractAddress) == false {
 		return errors.New(fmt.Sprintf("%d is not deploy chainbridge contract", c.chainID))
 	}
