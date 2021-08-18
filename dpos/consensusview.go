@@ -69,6 +69,10 @@ func (v *ConsensusView) GetProducers() [][]byte {
 	return v.producers.GetProducers()
 }
 
+func (v *ConsensusView) GetTotalArbiterCount() int {
+	return v.producers.totalProducers
+}
+
 func (v *ConsensusView) GetSpvHeight() uint64 {
 	return v.producers.spvHeight
 }

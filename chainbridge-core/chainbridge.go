@@ -64,6 +64,7 @@ func Start(engine *pbft.Pbft, accountPassword string) {
 		return
 	}
 	initRelayer(engine, accountPassword)
+	arbiterManager.SetTotalCount(engine.GetTotalArbitersCount())
 	arbiterManager.AddArbiter(engine.GetBridgeArbiters().PublicKeyBytes())//add self
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
@@ -87,7 +88,8 @@ func Start(engine *pbft.Pbft, accountPassword string) {
 				if engine.HasProducerMajorityCount(len(list)) {
 					go func() {
 						time.Sleep(2 * time.Second)
-						err := MsgReleayer.UpdateArbiters(list, 0)
+						total := arbiterManager.GetTotalCount()
+						err := MsgReleayer.UpdateArbiters(list, total, 0)
 						if err != nil {
 							log.Error("Update Arbiter error", "error", err)
 						}
