@@ -66,15 +66,15 @@ app.post("/", async function(req, res) {
             return;
         }
         if (json_data["method"] === "getfaileddeposittransactionbyhash") {
-            GetFailedDepositTxByHash(json_data, res)
+            await GetFailedDepositTxByHash(json_data, res)
             return;
         }
         if (json_data["method"] === "sendinvalidwithdrawtransaction") {
-            FailedWithdrawTxByHash(json_data, res)
+            await FailedWithdrawTxByHash(json_data, res)
             return;
         }
         if (json_data["method"] === "getprocessedinvalidwithdrawtransactions") {
-            ProcessedFailedWithdrawTxs(json_data, res)
+            await  ProcessedFailedWithdrawTxs(json_data, res)
             return;
         }
     } catch (err) {

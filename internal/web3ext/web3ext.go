@@ -582,7 +582,7 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'sendInvalidWithdrawTransaction',
 			call: 'eth_sendInvalidWithdrawTransaction',
-			params: 1,
+			params: 2,
 		}),
 	],
 	properties: [

@@ -786,9 +786,7 @@ func (s *PublicBlockChainAPI) SendInvalidWithdrawTransaction(ctx context.Context
 	txid := common.HexToHash(hash)
 	tx, _, _, _, err := s.b.GetTransaction(ctx, txid)
 	if tx == nil || err != nil {
-		msg := fmt.Sprintf("not found withdraw tx, txid:%s", txid)
-		log.Error(msg)
-		return errors.New(msg)
+		return errors.New(fmt.Sprintf("not found withdraw tx, txid:%s", txid.String()))
 	}
 	if tx.To().String() != s.b.ChainConfig().BlackContractAddr {
 		msg := fmt.Sprintf("is not withdraw tx, txid:%s", hash)
