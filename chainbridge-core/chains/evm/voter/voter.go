@@ -101,7 +101,7 @@ func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) *dpos_msg.BatchMs
 		msg.Items = append(msg.Items, it)
 	}
 	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
-	msg.Signature = w.SignData(msg.GetHash().Bytes())
+	msg.Signature = w.SignData(accounts.TextHash(msg.GetHash().Bytes()))
 	w.client.Engine().SendMsgProposal(msg)
 	return msg
 }
@@ -117,7 +117,7 @@ func (w *EVMVoter) FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash {
 		BatchMsgHash: batchHash,
 		Proposer:     msg.Proposer,
 		Signer:       signer,
-		Signature:    w.SignData(batchHash.Bytes()),
+		Signature:    w.SignData(accounts.TextHash(batchHash.Bytes())),
 	}
 	if bytes.Equal(msg.Proposer, signer) {
 		events.Notify(dpos_msg.ETOnProposal, feedback) //self is a signature
