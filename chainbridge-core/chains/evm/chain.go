@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
@@ -40,7 +41,7 @@ type ProposalVoter interface {
 	FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash
 	GetPublicKey() ([]byte, error)
 	GetSignerAddress() (common.Address, error)
-	SetArbiterList(arbiters []common.Address, bridgeAddress string) error
+	SetArbiterList(arbiters []common.Address, totalCount int, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 }
@@ -119,6 +120,9 @@ func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
 			continue
 		}
 		signature := c.msgPool.GetSignatures(p.Hash())
+		for _, sig := range signature {
+			fmt.Println("sig", common.Bytes2Hex(sig))
+		}
 		err := p.Execute(c.writer.GetClient(), signature)
 		if err != nil {
 			log.Error("proposal is execute error", "error", err)
@@ -274,6 +278,13 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		return errors.New("all ready executed proposal")
 	}
 
+	if c.msgPool.ArbiterIsVerified(proposal.Hash(), msg.Proposer) {
+		return errors.New(fmt.Sprintf("onDepositMsg is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
+	}
+	if c.msgPool.GetVerifiedCount(proposal.Hash()) > c.getMaxArbitersSign() {
+		return errors.New("is collect enough signature")
+	}
+
 	if compareMsg(&msg.Item, proposal) {
 		err := c.onProposal(msg, proposal.Hash().Bytes())
 		if err != nil {
@@ -316,6 +327,7 @@ func (c *EVMChain) getMaxArbitersSign() int {
 }
 
 func (c *EVMChain) onProposal(msg *dpos_msg.DepositProposalMsg, proposalHash []byte) error {
+	proposalHash = accounts.TextHash(proposalHash)
 	pk, err := crypto.SigToPub(proposalHash, msg.Signature)
 	if err != nil {
 		return err
@@ -369,12 +381,12 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 	}
 }
 
-func (c *EVMChain) WriteArbiters(arbiters []common.Address) error {
+func (c *EVMChain) WriteArbiters(arbiters []common.Address, totalCount int) error {
 	if c.writer.IsDeployedBridgeContract(c.bridgeContractAddress) == false {
 		return errors.New(fmt.Sprintf("%d is not deploy chainbridge contract", c.chainID))
 	}
 
-	return c.writer.SetArbiterList(arbiters, c.bridgeContractAddress)
+	return c.writer.SetArbiterList(arbiters, totalCount, c.bridgeContractAddress)
 }
 
 func (c *EVMChain) GetArbiters() []common.Address {
