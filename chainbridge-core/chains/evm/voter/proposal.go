@@ -197,10 +197,10 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte) error {
 	return nil
 }
 
-func ExecuteBatch(client ChainClient, list []*Proposal) error {
+func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte) error {
 	nowBlock, _ := client.LatestBlock()
 	log.Info("Executing ExecuteBatch", "list", len(list))
-	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"internalType\":\"bytes[]\",\"name\":\"data\",\"type\":\"bytes[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"}],\"name\":\"executeProposalBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\", \"type\":\"function\"}]"
+	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"internalType\":\"bytes[]\",\"name\":\"data\",\"type\":\"bytes[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"},{\"internalType\":\"bytes[]\",\"name\":\"sig\",\"type\":\"bytes[]\"}],\"name\":\"executeProposalBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return err // Not sure what status to use here
@@ -215,7 +215,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal) error {
 		dataList = append(dataList, p.Data)
 		resourceID = append(resourceID, p.ResourceId)
 	}
-	input, err := a.Pack("executeProposalBatch", source, nonceList, dataList, resourceID)
+	input, err := a.Pack("executeProposalBatch", source, nonceList, dataList, resourceID, signature)
 	if err != nil {
 		return err
 	}
