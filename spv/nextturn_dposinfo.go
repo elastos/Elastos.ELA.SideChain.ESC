@@ -3,6 +3,8 @@ package spv
 import (
 	"errors"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -16,7 +18,11 @@ func GetTotalProducersCount() int {
 	if nextTurnDposInfo == nil {
 		return 0
 	}
-	count := len(nextTurnDposInfo.CRPublicKeys) + len(nextTurnDposInfo.DPOSPublicKeys)
+	count, err := SafeAdd(len(nextTurnDposInfo.CRPublicKeys), len(nextTurnDposInfo.DPOSPublicKeys))
+	if err != nil {
+		log.Error("SafeAdd error", "error", err)
+		return 0
+	}
 	return count
 }
 
@@ -51,7 +57,10 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 			producers = append(producers, arbiter)
 		}
 	}
-	totalCount = len(crcArbiters) + len(normalArbitrs)
+	totalCount, err = SafeAdd(len(crcArbiters), len(normalArbitrs))
+	if err != nil {
+		return nil, totalCount, err
+	}
 	return producers, totalCount, nil
 }
 

@@ -80,6 +80,8 @@ const (
 
 	// Fixed height of ela chain height with LitterEnd encode
 	ExtraElaHeight = 8
+
+	blockDiff = 6
 )
 
 //type MinedBlockEvent struct{}
@@ -318,7 +320,10 @@ func OnReceivedRechargeTx(tx core.Transaction) error {
 		output = append(output, v)
 	}
 	if len(output) > 0 {
-		saveOutputPayload(output, tx.Hash().String())
+		err := saveOutputPayload(output, tx.Hash().String())
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -375,8 +380,11 @@ func saveOutputPayload(outputs []*core.Output, txHash string) error {
 		}
 		fe := new(big.Int).SetInt64(f.IntValue())
 		y := new(big.Int).SetInt64(rate)
-		fee := new(big.Int).Mul(fe, y)
-		SendTransaction(from, txHash, fee)
+		feeValue := new(big.Int).Mul(fe, y)
+		err, _ = SendTransaction(from, txHash, feeValue)
+		if err != nil {
+			log.Info("SendTransaction failed", "error", err.Error())
+		}
 
 	} else {
 		UpTransactionIndex(txHash)
@@ -402,7 +410,12 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 	var address []string
 	var outputs []string
 	for i, amount := range p.CrossChainAmounts {
-		fees = append(fees, (elaTx.Outputs[i].Value - amount).String())
+		v, err := SafeFixed64Minus(elaTx.Outputs[i].Value, amount)
+		if err != nil {
+			log.Error("SafeFixed64Minus error", "error", err)
+			continue
+		}
+		fees = append(fees, v.String())
 		outputs = append(outputs, elaTx.Outputs[i].Value.String())
 		address = append(address, p.CrossChainAddresses[i])
 	}
@@ -446,8 +459,11 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 		}
 		fe := new(big.Int).SetInt64(f.IntValue())
 		y := new(big.Int).SetInt64(rate)
-		fee := new(big.Int).Mul(fe, y)
-		SendTransaction(from, elaTx.Hash().String(), fee)
+		feeValue := new(big.Int).Mul(fe, y)
+		err, _ = SendTransaction(from, elaTx.Hash().String(), feeValue)
+		if err != nil {
+			log.Error("SendTransaction error", "error", err)
+		}
 
 	} else {
 		UpTransactionIndex(elaTx.Hash().String())
@@ -791,7 +807,8 @@ func IsFailedElaTx(elaTx string) bool {
 	}
 	for height, txs := range failedTxList {
 		for _, txid := range txs {
-			if currentHeight - height < 6 {
+			diff, err := SafeUInt64Minus(currentHeight, height)
+			if err != nil || diff < blockDiff {
 				continue
 			}
 			if txid[0:2] == "0x" {
@@ -816,7 +833,8 @@ func IsFailedElaTx(elaTx string) bool {
 			continue
 		}
 		height := binary.BigEndian.Uint64(key)
-		if currentHeight - height < 6 {
+		diff, err := SafeUInt64Minus(currentHeight, height)
+		if diff < blockDiff || err != nil {
 			continue
 		}
 		for _, txid := range txs {
@@ -883,10 +901,10 @@ func GetFailedRechargeTxs(height uint64) []string {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 	list := make([]string, 0)
-	if height < 6 {
+	height, err := SafeUInt64Minus(height, blockDiff)
+	if err != nil {
 		return list
 	}
-	height = height - 6
 	txs := failedTxList[height]
 	if txs == nil || len(txs) == 0 {
 		txs = getTxsOnDb(height)
@@ -906,7 +924,8 @@ func GetFailedRechargeTxByHash(hash string) string {
 		return ""
 	}
 	for height, txs := range failedTxList {
-		if currentHeight - height < 6 {
+		v, err := SafeUInt64Minus(currentHeight, height)
+		if err != nil || v < blockDiff {
 			continue
 		}
 		for _, tx := range txs {
@@ -929,7 +948,8 @@ func GetFailedRechargeTxByHash(hash string) string {
 			continue
 		}
 		height := binary.BigEndian.Uint64(key)
-		if currentHeight - height < 6 {
+		diff, err := SafeUInt64Minus(currentHeight, height)
+		if err != nil ||  diff < blockDiff {
 			continue
 		}
 		for _, tx := range txs {
