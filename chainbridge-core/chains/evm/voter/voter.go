@@ -141,8 +141,8 @@ func (w *EVMVoter) GetSignerAddress() (common.Address, error) {
 	return w.account.CommonAddress(), nil
 }
 
-func (w *EVMVoter) SetArbiterList(arbiters [][]byte, bridgeAddress string) error {
-	definition := "[{\"inputs\":[{\"internalType\":\"bytes[]\",\"name\":\"_pubKeyList\",\"type\":\"bytes[]\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+func (w *EVMVoter) SetArbiterList(arbiters []common.Address, bridgeAddress string) error {
+	definition := "[{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addressList\",\"type\":\"address[]\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return err
@@ -191,12 +191,12 @@ func (w *EVMVoter) SetArbiterList(arbiters [][]byte, bridgeAddress string) error
 }
 
 func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error) {
-	definition := "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"_signers\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+	definition := "[{\"inputs\":[],\"name\":\"getAbiterList\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return []common.Address{}, err
 	}
-	input, err := a.Pack("_signers")
+	input, err := a.Pack("getAbiterList")
 	if err != nil {
 		return []common.Address{}, err
 	}
@@ -206,8 +206,10 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 	log.Info("GetArbiterList", "error", err, "out", out)
 
 	out0 := make([]common.Address, 0)
-	err = a.Unpack(out0, "getProposal", out)
-
+	err = a.Unpack(&out0, "getAbiterList", out)
+	if err != nil {
+		return nil, err
+	}
 	return out0, err
 }
 
