@@ -6,6 +6,7 @@ package relayer
 import (
 	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
@@ -13,7 +14,7 @@ type RelayedChain interface {
 	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message)
 	Write(message *Message) error
 	ChainID() uint8
-	WriteArbiters(aribters [][]byte) error
+	WriteArbiters(aribters []common.Address) error
 	GetArbiters() []common.Address
 }
 
@@ -68,9 +69,22 @@ func (r *Relayer) addRelayedChain(c RelayedChain) {
 	r.registry[chainID] = c
 }
 
-func (r *Relayer) UpdateArbiters(arbiters [][]byte) error {
+func (r *Relayer) UpdateArbiters(arbiters [][]byte, chainID uint8) error {
+	address := make([]common.Address, 0)
+	for _, arbiter := range arbiters {
+		escssaPUb, err := crypto.DecompressPubkey(arbiter)
+		if err != nil {
+			return err
+		}
+		addr := crypto.PubkeyToAddress(*escssaPUb)
+		address = append(address, addr)
+	}
+
 	for _, c := range r.relayedChains {
-		err := c.WriteArbiters(arbiters)
+		if c.ChainID() != chainID && chainID  != 0 {
+			continue
+		}
+		err := c.WriteArbiters(address)
 		if err != nil {
 			log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
 			return err

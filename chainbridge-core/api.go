@@ -12,12 +12,13 @@ type API struct {
 	engine *pbft.Pbft
 }
 
-func (a *API) UpdateArbiters() uint64 {
+func (a *API) UpdateArbiters(chainID uint8) uint64 {
 	list := arbiterManager.GetArbiterList()
 	log.Info("UpdateArbiters ","len", len(list), "producers", len(a.engine.GetCurrentProducers()))
 	if a.engine.HasProducerMajorityCount(len(list)) {
-		err := MsgReleayer.UpdateArbiters(list)
+		err := MsgReleayer.UpdateArbiters(list, chainID)
 		if err != nil {
+			log.Error("UpdateArbiters error", "error", err)
 			return 0
 		}
 		return 1
@@ -27,6 +28,8 @@ func (a *API) UpdateArbiters() uint64 {
 
 func (a *API) GetArbiters(chainID uint8) []common.Address {
 	address := MsgReleayer.GetArbiters(chainID)
-	log.Info("GetArbiters", "address", address)
+	for _, addr := range address {
+		log.Info("GetArbiters", "address", addr.String())
+	}
 	return address
 }
