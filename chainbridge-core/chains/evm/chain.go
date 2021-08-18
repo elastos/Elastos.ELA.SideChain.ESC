@@ -120,9 +120,6 @@ func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
 			continue
 		}
 		signature := c.msgPool.GetSignatures(p.Hash())
-		for _, sig := range signature {
-			fmt.Println("sig", common.Bytes2Hex(sig))
-		}
 		err := p.Execute(c.writer.GetClient(), signature)
 		if err != nil {
 			log.Error("proposal is execute error", "error", err)
@@ -144,7 +141,8 @@ func (c *EVMChain) ExecuteProposalBatch(msg *dpos_msg.BatchMsg) error {
 		items = append(items, p)
 	}
 	if len(items) > 0 {
-		err := voter.ExecuteBatch(c.writer.GetClient(), items)
+		signature := c.msgPool.GetSignatures(msg.GetHash())
+		err := voter.ExecuteBatch(c.writer.GetClient(), items, signature)
 		if err != nil {
 			return err
 		}
@@ -215,7 +213,7 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 }
 
 func (c *EVMChain) verifySignature(msg *dpos_msg.FeedbackBatchMsg) error {
-	pk, err := crypto.SigToPub(c.currentProposal.GetHash().Bytes(), msg.Signature)
+	pk, err := crypto.SigToPub(accounts.TextHash(c.currentProposal.GetHash().Bytes()), msg.Signature)
 	if err != nil {
 		return err
 	}
@@ -348,7 +346,7 @@ func (c *EVMChain) onBatchProposal(msg *dpos_msg.BatchMsg, proposalHash []byte) 
 		return errors.New("is self submit proposal")
 	}
 
-	pk, err := crypto.SigToPub(proposalHash, msg.Signature)
+	pk, err := crypto.SigToPub(accounts.TextHash(proposalHash), msg.Signature)
 	if err != nil {
 		return err
 	}
