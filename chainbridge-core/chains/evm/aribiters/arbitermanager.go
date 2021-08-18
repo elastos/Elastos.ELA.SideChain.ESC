@@ -6,6 +6,7 @@ import (
 )
 
 type ArbiterManager struct {
+	totalCount int
 	arbiterList [][]byte
 	mtx         sync.RWMutex
 }
@@ -15,6 +16,14 @@ func CreateArbiterManager() *ArbiterManager {
 		arbiterList: make([][]byte, 0),
 	}
 	return manager
+}
+
+func (a *ArbiterManager) SetTotalCount(count int) {
+	a.totalCount = count
+}
+
+func (a *ArbiterManager) GetTotalCount() int {
+	return a.totalCount
 }
 
 func (a *ArbiterManager) AddArbiter(arbiter []byte) {

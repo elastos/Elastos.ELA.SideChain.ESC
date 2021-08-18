@@ -56,6 +56,10 @@ func (p *Pbft) GetTotalProducerCount() int {
 	return len(p.dispatcher.GetConsensusView().GetProducers())
 }
 
+func (p *Pbft) GetTotalArbitersCount() int {
+	return p.dispatcher.GetConsensusView().GetTotalArbiterCount()
+}
+
 func (p *Pbft) IsSyncFinished() bool {
 	return p.IsCurrent()
 }
