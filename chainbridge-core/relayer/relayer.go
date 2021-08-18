@@ -14,7 +14,7 @@ type RelayedChain interface {
 	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message)
 	Write(message *Message) error
 	ChainID() uint8
-	WriteArbiters(aribters []common.Address) error
+	WriteArbiters(aribters []common.Address, totalCount int) error
 	GetArbiters() []common.Address
 }
 
@@ -69,7 +69,7 @@ func (r *Relayer) addRelayedChain(c RelayedChain) {
 	r.registry[chainID] = c
 }
 
-func (r *Relayer) UpdateArbiters(arbiters [][]byte, chainID uint8) error {
+func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int, chainID uint8) error {
 	address := make([]common.Address, 0)
 	for _, arbiter := range arbiters {
 		escssaPUb, err := crypto.DecompressPubkey(arbiter)
@@ -84,7 +84,7 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, chainID uint8) error {
 		if c.ChainID() != chainID && chainID  != 0 {
 			continue
 		}
-		err := c.WriteArbiters(address)
+		err := c.WriteArbiters(address, totalCount)
 		if err != nil {
 			log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
 			return err
