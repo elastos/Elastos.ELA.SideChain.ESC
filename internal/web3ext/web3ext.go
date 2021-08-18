@@ -45,6 +45,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'updateArbiters',
 			call: 'bridge_updateArbiters',
+			params: 1,
+			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
 			name: 'getArbiters',
