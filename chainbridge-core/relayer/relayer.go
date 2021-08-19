@@ -16,6 +16,7 @@ type RelayedChain interface {
 	ChainID() uint8
 	WriteArbiters(aribters []common.Address, totalCount int) error
 	GetArbiters() []common.Address
+	GetBridgeContract() string
 }
 
 func NewRelayer(chains []RelayedChain) *Relayer {
