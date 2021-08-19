@@ -424,6 +424,7 @@ type ChainConfig struct {
 	PbftKeyStore          string `json:"pbftKeyStore,omitempty"`
 	PbftKeyStorePassWord  string
 	DynamicArbiterHeight  uint64 `json:"dynamicArbiterHeight,omitempty"`
+	BridgeContractAddr    string
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
