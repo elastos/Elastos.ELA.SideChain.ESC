@@ -226,6 +226,7 @@ func initRelayer(engine *pbft.Pbft, accountPassword string) {
 	path = config.DefaultConfigDir + "layer2_config.json"
 	layer2 := createChain(path, db, engine, accountPassword)
 	evm.Layer2ChainID = layer2.ChainID()
+	engine.GetBlockChain().Config().BridgeContractAddr = layer2.GetBridgeContract()
 
 	MsgReleayer = relayer.NewRelayer([]relayer.RelayedChain{layer1, layer2})
 }
