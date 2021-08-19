@@ -357,7 +357,7 @@ func broadFailedWithdrawEvt(hash, signature string) {
 		Signature: signature,
 		Txid:      hash,
 	}
-	eventMux.Post(evt)
+	go eventMux.Post(evt)
 
 	go events.Notify(dpos.ETFailedWithdrawTx, &evt)
 }
