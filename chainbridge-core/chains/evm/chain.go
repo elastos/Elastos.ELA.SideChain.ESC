@@ -396,6 +396,10 @@ func (c *EVMChain) GetArbiters() []common.Address {
 	return list
 }
 
+func (c *EVMChain) GetBridgeContract() string {
+	return c.config.Opts.Bridge
+}
+
 func (c *EVMChain) Write(msg *relayer.Message) error {
 	proposal, err := c.writer.HandleProposal(msg)
 	if err != nil {
