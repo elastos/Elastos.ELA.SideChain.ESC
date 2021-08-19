@@ -142,6 +142,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		producers[i] = common.Hex2Bytes(v)
 	}
 	account, err := dpos.GetDposAccount(pbftKeystore, password)
+	var bridgeAccount crypto.Keypair
 	if err != nil {
 		if string(password) == "" {
 			fmt.Println("create dpos account error:", err.Error(), "pbftKeystore:", pbftKeystore, "password")
@@ -149,10 +150,15 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 			fmt.Println("create dpos account error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
 		}
 		//can't return, because common node need verify use this engine
-	}
-	bridgeAccount, err := dpos.GetBridgeAccount(pbftKeystore, password)
-	if err != nil {
-		fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
+	} else {
+		bridgeAccount, err = dpos.GetBridgeAccount(pbftKeystore, password)
+		if err != nil {
+			if string(password) == "" {
+				fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password")
+			} else {
+				fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
+			}
+		}
 	}
 	medianTimeSouce := dtime.NewMedianTime()
 
