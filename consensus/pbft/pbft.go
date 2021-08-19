@@ -778,6 +778,10 @@ func (p *Pbft) SetBlockChain(chain *core.BlockChain) {
 	p.chain = chain
 }
 
+func (p *Pbft) GetBlockChain() *core.BlockChain {
+	return p.chain
+}
+
 func (p *Pbft) broadConfirmMsg(confirm *payload.Confirm, height uint64) {
 	msg := dmsg.NewConfirmMsg(confirm, height)
 	p.BroadMessage(msg)
