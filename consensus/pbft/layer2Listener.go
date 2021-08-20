@@ -87,5 +87,10 @@ func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 		if ok {
 			events.Notify(dpos_msg.ETOnArbiter, msg)
 		}
+	case dpos_msg.CmdRequireArbiters:
+		msg, ok := c.(*dpos_msg.RequireArbiter)
+		if ok {
+			events.Notify(dpos_msg.ETRequireArbiter, msg)
+		}
 	}
 }
