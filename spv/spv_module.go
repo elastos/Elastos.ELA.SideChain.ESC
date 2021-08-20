@@ -685,6 +685,10 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	if transactionHash[0:2] == "0x" {
 		transactionHash = transactionHash[2:]
 	}
+	if IsFailedElaTx(transactionHash) {
+		log.Error("IsFailedElaTx", "transactionHash", transactionHash)
+		return new(big.Int), emptyaddr, new(big.Int)
+	}
 	if spvTransactiondb == nil {
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
@@ -798,19 +802,11 @@ func IsFailedElaTx(elaTx string) bool {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 
-	currentHeight, err := ipcClient.CurrentBlockNumber(context.Background())
-	if err != nil {
-		return false
-	}
 	if elaTx[0:2] == "0x" {
 		elaTx = elaTx[2:]
 	}
-	for height, txs := range failedTxList {
+	for _, txs := range failedTxList {
 		for _, txid := range txs {
-			diff, err := SafeUInt64Minus(currentHeight, height)
-			if err != nil || diff < blockDiff {
-				continue
-			}
 			if txid[0:2] == "0x" {
 				txid = txid[2:]
 			}
@@ -832,11 +828,6 @@ func IsFailedElaTx(elaTx string) bool {
 		if len(key) != 8 || len(txs) == 0 {
 			continue
 		}
-		height := binary.BigEndian.Uint64(key)
-		diff, err := SafeUInt64Minus(currentHeight, height)
-		if diff < blockDiff || err != nil {
-			continue
-		}
 		for _, txid := range txs {
 			if txid[0:2] == "0x" {
 				txid = txid[2:]
@@ -846,7 +837,6 @@ func IsFailedElaTx(elaTx string) bool {
 			}
 		}
 	}
-
 	return false
 }
 
