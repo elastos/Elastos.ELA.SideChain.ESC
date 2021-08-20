@@ -5,4 +5,5 @@ const (
 	CmdBatchProposal = "batchPro"
 	CmdFeedbackBatch = "feedbackPro"
 	CmdDArbiter = "arbiter"
+	CmdRequireArbiters = "req_arbiter"
 )
