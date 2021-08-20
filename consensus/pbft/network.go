@@ -129,6 +129,13 @@ func (p *Pbft) GetCurrentProducers() [][]byte {
 	return [][]byte{}
 }
 
+func (p *Pbft) IsProducerByAccount(account []byte) bool {
+	if p.dispatcher != nil {
+		return p.dispatcher.IsProducer(account)
+	}
+	return false
+}
+
 func (p *Pbft) BroadBlockMsg(block *types.Block) error {
 	sealHash := p.SealHash(block.Header())
 	log.Info("BroadPreBlock,", "block Height:", block.NumberU64(), "hash:", sealHash.String())
