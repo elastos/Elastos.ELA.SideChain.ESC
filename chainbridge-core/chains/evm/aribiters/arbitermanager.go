@@ -2,6 +2,7 @@ package aribiters
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 )
 
@@ -26,13 +27,14 @@ func (a *ArbiterManager) GetTotalCount() int {
 	return a.totalCount
 }
 
-func (a *ArbiterManager) AddArbiter(arbiter []byte) {
+func (a *ArbiterManager) AddArbiter(arbiter []byte) error {
 	if a.HashArbiter(arbiter) {
-		return
+		return errors.New("has added this arbiter")
 	}
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.arbiterList = append(a.arbiterList, arbiter)
+	return nil
 }
 
 func (a *ArbiterManager) HashArbiter(arbiter []byte) bool {
