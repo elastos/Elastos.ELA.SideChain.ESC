@@ -2,11 +2,9 @@ package chainbridge_core
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
@@ -57,13 +55,17 @@ func APIs(engine *pbft.Pbft) []rpc.API {
 	}}
 }
 
-func Start(engine *pbft.Pbft, accountPassword string) {
+func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 	log.Info("chain bridge start")
 	if MsgReleayer != nil {
 		log.Warn("chain bridge is started")
 		return
 	}
-	initRelayer(engine, accountPassword)
+	err := initRelayer(engine, accountPath, accountPassword)
+	if err != nil {
+		log.Error("chain bridge started error", "error", err)
+		return
+	}
 	arbiterManager.SetTotalCount(engine.GetTotalArbitersCount())
 	arbiterManager.AddArbiter(engine.GetBridgeArbiters().PublicKeyBytes())//add self
 	events.Subscribe(func(e *events.Event) {
@@ -78,8 +80,8 @@ func Start(engine *pbft.Pbft, accountPassword string) {
 				go onSelfIsArbiter(engine)
 			}
 			if !isProducer {
-				relayStarted = false
-				errChn <- fmt.Errorf("chain bridge is not a super node")
+
+				Stop()
 				return
 			}
 		case dpos_msg.ETOnArbiter:
@@ -156,7 +158,6 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) bool {
 }
 
 func onSelfIsArbiter(engine *pbft.Pbft) {
-	out:
 	for{
 		select {
 		case <-time.After(time.Second * 2):
@@ -169,11 +170,14 @@ func onSelfIsArbiter(engine *pbft.Pbft) {
 				} else {
 					log.Info("bridge is starting relay")
 				}
-				break out
+				return
 			}
 		case err := <-errChn:
 			log.Error("failed to listen and serve", "error", err)
-			close(stopChn)
+			if stopChn != nil {
+				close(stopChn)
+			}
+			return
 		}
 	}
 }
@@ -228,52 +232,58 @@ func getActivePeerCount(engine *pbft.Pbft) int {
 	return count
 }
 
-func initRelayer(engine *pbft.Pbft, accountPassword string) {
+func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
 	if MsgReleayer != nil {
-		return
+		return nil
 	}
 	db, err := lvldb.NewLvlDB(config.BlockstoreFlagName)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	path := config.DefaultConfigDir + "layer1_config.json"
-	layer1 := createChain(path, db, engine, accountPassword)
+	layer1, err := createChain(path, db, engine, accountPath, accountPassword)
+	if err != nil {
+		return errors.New(fmt.Sprintf("layer1 is create error:%s", err.Error()))
+	}
 	evm.Layer1ChainID = layer1.ChainID()
 	path = config.DefaultConfigDir + "layer2_config.json"
-	layer2 := createChain(path, db, engine, accountPassword)
+	layer2, err := createChain(path, db, engine, accountPath, accountPassword)
+	if layer1 == nil {
+		return errors.New(fmt.Sprintf("layer2 is create error:%s", err.Error()))
+	}
 	evm.Layer2ChainID = layer2.ChainID()
 	engine.GetBlockChain().Config().BridgeContractAddr = layer2.GetBridgeContract()
 
 	MsgReleayer = relayer.NewRelayer([]relayer.RelayedChain{layer1, layer2})
+	return nil
 }
 
 func relayerStart() error {
 	stopChn = make(chan struct{})
 	go MsgReleayer.Start(stopChn, errChn)
 
-	sysErr := make(chan os.Signal, 1)
-	signal.Notify(sysErr,
-		syscall.SIGTERM,
-		syscall.SIGINT)
-
 	select {
 	case err := <-errChn:
 		log.Error("failed to listen and serve", "error", err)
 		close(stopChn)
 		return err
-	case sig := <-sysErr:
-		log.Error(fmt.Sprintf("terminating got [%v] signal", sig))
-		return nil
 	}
 	return nil
 }
 
-func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPassword string) *evm.EVMChain {
+func Stop()  {
+	if relayStarted {
+		relayStarted = false
+		errChn <- fmt.Errorf("chain bridge is shut down")
+	}
+}
+
+func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
 	ethClient := evmclient.NewEVMClient(engine)
-	err := ethClient.Configurate(path, accountPassword)
+	err := ethClient.Configurate(path, accountPath, accountPassword)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	ethCfg := ethClient.GetConfig()
 	eventHandler := listener.NewETHEventHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge), ethClient)
@@ -287,10 +297,10 @@ func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.P
 
 	kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
 	if kp == nil {
-		panic("GetBridgeArbiters is nil")
+		return nil, errors.New("GetBridgeArbiters is nil")
 	}
 	voter := voter.NewVoter(messageHandler, ethClient, kp)
 
 	chain := evm.NewEVMChain(evmListener, voter, db, ethCfg.SharedEVMConfig.Id, &ethCfg.SharedEVMConfig)
-	return chain
+	return chain, nil
 }
