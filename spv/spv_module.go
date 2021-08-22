@@ -46,13 +46,14 @@ var (
 	muupti           sync.RWMutex
 	candSend         int32     //1 can send recharge transactions, 0 can not send recharge transactions
 	candIterator     int32 = 0 //0 Iteratively send recharge transactions, 1 can't iteratively send recharge transactions
-	MinedBlockSub    *event.TypeMuxSubscription
 
 	GetDefaultSingerAddr func() ethCommon.Address
 
 	failedMutex      sync.RWMutex
 	failedTxList = make(map[uint64][]string)
 	consensusMode spv.ConsensusAlgorithm
+
+	stopChn = make(chan  struct{})
 )
 
 const (
@@ -196,6 +197,10 @@ func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux) (*Service,
 func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *event.TypeMuxSubscription) {
 	var i = 0
 
+	defer func() {
+		minedBlockSub.Unsubscribe()
+		ondutySub.Unsubscribe()
+	}()
 	for {
 		select {
 		case <-minedBlockSub.Chan():
@@ -211,6 +216,8 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *eve
 				log.Info("receive onduty event")
 				atomic.StoreInt32(&candSend, 0)
 			}
+		case _ = <-stopChn:
+			return
 		}
 	}
 }
@@ -985,4 +992,12 @@ func GetArbiters() ([]string, error) {
 
 func GetClient() *ethclient.Client {
 	return ipcClient
+}
+
+func Close()  {
+	spvdb := SpvService.GetDatabase()
+	if spvdb != nil {
+		spvdb.Close()
+	}
+	close(stopChn)
 }
