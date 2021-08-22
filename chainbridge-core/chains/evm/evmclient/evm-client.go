@@ -45,7 +45,7 @@ func NewEVMClient(engine engine.ESCEngine) *EVMClient {
 	return &EVMClient{engine: engine}
 }
 
-func (c *EVMClient) Configurate(path string, password string) error {
+func (c *EVMClient) Configurate(path string, accountPath, password string) error {
 	rawCfg, err := GetConfig(path)
 	if err != nil {
 		return err
@@ -56,8 +56,10 @@ func (c *EVMClient) Configurate(path string, password string) error {
 	}
 	c.config = cfg
 	generalConfig := cfg.SharedEVMConfig
-
-	kp, err := keystore.KeypairFromAddress(keystore.EthChain, generalConfig.KeystorePath, []byte(password), generalConfig.Insecure)
+	if len(generalConfig.KeystorePath) > 0  {
+		accountPath = generalConfig.KeystorePath
+	}
+	kp, err := keystore.KeypairFromAddress(keystore.EthChain, accountPath, []byte(password), generalConfig.Insecure)
 	if err != nil {
 		panic(err)
 	}
