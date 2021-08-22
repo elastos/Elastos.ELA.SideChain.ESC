@@ -619,10 +619,14 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			}
 		}
 		go func() {
+			accPath := ""
+			if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
+				accPath = wallets[0].URL().Path
+			}
 			passwords := utils.MakePasswordList(ctx)
 			pbft := ethereum.BlockChain().GetDposEngine().(*pbft.Pbft)
 			if pbft.GetProducer() != nil {
-				chainbridge_core.Start(pbft, passwords[0])
+				chainbridge_core.Start(pbft, accPath, passwords[0])
 				pbft.AnnounceDAddr()
 			}
 		}()
