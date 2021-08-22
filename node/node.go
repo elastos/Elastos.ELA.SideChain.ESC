@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
+	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/rawdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
@@ -475,6 +476,7 @@ func (n *Node) Stop() error {
 	if keystoreErr != nil {
 		return keystoreErr
 	}
+	chainbridge_core.Stop()
 	return nil
 }
 
