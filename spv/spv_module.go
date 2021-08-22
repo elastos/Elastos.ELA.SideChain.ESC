@@ -47,7 +47,6 @@ var (
 	muupti           sync.RWMutex
 	candSend         int32     //1 can send recharge transactions, 0 can not send recharge transactions
 	candIterator     int32 = 0 //0 Iteratively send recharge transactions, 1 can't iteratively send recharge transactions
-	MinedBlockSub    *event.TypeMuxSubscription
 
 	GetDefaultSingerAddr func() ethCommon.Address
 
