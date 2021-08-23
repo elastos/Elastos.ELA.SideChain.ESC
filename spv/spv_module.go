@@ -998,6 +998,6 @@ func Close()  {
 	spvdb := SpvService.GetDatabase()
 	if spvdb != nil {
 		spvdb.Close()
+		close(stopChn)
 	}
-	close(stopChn)
 }
