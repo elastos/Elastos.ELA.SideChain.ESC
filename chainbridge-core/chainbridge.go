@@ -66,27 +66,31 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 		log.Error("chain bridge started error", "error", err)
 		return
 	}
-	arbiterManager.SetTotalCount(engine.GetTotalArbitersCount())
-	arbiterManager.AddArbiter(engine.GetBridgeArbiters().PublicKeyBytes())//add self
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
+			isProducer := engine.IsProducer()
 			if atomic.LoadInt32(&canStart) == 0 {
 				return
 			}
 			atomic.StoreInt32(&canStart, 0)
-			isProducer := engine.IsProducer()
+
 			if isProducer {
+				log.Info("became a producer, collet arbiter")
+				arbiterManager.Clear()
+				arbiterManager.AddArbiter(engine.GetBridgeArbiters().PublicKeyBytes())//add self
+				arbiterManager.SetTotalCount(engine.GetTotalArbitersCount())
 				go onSelfIsArbiter(engine)
 			}
 			if !isProducer {
-
+				log.Info("self is not a producer, chain bridge is stop")
 				Stop()
 				return
 			}
 		case dpos_msg.ETOnArbiter:
 			if hanleDArbiter(engine, e) {
 				list := arbiterManager.GetArbiterList()
+				log.Info("GetArbiterList", "count", len(list))
 				if engine.HasProducerMajorityCount(len(list)) {
 					go func() {
 						time.Sleep(2 * time.Second)
@@ -184,7 +188,7 @@ func onSelfIsArbiter(engine *pbft.Pbft) {
 
 func requireArbiters(engine *pbft.Pbft) bool {
 	count := getActivePeerCount(engine)
-	log.Info("getActivePeerCount", "count", count)
+	log.Info("getActivePeerCount", "count", count, "total", len(engine.GetCurrentProducers()))
 	if engine.HasProducerMajorityCount(count) {
 		selfProducer := engine.GetProducer()
 		msg := &dpos_msg.RequireArbiter{}
@@ -277,6 +281,8 @@ func Stop()  {
 		relayStarted = false
 		errChn <- fmt.Errorf("chain bridge is shut down")
 	}
+	atomic.StoreInt32(&canStart, 1)
+	arbiterManager.Clear()
 }
 
 func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
