@@ -68,3 +68,9 @@ func (a *ArbiterManager) GetArbiterList() [][]byte {
 	}
 	return list
 }
+
+func (a *ArbiterManager) Clear() {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	a.arbiterList = make([][]byte, 0)
+}

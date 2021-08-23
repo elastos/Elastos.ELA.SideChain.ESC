@@ -15,6 +15,10 @@ type API struct {
 func (a *API) UpdateArbiters(chainID uint8) uint64 {
 	list := arbiterManager.GetArbiterList()
 	total := arbiterManager.GetTotalCount()
+	if !a.engine.IsProducer() {
+		log.Error("self is not a producer")
+		return 0
+	}
 	log.Info("UpdateArbiters ","len", len(list), "total", total, "producers", len(a.engine.GetCurrentProducers()))
 	if a.engine.HasProducerMajorityCount(len(list)) {
 		err := MsgReleayer.UpdateArbiters(list, total, chainID)
