@@ -129,7 +129,7 @@ func InitNextTurnDposInfo() {
 		return
 	}
 
-	if consensusMode == spv.POW && len(crcArbiters) == 0 && len(normalArbiters) == 0 {
+	if GetCurrentConsensusMode() == spv.POW && len(crcArbiters) == 0 && len(normalArbiters) == 0 {
 		log.Error("current consensus is pow and next turn is pow")
 		return
 	}
