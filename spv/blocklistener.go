@@ -79,19 +79,20 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 	if nextTurnDposInfo == nil {
 		return
 	}
-	if consensusMode == spv.POW && GetCurrentConsensusMode() == spv.DPOS {
+	nowConsensus := GetCurrentConsensusMode()
+	if consensusMode == spv.POW && nowConsensus == spv.DPOS {
 		log.Info("----------turn to Dpos mode------------")
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 		InitNextTurnDposInfo()
-	} else if consensusMode == spv.DPOS && GetCurrentConsensusMode() == spv.POW {
+	} else if consensusMode == spv.DPOS && nowConsensus == spv.POW {
 		log.Info("----------turn to POW mode------------")
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 		InitNextTurnDposInfo()
 	}
-	if SpvIsWorkingHeight() {
+	if SpvIsWorkingHeight() && nowConsensus != spv.POW {
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 	}
-	consensusMode = GetCurrentConsensusMode()
+	consensusMode = nowConsensus
 	log.Info("current consensus mode", "mode", consensusMode)
 }
 
@@ -130,7 +131,10 @@ func InitNextTurnDposInfo() {
 	}
 
 	if GetCurrentConsensusMode() == spv.POW && len(crcArbiters) == 0 && len(normalArbiters) == 0 {
-		log.Error("current consensus is pow and next turn is pow")
+		log.Info("current consensus is pow and next turn is pow", "consensusMode", consensusMode)
+		if consensusMode == spv.DPOS {
+			DumpNextDposInfo()
+		}
 		return
 	}
 
