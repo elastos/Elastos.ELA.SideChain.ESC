@@ -31,10 +31,9 @@ type ChainClient interface {
 	LatestBlock() (*big.Int, error)
 	SignAndSendTransaction(ctx context.Context, tx evmclient.CommonTransaction) (common.Hash, error)
 	CallContract(ctx context.Context, callArgs map[string]interface{}, blockNumber *big.Int) ([]byte, error)
-	UnsafeNonce() (*big.Int, error)
+	GetNonce() (*big.Int, error)
 	LockNonce()
 	UnlockNonce()
-	UnsafeIncreaseNonce() error
 	GasPrice() (*big.Int, error)
 	EstimateGasLimit(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	ChainID(ctx context.Context) (*big.Int, error)
@@ -171,7 +170,7 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, bri
 	}
 	w.client.LockNonce()
 	defer w.client.UnlockNonce()
-	n, err := w.client.UnsafeNonce()
+	n, err := w.client.GetNonce()
 	if err != nil {
 		return err
 	}
@@ -181,12 +180,6 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, bri
 	if err != nil {
 		return err
 	}
-
-	err = w.client.UnsafeIncreaseNonce()
-	if err != nil {
-		log.Error("UnsafeIncreaseNonce error", "error", err)
-	}
-
 	log.Info("SetArbiterList", "error", err, "hash", hash.String())
 	return err
 }
