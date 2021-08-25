@@ -165,7 +165,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte) error {
 	}
 	client.LockNonce()
 	defer client.UnlockNonce()
-	n, err := client.UnsafeNonce()
+	n, err := client.GetNonce()
 	if err != nil {
 		return err
 	}
@@ -185,15 +185,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte) error {
 		return err
 	}
 
-	err = client.UnsafeIncreaseNonce()
-	if err != nil {
-		log.Error("UnsafeIncreaseNonce error", "error", err)
-		return err
-	}
-
-	chainID, _ := client.ChainID(context.TODO())
-	nowNonce, _ := client.UnsafeNonce()
-	log.Info("Executed proposal","hash", hash.String(), "chainID", chainID.Uint64(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "dest", p.Destination, "increcedNonce", nowNonce.Uint64())
+	log.Info("Executed proposal","hash", hash.String(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "dest", p.Destination)
 	return nil
 }
 
@@ -226,7 +218,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte) erro
 	}
 	client.LockNonce()
 	defer client.UnlockNonce()
-	n, err := client.UnsafeNonce()
+	n, err := client.GetNonce()
 	if err != nil {
 		return err
 	}
@@ -246,14 +238,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte) erro
 		return err
 	}
 
-	err = client.UnsafeIncreaseNonce()
-	if err != nil {
-		log.Error("UnsafeIncreaseNonce error", "error", err)
-	}
-
-	chainID, _ := client.ChainID(context.TODO())
-	nowNonce, _ := client.UnsafeNonce()
-	log.Info("Executed proposal batch ","hash", hash.String(), "chainID", chainID.Uint64(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "increcedNonce", nowNonce.Uint64())
+	log.Info("Executed proposal batch ","hash", hash.String(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64())
 
 	return nil
 }
