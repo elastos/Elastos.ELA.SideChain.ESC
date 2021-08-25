@@ -195,30 +195,18 @@ func (c *EVMClient) UnlockNonce() {
 	c.nonceLock.Unlock()
 }
 
-func (c *EVMClient) UnsafeNonce() (*big.Int, error) {
+func (c *EVMClient) GetNonce() (*big.Int, error) {
 	var err error
 	for i := 0; i <= 10; i++ {
-		if c.nonce == nil {
-			nonce, err := c.PendingNonceAt(context.Background(), c.config.kp.CommonAddress())
-			if err != nil {
-				time.Sleep(1)
-				continue
-			}
-			c.nonce = big.NewInt(0).SetUint64(nonce)
-			return c.nonce, nil
+		nonce, err := c.PendingNonceAt(context.Background(), c.config.kp.CommonAddress())
+		if err != nil {
+			time.Sleep(1)
+			continue
 		}
+		c.nonce = big.NewInt(0).SetUint64(nonce)
 		return c.nonce, nil
 	}
 	return nil, err
-}
-
-func (c *EVMClient) UnsafeIncreaseNonce() error {
-	nonce, err := c.UnsafeNonce()
-	if err != nil {
-		return err
-	}
-	c.nonce = nonce.Add(nonce, big.NewInt(1))
-	return nil
 }
 
 func (c *EVMClient) GasPrice() (*big.Int, error) {
