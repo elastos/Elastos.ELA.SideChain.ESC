@@ -1,14 +1,14 @@
 package dpos_msg
 
 import (
+	"bytes"
+	"errors"
 	"io"
+	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
-
-	"golang.org/x/crypto/sha3"
-
 	elaCom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/p2p"
@@ -130,14 +130,44 @@ func (m *BatchMsg) Deserialize(r io.Reader) error {
 	return nil
 }
 
-func (m *BatchMsg) GetHash() (hash common.Hash) {
-	hasher := sha3.NewLegacyKeccak256()
-	err := rlp.Encode(hasher, m.Items)
-	if err != nil {
-		log.Error("DepositProposalMsg error", "error", err)
-		return common.Hash{}
+func (m *BatchMsg) GetData(w io.Writer) error {
+	count := len(m.Items)
+	if count < 1 {
+		return errors.New("batch msg items is empty")
 	}
-	hasher.Sum(hash[:0])
+
+	chainID := big.NewInt(0).SetUint64(uint64(m.Items[0].SourceChainID)).Bytes()
+	if _, err := w.Write(common.LeftPadBytes(chainID, 32)); err != nil {
+		return err
+	}
+
+	for i := 0; i < count; i++ {
+		nonce := big.NewInt(0).SetUint64(m.Items[i].DepositNonce).Bytes()
+		if _, err := w.Write(common.LeftPadBytes(nonce, 32)); err != nil {
+			return err
+		}
+
+		if _, err := w.Write(m.Items[i].ResourceId[:]); err != nil {
+			return err
+		}
+
+		if _, err := w.Write(m.Items[i].Data); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *BatchMsg) GetHash() (hash common.Hash) {
+	w := bytes.NewBuffer([]byte{})
+	err := m.GetData(w)
+	if err != nil {
+		log.Error("Proposal Serialize error", "error", err)
+		return hash
+	}
+	hash = crypto.Keccak256Hash(w.Bytes())
+	log.Info("BatchMsg hash", hash.String())
 	return hash
 }
 
