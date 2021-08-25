@@ -289,7 +289,7 @@ func (a *arbitrators) CheckCRCAppropriationTx(block *types.Block) error {
 
 func (a *arbitrators) CheckCustomIDResultsTx(block *types.Block) error {
 	a.mtx.Lock()
-	needCustomProposalResult := a.crCommittee.NeedCIDProposalResult
+	needCustomProposalResult := a.crCommittee.NeedRecordProposalResult
 	a.mtx.Unlock()
 
 	var cidProposalResultCount uint32
@@ -331,6 +331,13 @@ func (a *arbitrators) ProcessSpecialTxPayload(p types.Payload,
 
 	a.State.ProcessSpecialTxPayload(p, height)
 	return a.ForceChange(height)
+}
+
+func (a *arbitrators) RollbackSeekTo(height uint32) {
+	a.mtx.Lock()
+	a.history.RollbackSeekTo(height)
+	a.State.RollbackSeekTo(height)
+	a.mtx.Unlock()
 }
 
 func (a *arbitrators) RollbackTo(height uint32) error {

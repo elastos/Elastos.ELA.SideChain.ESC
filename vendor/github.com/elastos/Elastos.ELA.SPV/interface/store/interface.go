@@ -8,6 +8,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/core/types"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -147,6 +148,10 @@ type CustomID interface {
 	BatchDeleteControversialReceivedCustomIDs(
 		proposalHash common.Uint256, batch *leveldb.Batch)
 
+	BatchPutRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error
+	BatchDeleteRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error
+
+
 	PutControversialChangeCustomIDFee(rate common.Fixed64,
 		proposalHash common.Uint256) error
 	BatchPutControversialChangeCustomIDFee(rate common.Fixed64,
@@ -160,4 +165,6 @@ type CustomID interface {
 	GetReservedCustomIDs() (map[string]struct{}, error)
 	GetReceivedCustomIDs() (map[string]common.Uint168, error)
 	GetCustomIDFeeRate() (common.Fixed64, error)
+	//Is this RetSideChainDepositCoin tx exist
+	HaveRetSideChainDepositCoinTx(txHash common.Uint256)bool
 }

@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"sort"
+	"strconv"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
@@ -1140,7 +1142,7 @@ func checkTransactionPayload(txn *Transaction) error {
 	case *payload.CRCouncilMemberClaimNode:
 	case *payload.RevertToPOW:
 	case *payload.RevertToDPOS:
-	case *payload.CustomIDProposalResult:
+	case *payload.RecordProposalResult:
 	case *payload.ReturnSideChainDepositCoin:
 	default:
 		return errors.New("[txValidator],invalidate transaction payload type.")
@@ -1347,6 +1349,11 @@ func (b *BlockChain) checkTxHeightVersion(txn *Transaction, blockHeight uint32) 
 				return errors.New("not support " +
 					"TransferCrossChainAsset payload version V0 after NewCrossChainStartHeight")
 			}
+		}
+	case ReturnSideChainDepositCoin:
+		if blockHeight < b.chainParams.ReturnCrossChainCoinStartHeight {
+			return errors.New(fmt.Sprintf("not support %s transaction "+
+				"before ReturnCrossChainCoinStartHeight", txn.TxType.Name()))
 		}
 	}
 
@@ -1699,7 +1706,7 @@ func (b *BlockChain) checkCustomIDResultTransaction(txn *Transaction) error {
 	if !DefaultLedger.Committee.IsCustomIDResultNeeded() {
 		return errors.New("should not have custom ID result transaction")
 	}
-	p, ok := txn.Payload.(*payload.CustomIDProposalResult)
+	p, ok := txn.Payload.(*payload.RecordProposalResult)
 	if !ok {
 		return errors.New("invalid custom ID result payload")
 	}
@@ -2633,7 +2640,7 @@ func (b *BlockChain) checkReturnSideChainDepositTransaction(txn *Transaction) er
 
 		tx, _, err := b.db.GetTransaction(py.DepositTransactionHash)
 		if err != nil {
-			return errors.New("invalid deposit tx:" + tx.String())
+			return errors.New("invalid deposit tx:" + py.DepositTransactionHash.String())
 		}
 		refTx, _, err := b.db.GetTransaction(tx.Inputs[0].Previous.TxID)
 		if err != nil {
@@ -3160,6 +3167,84 @@ func (b *BlockChain) checkChangeSecretaryGeneralProposalTx(crcProposal *payload.
 	return nil
 }
 
+func (b *BlockChain) checkRegisterSideChainProposal(proposal *payload.CRCProposal, payloadVersion byte) error {
+	_, err := crypto.DecodePoint(proposal.OwnerPublicKey)
+	if err != nil {
+		return errors.New("DecodePoint from OwnerPublicKey error")
+	}
+
+	if proposal.SideChainName == "" {
+		return errors.New("SideChainName can not be empty")
+	}
+
+	for _, name := range b.crCommittee.GetProposalManager().RegisteredSideChainNames {
+		if name == proposal.SideChainName {
+			return errors.New("SideChainName already registered")
+		}
+	}
+
+	for _, mn := range b.crCommittee.GetProposalManager().RegisteredMagicNumbers {
+		if mn == proposal.MagicNumber {
+			return errors.New("MagicNumber already registered")
+		}
+	}
+
+	for _, gene := range b.crCommittee.GetProposalManager().RegisteredGenesisHashes {
+		if gene.IsEqual(proposal.GenesisHash) {
+			return errors.New("Genesis Hash already registered")
+		}
+	}
+
+	if len(proposal.DNSSeeds) == 0 {
+		return errors.New("DNSSeeds can not be blank")
+	}
+
+	for _, seed := range proposal.DNSSeeds {
+		host, _, err := net.SplitHostPort(seed)
+		if err != nil {
+			host = seed
+		}
+
+		if !payload.SeedRegexp.MatchString(host) {
+			return errors.New("DNSSeed not valid " + seed)
+		}
+	}
+
+	if proposal.GenesisBlockDifficulty == "" {
+		return errors.New("GenesisBlockDifficulty can not be blank")
+	}
+
+	if _, err := strconv.Atoi(proposal.GenesisBlockDifficulty); err != nil {
+		return errors.New("GenesisBlockDifficulty value is not valid")
+	}
+
+	if proposal.GenesisHash == common.EmptyHash {
+		return errors.New("GenesisHash can not be empty")
+	}
+
+	if proposal.GenesisTimestamp == 0 {
+		return errors.New("GenesisTimestamp can not be 0")
+	}
+
+	if proposal.NodePort == 0 {
+		return errors.New("NodePort can not be 0")
+	}
+
+	if len(proposal.Budgets) > 0 {
+		return errors.New("RegisterSideChain cannot have budget")
+	}
+	emptyUint168 := common.Uint168{}
+	if proposal.Recipient != emptyUint168 {
+		return errors.New("RegisterSideChain recipient must be empty")
+	}
+	crMember := b.crCommittee.GetMember(proposal.CRCouncilMemberDID)
+	if crMember == nil {
+		return errors.New("CR Council Member should be one of the CR members")
+	}
+
+	return b.checkOwnerAndCRCouncilMemberSign(proposal, crMember.Info.Code, payloadVersion)
+}
+
 func (b *BlockChain) checkReservedCustomID(proposal *payload.CRCProposal, PayloadVersion byte) error {
 	_, err := crypto.DecodePoint(proposal.OwnerPublicKey)
 	if err != nil {
@@ -3533,6 +3618,8 @@ func (b *BlockChain) checkCRCProposalTransaction(txn *Transaction,
 		return b.checkReceivedCustomID(proposal, txn.PayloadVersion)
 	case payload.ChangeCustomIDFee:
 		return b.checkChangeCustomIDFee(proposal, txn.PayloadVersion)
+	case payload.RegisterSideChain:
+		return b.checkRegisterSideChainProposal(proposal, txn.PayloadVersion)
 	default:
 		return b.checkNormalOrELIPProposal(proposal, proposalsUsedAmount, txn.PayloadVersion)
 	}
