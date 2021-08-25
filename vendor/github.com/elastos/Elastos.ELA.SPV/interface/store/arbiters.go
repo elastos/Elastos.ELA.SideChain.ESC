@@ -353,24 +353,30 @@ func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	return mode[0], nil
 }
 
+
+
 func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight uint32, mode byte) error {
 	c.Lock()
 	defer c.Unlock()
 
-	// update position
-	batch.Put(BKTRevertPosition, uint32toBytes(workingHeight))
-
-	// update positions
-	posCache := c.getCurrentRevertPositions()
-	newPosCache := make([]uint32, 0)
-	for _, p := range posCache {
-		if p < workingHeight {
-			newPosCache = append(newPosCache, p)
-		}
+	pos := c.getCurrentPosition()
+	var isRollback bool
+	if workingHeight <= pos {
+		isRollback = true
 	}
-	newPosCache = append(newPosCache, workingHeight)
-	c.revertPOSCache = newPosCache
-	batch.Put(BKTRevertPositions, uint32ArrayToBytes(c.revertPOSCache))
+	batch.Put(BKTRevertPosition, uint32toBytes(workingHeight))
+	if !isRollback {
+		posCache := c.getCurrentRevertPositions()
+		newPosCache := make([]uint32, 0)
+		for _, p := range posCache {
+			if p < workingHeight {
+				newPosCache = append(newPosCache, p)
+			}
+		}
+		newPosCache = append(newPosCache, workingHeight)
+		c.revertPOSCache = newPosCache
+		batch.Put(BKTRevertPositions, uint32ArrayToBytes(c.revertPOSCache))
+	}
 
 	buf := new(bytes.Buffer)
 	if err := common.WriteUint32(buf, workingHeight); err != nil {
