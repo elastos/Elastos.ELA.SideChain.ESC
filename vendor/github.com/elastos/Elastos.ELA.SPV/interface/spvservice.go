@@ -81,7 +81,7 @@ func NewSPVService(cfg *Config) (*spvservice, error) {
 		originArbiters = append(originArbiters, v)
 	}
 	dataStore, err := store.NewDataStore(dataDir, originArbiters,
-		len(cfg.ChainParams.CRCArbiters)*3)
+		len(cfg.ChainParams.CRCArbiters)*3, cfg.GenesisBlockAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +237,11 @@ func (s *spvservice) GetRateOfCustomIDFee() (common.Fixed64, error) {
 	return s.db.CID().GetCustomIDFeeRate()
 }
 
+//GetReturnSideChainDepositCoin query tx data by tx hash
+func (s *spvservice)HaveRetSideChainDepositCoinTx(txHash common.Uint256)bool{
+	return s.db.CID().HaveRetSideChainDepositCoinTx(txHash)
+}
+
 func (s *spvservice) GetTransactionIds(height uint32) ([]*common.Uint256, error) {
 	return s.db.Txs().GetIds(height)
 }
@@ -305,6 +310,16 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 		if err != nil {
 			return false, err
 		}
+	case types.ReturnSideChainDepositCoin:
+		_, ok := tx.Payload.(*payload.ReturnSideChainDepositCoin)
+		if !ok {
+			return false, errors.New("invalid ReturnSideChainDepositCoin tx")
+		}
+		nakedBatch := batch.GetNakedBatch()
+		err := s.db.CID().BatchPutRetSideChainDepositCoinTx(tx.Transaction, nakedBatch)
+		if err != nil {
+			return false, err
+		}
 	case types.CRCProposal:
 		p, ok := tx.Payload.(*payload.CRCProposal)
 		if !ok {
@@ -331,7 +346,7 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 			}
 		}
 	case types.ProposalResult:
-		p, ok := tx.Payload.(*payload.CustomIDProposalResult)
+		p, ok := tx.Payload.(*payload.RecordProposalResult)
 		if !ok {
 			return false, errors.New("invalid custom ID result tx")
 		}

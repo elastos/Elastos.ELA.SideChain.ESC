@@ -2,8 +2,11 @@ package store
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 
+	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
@@ -30,9 +33,11 @@ type customID struct {
 	reservedCustomIDs map[string]struct{}
 	receivedCustomIDs map[string]common.Uint168
 	feeRate           common.Fixed64
+	//this spv GenesisBlockAddress
+	GenesisBlockAddress    string
 }
 
-func NewCustomID(db *leveldb.DB) *customID {
+func NewCustomID(db *leveldb.DB, GenesisBlockAddress string) *customID {
 	return &customID{
 		db:                db,
 		b:                 new(leveldb.Batch),
@@ -40,6 +45,7 @@ func NewCustomID(db *leveldb.DB) *customID {
 		reservedCustomIDs: make(map[string]struct{}, 0),
 		receivedCustomIDs: make(map[string]common.Uint168, 0),
 		feeRate:           common.Fixed64(0),
+		GenesisBlockAddress: GenesisBlockAddress,
 	}
 }
 
@@ -417,13 +423,11 @@ func (c *customID) removeControversialReservedCustomIDsFromDB(
 }
 
 func (c *customID) getReservedCustomIDsFromDB() (map[string]struct{}, error) {
-	reservedCustomIDs := make(map[string]struct{}, 0)
-
 	var val []byte
 	val, err := c.db.Get(BKTReservedCustomID, nil)
 	if err != nil {
 		if err.Error() == leveldb.ErrNotFound.Error() {
-			return reservedCustomIDs, nil
+			return nil,nil
 		}
 		return nil, err
 	}
@@ -432,6 +436,7 @@ func (c *customID) getReservedCustomIDsFromDB() (map[string]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	reservedCustomIDs := make(map[string]struct{}, 0)
 	for i := uint32(0); i < count; i++ {
 		id, err := common.ReadVarString(r)
 		if err != nil {
@@ -475,13 +480,11 @@ func (c *customID) removeControversialReceivedCustomIDsFromDB(
 }
 
 func (c *customID) getReceivedCustomIDsFromDB() (map[string]common.Uint168, error) {
-	receiedCustomIDs := make(map[string]common.Uint168, 0)
-
 	var val []byte
 	val, err := c.db.Get(BKTReceivedCustomID, nil)
 	if err != nil {
 		if err.Error() == leveldb.ErrNotFound.Error() {
-			return receiedCustomIDs, nil
+			return nil,nil
 		}
 		return nil, err
 	}
@@ -490,6 +493,7 @@ func (c *customID) getReceivedCustomIDsFromDB() (map[string]common.Uint168, erro
 	if err != nil {
 		return nil, err
 	}
+	receiedCustomIDs := make(map[string]common.Uint168, 0)
 	for i := uint32(0); i < count; i++ {
 		id, err := common.ReadVarString(r)
 		if err != nil {
@@ -610,4 +614,56 @@ func (c *customID) CommitBatch(batch *leveldb.Batch) error {
 func (c *customID) RollbackBatch(batch *leveldb.Batch) error {
 	batch.Reset()
 	return nil
+}
+
+
+func (c *customID) BatchPutRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch ) error{
+	c.Lock()
+	defer c.Unlock()
+	for _, output := range tx.Outputs {
+
+		//if this output is not OTReturnSideChainDepositCoin
+		if output.Type != types.OTReturnSideChainDepositCoin {
+			continue
+		}
+		outputPayload, ok := output.Payload.(*outputpayload.ReturnSideChainDeposit)
+		if !ok {
+			return errors.New("invalid ReturnSideChainDeposit output payload")
+		}
+		//if it is not this side chain
+		if outputPayload.GenesisBlockAddress !=  c.GenesisBlockAddress{
+			continue
+		}
+		batch.Put(toKey(BKTReturnSideChainDepositCoin, outputPayload.DepositTransactionHash.Bytes()...), []byte{1})
+	}
+	return nil
+}
+
+func (c *customID) BatchDeleteRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error{
+	c.Lock()
+	defer c.Unlock()
+	for _, output := range tx.Outputs {
+		//if this output is not OTReturnSideChainDepositCoin
+		if output.Type != types.OTReturnSideChainDepositCoin {
+			continue
+		}
+		outputPayload, ok := output.Payload.(*outputpayload.ReturnSideChainDeposit)
+		if !ok {
+			return errors.New("invalid ReturnSideChainDeposit output payload")
+		}
+		//if it is not this side chain
+		if outputPayload.GenesisBlockAddress !=  c.GenesisBlockAddress{
+			continue
+		}
+		batch.Delete(toKey(BKTReturnSideChainDepositCoin, outputPayload.DepositTransactionHash.Bytes()...))
+	}
+	return nil
+}
+
+func (c *customID) HaveRetSideChainDepositCoinTx(txHash common.Uint256)bool{
+	_, err := c.db.Get(toKey(BKTReturnSideChainDepositCoin, txHash.Bytes()...), nil)
+	if err == nil {
+		return true
+	}
+	return false
 }

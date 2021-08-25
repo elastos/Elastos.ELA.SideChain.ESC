@@ -131,8 +131,9 @@ func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux) (*Service,
 	}
 	spvCfg := &spv.Config{
 		DataDir:    cfg.DataDir,
-		FilterType: filter.FTNexTTurnDPOSInfo,
+		FilterType: filter.FTReturnSidechainDepositCoinFilter,
 		OnRollback: nil, // Not implemented yet
+		GenesisBlockAddress: cfg.GenesisAddress,
 	}
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
@@ -539,7 +540,12 @@ func IteratorUnTransaction(from ethCommon.Address) {
 			fee, _, _ := FindOutputFeeAndaddressByTxHash(string(txHash))
 			if fee.Uint64() <= 0 {
 				log.Error("FindOutputFeeAndaddressByTxHash fee is 0")
-				if IsFailedElaTx(string(txHash)) {
+				res, err := IsFailedElaTx(string(txHash))
+				if err != nil {
+					log.Error("IsFailedElaTx error", "err", err)
+					break
+				}
+				if res {
 					setNextSeek(seek)
 					break
 				}
@@ -593,7 +599,11 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		return err, true
 	}
 
-	if IsFailedElaTx(elaTx) {
+	res, err := IsFailedElaTx(elaTx)
+	if err != nil {
+		return err, false
+	}
+	if res {
 		err = errors.New("is failed tx, can't to send")
 		return err, true
 	}
@@ -602,7 +612,11 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
 	if err != nil {
 		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
-		if IsFailedElaTx(elaTx) {
+		res, err = IsFailedElaTx(elaTx)
+		if err != nil {
+			return err, false
+		}
+		if res {
 			return err, true
 		}
 		OnTx2Failed(elaTx)
@@ -610,7 +624,11 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 	}
 
 	if gasLimit == 0 {
-		if IsFailedElaTx(elaTx) {
+		res, err = IsFailedElaTx(elaTx)
+		if err != nil {
+			return err, false
+		}
+		if res {
 			return err, true
 		}
 		OnTx2Failed(elaTx)
@@ -685,19 +703,26 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	if transactionHash[0:2] == "0x" {
 		transactionHash = transactionHash[2:]
 	}
-	if IsFailedElaTx(transactionHash) {
-		log.Error("IsFailedElaTx", "transactionHash", transactionHash)
-		return new(big.Int), emptyaddr, new(big.Int)
-	}
 	if spvTransactiondb == nil {
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
+
+	res, err := IsFailedElaTx(transactionHash)
+	if err != nil {
+		log.Error("IsFailedElaTx", "transactionHash", transactionHash, "error", err)
+		return new(big.Int), emptyaddr, new(big.Int)
+	}
+	if res {
+		log.Error("IsFailedElaTx", "transactionHash", transactionHash)
+		return new(big.Int), emptyaddr, new(big.Int)
+	}
+
 	v, err := spvTransactiondb.Get([]byte(transactionHash + "Fee"))
 	if err != nil {
 		log.Error("SpvServicedb Get Fee: ", "err", err, "elaHash", transactionHash)
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
-	fmt.Println("FindOutputFeeAndaddressByTxHash fee", string(v))
+	log.Info("FindOutputFeeAndaddressByTxHash", "fee", string(v))
 	fees := strings.Split(string(v), ",")
 	f, err := common.StringToFixed64(fees[0])
 	if err != nil {
@@ -754,7 +779,11 @@ func OnTx2Failed(elaTx string) {
 	if IsPackagedElaTx(elaTx) {
 		return
 	}
-	if IsFailedElaTx (elaTx) {
+	res, err := IsFailedElaTx (elaTx)
+	if err != nil {
+		return
+	}
+	if res {
 		return
 	}
 	failedMutex.Lock()
@@ -798,20 +827,28 @@ func IsPackagedElaTx(elaTx string) bool {
 	return false
 }
 
-func IsFailedElaTx(elaTx string) bool {
+func IsFailedElaTx(elaTx string) (bool, error) {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 
 	if elaTx[0:2] == "0x" {
 		elaTx = elaTx[2:]
 	}
+
+	//HaveRetSideChainDepositCoinTx
+	hash, err := common.Uint256FromHexString(elaTx)
+	if err != nil {
+		log.Error("IsFailedElaTx, tx id format error", "elaTx", elaTx)
+		return false, err
+	}
+
 	for _, txs := range failedTxList {
 		for _, txid := range txs {
 			if txid[0:2] == "0x" {
 				txid = txid[2:]
 			}
 			if txid == elaTx {
-				return true
+				return true, nil
 			}
 		}
 	}
@@ -833,11 +870,16 @@ func IsFailedElaTx(elaTx string) bool {
 				txid = txid[2:]
 			}
 			if txid == elaTx {
-				return true
+				return true, nil
 			}
 		}
 	}
-	return false
+	if SpvService == nil {
+		return false, errors.New("SpvService is not initialized")
+	}
+	res := SpvService.HaveRetSideChainDepositCoinTx(*hash)
+	log.Info("HaveRetSideChainDepositCoinTx", "res", res)
+	return res, nil
 }
 
 func onElaTxPacked(elaTx string) {

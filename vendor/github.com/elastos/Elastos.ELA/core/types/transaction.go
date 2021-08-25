@@ -146,6 +146,8 @@ func (self TxType) Name() string {
 		return "RevertToPOW"
 	case RevertToDPOS:
 		return "RevertToDPOS"
+	case ReturnSideChainDepositCoin:
+		return "ReturnSideChainDepositCoin"
 	default:
 		return "Unknown"
 	}
@@ -422,6 +424,15 @@ func (tx *Transaction) IsCustomIDRelatedTx() bool {
 	return false
 }
 
+func (tx *Transaction) IsSideChainUpgradeTx() bool {
+	if tx.IsCRCProposalTx() {
+		p, _ := tx.Payload.(*payload.CRCProposal)
+		return p.ProposalType > payload.MinUpgradeProposalType &&
+			p.ProposalType <= payload.MaxUpgradeProposalType
+	}
+	return false
+}
+
 func (tx *Transaction) IsCRCProposalRealWithdrawTx() bool {
 	return tx.TxType == CRCProposalRealWithdraw
 }
@@ -662,7 +673,7 @@ func GetPayload(txType TxType) (Payload, error) {
 	case RevertToPOW:
 		p = new(payload.RevertToPOW)
 	case ProposalResult:
-		p = new(payload.CustomIDProposalResult)
+		p = new(payload.RecordProposalResult)
 	case ReturnSideChainDepositCoin:
 		p = new(payload.ReturnSideChainDepositCoin)
 	default:

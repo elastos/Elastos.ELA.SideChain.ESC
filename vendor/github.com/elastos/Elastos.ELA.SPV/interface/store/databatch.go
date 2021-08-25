@@ -84,6 +84,12 @@ func (b *dataBatch) DelAll(height uint32) error {
 
 func (b *dataBatch) DeleteCustomID(tx *types.Transaction) error {
 	switch tx.TxType {
+	case types.ReturnSideChainDepositCoin:
+		_, ok := tx.Payload.(*payload.ReturnSideChainDepositCoin)
+		if !ok {
+			return errors.New("invalid ReturnSideChainDepositCoin tx")
+		}
+		b.customID.BatchDeleteRetSideChainDepositCoinTx(tx,b.Batch)
 	case types.CRCProposal:
 		p, ok := tx.Payload.(*payload.CRCProposal)
 		if !ok {
@@ -101,7 +107,7 @@ func (b *dataBatch) DeleteCustomID(tx *types.Transaction) error {
 				p.Hash(tx.PayloadVersion), b.Batch)
 		}
 	case types.ProposalResult:
-		p, ok := tx.Payload.(*payload.CustomIDProposalResult)
+		p, ok := tx.Payload.(*payload.RecordProposalResult)
 		if !ok {
 			return errors.New("invalid custom ID result tx")
 		}

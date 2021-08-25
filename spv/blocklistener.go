@@ -216,6 +216,9 @@ func DumpNextDposInfo() []peer.PID {
 	log.Info("-------------------dump next turn aribiters---------------")
 	log.Info("-------------------CRPublicKeys---------------")
 	peers := make([]peer.PID, 0)
+	if nextTurnDposInfo == nil {
+		return peers
+	}
 	for _, arbiter := range nextTurnDposInfo.CRPublicKeys {
 		if len(arbiter) > 0 {
 			var pid peer.PID
