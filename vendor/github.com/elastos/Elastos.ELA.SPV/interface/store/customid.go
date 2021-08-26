@@ -2,11 +2,8 @@ package store
 
 import (
 	"bytes"
-	"errors"
 	"sync"
 
-	"github.com/elastos/Elastos.ELA/core/types"
-	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
@@ -33,11 +30,9 @@ type customID struct {
 	reservedCustomIDs map[string]struct{}
 	receivedCustomIDs map[string]common.Uint168
 	feeRate           common.Fixed64
-	//this spv GenesisBlockAddress
-	GenesisBlockAddress    string
 }
 
-func NewCustomID(db *leveldb.DB, GenesisBlockAddress string) *customID {
+func NewCustomID(db *leveldb.DB) *customID {
 	return &customID{
 		db:                db,
 		b:                 new(leveldb.Batch),
@@ -45,7 +40,6 @@ func NewCustomID(db *leveldb.DB, GenesisBlockAddress string) *customID {
 		reservedCustomIDs: make(map[string]struct{}, 0),
 		receivedCustomIDs: make(map[string]common.Uint168, 0),
 		feeRate:           common.Fixed64(0),
-		GenesisBlockAddress: GenesisBlockAddress,
 	}
 }
 
@@ -614,56 +608,4 @@ func (c *customID) CommitBatch(batch *leveldb.Batch) error {
 func (c *customID) RollbackBatch(batch *leveldb.Batch) error {
 	batch.Reset()
 	return nil
-}
-
-
-func (c *customID) BatchPutRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch ) error{
-	c.Lock()
-	defer c.Unlock()
-	for _, output := range tx.Outputs {
-
-		//if this output is not OTReturnSideChainDepositCoin
-		if output.Type != types.OTReturnSideChainDepositCoin {
-			continue
-		}
-		outputPayload, ok := output.Payload.(*outputpayload.ReturnSideChainDeposit)
-		if !ok {
-			return errors.New("invalid ReturnSideChainDeposit output payload")
-		}
-		//if it is not this side chain
-		if outputPayload.GenesisBlockAddress !=  c.GenesisBlockAddress{
-			continue
-		}
-		batch.Put(toKey(BKTReturnSideChainDepositCoin, outputPayload.DepositTransactionHash.Bytes()...), []byte{1})
-	}
-	return nil
-}
-
-func (c *customID) BatchDeleteRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error{
-	c.Lock()
-	defer c.Unlock()
-	for _, output := range tx.Outputs {
-		//if this output is not OTReturnSideChainDepositCoin
-		if output.Type != types.OTReturnSideChainDepositCoin {
-			continue
-		}
-		outputPayload, ok := output.Payload.(*outputpayload.ReturnSideChainDeposit)
-		if !ok {
-			return errors.New("invalid ReturnSideChainDeposit output payload")
-		}
-		//if it is not this side chain
-		if outputPayload.GenesisBlockAddress !=  c.GenesisBlockAddress{
-			continue
-		}
-		batch.Delete(toKey(BKTReturnSideChainDepositCoin, outputPayload.DepositTransactionHash.Bytes()...))
-	}
-	return nil
-}
-
-func (c *customID) HaveRetSideChainDepositCoinTx(txHash common.Uint256)bool{
-	_, err := c.db.Get(toKey(BKTReturnSideChainDepositCoin, txHash.Bytes()...), nil)
-	if err == nil {
-		return true
-	}
-	return false
 }

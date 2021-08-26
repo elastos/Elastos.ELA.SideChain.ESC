@@ -456,18 +456,18 @@ func (s *txValidatorTestSuite) TestCheckTransactionPayload() {
 		Amount: 3300 * 10000 * 10000000,
 	}
 	tx.Payload = payload
-	err := checkTransactionPayload(tx)
+	err := s.Chain.checkTransactionPayload(tx)
 	s.NoError(err)
 
 	// invalid precision
 	payload.Asset.Precision = 9
-	err = checkTransactionPayload(tx)
+	err = s.Chain.checkTransactionPayload(tx)
 	s.EqualError(err, "Invalide asset Precision.")
 
 	// invalid amount
 	payload.Asset.Precision = 0
 	payload.Amount = 1234567
-	err = checkTransactionPayload(tx)
+	err = s.Chain.checkTransactionPayload(tx)
 	s.EqualError(err, "Invalide asset value,out of precise.")
 }
 
@@ -1846,6 +1846,7 @@ func (s *txValidatorTestSuite) getCRCRegisterSideChainProposalTx(publicKeyStr, p
 			GenesisHash:            *randomUint256(),
 			GenesisTimestamp:       1513936800,
 			GenesisBlockDifficulty: "575",
+			ExchangeRate:           100000000,
 		},
 	}
 
@@ -3204,6 +3205,7 @@ func (s *txValidatorTestSuite) TestCheckCRCProposalRegisterSideChainTransaction(
 		txn := s.getCRCRegisterSideChainProposalTx(publicKeyStr2, privateKeyStr2, publicKeyStr1, privateKeyStr1)
 		payload, _ := txn.Payload.(*payload.CRCProposal)
 		payload.GenesisBlockDifficulty = ""
+		payload.ExchangeRate = 100000000
 		err := s.Chain.checkCRCProposalTransaction(txn, tenureHeight, 0)
 		s.EqualError(err, "GenesisBlockDifficulty can not be blank")
 	}

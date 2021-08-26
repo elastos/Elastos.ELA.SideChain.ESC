@@ -131,9 +131,9 @@ func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux) (*Service,
 	}
 	spvCfg := &spv.Config{
 		DataDir:    cfg.DataDir,
-		FilterType: filter.FTReturnSidechainDepositCoinFilter,
+		FilterType: filter.FTNexTTurnDPOSInfo,
 		OnRollback: nil, // Not implemented yet
-		GenesisBlockAddress: cfg.GenesisAddress,
+		//GenesisBlockAddress: cfg.GenesisAddress,
 	}
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
@@ -810,7 +810,7 @@ func IsFailedElaTx(elaTx string) bool {
 	//HaveRetSideChainDepositCoinTx
 	hash, err := common.Uint256FromHexString(elaTx)
 	if err != nil {
-		log.Error("IsFailedElaTx, tx id format error", "elaTx", elaTx)
+		log.Error("IsFailedElaTx, tx id format error", "elaTx", elaTx, "hash", hash.String())
 		return false
 	}
 
@@ -846,9 +846,7 @@ func IsFailedElaTx(elaTx string) bool {
 			}
 		}
 	}
-	res := SpvService.HaveRetSideChainDepositCoinTx(*hash)
-	log.Info("HaveRetSideChainDepositCoinTx", "res", res)
-	return res
+	return false
 }
 
 func onElaTxPacked(elaTx string) {

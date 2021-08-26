@@ -21,9 +21,7 @@ type dataStore struct {
 	cid   *customID
 }
 
-////this spv GenesisBlockAddress
-//	GenesisBlockAddress    string
-func NewDataStore(dataDir string, originArbiters [][]byte, arbitersCount int, GenesisBlockAddress    string) (*dataStore, error) {
+func NewDataStore(dataDir string, originArbiters [][]byte, arbitersCount int) (*dataStore, error) {
 	db, err := leveldb.OpenFile(filepath.Join(dataDir, "store"), nil)
 	if err != nil {
 		return nil, err
@@ -44,7 +42,7 @@ func NewDataStore(dataDir string, originArbiters [][]byte, arbitersCount int, Ge
 		ops:   NewOps(db),
 		que:   NewQue(db),
 		ars:   NewArbiters(db, originArbiters, arbitersCount),
-		cid:   NewCustomID(db, GenesisBlockAddress),
+		cid:   NewCustomID(db),
 	}, nil
 }
 

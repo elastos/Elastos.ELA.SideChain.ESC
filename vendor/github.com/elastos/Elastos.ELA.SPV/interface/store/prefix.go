@@ -32,8 +32,4 @@ var (
 	BKTRevertPosition  = []byte("revertp")
 	BKTRevertPositions = []byte("revertps")
 	BKTConsensus       = []byte("consensus")
-
-	//ReturnSideChainDepositCoin
-	BKTReturnSideChainDepositCoin       = []byte("retschdepositcoin")
-
 )

@@ -353,8 +353,6 @@ func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	return mode[0], nil
 }
 
-
-
 func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight uint32, mode byte) error {
 	c.Lock()
 	defer c.Unlock()

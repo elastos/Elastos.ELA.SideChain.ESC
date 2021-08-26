@@ -22,6 +22,7 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	password := c.String("password")
 	code := c.String("code")
 	publicKey := c.String("publickey")
+	privateKeys := c.String("privatekeys")
 	depositAddr := c.String("depositaddr")
 	nickname := c.String("nickname")
 	url := c.String("url")
@@ -81,6 +82,7 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	genesisHash := c.String("genesishash")
 	genesisTimestamp := c.Int64("genesistimestamp")
 	genesisBlockDifficulty := c.String("genesisblockdifficulty")
+	exchangeRate := c.String("exchangerate")
 
 	getWallet := func(L *lua.LState) int {
 		L.Push(lua.LString(wallet))
@@ -96,6 +98,16 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	}
 	getPublicKey := func(L *lua.LState) int {
 		L.Push(lua.LString(publicKey))
+		return 1
+	}
+	getPrivateKeys := func(L *lua.LState) int {
+		table := L.NewTable()
+		L.SetMetatable(table, L.GetTypeMetatable("privatekeys"))
+		cs := strings.Split(privateKeys, ",")
+		for _, c := range cs {
+			table.Append(lua.LString(c))
+		}
+		L.Push(table)
 		return 1
 	}
 	getCode := func(L *lua.LState) int {
@@ -343,10 +355,16 @@ func registerParams(c *cli.Context, L *lua.LState) {
 		return 1
 	}
 
+	getExchangeRate := func(L *lua.LState) int {
+		L.Push(lua.LString(exchangeRate))
+		return 1
+	}
+
 	L.Register("getWallet", getWallet)
 	L.Register("getPassword", getPassword)
 	L.Register("getDepositAddr", getDepositAddr)
 	L.Register("getPublicKey", getPublicKey)
+	L.Register("getPrivateKeys", getPrivateKeys)
 	L.Register("getCode", getCode)
 	L.Register("getNickName", getNickName)
 	L.Register("getUrl", getUrl)
@@ -406,6 +424,7 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	L.Register("getGenesisHash", getGenesisHash)
 	L.Register("getGenesisTimestamp", getGenesisTimestamp)
 	L.Register("getGenesisBlockDifficulty", getGenesisBlockDifficulty)
+	L.Register("getExchangeRate", getExchangeRate)
 }
 
 func scriptAction(c *cli.Context) error {
@@ -473,6 +492,10 @@ func NewCommand() *cli.Command {
 			cli.StringFlag{
 				Name:  "publickey, pk",
 				Usage: "set the public key",
+			},
+			cli.StringFlag{
+				Name:  "privatekeys, priks",
+				Usage: "set the private key",
 			},
 			cli.StringFlag{
 				Name:  "depositaddr, daddr",
