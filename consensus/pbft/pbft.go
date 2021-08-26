@@ -175,6 +175,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 			DefaultPort: cfg.DPoSPort,
 			Account:     account,
 			MedianTime:  medianTimeSouce,
+			MaxNodePerHost: cfg.MaxNodePerHost,
 			Listener:    pbft,
 			DataPath:    dposPath,
 			PublicKey:   accpubkey,
