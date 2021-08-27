@@ -1,5 +1,3 @@
-![freegeoip ipstack](https://raw.githubusercontent.com/apilayer/freegeoip/master/freegeo-warning.png)
-
 # freegeoip - Important Announcement
 
 *[The old freegeoip API is now deprecated and will be discontinued on July 1st, 2018]*

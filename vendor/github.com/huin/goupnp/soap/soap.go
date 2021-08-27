@@ -4,12 +4,14 @@ package soap
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"reflect"
+	"regexp"
 )
 
 const (
@@ -32,13 +34,13 @@ func NewSOAPClient(endpointURL url.URL) *SOAPClient {
 // PerformSOAPAction makes a SOAP request, with the given action.
 // inAction and outAction must both be pointers to structs with string fields
 // only.
-func (client *SOAPClient) PerformAction(actionNamespace, actionName string, inAction interface{}, outAction interface{}) error {
+func (client *SOAPClient) PerformActionCtx(ctx context.Context, actionNamespace, actionName string, inAction interface{}, outAction interface{}) error {
 	requestBytes, err := encodeRequestAction(actionNamespace, actionName, inAction)
 	if err != nil {
 		return err
 	}
 
-	response, err := client.HTTPClient.Do(&http.Request{
+	req := &http.Request{
 		Method: "POST",
 		URL:    &client.EndpointURL,
 		Header: http.Header{
@@ -48,12 +50,14 @@ func (client *SOAPClient) PerformAction(actionNamespace, actionName string, inAc
 		Body: ioutil.NopCloser(bytes.NewBuffer(requestBytes)),
 		// Set ContentLength to avoid chunked encoding - some servers might not support it.
 		ContentLength: int64(len(requestBytes)),
-	})
+	}
+	req = req.WithContext(ctx)
+	response, err := client.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("goupnp: error performing SOAP HTTP request: %v", err)
 	}
 	defer response.Body.Close()
-	if response.StatusCode != 200 {
+	if response.StatusCode != 200 && response.ContentLength == 0 {
 		return fmt.Errorf("goupnp: SOAP request got HTTP %s", response.Status)
 	}
 
@@ -65,6 +69,8 @@ func (client *SOAPClient) PerformAction(actionNamespace, actionName string, inAc
 
 	if responseEnv.Body.Fault != nil {
 		return responseEnv.Body.Fault
+	} else if response.StatusCode != 200 {
+		return fmt.Errorf("goupnp: SOAP request got HTTP %s", response.Status)
 	}
 
 	if outAction != nil {
@@ -74,6 +80,12 @@ func (client *SOAPClient) PerformAction(actionNamespace, actionName string, inAc
 	}
 
 	return nil
+}
+
+// PerformAction is the legacy version of PerformActionCtx, which uses
+// context.Background.
+func (client *SOAPClient) PerformAction(actionNamespace, actionName string, inAction interface{}, outAction interface{}) error {
+	return client.PerformActionCtx(context.Background(), actionNamespace, actionName, inAction, outAction)
 }
 
 // newSOAPAction creates a soapEnvelope with the given action and arguments.
@@ -126,12 +138,47 @@ func encodeRequestArgs(w *bytes.Buffer, inAction interface{}) error {
 		if value.Kind() != reflect.String {
 			return fmt.Errorf("goupnp: SOAP arg %q is not of type string, but of type %v", argName, value.Type())
 		}
-		if err := enc.EncodeElement(value.Interface(), xml.StartElement{xml.Name{"", argName}, nil}); err != nil {
-			return fmt.Errorf("goupnp: error encoding SOAP arg %q: %v", argName, err)
+		elem := xml.StartElement{Name: xml.Name{Space: "", Local: argName}, Attr: nil}
+		if err := enc.EncodeToken(elem); err != nil {
+			return fmt.Errorf("goupnp: error encoding start element for SOAP arg %q: %v", argName, err)
+		}
+		if err := enc.Flush(); err != nil {
+			return fmt.Errorf("goupnp: error flushing start element for SOAP arg %q: %v", argName, err)
+		}
+		if _, err := w.Write([]byte(escapeXMLText(value.Interface().(string)))); err != nil {
+			return fmt.Errorf("goupnp: error writing value for SOAP arg %q: %v", argName, err)
+		}
+		if err := enc.EncodeToken(elem.End()); err != nil {
+			return fmt.Errorf("goupnp: error encoding end element for SOAP arg %q: %v", argName, err)
 		}
 	}
 	enc.Flush()
 	return nil
+}
+
+var xmlCharRx = regexp.MustCompile("[<>&]")
+
+// escapeXMLText is used by generated code to escape text in XML, but only
+// escaping the characters `<`, `>`, and `&`.
+//
+// This is provided in order to work around SOAP server implementations that
+// fail to decode XML correctly, specifically failing to decode `"`, `'`. Note
+// that this can only be safely used for injecting into XML text, but not into
+// attributes or other contexts.
+func escapeXMLText(s string) string {
+	return xmlCharRx.ReplaceAllStringFunc(s, replaceEntity)
+}
+
+func replaceEntity(s string) string {
+	switch s {
+	case "<":
+		return "&lt;"
+	case ">":
+		return "&gt;"
+	case "&":
+		return "&amp;"
+	}
+	return s
 }
 
 type soapEnvelope struct {
@@ -147,9 +194,11 @@ type soapBody struct {
 
 // SOAPFaultError implements error, and contains SOAP fault information.
 type SOAPFaultError struct {
-	FaultCode   string `xml:"faultcode"`
-	FaultString string `xml:"faultstring"`
-	Detail      string `xml:"detail"`
+	FaultCode   string `xml:"faultCode"`
+	FaultString string `xml:"faultString"`
+	Detail      struct {
+		Raw []byte `xml:",innerxml"`
+	} `xml:"detail"`
 }
 
 func (err *SOAPFaultError) Error() string {

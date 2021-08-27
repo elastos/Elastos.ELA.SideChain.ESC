@@ -184,14 +184,6 @@ func main() {
 		doDebianSource(os.Args[2:])
 	case "nsis":
 		doWindowsInstaller(os.Args[2:])
-	case "aar":
-		doAndroidArchive(os.Args[2:])
-	case "xcode":
-		doXCodeFramework(os.Args[2:])
-	case "xgo":
-		doXgo(os.Args[2:])
-	case "purge":
-		doPurge(os.Args[2:])
 	default:
 		log.Fatal("unknown command ", os.Args[1])
 	}
@@ -377,8 +369,6 @@ func doArchive(cmdline []string) {
 	var (
 		arch   = flag.String("arch", runtime.GOARCH, "Architecture cross packaging")
 		atype  = flag.String("type", "zip", "Type of archive to write (zip|tar)")
-		signer = flag.String("signer", "", `Environment variable holding the signing key (e.g. LINUX_SIGNING_KEY)`)
-		upload = flag.String("upload", "", `Destination to upload the archives (usually "gethstore/builds")`)
 		ext    string
 	)
 	flag.CommandLine.Parse(cmdline)
@@ -405,11 +395,6 @@ func doArchive(cmdline []string) {
 	if err := build.WriteArchive(alltools, allToolsArchiveFiles); err != nil {
 		log.Fatal(err)
 	}
-	for _, archive := range []string{geth, alltools} {
-		if err := archiveUpload(archive, *upload, *signer); err != nil {
-			log.Fatal(err)
-		}
-	}
 }
 
 func archiveBasename(arch string, archiveVersion string) string {
@@ -424,33 +409,6 @@ func archiveBasename(arch string, archiveVersion string) string {
 		platform = "ios-all"
 	}
 	return platform + "-" + archiveVersion
-}
-
-func archiveUpload(archive string, blobstore string, signer string) error {
-	// If signing was requested, generate the signature files
-	if signer != "" {
-		key := getenvBase64(signer)
-		if err := build.PGPSignFile(archive, archive+".asc", string(key)); err != nil {
-			return err
-		}
-	}
-	// If uploading to Azure was requested, push the archive possibly with its signature
-	if blobstore != "" {
-		auth := build.AzureBlobstoreConfig{
-			Account:   strings.Split(blobstore, "/")[0],
-			Token:     os.Getenv("AZURE_BLOBSTORE_TOKEN"),
-			Container: strings.SplitN(blobstore, "/", 2)[1],
-		}
-		if err := build.AzureBlobstoreUpload(archive, filepath.Base(archive), auth); err != nil {
-			return err
-		}
-		if signer != "" {
-			if err := build.AzureBlobstoreUpload(archive+".asc", filepath.Base(archive+".asc"), auth); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // skips archiving for some build configurations.
@@ -725,8 +683,6 @@ func doWindowsInstaller(cmdline []string) {
 	// Parse the flags and make skip installer generation on PRs
 	var (
 		arch    = flag.String("arch", runtime.GOARCH, "Architecture for cross build packaging")
-		signer  = flag.String("signer", "", `Environment variable holding the signing key (e.g. WINDOWS_SIGNING_KEY)`)
-		upload  = flag.String("upload", "", `Destination to upload the archives (usually "gethstore/builds")`)
 		workdir = flag.String("workdir", "", `Output directory for packages (uses temp dir if unset)`)
 	)
 	flag.CommandLine.Parse(cmdline)
@@ -784,89 +740,8 @@ func doWindowsInstaller(cmdline []string) {
 		filepath.Join(*workdir, "geth.nsi"),
 	)
 
-	// Sign and publish installer.
-	if err := archiveUpload(installer, *upload, *signer); err != nil {
-		log.Fatal(err)
-	}
 }
 
-// Android archives
-
-func doAndroidArchive(cmdline []string) {
-	var (
-		local  = flag.Bool("local", false, `Flag whether we're only doing a local build (skip Maven artifacts)`)
-		signer = flag.String("signer", "", `Environment variable holding the signing key (e.g. ANDROID_SIGNING_KEY)`)
-		deploy = flag.String("deploy", "", `Destination to deploy the archive (usually "https://oss.sonatype.org")`)
-		upload = flag.String("upload", "", `Destination to upload the archive (usually "gethstore/builds")`)
-	)
-	flag.CommandLine.Parse(cmdline)
-	env := build.Env()
-
-	// Sanity check that the SDK and NDK are installed and set
-	if os.Getenv("ANDROID_HOME") == "" {
-		log.Fatal("Please ensure ANDROID_HOME points to your Android SDK")
-	}
-	// Build the Android archive and Maven resources
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("bind", "-ldflags", "-s -w", "--target", "android", "--javapkg", "org.ethereum", "-v", "github.com/elastos/Elastos.ELA.SideChain.ESC/mobile"))
-
-	if *local {
-		// If we're building locally, copy bundle to build dir and skip Maven
-		os.Rename("geth.aar", filepath.Join(GOBIN, "geth.aar"))
-		return
-	}
-	meta := newMavenMetadata(env)
-	build.Render("build/mvn.pom", meta.Package+".pom", 0755, meta)
-
-	// Skip Maven deploy and Azure upload for PR builds
-	maybeSkipArchive(env)
-
-	// Sign and upload the archive to Azure
-	archive := "geth-" + archiveBasename("android", params.ArchiveVersion(env.Commit)) + ".aar"
-	os.Rename("geth.aar", archive)
-
-	if err := archiveUpload(archive, *upload, *signer); err != nil {
-		log.Fatal(err)
-	}
-	// Sign and upload all the artifacts to Maven Central
-	os.Rename(archive, meta.Package+".aar")
-	if *signer != "" && *deploy != "" {
-		// Import the signing key into the local GPG instance
-		key := getenvBase64(*signer)
-		gpg := exec.Command("gpg", "--import")
-		gpg.Stdin = bytes.NewReader(key)
-		build.MustRun(gpg)
-		keyID, err := build.PGPKeyID(string(key))
-		if err != nil {
-			log.Fatal(err)
-		}
-		// Upload the artifacts to Sonatype and/or Maven Central
-		repo := *deploy + "/service/local/staging/deploy/maven2"
-		if meta.Develop {
-			repo = *deploy + "/content/repositories/snapshots"
-		}
-		build.MustRunCommand("mvn", "gpg:sign-and-deploy-file", "-e", "-X",
-			"-settings=build/mvn.settings", "-Durl="+repo, "-DrepositoryId=ossrh",
-			"-Dgpg.keyname="+keyID,
-			"-DpomFile="+meta.Package+".pom", "-Dfile="+meta.Package+".aar")
-	}
-}
-
-func gomobileTool(subcmd string, args ...string) *exec.Cmd {
-	cmd := exec.Command(filepath.Join(GOBIN, "gomobile"), subcmd)
-	cmd.Args = append(cmd.Args, args...)
-	cmd.Env = []string{
-		"GOPATH=" + build.GOPATH(),
-		"PATH=" + GOBIN + string(os.PathListSeparator) + os.Getenv("PATH"),
-	}
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GOPATH=") || strings.HasPrefix(e, "PATH=") {
-			continue
-		}
-		cmd.Env = append(cmd.Env, e)
-	}
-	return cmd
-}
 
 type mavenMetadata struct {
 	Version      string
@@ -911,198 +786,5 @@ func newMavenMetadata(env build.Environment) mavenMetadata {
 		Package:      "geth-" + version,
 		Develop:      isUnstableBuild(env),
 		Contributors: contribs,
-	}
-}
-
-// XCode frameworks
-
-func doXCodeFramework(cmdline []string) {
-	var (
-		local  = flag.Bool("local", false, `Flag whether we're only doing a local build (skip Maven artifacts)`)
-		signer = flag.String("signer", "", `Environment variable holding the signing key (e.g. IOS_SIGNING_KEY)`)
-		deploy = flag.String("deploy", "", `Destination to deploy the archive (usually "trunk")`)
-		upload = flag.String("upload", "", `Destination to upload the archives (usually "gethstore/builds")`)
-	)
-	flag.CommandLine.Parse(cmdline)
-	env := build.Env()
-
-	// Build the iOS XCode framework
-	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile", "golang.org/x/mobile/cmd/gobind"))
-	build.MustRun(gomobileTool("init"))
-	bind := gomobileTool("bind", "-ldflags", "-s -w", "--target", "ios", "-v", "github.com/elastos/Elastos.ELA.SideChain.ESC/mobile")
-
-	if *local {
-		// If we're building locally, use the build folder and stop afterwards
-		bind.Dir, _ = filepath.Abs(GOBIN)
-		build.MustRun(bind)
-		return
-	}
-	archive := "geth-" + archiveBasename("ios", params.ArchiveVersion(env.Commit))
-	if err := os.Mkdir(archive, os.ModePerm); err != nil {
-		log.Fatal(err)
-	}
-	bind.Dir, _ = filepath.Abs(archive)
-	build.MustRun(bind)
-	build.MustRunCommand("tar", "-zcvf", archive+".tar.gz", archive)
-
-	// Skip CocoaPods deploy and Azure upload for PR builds
-	maybeSkipArchive(env)
-
-	// Sign and upload the framework to Azure
-	if err := archiveUpload(archive+".tar.gz", *upload, *signer); err != nil {
-		log.Fatal(err)
-	}
-	// Prepare and upload a PodSpec to CocoaPods
-	if *deploy != "" {
-		meta := newPodMetadata(env, archive)
-		build.Render("build/pod.podspec", "Geth.podspec", 0755, meta)
-		build.MustRunCommand("pod", *deploy, "push", "Geth.podspec", "--allow-warnings", "--verbose")
-	}
-}
-
-type podMetadata struct {
-	Version      string
-	Commit       string
-	Archive      string
-	Contributors []podContributor
-}
-
-type podContributor struct {
-	Name  string
-	Email string
-}
-
-func newPodMetadata(env build.Environment, archive string) podMetadata {
-	// Collect the list of authors from the repo root
-	contribs := []podContributor{}
-	if authors, err := os.Open("AUTHORS"); err == nil {
-		defer authors.Close()
-
-		scanner := bufio.NewScanner(authors)
-		for scanner.Scan() {
-			// Skip any whitespace from the authors list
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || line[0] == '#' {
-				continue
-			}
-			// Split the author and insert as a contributor
-			re := regexp.MustCompile("([^<]+) <(.+)>")
-			parts := re.FindStringSubmatch(line)
-			if len(parts) == 3 {
-				contribs = append(contribs, podContributor{Name: parts[1], Email: parts[2]})
-			}
-		}
-	}
-	version := params.Version
-	if isUnstableBuild(env) {
-		version += "-unstable." + env.Buildnum
-	}
-	return podMetadata{
-		Archive:      archive,
-		Version:      version,
-		Commit:       env.Commit,
-		Contributors: contribs,
-	}
-}
-
-// Cross compilation
-
-func doXgo(cmdline []string) {
-	var (
-		alltools = flag.Bool("alltools", false, `Flag whether we're building all known tools, or only on in particular`)
-	)
-	flag.CommandLine.Parse(cmdline)
-	env := build.Env()
-
-	// Make sure xgo is available for cross compilation
-	gogetxgo := goTool("get", "github.com/karalabe/xgo")
-	build.MustRun(gogetxgo)
-
-	// If all tools building is requested, build everything the builder wants
-	args := append(buildFlags(env), flag.Args()...)
-
-	if *alltools {
-		args = append(args, []string{"--dest", GOBIN}...)
-		for _, res := range allToolsArchiveFiles {
-			if strings.HasPrefix(res, GOBIN) {
-				// Binary tool found, cross build it explicitly
-				args = append(args, "./"+filepath.Join("cmd", filepath.Base(res)))
-				xgo := xgoTool(args)
-				build.MustRun(xgo)
-				args = args[:len(args)-1]
-			}
-		}
-		return
-	}
-	// Otherwise xxecute the explicit cross compilation
-	path := args[len(args)-1]
-	args = append(args[:len(args)-1], []string{"--dest", GOBIN, path}...)
-
-	xgo := xgoTool(args)
-	build.MustRun(xgo)
-}
-
-func xgoTool(args []string) *exec.Cmd {
-	cmd := exec.Command(filepath.Join(GOBIN, "xgo"), args...)
-	cmd.Env = []string{
-		"GOPATH=" + build.GOPATH(),
-		"GOBIN=" + GOBIN,
-	}
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GOPATH=") || strings.HasPrefix(e, "GOBIN=") {
-			continue
-		}
-		cmd.Env = append(cmd.Env, e)
-	}
-	return cmd
-}
-
-// Binary distribution cleanups
-
-func doPurge(cmdline []string) {
-	var (
-		store = flag.String("store", "", `Destination from where to purge archives (usually "gethstore/builds")`)
-		limit = flag.Int("days", 30, `Age threshold above which to delete unstable archives`)
-	)
-	flag.CommandLine.Parse(cmdline)
-
-	if env := build.Env(); !env.IsCronJob {
-		log.Printf("skipping because not a cron job")
-		os.Exit(0)
-	}
-	// Create the azure authentication and list the current archives
-	auth := build.AzureBlobstoreConfig{
-		Account:   strings.Split(*store, "/")[0],
-		Token:     os.Getenv("AZURE_BLOBSTORE_TOKEN"),
-		Container: strings.SplitN(*store, "/", 2)[1],
-	}
-	blobs, err := build.AzureBlobstoreList(auth)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Iterate over the blobs, collect and sort all unstable builds
-	for i := 0; i < len(blobs); i++ {
-		if !strings.Contains(blobs[i].Name, "unstable") {
-			blobs = append(blobs[:i], blobs[i+1:]...)
-			i--
-		}
-	}
-	for i := 0; i < len(blobs); i++ {
-		for j := i + 1; j < len(blobs); j++ {
-			if blobs[i].Properties.LastModified.After(blobs[j].Properties.LastModified) {
-				blobs[i], blobs[j] = blobs[j], blobs[i]
-			}
-		}
-	}
-	// Filter out all archives more recent that the given threshold
-	for i, blob := range blobs {
-		if time.Since(blob.Properties.LastModified) < time.Duration(*limit)*24*time.Hour {
-			blobs = blobs[:i]
-			break
-		}
-	}
-	// Delete all marked as such and return
-	if err := build.AzureBlobstoreDelete(auth, blobs); err != nil {
-		log.Fatal(err)
 	}
 }

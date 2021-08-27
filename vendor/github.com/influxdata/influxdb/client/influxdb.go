@@ -14,10 +14,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
+	fluxClient "github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -30,12 +34,17 @@ const (
 
 	// DefaultTimeout is the default connection timeout used to connect to an InfluxDB instance
 	DefaultTimeout = 0
+	DefaultPath    = ""
 )
 
 // Query is used to send a command to the server. Both Command and Database are required.
 type Query struct {
 	Command  string
 	Database string
+
+	// RetentionPolicy tells the server which retention policy to use by default.
+	// This option is only effective when querying a server of version 1.6.0 or later.
+	RetentionPolicy string
 
 	// Chunked tells the server to send back chunked responses. This places
 	// less load on the server by sending back chunks of the response rather
@@ -48,25 +57,47 @@ type Query struct {
 	//
 	// Chunked must be set to true for this option to be used.
 	ChunkSize int
+
+	// NodeID sets the data node to use for the query results. This option only
+	// has any effect in the enterprise version of the software where there can be
+	// more than one data node and is primarily useful for analyzing differences in
+	// data. The default behavior is to automatically select the appropriate data
+	// nodes to retrieve all of the data. On a database where the number of data nodes
+	// is greater than the replication factor, it is expected that setting this option
+	// will only retrieve partial data.
+	NodeID int
+}
+
+// SplitPath gets the path of a url
+func SplitPath(v string) (string, string) {
+	i := strings.Index(v, "/")
+	if i == -1 {
+		return v, ""
+	}
+	return v[:i] /* first */, v[i+1:] /* rest */
 }
 
 // ParseConnectionString will parse a string to create a valid connection URL
 func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 	var host string
 	var port int
+	var pth string = ""
 
 	h, p, err := net.SplitHostPort(path)
 	if err != nil {
 		if path == "" {
 			host = DefaultHost
 		} else {
-			host = path
+			host, pth = SplitPath(path)
 		}
 		// If they didn't specify a port, always use the default port
 		port = DefaultPort
 	} else {
 		host = h
-		port, err = strconv.Atoi(p)
+		prt, pt := SplitPath(p)
+		pth = pt
+
+		port, err = strconv.Atoi(prt)
 		if err != nil {
 			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, err)
 		}
@@ -74,12 +105,17 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 
 	u := url.URL{
 		Scheme: "http",
+		Host:   host,
+		Path:   pth,
 	}
 	if ssl {
 		u.Scheme = "https"
+		if port != 443 {
+			u.Host = net.JoinHostPort(host, strconv.Itoa(port))
+		}
+	} else if port != 80 {
+		u.Host = net.JoinHostPort(host, strconv.Itoa(port))
 	}
-
-	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
 
 	return u, nil
 }
@@ -99,6 +135,8 @@ type Config struct {
 	Precision        string
 	WriteConsistency string
 	UnsafeSsl        bool
+	Proxy            func(req *http.Request) (*url.URL, error)
+	TLS              *tls.Config
 }
 
 // NewConfig will create a config to be used in connecting to the client
@@ -135,11 +173,14 @@ const (
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
 func NewClient(c Config) (*Client, error) {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.UnsafeSsl,
+	tlsConfig := new(tls.Config)
+	if c.TLS != nil {
+		tlsConfig = c.TLS.Clone()
 	}
+	tlsConfig.InsecureSkipVerify = c.UnsafeSsl
 
 	tr := &http.Transport{
+		Proxy:           c.Proxy,
 		TLSClientConfig: tlsConfig,
 	}
 
@@ -187,16 +228,22 @@ func (c *Client) Query(q Query) (*Response, error) {
 // It uses a context that can be cancelled by the command line client
 func (c *Client) QueryContext(ctx context.Context, q Query) (*Response, error) {
 	u := c.url
+	u.Path = path.Join(u.Path, "query")
 
-	u.Path = "query"
 	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
+	if q.RetentionPolicy != "" {
+		values.Set("rp", q.RetentionPolicy)
+	}
 	if q.Chunked {
 		values.Set("chunked", "true")
 		if q.ChunkSize > 0 {
 			values.Set("chunk_size", strconv.Itoa(q.ChunkSize))
 		}
+	}
+	if q.NodeID > 0 {
+		values.Set("node_id", strconv.Itoa(q.NodeID))
 	}
 	if c.precision != "" {
 		values.Set("epoch", c.precision)
@@ -259,12 +306,48 @@ func (c *Client) QueryContext(ctx context.Context, q Query) (*Response, error) {
 	return &response, nil
 }
 
+// QueryContext sends a command to the server and returns the Response
+// It uses a context that can be cancelled by the command line client
+func (c *Client) QueryFlux(ctx context.Context, query *fluxClient.QueryRequest) (flux.ResultIterator, error) {
+	u := c.url
+	u.Path = path.Join(u.Path, "api/v2/query")
+
+	body, err := json.Marshal(query)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Content-Type", "application/json")
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+	req = req.WithContext(ctx)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		resp.Body.Close()
+		return nil, err
+	}
+
+	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+	return dec.Decode(resp.Body)
+}
+
 // Write takes BatchPoints and allows for writing of multiple points with defaults
 // If successful, error is nil and Response is nil
 // If an error occurs, Response may contain additional information if populated.
 func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	u := c.url
-	u.Path = "write"
+	u.Path = path.Join(u.Path, "write")
 
 	var b bytes.Buffer
 	for _, p := range bp.Points {
@@ -306,7 +389,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 
 	precision := bp.Precision
 	if precision == "" {
-		precision = "ns"
+		precision = c.precision
 	}
 
 	params := req.URL.Query()
@@ -342,7 +425,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 // If an error occurs, Response may contain additional information if populated.
 func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, writeConsistency string) (*Response, error) {
 	u := c.url
-	u.Path = "write"
+	u.Path = path.Join(u.Path, "write")
 
 	r := strings.NewReader(data)
 
@@ -387,8 +470,9 @@ func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, w
 // Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
 func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
+
 	u := c.url
-	u.Path = "ping"
+	u.Path = path.Join(u.Path, "ping")
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {

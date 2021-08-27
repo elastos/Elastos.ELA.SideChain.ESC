@@ -159,9 +159,9 @@ func (self *FileSystemList) Get() error {
 	for i := 0; i < num; i++ {
 		fs := FileSystem{}
 
-		fs.DirName = bytePtrToString(&buf[i].F_mntonname[0])
-		fs.DevName = bytePtrToString(&buf[i].F_mntfromname[0])
-		fs.SysTypeName = bytePtrToString(&buf[i].F_fstypename[0])
+		fs.DirName = byteListToString(buf[i].F_mntonname[:])
+		fs.DevName = byteListToString(buf[i].F_mntfromname[:])
+		fs.SysTypeName = byteListToString(buf[i].F_fstypename[:])
 
 		fslist = append(fslist, fs)
 	}

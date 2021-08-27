@@ -7,8 +7,13 @@ type contextKey struct{}
 var activeSpanKey = contextKey{}
 
 // ContextWithSpan returns a new `context.Context` that holds a reference to
-// `span`'s SpanContext.
+// the span. If span is nil, a new context without an active span is returned.
 func ContextWithSpan(ctx context.Context, span Span) context.Context {
+	if span != nil {
+		if tracerWithHook, ok := span.Tracer().(TracerContextWithSpanExtension); ok {
+			ctx = tracerWithHook.ContextWithSpanHook(ctx, span)
+		}
+	}
 	return context.WithValue(ctx, activeSpanKey, span)
 }
 
@@ -41,11 +46,17 @@ func SpanFromContext(ctx context.Context) Span {
 //        ...
 //    }
 func StartSpanFromContext(ctx context.Context, operationName string, opts ...StartSpanOption) (Span, context.Context) {
-	return startSpanFromContextWithTracer(ctx, GlobalTracer(), operationName, opts...)
+	return StartSpanFromContextWithTracer(ctx, GlobalTracer(), operationName, opts...)
 }
 
-// startSpanFromContextWithTracer is factored out for testing purposes.
-func startSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operationName string, opts ...StartSpanOption) (Span, context.Context) {
+// StartSpanFromContextWithTracer starts and returns a span with `operationName`
+// using  a span found within the context as a ChildOfRef. If that doesn't exist
+// it creates a root span. It also returns a context.Context object built
+// around the returned span.
+//
+// It's behavior is identical to StartSpanFromContext except that it takes an explicit
+// tracer as opposed to using the global tracer.
+func StartSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operationName string, opts ...StartSpanOption) (Span, context.Context) {
 	if parentSpan := SpanFromContext(ctx); parentSpan != nil {
 		opts = append(opts, ChildOf(parentSpan.Context()))
 	}

@@ -1,13 +1,26 @@
 package schema
 
-var Meta *Schema
+import (
+	"github.com/graph-gophers/graphql-go/types"
+)
 
 func init() {
-	Meta = &Schema{} // bootstrap
-	Meta = New()
-	if err := Meta.Parse(metaSrc); err != nil {
+	_ = newMeta()
+}
+
+// newMeta initializes an instance of the meta Schema.
+func newMeta() *types.Schema {
+	s := &types.Schema{
+		EntryPointNames: make(map[string]string),
+		Types:           make(map[string]types.NamedType),
+		Directives:      make(map[string]*types.DirectiveDefinition),
+	}
+
+	err := Parse(s, metaSrc, false)
+	if err != nil {
 		panic(err)
 	}
+	return s
 }
 
 var metaSrc = `
@@ -167,7 +180,7 @@ var metaSrc = `
 		inputFields: [__InputValue!]
 		ofType: __Type
 	}
-	
+
 	# An enum describing what kind of type a given ` + "`" + `__Type` + "`" + ` is.
 	enum __TypeKind {
 		# Indicates this type is a scalar.

@@ -30,7 +30,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
-	duktape "gopkg.in/olebedev/go-duktape.v3"
+	duktape "github.com/olebedev/go-duktape"
 )
 
 // bigIntegerJS is the minified version of https://github.com/peterolson/BigInteger.js.

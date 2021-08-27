@@ -1,6 +1,6 @@
 # InfluxDB Client
 
-[![GoDoc](https://godoc.org/github.com/influxdata/influxdb?status.svg)](http://godoc.org/github.com/influxdata/influxdb/client/v2)
+[![GoDoc](https://godoc.org/github.com/influxdata/influxdb?status.svg)](http://godoc.org/github.com/influxdata/influxdb1-client/v2)
 
 ## Description
 
@@ -72,6 +72,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer c.Close()
 
 	// Create a new point batch
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
@@ -99,6 +100,11 @@ func main() {
 	// Write the batch
 	if err := c.Write(bp); err != nil {
 		log.Fatal(err)
+	}
+
+	// Close client resources
+	if err := c.Close(); err != nil {
+    		log.Fatal(err)
 	}
 }
 
@@ -180,10 +186,11 @@ as follows:
 
 ```go
 // queryDB convenience function to query the database
-func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
+func queryDB(clnt client.Client, cmd string, params map[string]interface{}) (res []client.Result, err error) {
 	q := client.Query{
-		Command:  cmd,
-		Database: MyDB,
+		Command:    cmd,
+		Database:   MyDB,
+		Parameters: params,
 	}
 	if response, err := clnt.Query(q); err == nil {
 		if response.Error() != nil {
@@ -197,10 +204,19 @@ func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
 }
 ```
 
+#### Parameter support
+
+The special parameters such as `client.Identifier` and `client.IntegerValue` are only supported in version 1.8 or greater.
+Versions before 1.8 only support literal types like `string`, `int64`, `float64`, and `bool`.
+The below queries cannot use parameters in versions before 1.8 and will have to use `fmt.Sprintf` to construct the query instead.
+Constructing queries using `fmt.Sprintf` is unsafe and vulnerable to query injection if they are constructed with user data.
+
 #### Creating a Database
 
 ```go
-_, err := queryDB(clnt, fmt.Sprintf("CREATE DATABASE %s", MyDB))
+_, err := queryDB(clnt, "CREATE DATABASE $db", client.Params{
+	"db": client.Identifier(MyDB),
+})
 if err != nil {
 	log.Fatal(err)
 }
@@ -209,8 +225,11 @@ if err != nil {
 #### Count Records
 
 ```go
-q := fmt.Sprintf("SELECT count(%s) FROM %s", "value", MyMeasurement)
-res, err := queryDB(clnt, q)
+q := "SELECT count($field) FROM $m"
+res, err := queryDB(clnt, q, client.Params{
+	"field": client.Identifier("value"),
+	"m":     client.Identifier(MyMeasurement),
+})
 if err != nil {
 	log.Fatal(err)
 }
@@ -221,8 +240,11 @@ log.Printf("Found a total of %v records\n", count)
 #### Find the last 10 _shapes_ records
 
 ```go
-q := fmt.Sprintf("SELECT * FROM %s LIMIT %d", MyMeasurement, 10)
-res, err = queryDB(clnt, q)
+q := "SELECT * FROM $m LIMIT $n"
+res, err = queryDB(clnt, q, client.Params{
+	"m": client.Identifier(MyMeasurement),
+	"n": 10,
+})
 if err != nil {
 	log.Fatal(err)
 }
@@ -244,11 +266,12 @@ The **InfluxDB** client also supports writing over UDP.
 ```go
 func WriteUDP() {
 	// Make client
-	c, err := client.NewUDPClient("localhost:8089")
+	// PayloadSize is default value(512)
+	c, err := client.NewUDPClient(client.UDPConfig{Addr: "localhost:8089"})
 	if err != nil {
 		panic(err.Error())
 	}
-	
+
 	// Create a new point batch
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Precision: "s",
@@ -297,7 +320,7 @@ cause fields to have differing timestamps when processed by the server.
 ## Go Docs
 
 Please refer to
-[http://godoc.org/github.com/influxdata/influxdb/client/v2](http://godoc.org/github.com/influxdata/influxdb/client/v2)
+[http://godoc.org/github.com/influxdata/influxdb/client/v2](http://godoc.org/github.com/influxdata/influxdb1-client/v2)
 for documentation.
 
 ## See Also

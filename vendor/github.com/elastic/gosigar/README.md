@@ -1,4 +1,4 @@
-# Go sigar [![Build Status](https://travis-ci.org/elastic/gosigar.svg?branch=master)](https://travis-ci.org/elastic/gosigar) [![Build status](https://ci.appveyor.com/api/projects/status/4yh6sa7u97ek5uib/branch/master?svg=true)](https://ci.appveyor.com/project/elastic-beats/gosigar/branch/master)
+# Go sigar [![Build Status](https://beats-ci.elastic.co/job/Beats/job/gosigar/job/master/badge/icon)](https://beats-ci.elastic.co/job/Beats/job/gosigar/job/master/)
 
 
 ## Overview
@@ -19,26 +19,27 @@ in pure go/cgo, rather than cgo bindings for libsigar.
 
 The features vary by operating system.
 
-| Feature         | Linux | Darwin | Windows | OpenBSD | FreeBSD |
-|-----------------|:-----:|:------:|:-------:|:-------:|:-------:|
-| Cpu             |   X   |    X   |    X    |    X    |    X    |
-| CpuList         |   X   |    X   |         |    X    |    X    |
-| FDUsage         |   X   |        |         |         |    X    |
-| FileSystemList  |   X   |    X   |    X    |    X    |    X    |
-| FileSystemUsage |   X   |    X   |    X    |    X    |    X    |
-| HugeTLBPages    |   X   |        |         |         |         |
-| LoadAverage     |   X   |    X   |         |    X    |    X    |
-| Mem             |   X   |    X   |    X    |    X    |    X    |
-| ProcArgs        |   X   |    X   |    X    |         |    X    |
-| ProcEnv         |   X   |    X   |         |         |    X    |
-| ProcExe         |   X   |    X   |         |         |    X    |
-| ProcFDUsage     |   X   |        |         |         |    X    |
-| ProcList        |   X   |    X   |    X    |         |    X    |
-| ProcMem         |   X   |    X   |    X    |         |    X    |
-| ProcState       |   X   |    X   |    X    |         |    X    |
-| ProcTime        |   X   |    X   |    X    |         |    X    |
-| Swap            |   X   |    X   |         |    X    |    X    |
-| Uptime          |   X   |    X   |         |    X    |    X    |
+| Feature         | Linux | Darwin | Windows | OpenBSD | FreeBSD |   AIX   |
+|-----------------|:-----:|:------:|:-------:|:-------:|:-------:|:-------:|
+| Cpu             |   X   |    X   |    X    |    X    |    X    |    X    |
+| CpuList         |   X   |    X   |         |    X    |    X    |    X    |
+| FDUsage         |   X   |        |         |         |    X    |         |
+| FileSystemList  |   X   |    X   |    X    |    X    |    X    |    X    |
+| FileSystemUsage |   X   |    X   |    X    |    X    |    X    |    X    |
+| HugeTLBPages    |   X   |        |         |         |         |         |
+| LoadAverage     |   X   |    X   |         |    X    |    X    |    X    |
+| Mem             |   X   |    X   |    X    |    X    |    X    |    X    |
+| ProcArgs        |   X   |    X   |    X    |         |    X    |    X    |
+| ProcEnv         |   X   |    X   |         |         |    X    |    X    |
+| ProcExe         |   X   |    X   |         |         |    X    |    X    |
+| ProcFDUsage     |   X   |        |         |         |    X    |         |
+| ProcList        |   X   |    X   |    X    |         |    X    |    X    |
+| ProcMem         |   X   |    X   |    X    |         |    X    |    X    |
+| ProcState       |   X   |    X   |    X    |         |    X    |    X    |
+| ProcTime        |   X   |    X   |    X    |         |    X    |    X    |
+| Rusage          |   X   |        |    X    |         |         |    X    |
+| Swap            |   X   |    X   |         |    X    |    X    |    X    |
+| Uptime          |   X   |    X   |         |    X    |    X    |    X    |
 
 ## OS Specific Notes
 

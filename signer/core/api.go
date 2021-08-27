@@ -28,7 +28,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/scwallet"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/usbwallet"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/ethapi"
@@ -136,29 +135,6 @@ func StartClefAccountManager(ksLocation string, nousb, lightKDF bool, scpath str
 	// support password based accounts
 	if len(ksLocation) > 0 {
 		backends = append(backends, keystore.NewKeyStore(ksLocation, n, p))
-	}
-	if !nousb {
-		// Start a USB hub for Ledger hardware wallets
-		if ledgerhub, err := usbwallet.NewLedgerHub(); err != nil {
-			log.Warn(fmt.Sprintf("Failed to start Ledger hub, disabling: %v", err))
-		} else {
-			backends = append(backends, ledgerhub)
-			log.Debug("Ledger support enabled")
-		}
-		// Start a USB hub for Trezor hardware wallets (HID version)
-		if trezorhub, err := usbwallet.NewTrezorHubWithHID(); err != nil {
-			log.Warn(fmt.Sprintf("Failed to start HID Trezor hub, disabling: %v", err))
-		} else {
-			backends = append(backends, trezorhub)
-			log.Debug("Trezor support enabled via HID")
-		}
-		// Start a USB hub for Trezor hardware wallets (WebUSB version)
-		if trezorhub, err := usbwallet.NewTrezorHubWithWebUSB(); err != nil {
-			log.Warn(fmt.Sprintf("Failed to start WebUSB Trezor hub, disabling: %v", err))
-		} else {
-			backends = append(backends, trezorhub)
-			log.Debug("Trezor support enabled via WebUSB")
-		}
 	}
 
 	// Start a smart card hub
@@ -281,9 +257,6 @@ func NewSignerAPI(am *accounts.Manager, chainID int64, noUSB bool, ui UIClientAP
 		log.Info("Clef is in advanced mode: will warn instead of reject")
 	}
 	signer := &SignerAPI{big.NewInt(chainID), am, ui, validator, !advancedMode, credentials}
-	if !noUSB {
-		signer.startUSBListener()
-	}
 	return signer
 }
 func (api *SignerAPI) openTrezor(url accounts.URL) {
@@ -315,57 +288,6 @@ func (api *SignerAPI) openTrezor(url accounts.URL) {
 		return
 	}
 
-}
-
-// startUSBListener starts a listener for USB events, for hardware wallet interaction
-func (api *SignerAPI) startUSBListener() {
-	events := make(chan accounts.WalletEvent, 16)
-	am := api.am
-	am.Subscribe(events)
-	go func() {
-
-		// Open any wallets already attached
-		for _, wallet := range am.Wallets() {
-			if err := wallet.Open(""); err != nil {
-				log.Warn("Failed to open wallet", "url", wallet.URL(), "err", err)
-				if err == usbwallet.ErrTrezorPINNeeded {
-					go api.openTrezor(wallet.URL())
-				}
-			}
-		}
-		// Listen for wallet event till termination
-		for event := range events {
-			switch event.Kind {
-			case accounts.WalletArrived:
-				if err := event.Wallet.Open(""); err != nil {
-					log.Warn("New wallet appeared, failed to open", "url", event.Wallet.URL(), "err", err)
-					if err == usbwallet.ErrTrezorPINNeeded {
-						go api.openTrezor(event.Wallet.URL())
-					}
-				}
-			case accounts.WalletOpened:
-				status, _ := event.Wallet.Status()
-				log.Info("New wallet appeared", "url", event.Wallet.URL(), "status", status)
-
-				// Derive first N accounts, hardcoded for now
-				var nextPath = make(accounts.DerivationPath, len(accounts.DefaultBaseDerivationPath))
-				copy(nextPath[:], accounts.DefaultBaseDerivationPath[:])
-
-				for i := 0; i < numberOfAccountsToDerive; i++ {
-					acc, err := event.Wallet.Derive(nextPath, true)
-					if err != nil {
-						log.Warn("account derivation failed", "error", err)
-					} else {
-						log.Info("derived account", "address", acc.Address)
-					}
-					nextPath[len(nextPath)-1]++
-				}
-			case accounts.WalletDropped:
-				log.Info("Old wallet dropped", "url", event.Wallet.URL())
-				event.Wallet.Close()
-			}
-		}
-	}()
 }
 
 // List returns the set of wallet this signer manages. Each wallet can contain
