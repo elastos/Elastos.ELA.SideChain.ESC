@@ -41,7 +41,6 @@ var (
 			dnsSyncCommand,
 			dnsSignCommand,
 			dnsTXTCommand,
-			dnsCloudflareCommand,
 		},
 	}
 	dnsSyncCommand = cli.Command{
@@ -63,13 +62,6 @@ var (
 		Usage:     "Create a DNS TXT records for a discovery tree",
 		ArgsUsage: "<tree-directory> <output-file>",
 		Action:    dnsToTXT,
-	}
-	dnsCloudflareCommand = cli.Command{
-		Name:      "to-cloudflare",
-		Usage:     "Deploy DNS TXT records to cloudflare",
-		ArgsUsage: "<tree-directory>",
-		Action:    dnsToCloudflare,
-		Flags:     []cli.Flag{cloudflareTokenFlag, cloudflareZoneIDFlag},
 	}
 )
 
@@ -179,19 +171,6 @@ func dnsToTXT(ctx *cli.Context) error {
 	}
 	writeTXTJSON(output, t.ToTXT(domain))
 	return nil
-}
-
-// dnsToCloudflare peforms dnsCloudflareCommand.
-func dnsToCloudflare(ctx *cli.Context) error {
-	if ctx.NArg() < 1 {
-		return fmt.Errorf("need tree definition directory as argument")
-	}
-	domain, t, err := loadTreeDefinitionForExport(ctx.Args().Get(0))
-	if err != nil {
-		return err
-	}
-	client := newCloudflareClient(ctx)
-	return client.deploy(domain, t)
 }
 
 // loadSigningKey loads a private key in Ethereum keystore format.

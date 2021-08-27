@@ -39,7 +39,6 @@ var (
 			discv4RequestRecordCommand,
 			discv4ResolveCommand,
 			discv4ResolveJSONCommand,
-			discv4CrawlCommand,
 		},
 	}
 	discv4PingCommand = cli.Command{
@@ -67,12 +66,6 @@ var (
 		Action:    discv4ResolveJSON,
 		Flags:     []cli.Flag{bootnodesFlag},
 		ArgsUsage: "<nodes.json file>",
-	}
-	discv4CrawlCommand = cli.Command{
-		Name:   "crawl",
-		Usage:  "Updates a nodes.json file with random nodes found in the DHT",
-		Action: discv4Crawl,
-		Flags:  []cli.Flag{bootnodesFlag, crawlTimeoutFlag},
 	}
 )
 
