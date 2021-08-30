@@ -320,6 +320,7 @@ func findSlot(pos []uint32, height uint32, arbitersCount int) (uint32, error) {
 func calcHash(data []byte) [32]byte {
 	return sha256.Sum256(data)
 }
+
 func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	c.RLock()
 	defer c.RUnlock()
@@ -353,13 +354,11 @@ func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	return mode[0], nil
 }
 
-
-
 func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight uint32, mode byte) error {
 	c.Lock()
 	defer c.Unlock()
 
-	pos := c.getCurrentPosition()
+	pos := c.getCurrentRevertPosition()
 	var isRollback bool
 	if workingHeight <= pos {
 		isRollback = true

@@ -205,7 +205,7 @@ func GetCurrentConsensusMode() spv.ConsensusAlgorithm {
 	}
 	spvHeight := uint32(GetSpvHeight())
 	mode , err := SpvService.GetConsensusAlgorithm(spvHeight)
-	log.Info("GetCurrentConsensusMode", "error", err, "spvHeight", spvHeight)
+	log.Info("GetCurrentConsensusMode", "error", err, "spvHeight", spvHeight, "Mode", mode)
 	if err != nil {
 		return spv.DPOS
 	}
