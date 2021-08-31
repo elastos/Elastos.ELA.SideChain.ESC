@@ -274,6 +274,16 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnLayer2Msg(msgItem.ID, msg)
 		}
+	case dpos_msg.CmdRequireArbitersSignature:
+		msg, processed := m.(*dpos_msg.RequireArbitersSignature)
+		if processed {
+			n.listener.OnLayer2Msg(msgItem.ID, msg)
+		}
+	case dpos_msg.CmdFeedbackArbiterSignature:
+		msg, processed := m.(*dpos_msg.FeedBackArbitersSignature)
+		if processed {
+			n.listener.OnLayer2Msg(msgItem.ID, msg)
+		}
 	}
 }
 
@@ -418,6 +428,10 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &dpos_msg.DArbiter{}
 	case dpos_msg.CmdRequireArbiters:
 		message = &dpos_msg.RequireArbiter{}
+	case dpos_msg.CmdRequireArbitersSignature:
+		message = &dpos_msg.RequireArbitersSignature{}
+	case dpos_msg.CmdFeedbackArbiterSignature:
+		message = &dpos_msg.FeedBackArbitersSignature{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}
