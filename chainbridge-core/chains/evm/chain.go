@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
 	"math/big"
 	"time"
 
@@ -56,12 +57,14 @@ type EVMChain struct {
 	config                *config.GeneralChainConfig
 	msgPool               *msg_pool.MsgPool
 	currentProposal       *dpos_msg.BatchMsg
+	arbiterManager        *aribiters.ArbiterManager
 }
 
-func NewEVMChain(dr EventListener, writer ProposalVoter, kvdb blockstore.KeyValueReaderWriter, chainID uint8, config *config.GeneralChainConfig) *EVMChain {
+func NewEVMChain(dr EventListener, writer ProposalVoter, kvdb blockstore.KeyValueReaderWriter, chainID uint8, config *config.GeneralChainConfig, arbiterManager *aribiters.ArbiterManager) *EVMChain {
 	chain := &EVMChain{listener: dr, writer: writer, kvdb: kvdb, chainID: chainID, config: config}
 	chain.bridgeContractAddress = config.Opts.Bridge
 	chain.msgPool = msg_pool.NewMsgPool()
+	chain.arbiterManager = arbiterManager
 	go chain.subscribeEvent()
 	return chain
 }
@@ -221,8 +224,9 @@ func (c *EVMChain) verifySignature(msg *dpos_msg.FeedbackBatchMsg) error {
 	if bytes.Compare(msg.Signer, pub) != 0 {
 		return errors.New(fmt.Sprintf("verified signature error, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
 	}
-
-	//TODO need judge pub is a arbiter
+	if !c.arbiterManager.HashArbiter(pub) {
+		return errors.New(fmt.Sprintf("verified signature is not in arbiterList, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
+	}
 	return nil
 }
 
