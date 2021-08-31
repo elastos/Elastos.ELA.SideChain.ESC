@@ -31,6 +31,8 @@ type DArbiter struct {
 	// The encrypted network address using the encode peer ID.
 	Cipher []byte
 
+	ArbitersSignature []byte
+
 	// Signature of the encode peer ID and cipher to proof the sender itself.
 	Signature []byte
 }
@@ -54,6 +56,10 @@ func (m *DArbiter) Serialize(w io.Writer) error {
 		return err
 	}
 
+	if err := common.WriteVarBytes(w, m.ArbitersSignature); err != nil {
+		return err
+	}
+
 	return common.WriteVarBytes(w, m.Signature)
 }
 
@@ -70,6 +76,8 @@ func (m *DArbiter) Deserialize(r io.Reader) error {
 		return err
 	}
 
+	m.ArbitersSignature, err = common.ReadVarBytes(r, crypto.SignatureLength,
+		"DArbiter.ArbitersSignature")
 	m.Signature, err = common.ReadVarBytes(r, crypto.SignatureLength,
 		"DArbiter.Signature")
 	return err
@@ -80,6 +88,7 @@ func (m *DArbiter) Data() []byte {
 	var timestamp = m.Timestamp.Unix()
 	common.WriteElements(b, timestamp, m.Encode)
 	common.WriteVarBytes(b, m.Cipher)
+	common.WriteVarBytes(b, m.ArbitersSignature)
 	return b.Bytes()
 }
 

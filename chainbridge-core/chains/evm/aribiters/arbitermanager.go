@@ -3,18 +3,26 @@ package aribiters
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"sort"
 	"sync"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+
 )
 
 type ArbiterManager struct {
 	totalCount int
 	arbiterList [][]byte
+	signatures  map[string][]byte
 	mtx         sync.RWMutex
 }
-
+// make(map[[2]enode.ID]struct{}, total)
 func CreateArbiterManager() *ArbiterManager {
 	manager := &ArbiterManager{
 		arbiterList: make([][]byte, 0),
+		signatures:  make(map[string][]byte, 0),
 	}
 	return manager
 }
@@ -73,4 +81,35 @@ func (a *ArbiterManager) Clear() {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.arbiterList = make([][]byte, 0)
+	a.signatures = make(map[string][]byte, 0)
+}
+
+func (a *ArbiterManager) HashArbiterList() common.Hash {
+	list := a.GetArbiterList()
+	sort.Slice(list, func(i, j int) bool {
+		return bytes.Compare(list[i][:], list[j][:]) < 0
+	})
+	data := make([]byte, 0)
+	for _, ar := range list {
+		data = append(data, ar...)
+	}
+	return crypto.Keccak256Hash(data)
+}
+
+func (a *ArbiterManager) AddSignature(arbiter, signature []byte) error {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	arb := common.Bytes2Hex(arbiter)
+	fmt.Println("[AddSignature]", "a.signatures[arb]", common.Bytes2Hex(a.signatures[arb]))
+	if a.signatures[arb] != nil || len(a.signatures[arb]) > 0 {
+		return errors.New("all ready add this signature")
+	}
+	a.signatures[arb] = signature
+	return nil
+}
+
+func (a *ArbiterManager) GetSignatures() map[string][]byte {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	return a.signatures
 }
