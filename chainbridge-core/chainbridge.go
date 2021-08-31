@@ -91,21 +91,94 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 			if hanleDArbiter(engine, e) {
 				list := arbiterManager.GetArbiterList()
 				log.Info("GetArbiterList", "count", len(list))
-				if engine.HasProducerMajorityCount(len(list)) {
-					go func() {
-						time.Sleep(2 * time.Second)
-						total := arbiterManager.GetTotalCount()
-						err := MsgReleayer.UpdateArbiters(list, total, 0)
-						if err != nil {
-							log.Error("Update Arbiter error", "error", err)
-						}
-					}()
+				if len(list) == len(engine.GetCurrentProducers()) {
+					requireArbitersSignature(engine)
+					//go func() {
+						//total := arbiterManager.GetTotalCount()
+						//err := MsgReleayer.UpdateArbiters(list, total, 0)
+						//if err != nil {
+						//	log.Error("Update Arbiter error", "error", err)
+						//}
+					//}()
 				}
 			}
 		case dpos_msg.ETRequireArbiter:
 			receivedRequireArbiter(engine, e)
+		case dpos_msg.ETReqArbiterSig:
+			receivedReqArbiterSignature(engine, e)
+		case dpos_msg.ETFeedBackArbiterSig:
+			handleFeedBackArbitersSig(engine, e)
 		}
 	})
+}
+
+func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
+	m, ok := e.Data.(*dpos_msg.FeedBackArbitersSignature)
+	if !ok {
+		return
+	}
+	producer := m.Producer
+	if !engine.IsProducerByAccount(producer) {
+		return
+	}
+
+	arbiter, err := crypto.Ecrecover(arbiterManager.HashArbiterList().Bytes(), m.Signature)
+	if err != nil {
+		log.Error("[handleFeedBackArbitersSig] Ecrecover error", "error", err)
+		return
+	}
+
+	err = arbiterManager.AddSignature(arbiter, m.Signature)
+	if err != nil {
+		log.Info("AddSignature failed", "error", err)
+		return
+	}
+	count := len(arbiterManager.GetSignatures())
+	log.Info("handleFeedBackArbitersSig", "arbiter", common.Bytes2Hex(arbiter), "count", count)
+
+	if engine.HasProducerMajorityCount(count) {
+		list := arbiterManager.GetArbiterList()
+		total := arbiterManager.GetTotalCount()
+		err := MsgReleayer.UpdateArbiters(list, total, 0)
+		if err != nil {
+			log.Error("Update Arbiter error", "error", err)
+		}
+	}
+}
+
+func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
+	m, ok := e.Data.(*dpos_msg.RequireArbitersSignature)
+	if !ok {
+		return
+	}
+
+	if engine.IsProducerByAccount(m.PID[:]) == false {
+		log.Warn("[receivedReqArbiterSignature] target is not a producer", "pid", common.Bytes2Hex(m.PID[:]))
+		return
+	}
+
+	selfProducer := engine.GetProducer()
+	msg := &dpos_msg.FeedBackArbitersSignature{}
+	msg.Producer = selfProducer
+
+	kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
+	privateKey := kp.PrivateKey()
+	sign, err := crypto.Sign(arbiterManager.HashArbiterList().Bytes(), privateKey)
+	if err != nil {
+		log.Warn("sign arbiters error", "error", err)
+		return
+	}
+	msg.Signature = sign
+	engine.SendMsgToPeer(msg, m.PID)
+
+	go events.Notify(dpos_msg.ETFeedBackArbiterSig, msg)//add self signature
+}
+
+func requireArbitersSignature(engine *pbft.Pbft) {
+	selfProducer := engine.GetProducer()
+	msg := &dpos_msg.RequireArbitersSignature{}
+	copy(msg.PID[:], selfProducer)
+	engine.BroadMessage(msg)
 }
 
 func receivedRequireArbiter(engine *pbft.Pbft, e *events.Event)  {
@@ -139,9 +212,16 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) bool {
 	}
 	err = elaCrypto.Verify(*pubKey, m.Data(), m.Signature)
 	if err != nil {
-		log.Error("hanleDArbiter invalid signature", m.Signature)
+		log.Error("hanleDArbiter invalid signature", "pid", common.Bytes2Hex(m.PID[:]))
 		return false
 	}
+
+	err = elaCrypto.Verify(*pubKey, GetProducersData(engine), m.ArbitersSignature)
+	if err != nil {
+		log.Error("hanleDArbiter producers verify error", "pid", common.Bytes2Hex(m.PID[:]))
+		return false
+	}
+
 	signerPublicKey, err := engine.DecryptArbiter(m.Cipher)
 	if err != nil {
 		log.Error("hanleDArbiter decrypt address cipher error", "error:", err, "self", common.Bytes2Hex(selfSigner), "cipher", common.Bytes2Hex(m.Cipher))
@@ -189,7 +269,7 @@ func onSelfIsArbiter(engine *pbft.Pbft) {
 func requireArbiters(engine *pbft.Pbft) bool {
 	count := getActivePeerCount(engine)
 	log.Info("getActivePeerCount", "count", count, "total", len(engine.GetCurrentProducers()))
-	if engine.HasProducerMajorityCount(count) {
+	if count == len(engine.GetCurrentProducers()) {
 		selfProducer := engine.GetProducer()
 		msg := &dpos_msg.RequireArbiter{}
 		copy(msg.PID[:], selfProducer)
@@ -211,17 +291,30 @@ func SendAriberToPeer(engine *pbft.Pbft, pid peer.PID) {
 		log.Error("DecodePoint pbk error", "error", err, "selfProducer", common.Bytes2Hex(selfProducer))
 		return
 	}
-
+	producersData := GetProducersData(engine)
 	cipher, err := elaCrypto.Encrypt(publicKey, signer)
 	msg := &dpos_msg.DArbiter{
 		Timestamp: time.Now(),
 		Cipher: cipher,
+		ArbitersSignature: engine.SignData(producersData),
 	}
 	copy(msg.PID[:], selfProducer[:])
 	copy(msg.Encode[:], pid[:])
 	msg.Signature = engine.SignData(msg.Data())
 
 	engine.SendMsgToPeer(msg, pid)
+}
+
+func GetProducersData(engine *pbft.Pbft) []byte {
+	producers := engine.GetCurrentProducers()
+	if len(producers) <= 0 {
+		return []byte{}
+	}
+	data := make([]byte, 0)
+	for _, producer := range producers {
+		data = append(data, producer...)
+	}
+	return data
 }
 
 func getActivePeerCount(engine *pbft.Pbft) int {
@@ -307,6 +400,6 @@ func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.P
 	}
 	voter := voter.NewVoter(messageHandler, ethClient, kp)
 
-	chain := evm.NewEVMChain(evmListener, voter, db, ethCfg.SharedEVMConfig.Id, &ethCfg.SharedEVMConfig)
+	chain := evm.NewEVMChain(evmListener, voter, db, ethCfg.SharedEVMConfig.Id, &ethCfg.SharedEVMConfig, arbiterManager)
 	return chain, nil
 }
