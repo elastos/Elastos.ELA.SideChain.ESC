@@ -3,6 +3,7 @@ package pbft
 import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
+
 	dpeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 	elap2p "github.com/elastos/Elastos.ELA/p2p"
@@ -91,6 +92,16 @@ func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 		msg, ok := c.(*dpos_msg.RequireArbiter)
 		if ok {
 			events.Notify(dpos_msg.ETRequireArbiter, msg)
+		}
+	case dpos_msg.CmdRequireArbitersSignature:
+		msg, ok := c.(*dpos_msg.RequireArbitersSignature)
+		if ok {
+			events.Notify(dpos_msg.ETReqArbiterSig, msg)
+		}
+	case dpos_msg.CmdFeedbackArbiterSignature:
+		msg, ok := c.(*dpos_msg.FeedBackArbitersSignature)
+		if ok {
+			events.Notify(dpos_msg.ETFeedBackArbiterSig, msg)
 		}
 	}
 }
