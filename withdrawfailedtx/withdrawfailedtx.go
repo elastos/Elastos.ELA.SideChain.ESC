@@ -63,10 +63,21 @@ func ReceivedFailedWithdrawTx(hash string, signature string) error {
 	mulFailedMux.Lock()
 	defer mulFailedMux.Unlock()
 
+	if IsSignatureVerified(hash, signature) {
+		return errors.New("all ready received this tx")
+	}
+
 	client := spv.GetClient()
 	if client == nil {
 		return errors.New("ipc client is null")
 	}
+
+	txhash, err := client.StorageAt(context.Background(), common.Address{}, common.HexToHash(hash), nil)
+	if err != nil {
+		log.Error(fmt.Sprintf("%s get StorageAt: %v", hash, err))
+		return err
+	}
+
 	receipt, err := client.TransactionReceipt(context.Background(), common.HexToHash(hash))
 	if err != nil {
 		return err
@@ -74,21 +85,12 @@ func ReceivedFailedWithdrawTx(hash string, signature string) error {
 	if receipt.Status == 0 {
 		return errors.New("tx receipt status is 0")
 	}
-	txhash, err := client.StorageAt(context.Background(), common.Address{}, common.HexToHash(hash), nil)
-	if err != nil {
-		log.Error(fmt.Sprintf("%s get StorageAt: %v", hash, err))
-		return err
-	}
+
 	h := common.Hash{}
 	if common.BytesToHash(txhash) != h {
 		OnProcessFaildWithdrawTx(hash)
 		return errors.New("all ready refund this amount" + common.BytesToHash(txhash).String())
 	}
-
-	if IsSignatureVerified(hash, signature) {
-		return errors.New("all ready received this tx")
-	}
-
 	arbiters, err := spv.GetArbiters()
 	if err != nil {
 		return err
@@ -234,16 +236,17 @@ func VerifySignatures(input []byte) bool {
 	count := 0
 	txid := failedTxHash.String()
 	txid = txid[2:]
+
+	verifiedArbiterList := verifiedArbiter[txid]
+	if len(verifiedArbiterList) >= getMaxArbitersSign(len(arbiters)) {
+		log.Info("all ready verified refund withdraw tx", "txid", txid)
+		return true
+	}
+
 	buff := common.Hex2Bytes(txid)
 	for _, signature := range signatures {
 		sig := common.Hex2Bytes(signature)
-		for i, arbiter := range arbiters {
-			fmt.Println(">>>> verify index ", i, "count", count)
-			if IsArbiterVerified(txid, arbiter) {
-				fmt.Println("verified this", i, "arbiter", arbiter)
-				count ++
-				continue
-			}
+		for _, arbiter := range arbiters {
 			pub := common.Hex2Bytes(arbiter)
 			pubKey, err := elaCrypto.DecodePoint(pub)
 			if err != nil {
@@ -252,17 +255,16 @@ func VerifySignatures(input []byte) bool {
 			}
 			err = elaCrypto.Verify(*pubKey, buff, sig)
 			if err == nil {
-				fmt.Println("verified true", arbiter)
 				count ++
-			} else {
-				log.Error("verify signature error", "error", err)
+				break
 			}
 		}
+		fmt.Println(">>>> verified true ", "count", count, "arbiter", "txid", txid)
+		if count >= getMaxArbitersSign(len(arbiters)) {
+			return true
+		}
+	}
 
-	}
-	if count >= getMaxArbitersSign(len(arbiters)) {
-		return true
-	}
 	return false
 }
 
@@ -320,8 +322,6 @@ func verifySignature(arbiters []string, txid, signature string) (bool, string) {
 		err = elaCrypto.Verify(*pubKey, buff, sig)
 		if err == nil {
 			return true, arbiter
-		} else {
-			log.Error("verify signature error", "error", err)
 		}
 	}
 	return false, ""
@@ -353,6 +353,9 @@ func getMaxArbitersSign(total int) int {
 }
 
 func broadFailedWithdrawEvt(hash, signature string) {
+	if eventMux == nil {
+		return
+	}
 	evt := FailedWithdrawEvent{
 		Signature: signature,
 		Txid:      hash,

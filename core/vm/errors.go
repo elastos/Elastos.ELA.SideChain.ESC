@@ -27,4 +27,6 @@ var (
 	ErrInsufficientBalance      = errors.New("insufficient balance for transfer")
 	ErrContractAddressCollision = errors.New("contract address collision")
 	ErrNoCompatibleInterpreter  = errors.New("no compatible interpreter")
+
+	ErrWithdawrefundCallFailed = errors.New("refund withdraw tx call failed")
 )

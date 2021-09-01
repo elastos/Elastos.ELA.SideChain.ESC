@@ -353,6 +353,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 
 	engine.SetBlockChain(eth.blockchain)
+	spv.PbftEngine = engine
 	dposAccount, err := dpos.GetDposAccount(chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord))
 	if err != nil {
 		return eth, nil

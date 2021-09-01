@@ -214,10 +214,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			if completetxhash != emptyHash {
 				return nil, 0, false, ErrRefunded
 			} else {
-				res := withdrawfailedtx.VerifySignatures(msg.Data())
-				if res == false {
-					return nil, 0, false, ErrWithdawrefundVerify
-				}
+
 				st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
 				defer func() {
 					usedFee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
@@ -340,6 +337,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		// balance transfer may never fail.
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, false, vmerr
+		}
+		if vmerr == vm.ErrWithdawrefundCallFailed {
+			return nil, 0, true, vmerr
 		}
 	}
 	st.refundGas()

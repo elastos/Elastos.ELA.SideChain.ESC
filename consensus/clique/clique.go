@@ -755,6 +755,10 @@ func (c *Clique) IsInBlockPool(hash common.Hash) bool {
 	return false
 }
 
+func (c *Clique) GetCurrentProducers() [][]byte {
+	return [][]byte{}
+}
+
 // Used for test
 func (c *Clique) SetFakeDiff(v bool) {
 	c.fakeDiff = v
