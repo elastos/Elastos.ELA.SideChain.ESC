@@ -97,7 +97,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles())
 	}
 
-
 	return receipts, allLogs, *usedGas, nil
 }
 

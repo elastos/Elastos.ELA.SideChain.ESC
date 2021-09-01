@@ -237,6 +237,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 				//first give caller, then caller transfer to target behind
 				evm.StateDB.AddBalance(caller.Address(), amount)
 				withdrawfailedtx.OnProcessFaildWithdrawTx(txid)
+			} else {
+				return nil, gas, ErrWithdawrefundCallFailed
 			}
 		} else if len(input) == 32 {
 			txHash = hexutil.Encode(input)

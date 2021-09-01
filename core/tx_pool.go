@@ -861,13 +861,7 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) ([]error,
 			to := *tx.To()
 			var blackAddr common.Address
 			if  to == blackAddr {
-				isWithdraw, _ := withdrawfailedtx.IsWithdawFailedTx(tx.Data(), pool.chainconfig.BlackContractAddr)
-				if isWithdraw {
-					res := withdrawfailedtx.VerifySignatures(tx.Data())
-					if res == false {
-						errs[i] = ErrWithdawrefundVerify
-					}
-				} else if len(tx.Data()) == 32 {
+				if len(tx.Data()) == 32 {
 					txhash :=  hexutil.Encode(tx.Data())
 					fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
 					if addr != blackAddr {

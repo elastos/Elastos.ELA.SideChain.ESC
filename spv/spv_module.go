@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
-	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"math/big"
 	"path/filepath"
 	"strings"
@@ -18,17 +16,21 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb/leveldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
+
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"golang.org/x/net/context"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	core "github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
 )
 
@@ -49,6 +51,8 @@ var (
 	failedMutex      sync.RWMutex
 	failedTxList = make(map[uint64][]string)
 	consensusMode spv.ConsensusAlgorithm
+
+	PbftEngine consensus.Engine
 )
 
 const (
@@ -1013,6 +1017,14 @@ func SendEvilProof(addr ethCommon.Address, info interface{}) {
 }
 
 func GetArbiters() ([]string, error) {
+	if PbftEngine != nil {
+		producers := make([]string, 0)
+		list := PbftEngine.GetCurrentProducers()
+		for _, p := range list {
+			producers = append(producers, common.BytesToHexString(p))
+		}
+		return producers, nil
+	}
 	producers, err := ipcClient.GetCurrentProducers(context.Background())
 	if err != nil {
 		return nil, err
