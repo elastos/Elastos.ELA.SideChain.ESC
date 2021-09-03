@@ -44,9 +44,6 @@ func (c *GeneralChainConfig) Validate() error {
 	if c.Name == "" {
 		return fmt.Errorf("required field chain.Name empty for chain %v", c.Id)
 	}
-	if c.From == "" {
-		return fmt.Errorf("required field chain.From empty for chain %v", c.Id)
-	}
 	return nil
 }
 
