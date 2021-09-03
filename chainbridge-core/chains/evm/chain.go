@@ -42,7 +42,7 @@ type ProposalVoter interface {
 	FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash
 	GetPublicKey() ([]byte, error)
 	GetSignerAddress() (common.Address, error)
-	SetArbiterList(arbiters []common.Address, totalCount int, bridgeAddress string) error
+	SetArbiterList(arbiters []common.Address, totalCount int, signature [][]byte, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 }
@@ -224,7 +224,7 @@ func (c *EVMChain) verifySignature(msg *dpos_msg.FeedbackBatchMsg) error {
 	if bytes.Compare(msg.Signer, pub) != 0 {
 		return errors.New(fmt.Sprintf("verified signature error, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
 	}
-	if !c.arbiterManager.HashArbiter(pub) {
+	if !c.arbiterManager.HasArbiter(pub) {
 		return errors.New(fmt.Sprintf("verified signature is not in arbiterList, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
 	}
 	return nil
@@ -383,12 +383,12 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 	}
 }
 
-func (c *EVMChain) WriteArbiters(arbiters []common.Address, totalCount int) error {
+func (c *EVMChain) WriteArbiters(arbiters []common.Address, signatures [][]byte, totalCount int) error {
 	if c.writer.IsDeployedBridgeContract(c.bridgeContractAddress) == false {
 		return errors.New(fmt.Sprintf("%d is not deploy chainbridge contract", c.chainID))
 	}
 
-	return c.writer.SetArbiterList(arbiters, totalCount, c.bridgeContractAddress)
+	return c.writer.SetArbiterList(arbiters, totalCount, signatures, c.bridgeContractAddress)
 }
 
 func (c *EVMChain) GetArbiters() []common.Address {

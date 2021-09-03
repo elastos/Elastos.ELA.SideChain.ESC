@@ -3,13 +3,11 @@ package aribiters
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"sort"
 	"sync"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
-
 )
 
 type ArbiterManager struct {
@@ -36,7 +34,7 @@ func (a *ArbiterManager) GetTotalCount() int {
 }
 
 func (a *ArbiterManager) AddArbiter(arbiter []byte) error {
-	if a.HashArbiter(arbiter) {
+	if a.HasArbiter(arbiter) {
 		return errors.New("has added this arbiter")
 	}
 	a.mtx.Lock()
@@ -45,7 +43,7 @@ func (a *ArbiterManager) AddArbiter(arbiter []byte) error {
 	return nil
 }
 
-func (a *ArbiterManager) HashArbiter(arbiter []byte) bool {
+func (a *ArbiterManager) HasArbiter(arbiter []byte) bool {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	for _, item := range a.arbiterList {
@@ -74,6 +72,9 @@ func (a *ArbiterManager) GetArbiterList() [][]byte {
 	for _, item := range a.arbiterList {
 		list = append(list, item)
 	}
+	sort.Slice(list, func(i, j int) bool {
+		return bytes.Compare(list[i][:], list[j][:]) < 0
+	})
 	return list
 }
 
@@ -84,24 +85,30 @@ func (a *ArbiterManager) Clear() {
 	a.signatures = make(map[string][]byte, 0)
 }
 
-func (a *ArbiterManager) HashArbiterList() common.Hash {
-	list := a.GetArbiterList()
-	sort.Slice(list, func(i, j int) bool {
-		return bytes.Compare(list[i][:], list[j][:]) < 0
-	})
+func (a *ArbiterManager) HashArbiterList() (common.Hash, error) {
+	arbiters := a.GetArbiterList()
 	data := make([]byte, 0)
-	for _, ar := range list {
-		data = append(data, ar...)
+	for _, arbiter := range arbiters {
+		escssaPUb, err := crypto.DecompressPubkey(arbiter)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		addr := crypto.PubkeyToAddress(*escssaPUb)
+		data = append(data, addr.Bytes()...)
 	}
-	return crypto.Keccak256Hash(data)
+	return crypto.Keccak256Hash(data), nil
 }
 
-func (a *ArbiterManager) AddSignature(arbiter, signature []byte) error {
+func (a *ArbiterManager) AddSignature(arbiter common.Address, signature []byte) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
-	arb := common.Bytes2Hex(arbiter)
-	fmt.Println("[AddSignature]", "a.signatures[arb]", common.Bytes2Hex(a.signatures[arb]))
-	if a.signatures[arb] != nil || len(a.signatures[arb]) > 0 {
+	var addr common.Address
+	if arbiter == addr {
+		return errors.New("is black hole address")
+	}
+
+	arb := arbiter.String()
+	if len(a.signatures[arb]) > 0 {
 		return errors.New("all ready add this signature")
 	}
 	a.signatures[arb] = signature
