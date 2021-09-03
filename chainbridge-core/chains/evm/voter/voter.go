@@ -141,8 +141,8 @@ func (w *EVMVoter) GetSignerAddress() (common.Address, error) {
 	return w.account.CommonAddress(), nil
 }
 
-func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, bridgeAddress string) error {
-	definition := "[{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addressList\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_totalCount\",\"type\":\"uint256\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, signature [][]byte, bridgeAddress string) error {
+	definition := "[{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addressList\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_addressCount\",\"type\":\"uint256\"},{\"internalType\":\"bytes[]\",\"name\":\"sig\",\"type\":\"bytes[]\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, bri
 		return err
 	}
 	count := big.NewInt(int64(totalCount))
-	input, err := a.Pack("setAbiterList", arbiters, &count)
+	input, err := a.Pack("setAbiterList", arbiters, &count, signature)
 	if err != nil {
 		return err
 	}
