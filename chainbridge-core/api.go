@@ -19,9 +19,16 @@ func (a *API) UpdateArbiters(chainID uint8) uint64 {
 		log.Error("self is not a producer")
 		return 0
 	}
-	log.Info("UpdateArbiters ","len", len(list), "total", total, "producers", len(a.engine.GetCurrentProducers()))
-	if a.engine.HasProducerMajorityCount(len(list)) {
-		err := MsgReleayer.UpdateArbiters(list, total, chainID)
+	signatures := arbiterManager.GetSignatures()
+	count := len(signatures)
+	log.Info("UpdateArbiters ","len", len(list), "total", total, "producers", len(a.engine.GetCurrentProducers()), "sigCount", count)
+	if a.engine.HasProducerMajorityCount(count) {
+		sigs := make([][]byte, 0)
+		for ar, sig := range signatures {
+			log.Info("signature arbiter", "arbiter", ar)
+			sigs = append(sigs, sig)
+		}
+		err := MsgReleayer.UpdateArbiters(list, total, sigs, chainID)
 		if err != nil {
 			log.Error("UpdateArbiters error", "error", err)
 			return 0

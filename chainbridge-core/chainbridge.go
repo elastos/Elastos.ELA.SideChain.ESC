@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
@@ -93,13 +94,6 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 				log.Info("GetArbiterList", "count", len(list))
 				if len(list) == len(engine.GetCurrentProducers()) {
 					requireArbitersSignature(engine)
-					//go func() {
-						//total := arbiterManager.GetTotalCount()
-						//err := MsgReleayer.UpdateArbiters(list, total, 0)
-						//if err != nil {
-						//	log.Error("Update Arbiter error", "error", err)
-						//}
-					//}()
 				}
 			}
 		case dpos_msg.ETRequireArbiter:
@@ -121,25 +115,39 @@ func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
 	if !engine.IsProducerByAccount(producer) {
 		return
 	}
-
-	arbiter, err := crypto.Ecrecover(arbiterManager.HashArbiterList().Bytes(), m.Signature)
+	hash, err := arbiterManager.HashArbiterList()
+	if err != nil {
+		log.Error("HashArbiterList failed", "error", err)
+		return
+	}
+	pubkey, err := crypto.SigToPub(accounts.TextHash(hash.Bytes()), m.Signature)
 	if err != nil {
 		log.Error("[handleFeedBackArbitersSig] Ecrecover error", "error", err)
 		return
 	}
+	compressPbk := crypto.CompressPubkey(pubkey)
+	if !arbiterManager.HasArbiter(compressPbk) {
+		log.Error("[handleFeedBackArbitersSig] signer public key error")
+		return
+	}
 
-	err = arbiterManager.AddSignature(arbiter, m.Signature)
+	err = arbiterManager.AddSignature(crypto.PubkeyToAddress(*pubkey), m.Signature)
 	if err != nil {
 		log.Info("AddSignature failed", "error", err)
 		return
 	}
-	count := len(arbiterManager.GetSignatures())
-	log.Info("handleFeedBackArbitersSig", "arbiter", common.Bytes2Hex(arbiter), "count", count)
+	signatures := arbiterManager.GetSignatures()
+	count := len(signatures)
+	log.Info("handleFeedBackArbitersSig", "count", count, "producer", common.Bytes2Hex(producer))
 
 	if engine.HasProducerMajorityCount(count) {
 		list := arbiterManager.GetArbiterList()
 		total := arbiterManager.GetTotalCount()
-		err := MsgReleayer.UpdateArbiters(list, total, 0)
+		sigs := make([][]byte, 0)
+		for _, sig := range signatures {
+			sigs = append(sigs, sig)
+		}
+		err := MsgReleayer.UpdateArbiters(list, total, sigs, 0)
 		if err != nil {
 			log.Error("Update Arbiter error", "error", err)
 		}
@@ -156,14 +164,21 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 		log.Warn("[receivedReqArbiterSignature] target is not a producer", "pid", common.Bytes2Hex(m.PID[:]))
 		return
 	}
-
+	if int(m.ArbiterCount) != len(arbiterManager.GetArbiterList()) {
+		log.Warn("[receivedReqArbiterSignature] ArbiterCount is not same")
+		return
+	}
 	selfProducer := engine.GetProducer()
 	msg := &dpos_msg.FeedBackArbitersSignature{}
 	msg.Producer = selfProducer
 
 	kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
 	privateKey := kp.PrivateKey()
-	sign, err := crypto.Sign(arbiterManager.HashArbiterList().Bytes(), privateKey)
+	hash, err := arbiterManager.HashArbiterList()
+	if err != nil {
+		log.Error("receivedReqArbiterSignature HashArbiterList failed", "error", err)
+	}
+	sign, err := crypto.Sign(accounts.TextHash(hash.Bytes()), privateKey)
 	if err != nil {
 		log.Warn("sign arbiters error", "error", err)
 		return
@@ -175,10 +190,24 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 }
 
 func requireArbitersSignature(engine *pbft.Pbft) {
-	selfProducer := engine.GetProducer()
-	msg := &dpos_msg.RequireArbitersSignature{}
-	copy(msg.PID[:], selfProducer)
-	engine.BroadMessage(msg)
+	go func() {
+		for {
+			select {
+			case <-time.NewTimer(time.Second).C:
+				signCount := len(arbiterManager.GetSignatures())
+				arbiterCount := len(arbiterManager.GetArbiterList())
+				if signCount == arbiterCount {
+					return
+				}
+				selfProducer := engine.GetProducer()
+				msg := &dpos_msg.RequireArbitersSignature{
+					ArbiterCount: uint8(arbiterCount),
+				}
+				copy(msg.PID[:], selfProducer)
+				engine.BroadMessage(msg)
+			}
+		}
+	}()
 }
 
 func receivedRequireArbiter(engine *pbft.Pbft, e *events.Event)  {
