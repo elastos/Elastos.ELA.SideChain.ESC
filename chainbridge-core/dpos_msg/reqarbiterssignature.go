@@ -3,6 +3,7 @@ package dpos_msg
 import (
 	"io"
 
+	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/p2p"
 )
 
@@ -11,6 +12,7 @@ var _ p2p.Message = (*RequireArbitersSignature)(nil)
 
 type RequireArbitersSignature struct {
 	PID [33]byte
+	ArbiterCount uint8
 }
 
 func (msg *RequireArbitersSignature) CMD() string {
@@ -18,11 +20,15 @@ func (msg *RequireArbitersSignature) CMD() string {
 }
 
 func (msg *RequireArbitersSignature) MaxLength() uint32 {
-	return 34
+	return 35
 }
 
 func (msg *RequireArbitersSignature) Serialize(w io.Writer) error {
 	_, err := w.Write(msg.PID[:])
+	if err != nil {
+		return err
+	}
+	err = common.WriteUint8(w, msg.ArbiterCount)
 	return err
 }
 
@@ -33,5 +39,7 @@ func (msg *RequireArbitersSignature) Deserialize(r io.Reader) error {
 		return err
 	}
 	copy(msg.PID[:], pid)
-	return nil
+
+	msg.ArbiterCount, err = common.ReadUint8(r)
+	return err
 }
