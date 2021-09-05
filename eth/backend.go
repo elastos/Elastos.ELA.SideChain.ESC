@@ -461,11 +461,6 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 	chainSub := eth.blockchain.SubscribeChainEvent(blockEvent)
 	initProducersSub := eth.EventMux().Subscribe(events.InitCurrentProducers{})
 	go func() {
-		defer func() {
-			chainSub.Unsubscribe()
-			initProducersSub.Unsubscribe()
-		}()
-
 		for  {
 			select {
 			case b := <-blockEvent:
@@ -479,6 +474,10 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				pbftEngine := engine.(*pbft.Pbft)
 				currentHeader := eth.blockchain.CurrentBlock()
 				InitCurrentProducers(pbftEngine, eth.blockchain.Config(), currentHeader)
+			case <-eth.shutdownChan:
+				chainSub.Unsubscribe()
+				initProducersSub.Unsubscribe()
+				return
 			}
 		}
 	}()
@@ -844,6 +843,8 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 // Stop implements node.Service, terminating all internal goroutines used by the
 // Ethereum protocol.
 func (s *Ethereum) Stop() error {
+	spv.Close()
+
 	s.bloomIndexer.Close()
 	s.blockchain.Stop()
 	s.engine.Close()
@@ -856,14 +857,6 @@ func (s *Ethereum) Stop() error {
 	s.eventMux.Stop()
 
 	s.chainDb.Close()
-
-	if nil != spv.MinedBlockSub {
-		spv.MinedBlockSub.Unsubscribe()
-	}
-	spvdb := spv.SpvService.GetDatabase()
-	if spvdb != nil {
-		spvdb.Close()
-	}
 
 	close(s.shutdownChan)
 	return nil
