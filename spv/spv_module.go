@@ -53,6 +53,7 @@ var (
 	consensusMode spv.ConsensusAlgorithm
 
 	PbftEngine consensus.Engine
+	stopChn = make(chan  struct{})
 )
 
 const (
@@ -197,6 +198,11 @@ func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux) (*Service,
 func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *event.TypeMuxSubscription) {
 	var i = 0
 
+	defer func() {
+		minedBlockSub.Unsubscribe()
+		ondutySub.Unsubscribe()
+		fmt.Println("MinedBroadcastLoop MinedBroadcastLoop stoped")
+	}()
 	for {
 		select {
 		case <-minedBlockSub.Chan():
@@ -211,6 +217,8 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *eve
 				log.Info("receive onduty event")
 				atomic.StoreInt32(&candSend, 0)
 			}
+		case _ = <-stopChn:
+			return
 		}
 	}
 }
@@ -1034,4 +1042,12 @@ func GetArbiters() ([]string, error) {
 
 func GetClient() *ethclient.Client {
 	return ipcClient
+}
+
+func Close()  {
+	spvdb := SpvService.GetDatabase()
+	if spvdb != nil {
+		spvdb.Close()
+		close(stopChn)
+	}
 }
