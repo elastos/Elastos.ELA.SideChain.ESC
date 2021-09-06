@@ -41,7 +41,7 @@ func (mh *EVMMessageHandler) HandleMessage(m *relayer.Message) (Proposer, error)
 		return nil, err
 	}
 	// Based on handler that registered on BridgeContract
-	log.Info("Handling new message", "type", m.Type, "src", m.Source, "dst", m.Destination, "nonce", m.DepositNonce, "rid", m.ResourceId, "handlerAddress", addr.String())
+	log.Info("Handling new message", "type", m.Type, "src", m.Source, "dst", m.Destination, "nonce", m.DepositNonce, "rid", common.Bytes2Hex(m.ResourceId[:]), "handlerAddress", addr.String())
 	handleMessage, err := mh.MatchAddressWithHandlerFunc(addr)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,6 @@ func (mh *EVMMessageHandler) matchResourceIDToHandlerAddress(rID [32]byte) (comm
 	if err != nil {
 		return common.Address{}, errors.New("no handler associated with such resourceID")
 	}
-	fmt.Println("")
 	return out0, nil
 }
 
