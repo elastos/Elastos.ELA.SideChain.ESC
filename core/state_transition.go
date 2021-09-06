@@ -17,10 +17,12 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"math/big"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
@@ -352,8 +354,26 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			IsBridgeContract = codeSize > 0
 		}
 	}
-	log.Info("evm.ChainConfig().BridgeContractAddr", "addr", evm.ChainConfig().BridgeContractAddr, "IsBridgeContract", IsBridgeContract)
+
 	if IsBridgeContract {
+		eabi, err := chainbridge_abi.GetExecuteProposalAbi()
+		if err != nil {
+			IsBridgeContract = false
+		}
+		method, exist := eabi.Methods["executeProposal"]
+		if !exist {
+			IsBridgeContract = false
+		}
+
+		if bytes.HasPrefix(st.msg.Data(), method.ID()) {
+			IsBridgeContract = true
+		} else {
+			IsBridgeContract = false
+		}
+	}
+
+	log.Info("evm.ChainConfig().BridgeContractAddr", "addr", evm.ChainConfig().BridgeContractAddr, "IsBridgeContract", IsBridgeContract)
+	if IsBridgeContract  && vmerr == nil {
 		st.refundBridgeGas()
 	} else {
 		st.refundGas()
