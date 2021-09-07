@@ -798,6 +798,11 @@ var (
 		Usage: "connect dpos direct net port",
 		Value: "20639",
 	}
+	DynamicArbiter = cli.Uint64Flag{
+		Name:  "spv.arbiter.height",
+		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
+		Value: 0,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1553,6 +1558,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftKeyStorePassWord = MakeDposPasswordList(ctx)
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
+	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):

@@ -171,6 +171,7 @@ var (
 		utils.PbftKeystorePassWord,
 		utils.PbftIPAddress,
 		utils.PbftDposPort,
+		utils.DynamicArbiter,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -421,6 +422,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 	// as the ELA mainchain address for the SPV module to monitor on
 	// if no --spvmoniaddr commandline parameter is provided, use the sidechain genesis block hash
 	// to generate the corresponding ELA mainchain address for the SPV module to monitor on
+	var dynamicArbiterHeight uint64
 	if ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name) != "" {
 		// --spvmoniaddr parameter is provided, set the SPV monitor address accordingly
 		log.Info("SPV Start Monitoring... ", "SpvMonitoringAddr", ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name))
@@ -438,11 +440,13 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Blockchain not running: %v", err)
 			}
 			ghash = lightnode.BlockChain().Genesis().Hash()
+			dynamicArbiterHeight = lightnode.BlockChain().Config().DynamicArbiterHeight
 		} else {
 			if err := stack.Service(&fullnode); err != nil {
 				utils.Fatalf("Blockchain not running: %v", err)
 			}
 			ghash = fullnode.BlockChain().Genesis().Hash()
+			dynamicArbiterHeight = fullnode.BlockChain().Config().DynamicArbiterHeight
 		}
 
 		// calculate ELA mainchain address from the genesis block hash and set the SPV monitor address accordingly
@@ -470,8 +474,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 	if err != nil {
 		log.Error("Attach client: ", "err", err)
 	}
-
-	if spvService, err := spv.NewService(spvCfg,client, stack.EventMux()); err != nil {
+	if spvService, err := spv.NewService(spvCfg,client, stack.EventMux(), dynamicArbiterHeight); err != nil {
 		utils.Fatalf("SPV service init error: %v", err)
 	} else {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})

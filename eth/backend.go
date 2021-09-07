@@ -207,7 +207,10 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		}
 	}
 
-		log.Info("Initialised chain configuration", "config", chainConfig)
+	if config.DynamicArbiterHeight > 0 {
+		chainConfig.DynamicArbiterHeight = config.DynamicArbiterHeight
+	}
+	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{
 		config:         config,

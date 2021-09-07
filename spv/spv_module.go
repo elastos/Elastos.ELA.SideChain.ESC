@@ -119,7 +119,7 @@ func SpvDbInit(spvdataDir string) {
 }
 
 //Spv service initialization
-func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux) (*Service, error) {
+func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux, dynamicArbiterHeight uint64) (*Service, error) {
 	var chainParams *config.Params
 	switch strings.ToLower(cfg.ActiveNet) {
 	case "testnet", "test", "t":
@@ -163,7 +163,9 @@ func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux) (*Service,
 		log.Error("Spv Register Transaction Listener: ", "err", err)
 		return nil, err
 	}
-	err = service.RegisterBlockListener(&BlockListener{})
+	err = service.RegisterBlockListener(&BlockListener{
+		dynamicArbiterHeight: dynamicArbiterHeight,
+	})
 	if err != nil {
 		return nil, err
 	}

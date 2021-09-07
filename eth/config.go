@@ -170,4 +170,6 @@ type Config struct {
 	PbftKeyStorePassWord string
 	PbftIPAddress string
 	PbftDPosPort uint16
+
+	DynamicArbiterHeight uint64
 }
