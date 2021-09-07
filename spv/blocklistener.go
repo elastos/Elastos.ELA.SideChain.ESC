@@ -32,6 +32,7 @@ type BlockListener struct {
 }
 
 func (l *BlockListener) NotifyBlock(block *util.Block) {
+	return
 	if block.Height <= l.blockNumber {
 		log.Warn("BlockListener handle block ", "height", l.blockNumber)
 		return
