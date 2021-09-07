@@ -29,6 +29,7 @@ type BlockListener struct {
 	blockNumber uint32
 	param       auxParam
 	handle      func(block interface{}) error
+	dynamicArbiterHeight uint64
 }
 
 func (l *BlockListener) NotifyBlock(block *util.Block) {
@@ -39,6 +40,11 @@ func (l *BlockListener) NotifyBlock(block *util.Block) {
 	l.blockNumber = block.Height
 	l.StoreAuxBlock(block)
 	log.Info("BlockListener handle block ", "height", l.blockNumber)
+
+	if uint64(l.blockNumber) < l.dynamicArbiterHeight {
+		return
+	}
+
 	l.onBlockHandled(l.param.block)
 	if l.handle != nil {
 		l.handle(l.param.block)

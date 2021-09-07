@@ -327,16 +327,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0),new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
+	AllEthashProtocolChanges = &ChainConfig{OldChainID: big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0),ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil, "", 0, "",0, "", ""}
+	AllCliqueProtocolChanges = &ChainConfig{OldChainID:big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "",PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
+	TestChainConfig = &ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -422,6 +422,7 @@ type ChainConfig struct {
 	PreConnectOffset      uint64 `json:"preConnectOffset,omitempty"`
 	PbftKeyStore          string `json:"pbftKeyStore,omitempty"`
 	PbftKeyStorePassWord  string
+	DynamicArbiterHeight  uint64 `json:"dynamicArbiterHeight,omitempty"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -471,7 +472,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v PBFTBlock:%v Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v PBFTBlock:%v Engine: %v DynamicArbiterHeight: %v}",
 		c.ChainID,
 		c.OldChainID,
 		c.HomesteadBlock,
@@ -487,6 +488,7 @@ func (c *ChainConfig) String() string {
 		c.ChainIDBlock,
 		c.PBFTBlock,
 		engine,
+		c.DynamicArbiterHeight,
 	)
 }
 

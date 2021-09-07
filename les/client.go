@@ -110,6 +110,9 @@ func New(ctx *node.ServiceContext, config *eth.Config, node *node.Node) (*LightE
 		}
 	}
 
+	if config.DynamicArbiterHeight > 0 {
+		chainConfig.DynamicArbiterHeight = config.DynamicArbiterHeight
+	}
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	peers := newPeerSet()
