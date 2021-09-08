@@ -159,15 +159,15 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, sig
 		return err
 	}
 	bridge := common.HexToAddress(bridgeAddress)
-	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input, GasPrice: gasPrice}
-
-	gasLimit, err := w.client.EstimateGasLimit(context.TODO(), msg)
-	if err != nil {
-		return err
-	}
-	if gasLimit == 0 {
-		return errors.New("SetArbiterList EstimateGasLimit is 0")
-	}
+	//msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input, GasPrice: gasPrice}
+	//gasLimit, err := w.client.EstimateGasLimit(context.TODO(), msg)
+	//if err != nil {
+	//	return err
+	//}
+	//if gasLimit == 0 {
+	//	return errors.New("SetArbiterList EstimateGasLimit is 0")
+	//}
+	var gasLimit uint64 = 313468
 	w.client.LockNonce()
 	defer w.client.UnlockNonce()
 	n, err := w.client.GetNonce()
