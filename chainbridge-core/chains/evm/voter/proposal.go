@@ -15,6 +15,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
@@ -96,8 +97,7 @@ func (p *Proposal) GetDataHash() common.Hash {
 }
 
 func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error) {
-	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"originChainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"name\":\"getProposal\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"_resourceID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_dataHash\",\"type\":\"bytes32\"},{\"internalType\":\"address[]\",\"name\":\"_yesVotes\",\"type\":\"address[]\"},{\"internalType\":\"address[]\",\"name\":\"_noVotes\",\"type\":\"address[]\"},{\"internalType\":\"enumBridge.ProposalStatus\",\"name\":\"_status\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"_proposedBlock\",\"type\":\"uint256\"}],\"internalType\":\"structBridge.Proposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
-	a, err := abi.JSON(strings.NewReader(definition))
+	a, err := chainbridge_abi.GetProposal()
 	if err != nil {
 		return relayer.ProposalStatusInactive, err // Not sure what status to use here
 	}
@@ -120,8 +120,6 @@ func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error)
 	type bridgeProposal struct {
 		ResourceID    [32]byte
 		DataHash      [32]byte
-		YesVotes      []common.Address
-		NoVotes       []common.Address
 		Status        uint8
 		ProposedBlock *big.Int
 	}
@@ -148,9 +146,8 @@ func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 func (p *Proposal) Execute(client ChainClient, signature [][]byte) error {
 	nowBlock, _ := client.LatestBlock()
 	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "nowBlock", nowBlock.Uint64())
-	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes[]\",\"name\":\"sig\",\"type\":\"bytes[]\"}],\"name\":\"executeProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 
-	a, err := abi.JSON(strings.NewReader(definition))
+	a, err := chainbridge_abi.GetExecuteProposalAbi()
 	if err != nil {
 		return err // Not sure what status to use here
 	}
