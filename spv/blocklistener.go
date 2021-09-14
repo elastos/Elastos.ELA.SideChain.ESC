@@ -39,7 +39,7 @@ func (l *BlockListener) NotifyBlock(block *util.Block) {
 	}
 	l.blockNumber = block.Height
 	l.StoreAuxBlock(block)
-	log.Info("BlockListener handle block ", "height", l.blockNumber)
+	log.Info("BlockListener handle block ", "height", l.blockNumber, "l.dynamicArbiterHeight ", l.dynamicArbiterHeight )
 
 	if uint64(l.blockNumber) < l.dynamicArbiterHeight {
 		return
