@@ -81,13 +81,23 @@ func (p *Proposal) Deserialize(r io.Reader) error {
 }
 
 func (p *Proposal) Hash() (hash common.Hash) {
-	w := bytes.NewBuffer([]byte{})
-	err := p.Serialize(w)
+	//w := bytes.NewBuffer([]byte{})
+	//err := p.Serialize(w)
+	//if err != nil {
+	//	log.Error("Proposal Serialize error", "error", err)
+	//	return hash
+	//}
+	//hash = crypto.Keccak256Hash(w.Bytes())
+
+	a, err := chainbridge_abi.GetExecuteProposalAbi()
 	if err != nil {
-		log.Error("Proposal Serialize error", "error", err)
 		return hash
 	}
-	hash = crypto.Keccak256Hash(w.Bytes())
+	input, err := a.Methods["executeProposal"].Inputs.Pack(p.Source, p.DepositNonce, p.Data, p.ResourceId)
+	if err != nil {
+		return hash
+	}
+	hash = crypto.Keccak256Hash(input)
 	return hash
 }
 
