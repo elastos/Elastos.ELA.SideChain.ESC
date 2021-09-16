@@ -74,6 +74,7 @@ var (
 		},
 		PBFTBlock: big.NewInt(2426880),
 		PreConnectOffset: 20,
+		DynamicArbiterHeight: 0,
 		Pbft: &PbftConfig{
 			Producers: []string{
 				"02089d7e878171240ce0e3633d3ddc8b1128bc221f6b5f0d1551caa717c7493062",
@@ -169,10 +170,10 @@ var (
 
 	// TestnetTrustedCheckpoint contains the light client trusted checkpoint for the Ropsten test network.
 	TestnetTrustedCheckpoint = &TrustedCheckpoint{
-		SectionIndex: 208,
-		SectionHead:  common.HexToHash("0x6fb5c2a57db74984cd5f9c49f53e7465f3aa358d9b93c204179eb0933cd3ee74"),
-		CHTRoot:      common.HexToHash("0x4f38853da8b1360a6e558b3b8d7f7cd45eae92a9925d8feacd35cc35382b311d"),
-		BloomRoot:    common.HexToHash("0xe6f599d2947a61d7dbb59a3df9fcea2e5467ea02c4906b37e1ee9e7e250df84a"),
+		SectionIndex: 247,
+		SectionHead:  common.HexToHash("0xd7017cd09e16edbf266c25ee4577697839fd7e2f87aff6eb82312043863686f2"),
+		CHTRoot:      common.HexToHash("0x7bf6d3e83d77d3f347cf26ab8e6f95cbe086abd2eede9c98e9d6e1489dd7637d"),
+		BloomRoot:    common.HexToHash("0xb5b2b83044ffea2487f79ac0e381a872286514a33d82d22c80af16037f74b1ea"),
 	}
 
 	// TestnetCheckpointOracle contains a set of configs for the Ropsten test network oracle.
