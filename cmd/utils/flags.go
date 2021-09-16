@@ -1570,6 +1570,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(DataDirFlag.Name) {
 			cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "testnet", "geth")
 		}
+		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
+			cfg.DynamicArbiterHeight = 1
+		}
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 22
@@ -1578,6 +1581,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
 		if !ctx.GlobalIsSet(DataDirFlag.Name) {
 			cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "rinkeby", "geth")
+		}
+		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
+			cfg.DynamicArbiterHeight = 2
 		}
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
@@ -1591,6 +1597,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
+		}
+		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
+			cfg.DynamicArbiterHeight = 3
 		}
 		// Create new developer account or reuse existing one
 		var (

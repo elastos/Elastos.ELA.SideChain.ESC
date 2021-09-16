@@ -80,6 +80,7 @@ type Ethereum struct {
 
 	// Channel for shutting down the service
 	shutdownChan chan bool
+	stopChan chan bool
 
 	// Handlers
 	txPool          *core.TxPool
@@ -219,6 +220,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		accountManager: ctx.AccountManager,
 		engine:         CreateConsensusEngine(ctx, chainConfig, &config.Ethash, config.Miner.Notify, config.Miner.Noverify, chainDb),
 		shutdownChan:   make(chan bool),
+		stopChan:       make(chan bool),
 		networkID:      config.NetworkId,
 		gasPrice:       config.Miner.GasPrice,
 		etherbase:      config.Miner.Etherbase,
@@ -464,6 +466,10 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 	chainSub := eth.blockchain.SubscribeChainEvent(blockEvent)
 	initProducersSub := eth.EventMux().Subscribe(events.InitCurrentProducers{})
 	go func() {
+		defer func() {
+			chainSub.Unsubscribe()
+			initProducersSub.Unsubscribe()
+		}()
 		for  {
 			select {
 			case b := <-blockEvent:
@@ -477,9 +483,7 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				pbftEngine := engine.(*pbft.Pbft)
 				currentHeader := eth.blockchain.CurrentBlock()
 				InitCurrentProducers(pbftEngine, eth.blockchain.Config(), currentHeader)
-			case <-eth.shutdownChan:
-				chainSub.Unsubscribe()
-				initProducersSub.Unsubscribe()
+			case <-eth.stopChan:
 				return
 			}
 		}
@@ -847,7 +851,7 @@ func (s *Ethereum) Start(srvr *p2p.Server) error {
 // Ethereum protocol.
 func (s *Ethereum) Stop() error {
 	spv.Close()
-
+	close(s.stopChan)
 	s.bloomIndexer.Close()
 	s.blockchain.Stop()
 	s.engine.Close()
