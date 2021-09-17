@@ -409,6 +409,9 @@ func Stop()  {
 
 func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
 	ethClient := evmclient.NewEVMClient(engine)
+	if ethClient == nil {
+		return nil, errors.New("create evm client error")
+	}
 	err := ethClient.Configurate(path, accountPath, accountPassword)
 	if err != nil {
 		return nil, err

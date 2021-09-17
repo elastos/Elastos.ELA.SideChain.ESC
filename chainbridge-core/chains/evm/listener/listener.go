@@ -19,20 +19,23 @@ var BlockRetryInterval = time.Second * 5
 var BlockDelay = big.NewInt(6) //TODO: move to config
 var BatchMsgInterval = time.Second * 30
 
-type DepositLogs struct {
-	DestinationID uint8
-	ResourceID    [32]byte
-	DepositNonce  uint64
+type DepositRecord struct {
+	TokenAddress                   common.Address
+	DestinationChainID             uint8
+	ResourceID                     [32]byte
+	DepositNonce                   uint64
+	Depositer                      common.Address
+	Amount                         *big.Int
 }
 
 type ChainClient interface {
 	LatestBlock() (*big.Int, error)
-	FetchDepositLogs(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*DepositLogs, error)
+	FetchDepositLogs(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*DepositRecord, error)
 	CallContract(ctx context.Context, callArgs map[string]interface{}, blockNumber *big.Int) ([]byte, error)
 }
 
 type EventHandler interface {
-	HandleEvent(sourceID, destID uint8, nonce uint64, rID [32]byte) (*relayer.Message, error)
+	HandleEvent(sourceID, destID uint8, nonce uint64, rID [32]byte) error
 }
 
 type EVMListener struct {
@@ -73,11 +76,23 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8, kvrw bl
 					continue
 				}
 				for _, eventLog := range logs {
-					m, err := l.eventHandler.HandleEvent(chainID, eventLog.DestinationID, eventLog.DepositNonce, eventLog.ResourceID)
+					err := l.eventHandler.HandleEvent(chainID, eventLog.DestinationChainID, eventLog.DepositNonce, eventLog.ResourceID)
 					if err != nil {
 						errChn <- err
 						log.Error("HandleEvent error", "error", err)
 						return
+					}
+
+					m := &relayer.Message{
+						Source: chainID,
+						Destination: eventLog.DestinationChainID,
+						DepositNonce: eventLog.DepositNonce,
+						ResourceId: eventLog.ResourceID,
+						Payload: []interface{}{
+							eventLog.Amount.Bytes(),
+							eventLog.Depositer,
+						},
+						Type: relayer.FungibleTransfer,
 					}
 					log.Info(fmt.Sprintf("Resolved message %+v in block %s", m, startBlock.String()))
 					ch <- m
