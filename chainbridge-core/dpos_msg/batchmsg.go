@@ -1,14 +1,14 @@
 package dpos_msg
 
 import (
-	"bytes"
 	"errors"
 	"io"
-	"math/big"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+
 	elaCom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/p2p"
@@ -130,44 +130,38 @@ func (m *BatchMsg) Deserialize(r io.Reader) error {
 	return nil
 }
 
-func (m *BatchMsg) GetData(w io.Writer) error {
+func (m *BatchMsg) GetData() ([]byte, error) {
 	count := len(m.Items)
 	if count < 1 {
-		return errors.New("batch msg items is empty")
+		return nil, errors.New("batch msg items is empty")
 	}
 
-	chainID := big.NewInt(0).SetUint64(uint64(m.Items[0].SourceChainID)).Bytes()
-	if _, err := w.Write(common.LeftPadBytes(chainID, 32)); err != nil {
-		return err
+	a, err := chainbridge_abi.GetExecuteBatchNoSigABI()
+	if err != nil {
+		return nil, err
 	}
 
+	nonceList := make([]uint64, 0)
+	dataList := make([][]byte, 0)
+	resourceID := make([][32]byte, 0)
 	for i := 0; i < count; i++ {
-		nonce := big.NewInt(0).SetUint64(m.Items[i].DepositNonce).Bytes()
-		if _, err := w.Write(common.LeftPadBytes(nonce, 32)); err != nil {
-			return err
-		}
-
-		if _, err := w.Write(m.Items[i].ResourceId[:]); err != nil {
-			return err
-		}
-
-		if _, err := w.Write(m.Items[i].Data); err != nil {
-			return err
-		}
+		nonceList = append(nonceList, m.Items[i].DepositNonce)
+		dataList = append(dataList, m.Items[i].Data)
+		resourceID = append(resourceID, m.Items[i].ResourceId)
 	}
 
-	return nil
+	input, err := a.Methods["executeProposalBatch"].Inputs.Pack(m.Items[0].SourceChainID, nonceList, dataList, resourceID)
+	return input, err
 }
 
 func (m *BatchMsg) GetHash() (hash common.Hash) {
-	w := bytes.NewBuffer([]byte{})
-	err := m.GetData(w)
+	data, err := m.GetData()
 	if err != nil {
 		log.Error("Proposal Serialize error", "error", err)
 		return hash
 	}
-	hash = crypto.Keccak256Hash(w.Bytes())
-	log.Info("BatchMsg hash", hash.String())
+	hash = crypto.Keccak256Hash(data)
+	log.Info("BatchMsg hash", "hash", hash.String())
 	return hash
 }
 
