@@ -13,10 +13,12 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/listener"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/keystore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -32,6 +34,7 @@ type EVMClient struct {
 	nonce     *big.Int
 
 	engine   engine.ESCEngine
+	depositRecordABI abi.ABI
 }
 
 type CommonTransaction interface {
@@ -42,7 +45,11 @@ type CommonTransaction interface {
 }
 
 func NewEVMClient(engine engine.ESCEngine) *EVMClient {
-	return &EVMClient{engine: engine}
+	abi, err := chainbridge_abi.GetDepositRecordABI()
+	if err != nil {
+		return nil
+	}
+	return &EVMClient{engine: engine, depositRecordABI: abi}
 }
 
 func (c *EVMClient) Configurate(path string, accountPath, password string) error {
@@ -126,23 +133,23 @@ func (c *EVMClient) GetClientAddress() common.Address {
 }
 
 const (
-	DepositSignature string = "Deposit(uint8,bytes32,uint64)"
+	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
+	DepositRecord string = "DepositRecord(address,uint8,bytes32,uint64,address,uint256)"
 )
 
-func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositLogs, error) {
-	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, DepositSignature, startBlock, endBlock))
+func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositRecord, error) {
+	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, DepositRecord, startBlock, endBlock))
 	if err != nil {
 		return nil, err
 	}
-	depositLogs := make([]*listener.DepositLogs, 0)
-
+	depositLogs := make([]*listener.DepositRecord, 0)
 	for _, l := range logs {
-		dl := &listener.DepositLogs{
-			DestinationID: uint8(l.Topics[1].Big().Uint64()),
-			ResourceID:    l.Topics[2],
-			DepositNonce:  l.Topics[3].Big().Uint64(),
+		record := new (listener.DepositRecord)
+		err = c.depositRecordABI.Unpack(record,  "DepositRecord", l.Data)
+		if err != nil {
+			return nil, errors.New("deposit record resolved error:" + err.Error())
 		}
-		depositLogs = append(depositLogs, dl)
+		depositLogs = append(depositLogs, record)
 	}
 	return depositLogs, nil
 }
