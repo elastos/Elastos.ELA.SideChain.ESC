@@ -102,7 +102,7 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 		return nil, errors.New("wrong payloads amount format")
 	}
 
-	recipient, ok := m.Payload[1].([]byte)
+	recipient, ok := m.Payload[1].(common.Address)
 	if !ok {
 		return nil, errors.New("wrong payloads recipient format")
 
@@ -112,7 +112,7 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 
 	recipientLen := big.NewInt(int64(len(recipient))).Bytes()
 	data = append(data, common.LeftPadBytes(recipientLen, 32)...) // length of recipient (uint256)
-	data = append(data, recipient...)                             // recipient ([]byte)
+	data = append(data, recipient.Bytes()...)                             // recipient ([]byte)
 
 	log.Info("ERC20MessageHandler", "source", m.Source, "Destination", m.Destination)
 	return &Proposal {
