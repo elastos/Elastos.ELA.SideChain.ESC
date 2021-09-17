@@ -21,6 +21,11 @@ func (a *API) UpdateArbiters(chainID uint8) uint64 {
 	}
 	signatures := arbiterManager.GetSignatures()
 	count := len(signatures)
+
+	if len(a.engine.GetCurrentProducers()) == 1 && count == 0 {
+		count = 1
+	}
+
 	log.Info("UpdateArbiters ","len", len(list), "total", total, "producers", len(a.engine.GetCurrentProducers()), "sigCount", count)
 	if a.engine.HasProducerMajorityCount(count) {
 		sigs := make([][]byte, 0)
