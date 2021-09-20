@@ -717,6 +717,7 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 		transactionHash = transactionHash[2:]
 	}
 	if spvTransactiondb == nil {
+		log.Info("spvTransactiondb is nil")
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
 
@@ -735,7 +736,6 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 		log.Error("SpvServicedb Get Fee: ", "err", err, "elaHash", transactionHash)
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
-	log.Info("FindOutputFeeAndaddressByTxHash", "fee", string(v))
 	fees := strings.Split(string(v), ",")
 	f, err := common.StringToFixed64(fees[0])
 	if err != nil {
@@ -754,6 +754,7 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	}
 	addrs := strings.Split(string(addrss), ",")
 	if !ethCommon.IsHexAddress(addrs[0]) {
+		log.Error("SpvServicedb destion address: ", "addrs", addrs, "elaHash", transactionHash)
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
 	outputs, err := spvTransactiondb.Get([]byte(transactionHash + "Output"))
