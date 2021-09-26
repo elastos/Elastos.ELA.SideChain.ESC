@@ -89,6 +89,7 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
+			log.Info("ETDirectPeersChanged")
 			if atomic.LoadInt32(&canStart) == 0 {
 				log.Info("is starting, can't restart")
 				return
@@ -160,6 +161,9 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 }
 
 func isSameNexturnArbiter(producers []peer.PID) bool {
+	if len(producers) <= 0 || len(nextTurnArbiters) <= 0 {
+		return false
+	}
 	if len(producers) != len(nextTurnArbiters) {
 		return false
 	}
