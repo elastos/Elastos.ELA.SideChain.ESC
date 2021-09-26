@@ -24,6 +24,7 @@ import (
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/dpos/p2p"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
@@ -77,6 +78,14 @@ func (p *Pbft) BroadMessage(msg elap2p.Message) {
 	}
 }
 
+func (p *Pbft) BroadMessageToPeers(msg elap2p.Message, peers [][]byte) {
+	for _, pbk := range peers {
+		pid := peer.PID{}
+		copy(pid[:], pbk)
+		p.network.SendMessageToPeer(pid, msg)
+	}
+}
+
 type peerInfo struct {
 	OwnerPublicKey string `json:"ownerpublickey"`
 	NodePublicKey  string `json:"nodepublickey"`
@@ -105,6 +114,13 @@ func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
 		})
 	}
 	return result
+}
+
+func (p *Pbft) GetAllArbiterPeersInfo()[]*p2p.PeerInfo{
+	if p.account == nil {
+		return nil
+	}
+	return p.network.DumpPeersInfo()
 }
 
 func (p *Pbft) AnnounceDAddr() bool {

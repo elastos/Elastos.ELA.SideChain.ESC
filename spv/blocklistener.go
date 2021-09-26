@@ -245,3 +245,25 @@ func DumpNextDposInfo() []peer.PID {
 	log.Info("work height", "height", nextTurnDposInfo.WorkingHeight, "activeCount", len(peers), "count", GetTotalProducersCount())
 	return peers
 }
+
+func GetNextTurnPeers() []peer.PID {
+	peers := make([]peer.PID, 0)
+	if nextTurnDposInfo == nil {
+		return peers
+	}
+	for _, arbiter := range nextTurnDposInfo.CRPublicKeys {
+		if len(arbiter) > 0 {
+			var pid peer.PID
+			copy(pid[:], arbiter)
+			peers = append(peers, pid)
+		}
+	}
+	for _, arbiter := range nextTurnDposInfo.DPOSPublicKeys {
+		if len(arbiter) > 0 {
+			var pid peer.PID
+			copy(pid[:], arbiter)
+			peers = append(peers, pid)
+		}
+	}
+	return peers
+}
