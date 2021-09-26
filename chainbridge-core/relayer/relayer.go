@@ -20,7 +20,11 @@ type RelayedChain interface {
 }
 
 func NewRelayer(chains []RelayedChain) *Relayer {
-	return &Relayer{relayedChains: chains}
+	relayer := &Relayer{relayedChains: chains}
+	for _, c := range chains {
+		relayer.addRelayedChain(c)
+	}
+	return relayer
 }
 
 type Relayer struct {
@@ -35,7 +39,6 @@ func (r *Relayer) Start(stop <-chan struct{}, sysErr chan error) {
 	messagesChannel := make(chan *Message)
 	for _, c := range r.relayedChains {
 		log.Info("Starting chain", "chainid", c.ChainID())
-		r.addRelayedChain(c)
 		go c.PollEvents(stop, sysErr, messagesChannel)
 	}
 	for {
