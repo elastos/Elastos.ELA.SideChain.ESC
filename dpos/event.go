@@ -18,4 +18,5 @@ const (
 	ETOnSPVHeight      events.EventType = 1006
 	ETSmallCroTx       events.EventType = 1007
 	ETFailedWithdrawTx events.EventType = 1008
+	ETUpdateProducers  events.EventType = 1009
 )
