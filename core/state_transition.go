@@ -382,23 +382,27 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 
 	if IsBridgeContract {
-		eabi, err := chainbridge_abi.GetExecuteProposalAbi()
-		if err != nil {
-			IsBridgeContract = false
+		ok, errmsg := st.isExecuteProposalMethod()
+		if errmsg != nil {
+			log.Error("isExecuteProposalMethod error", "msg", errmsg)
 		}
-		method, exist := eabi.Methods["executeProposal"]
-		if !exist {
-			IsBridgeContract = false
-		}
-
-		if bytes.HasPrefix(st.msg.Data(), method.ID()) {
-			IsBridgeContract = true
+		if !ok {
+			ok, errmsg = st.isDepositMethod()
+			if errmsg != nil {
+				log.Error("isDepositMethod error", "msg", errmsg)
+			}
+			if ok {
+				log.Info("is deposit method")
+			}
 		} else {
-			IsBridgeContract = false
+			if ok {
+				log.Info("is execute proposal method")
+			}
 		}
+		IsBridgeContract = ok
 	}
 
-	log.Info("evm.ChainConfig().BridgeContractAddr", "addr", evm.ChainConfig().BridgeContractAddr, "IsBridgeContract", IsBridgeContract)
+	log.Info("evm.ChainConfig().BridgeContractAddr", "addr", evm.ChainConfig().BridgeContractAddr, "IsBridgeContract", IsBridgeContract, "vmerr", vmerr)
 	if IsBridgeContract  && vmerr == nil {
 		st.refundBridgeGas()
 	} else {
@@ -446,6 +450,32 @@ func (st *StateTransition) dealSmallCrossTx() (isSmallCrossTx, verifyed bool, tx
 	}
 	spv.NotifySmallCrossTx(txn)
 	return isSmallCrossTx, verifyed, rawTxid, err
+}
+
+func (st *StateTransition) isExecuteProposalMethod() (bool, error) {
+	eabi, err := chainbridge_abi.GetExecuteProposalAbi()
+	if err != nil {
+		return false, err
+	}
+	method, exist := eabi.Methods["executeProposal"]
+	if !exist {
+		return false, errors.New("executeProposal method not in abi json")
+	}
+
+	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
+}
+
+func (st *StateTransition) isDepositMethod() (bool, error) {
+	eabi, err := chainbridge_abi.GetLayer2DepositAbi()
+	if err != nil {
+		return false,err
+	}
+	method, exist := eabi.Methods["deposit"]
+	if !exist {
+		return false, errors.New("deposit method not in abi json")
+	}
+
+	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
 }
 
 func (st *StateTransition) refundGas() {
