@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -22,10 +24,13 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
+	"github.com/elastos/Elastos.ELA/dpos/p2p"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 )
@@ -36,22 +41,35 @@ var (
 	stopChn chan struct{}
 	relayStarted bool
 	canStart int32
-	broadProducers [][]byte
+	randArbiters [][]byte
+	nextTurnArbiters [][]byte
+	requireArbitersCount int
 	arbiterManager *aribiters.ArbiterManager
+
+	IsFirstUpdateArbiter bool
+	api *API
+)
+const (
+	RandMaxArbiters = 12
 )
 
 func init() {
 	errChn = make(chan error)
 	relayStarted = false
 	arbiterManager = aribiters.CreateArbiterManager()
+	randArbiters = make([][]byte, 0)
+	nextTurnArbiters = make([][]byte, 0)
 	atomic.StoreInt32(&canStart, 1)
 }
 
 func APIs(engine *pbft.Pbft) []rpc.API {
+	if api == nil {
+		api = &API{engine}
+	}
 	return []rpc.API{{
 		Namespace: "bridge",
 		Version:   "1.0",
-		Service:   &API{engine},
+		Service:   api,
 		Public:    true,
 	}}
 }
@@ -67,33 +85,68 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 		log.Error("chain bridge started error", "error", err)
 		return
 	}
+	chainID := uint8(engine.GetBlockChain().Config().ChainID.Uint64())
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
-			isProducer := engine.IsProducer()
 			if atomic.LoadInt32(&canStart) == 0 {
+				log.Info("is starting, can't restart")
+				return
+			}
+			judgeSame := true
+			arbiters := MsgReleayer.GetArbiters(chainID)
+			if IsFirstUpdateArbiter &&  len(arbiters) > 0 {
+				IsFirstUpdateArbiter = false
+				judgeSame = false
+			} else {
+				IsFirstUpdateArbiter =  len(arbiters) == 0
+			}
+
+			producers := spv.GetNextTurnPeers()
+			if judgeSame && isSameNexturnArbiter(producers) {
+				log.Info("ETDirectPeersChanged is same current producers")
 				return
 			}
 			atomic.StoreInt32(&canStart, 0)
-
-			if isProducer {
-				log.Info("became a producer, collet arbiter")
-				arbiterManager.Clear()
-				arbiterManager.AddArbiter(engine.GetBridgeArbiters().PublicKeyBytes())//add self
-				arbiterManager.SetTotalCount(engine.GetTotalArbitersCount())
-				go onSelfIsArbiter(engine)
+			log.Info("IsFirstUpdateArbiter", "IsFirstUpdateArbiter", IsFirstUpdateArbiter, "producers count", len(producers))
+			nextTurnArbiters = make([][]byte, len(producers))
+			for i, p := range producers {
+				nextTurnArbiters[i] = make([]byte, len(p))
+				copy(nextTurnArbiters[i], p[:])
 			}
+			randArbiters = GetRandomProducers(engine)
+			isProducer := engine.IsProducer()
+			if !isProducer && !randArbitersHasSelf(engine.GetProducer()) {
+				log.Info("self is not a producer, chain bridge is stop")
+				Stop()
+				return
+			}
+			log.Info("became a producer, collet arbiter", "randArbiters", len(randArbiters))
+			arbiterManager.Clear()
+			arbiterManager.SetTotalCount(engine.GetTotalArbitersCount())
+			if IsFirstUpdateArbiter || randArbitersHasSelf(engine.GetBridgeArbiters().PublicKeyBytes()) {
+				arbiterManager.AddArbiter(engine.GetBridgeArbiters().PublicKeyBytes())//add self
+			}
+			go onSelfIsArbiter(engine)
+		case dpos.ETUpdateProducers:
+			api.UpdateArbiters(0)
+			isProducer := engine.IsProducer()
 			if !isProducer {
 				log.Info("self is not a producer, chain bridge is stop")
 				Stop()
 				return
 			}
 		case dpos_msg.ETOnArbiter:
-			if hanleDArbiter(engine, e) {
+			res, _ := hanleDArbiter(engine, e)
+			if res {
 				list := arbiterManager.GetArbiterList()
-				log.Info("GetArbiterList", "count", len(list))
-				if len(list) == len(engine.GetCurrentProducers()) {
-					requireArbitersSignature(engine)
+				log.Info("GetArbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
+				if len(list) == requireArbitersCount {
+					if IsFirstUpdateArbiter {
+						api.UpdateArbiters(0)
+					} else {
+						requireArbitersSignature(engine)
+					}
 				}
 			}
 		case dpos_msg.ETRequireArbiter:
@@ -106,6 +159,60 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 	})
 }
 
+func isSameNexturnArbiter(producers []peer.PID) bool {
+	if len(producers) != len(nextTurnArbiters) {
+		return false
+	}
+	for i, p := range producers {
+		if !bytes.Equal(p[:], nextTurnArbiters[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func randArbitersHasSelf(acc []byte) bool {
+	for _, arbiter := range randArbiters {
+		if bytes.Equal(acc, arbiter) {
+			return true
+		}
+	}
+	return false
+}
+
+func GetRandomProducers(engine *pbft.Pbft) [][]byte {
+	total := len(nextTurnArbiters)
+	list := make([]int, 0)
+	if total > RandMaxArbiters {
+		hash := engine.GetBlockChain().CurrentHeader().Hash()
+		seed := big.NewInt(0).SetBytes(hash.Bytes())
+		rand.Seed(seed.Int64())
+		for {
+		rerun:
+			n := rand.Intn(len(nextTurnArbiters))
+			for _, v := range list {
+				if v == n {
+					goto rerun
+				}
+			}
+			list = append(list, n)
+			if len(list) >= RandMaxArbiters {
+				break
+			}
+		}
+	} else {
+		for i, _ := range nextTurnArbiters {
+			list = append(list, i)
+		}
+	}
+
+	producers := make([][]byte, 0)
+	for _, v := range list {
+		producers = append(producers, nextTurnArbiters[v])
+	}
+	return producers
+}
+
 func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
 	m, ok := e.Data.(*dpos_msg.FeedBackArbitersSignature)
 	if !ok {
@@ -113,6 +220,7 @@ func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
 	}
 	producer := m.Producer
 	if !engine.IsProducerByAccount(producer) {
+		log.Error("handleFeedBackArbitersSig failed , is not producer", common.Bytes2Hex(producer))
 		return
 	}
 	hash, err := arbiterManager.HashArbiterList()
@@ -125,33 +233,28 @@ func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
 		log.Error("[handleFeedBackArbitersSig] Ecrecover error", "error", err)
 		return
 	}
-	compressPbk := crypto.CompressPubkey(pubkey)
-	if !arbiterManager.HasArbiter(compressPbk) {
-		log.Error("[handleFeedBackArbitersSig] signer public key error")
-		return
-	}
-
 	err = arbiterManager.AddSignature(crypto.PubkeyToAddress(*pubkey), m.Signature)
 	if err != nil {
-		log.Info("AddSignature failed", "error", err)
+		log.Info("AddSignature failed", "error", err, "from", common.Bytes2Hex(producer))
 		return
 	}
 	signatures := arbiterManager.GetSignatures()
 	count := len(signatures)
-	log.Info("handleFeedBackArbitersSig", "count", count, "producer", common.Bytes2Hex(producer))
+	log.Info("handleFeedBackArbitersSig", "count", count, "producer", common.Bytes2Hex(producer), "engine.GetTotalArbitersCount()", engine.GetTotalArbitersCount())
 
-	if engine.HasProducerMajorityCount(count) {
-		list := arbiterManager.GetArbiterList()
-		total := arbiterManager.GetTotalCount()
-		sigs := make([][]byte, 0)
-		for _, sig := range signatures {
-			sigs = append(sigs, sig)
-		}
-		err := MsgReleayer.UpdateArbiters(list, total, sigs, 0)
-		if err != nil {
-			log.Error("Update Arbiter error", "error", err)
-		}
-	}
+	//if hasProducerMajorityCount(count, engine.GetTotalArbitersCount()) {
+	//	//TODO will update by consensus update
+	//	list := arbiterManager.GetArbiterList()
+	//	total := arbiterManager.GetTotalCount()
+	//	sigs := make([][]byte, 0)
+	//	for _, sig := range signatures {
+	//		sigs = append(sigs, sig)
+	//	}
+	//	err := MsgReleayer.UpdateArbiters(list, total, sigs, 0)
+	//	if err != nil {
+	//		log.Error("Update Arbiter error", "error", err)
+	//	}
+	//}
 }
 
 func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
@@ -165,7 +268,7 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 		return
 	}
 	if int(m.ArbiterCount) != len(arbiterManager.GetArbiterList()) {
-		log.Warn("[receivedReqArbiterSignature] ArbiterCount is not same")
+		log.Warn("[receivedReqArbiterSignature] ArbiterCount is not same", "m.arbiterCount", m.ArbiterCount, "arbiterList", len(arbiterManager.GetArbiterList()))
 		return
 	}
 	selfProducer := engine.GetProducer()
@@ -195,10 +298,10 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 			select {
 			case <-time.NewTimer(time.Second).C:
 				signCount := len(arbiterManager.GetSignatures())
-				arbiterCount := len(arbiterManager.GetArbiterList())
-				if signCount == arbiterCount {
+				if engine.HasProducerMajorityCount(signCount) {
 					return
 				}
+				arbiterCount := len(arbiterManager.GetArbiterList())
 				selfProducer := engine.GetProducer()
 				msg := &dpos_msg.RequireArbitersSignature{
 					ArbiterCount: uint8(arbiterCount),
@@ -218,62 +321,70 @@ func receivedRequireArbiter(engine *pbft.Pbft, e *events.Event)  {
 	SendAriberToPeer(engine, m.PID)
 }
 
-func hanleDArbiter(engine *pbft.Pbft, e *events.Event) bool {
+func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 	// Verify signature of the message.
 	m, ok := e.Data.(*dpos_msg.DArbiter)
 	if !ok {
-		return false
+		err := errors.New("hanleDArbiter error data")
+		log.Error(err.Error())
+		return false, err
 	}
 	selfSigner := engine.GetProducer()
 
 	if bytes.Equal(selfSigner, m.Encode[:]) == false {
 		log.Info("hanleDArbiter is not self DArbiter", "selfSigner", common.Bytes2Hex(selfSigner), "encode", common.Bytes2Hex(m.Encode[:]))
-		return false
+		return false, nil
 	}
 	pubKey, err := elaCrypto.DecodePoint(m.PID[:])
 	if err != nil {
 		log.Error("hanleDArbiter invalid public key")
-		return false
+		return false, errors.New("hanleDArbiter invalid public key")
 	}
-	if !engine.IsProducerByAccount(m.PID[:]) {
+	if !engine.IsProducerByAccount(m.PID[:]) && !randArbitersHasSelf(m.PID[:]) {
 		log.Error("hanleDArbiter is not a producer")
-		return false
+		return false, nil
 	}
 	err = elaCrypto.Verify(*pubKey, m.Data(), m.Signature)
 	if err != nil {
 		log.Error("hanleDArbiter invalid signature", "pid", common.Bytes2Hex(m.PID[:]))
-		return false
+		return false, err
 	}
-
-	err = elaCrypto.Verify(*pubKey, GetProducersData(engine), m.ArbitersSignature)
+	data := GetNextProducersData()
+	err = elaCrypto.Verify(*pubKey, data, m.ArbitersSignature)
 	if err != nil {
-		log.Error("hanleDArbiter producers verify error", "pid", common.Bytes2Hex(m.PID[:]))
-		return false
+		log.Error("hanleDArbiter producers verify error", "pid", common.Bytes2Hex(m.PID[:]), "data", common.Bytes2Hex(data))
+		return false, err
 	}
 
 	signerPublicKey, err := engine.DecryptArbiter(m.Cipher)
 	if err != nil {
 		log.Error("hanleDArbiter decrypt address cipher error", "error:", err, "self", common.Bytes2Hex(selfSigner), "cipher", common.Bytes2Hex(m.Cipher))
-		return false
+		return false, err
 	}
 	err = arbiterManager.AddArbiter(signerPublicKey)
 	if err != nil {
 		log.Error("add arbiter error", "error", err)
-		return false
+		return false, nil
 	}
-	escssaPUb, err := crypto.DecompressPubkey(signerPublicKey)
-	if err != nil {
-		log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey), "err", err)
-		return true
-	}
-	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey),  "addr", crypto.PubkeyToAddress(*escssaPUb), "err", err)
-	return true
+	//escssaPUb, err := crypto.DecompressPubkey(signerPublicKey)
+	//if err != nil {
+	//	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey), "err", err)
+	//	return true, nil
+	//}
+	//log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey),  "addr", crypto.PubkeyToAddress(*escssaPUb), "err", err)
+	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey))
+	return true, nil
 }
 
 func onSelfIsArbiter(engine *pbft.Pbft) {
 	for{
 		select {
 		case <-time.After(time.Second * 2):
+			list := arbiterManager.GetArbiterList()
+			log.Info("GetArbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
+			if len(list) == requireArbitersCount {
+				return
+			}
 			if requireArbiters(engine) {
 				atomic.StoreInt32(&canStart, 1)
 				if !relayStarted {
@@ -283,7 +394,6 @@ func onSelfIsArbiter(engine *pbft.Pbft) {
 				} else {
 					log.Info("bridge is starting relay")
 				}
-				return
 			}
 		case err := <-errChn:
 			log.Error("failed to listen and serve", "error", err)
@@ -296,13 +406,20 @@ func onSelfIsArbiter(engine *pbft.Pbft) {
 }
 
 func requireArbiters(engine *pbft.Pbft) bool {
-	count := getActivePeerCount(engine)
-	log.Info("getActivePeerCount", "count", count, "total", len(engine.GetCurrentProducers()))
-	if count == len(engine.GetCurrentProducers()) {
+	var peers [][]byte
+	if IsFirstUpdateArbiter {
+		peers = engine.GetCurrentProducers()
+	} else {
+		peers = randArbiters
+	}
+	requireArbitersCount = len(peers)
+	count := getActivePeerCount(engine, peers)
+	log.Info("getActivePeerCount", "count", count, "total", len(peers))
+	if count >= len(peers) {
 		selfProducer := engine.GetProducer()
 		msg := &dpos_msg.RequireArbiter{}
 		copy(msg.PID[:], selfProducer)
-		engine.BroadMessage(msg)
+		engine.BroadMessageToPeers(msg, peers)
 		return true
 	}
 	return false
@@ -320,7 +437,7 @@ func SendAriberToPeer(engine *pbft.Pbft, pid peer.PID) {
 		log.Error("DecodePoint pbk error", "error", err, "selfProducer", common.Bytes2Hex(selfProducer))
 		return
 	}
-	producersData := GetProducersData(engine)
+	producersData := GetNextProducersData()
 	cipher, err := elaCrypto.Encrypt(publicKey, signer)
 	msg := &dpos_msg.DArbiter{
 		Timestamp: time.Now(),
@@ -334,27 +451,41 @@ func SendAriberToPeer(engine *pbft.Pbft, pid peer.PID) {
 	engine.SendMsgToPeer(msg, pid)
 }
 
-func GetProducersData(engine *pbft.Pbft) []byte {
-	producers := engine.GetCurrentProducers()
-	if len(producers) <= 0 {
+func GetNextProducersData() []byte {
+	if len(nextTurnArbiters) <= 0 {
 		return []byte{}
 	}
 	data := make([]byte, 0)
-	for _, producer := range producers {
+	for _, producer := range nextTurnArbiters {
 		data = append(data, producer...)
 	}
 	return data
 }
 
-func getActivePeerCount(engine *pbft.Pbft) int {
-	peers := engine.GetAtbiterPeersInfo()
+func getActivePeerCount(engine *pbft.Pbft, arbiters [][]byte) int {
 	count := 0
-	for _, peer := range peers {
-		if peer.ConnState == "2WayConnection" {
-			count ++
+	peers := engine.GetAllArbiterPeersInfo()
+	hasSelf := false
+	self := engine.GetProducer()
+	for _, arb := range arbiters {
+		if bytes.Equal(arb, self) {
+			hasSelf = true
+		}
+		for _, peer := range peers {
+			if bytes.Equal(arb, peer.PID[:]) {
+				if peer.State == p2p.CS2WayConnection {
+					count ++
+				}
+				if peer.State == p2p.CSNoneConnection {
+					log.Info("none connect", "pid:", peer.PID.String(), "IP", peer.Addr)
+				}
+				break
+			}
 		}
 	}
-	count += 1 //add self node
+	if hasSelf {
+		count += 1 //add self node
+	}
 	return count
 }
 
@@ -404,7 +535,6 @@ func Stop()  {
 		errChn <- fmt.Errorf("chain bridge is shut down")
 	}
 	atomic.StoreInt32(&canStart, 1)
-	arbiterManager.Clear()
 }
 
 func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
