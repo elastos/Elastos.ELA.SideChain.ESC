@@ -20,8 +20,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"math"
 	"os"
 	"runtime"
@@ -33,8 +31,10 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
+	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/cmd/utils"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/console"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth"
@@ -506,8 +506,8 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	startSmallCrossTx(ctx, stack)
 
 	// Register wallet event handlers to open and auto-derive wallets
-	events := make(chan accounts.WalletEvent, 16)
-	stack.AccountManager().Subscribe(events)
+	evts := make(chan accounts.WalletEvent, 16)
+	stack.AccountManager().Subscribe(evts)
 
 	// Create a client to interact with local geth node.
 	rpcClient, err := stack.Attach()
@@ -543,7 +543,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			}
 		}
 		// Listen for wallet event till termination
-		for event := range events {
+		for event := range evts {
 			switch event.Kind {
 			case accounts.WalletArrived:
 				if err := event.Wallet.Open(""); err != nil {
