@@ -12,13 +12,14 @@ type API struct {
 	engine *pbft.Pbft
 }
 
+func (a *API) HasProducerMajorityCount(count, total int) bool  {
+	minSignCount := int(float64(total) * 2 / 3)
+	return count > minSignCount
+}
+
 func (a *API) UpdateArbiters(chainID uint8) uint64 {
 	list := arbiterManager.GetArbiterList()
 	total := arbiterManager.GetTotalCount()
-	if !a.engine.IsProducer() {
-		log.Error("self is not a producer")
-		return 0
-	}
 	signatures := arbiterManager.GetSignatures()
 	count := len(signatures)
 
@@ -26,8 +27,8 @@ func (a *API) UpdateArbiters(chainID uint8) uint64 {
 		count = 1
 	}
 
-	log.Info("UpdateArbiters ","len", len(list), "total", total, "producers", len(a.engine.GetCurrentProducers()), "sigCount", count)
-	if a.engine.HasProducerMajorityCount(count) {
+	log.Info("UpdateArbiters ","len", len(list), "total", total, "producers", a.engine.GetTotalArbitersCount(), "sigCount", count)
+	if a.HasProducerMajorityCount(count, total) || IsFirstUpdateArbiter && len(list) == total {
 		sigs := make([][]byte, 0)
 		for ar, sig := range signatures {
 			log.Info("signature arbiter", "arbiter", ar)
