@@ -11,6 +11,12 @@ func GetExecuteProposalAbi() (abi.ABI, error) {
 	return a, err
 }
 
+func GetLayer2DepositAbi() (abi.ABI, error) {
+	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"destinationChainID\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}
+
 func GetExecuteProposalNoSig() (abi.ABI, error) {
 	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"}],\"name\":\"executeProposal\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
