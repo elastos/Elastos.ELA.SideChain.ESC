@@ -64,6 +64,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elapeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	eevents "github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
@@ -422,7 +423,11 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	mode := spv.GetCurrentConsensusMode()
 	spvHeight := currentBlock.Nonce()
 	if spvHeight <= 0 && mode == _interface.DPOS && len(engine.GetCurrentProducers()) > 0 {
-		engine.OnInsertBlock(currentBlock)
+		res := engine.OnInsertBlock(currentBlock)
+		if res {
+			blocksigner.SelfIsProducer = engine.IsProducer()
+			eevents.Notify(dpos.ETUpdateProducers, nil)
+		}
 		return
 	}
 
@@ -444,6 +449,7 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		if engine.AnnounceDAddr() {
 			if engine.IsProducer() {
 				blocksigner.SelfIsProducer = true
+				eevents.Notify(dpos.ETUpdateProducers, nil)
 				engine.Recover()
 			}
 		}
@@ -482,8 +488,11 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				if eth.blockchain.Config().IsPBFTFork(b.Block.Number()) {
 					pbftEngine := engine.(*pbft.Pbft)
 					pbftEngine.AccessFutureBlock(b.Block)
-					pbftEngine.OnInsertBlock(b.Block)
+					res := pbftEngine.OnInsertBlock(b.Block)
 					blocksigner.SelfIsProducer = pbftEngine.IsProducer()
+					if res {
+						eevents.Notify(dpos.ETUpdateProducers, nil)
+					}
 				}
 			case <-initProducersSub.Chan():
 				pbftEngine := engine.(*pbft.Pbft)

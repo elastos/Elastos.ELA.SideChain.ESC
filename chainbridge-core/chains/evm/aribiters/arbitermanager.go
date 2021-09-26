@@ -3,10 +3,11 @@ package aribiters
 import (
 	"bytes"
 	"errors"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"fmt"
 	"sort"
 	"sync"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 )
 
@@ -16,7 +17,7 @@ type ArbiterManager struct {
 	signatures  map[string][]byte
 	mtx         sync.RWMutex
 }
-// make(map[[2]enode.ID]struct{}, total)
+
 func CreateArbiterManager() *ArbiterManager {
 	manager := &ArbiterManager{
 		arbiterList: make([][]byte, 0),
@@ -109,7 +110,7 @@ func (a *ArbiterManager) AddSignature(arbiter common.Address, signature []byte) 
 
 	arb := arbiter.String()
 	if len(a.signatures[arb]) > 0 {
-		return errors.New("all ready add this signature")
+		return errors.New(fmt.Sprintf("all ready add this signature:%s", arb))
 	}
 	a.signatures[arb] = signature
 	return nil
