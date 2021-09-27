@@ -18,7 +18,7 @@ package types
 
 import (
 	"bytes"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did"
 	"math"
 	"math/big"
 	"reflect"

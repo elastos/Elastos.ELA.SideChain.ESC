@@ -10,13 +10,13 @@ import (
 	"github.com/bitly/go-simplejson"
 	"github.com/btcsuite/btcutil/base58"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/rawdb"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/internal/didapi"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/rawdb"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/didapi"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 )

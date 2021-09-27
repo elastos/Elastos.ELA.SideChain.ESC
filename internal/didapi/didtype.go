@@ -3,8 +3,8 @@ package didapi
 import (
 	"encoding/json"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did/base64url"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 )

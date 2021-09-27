@@ -8,8 +8,8 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/base64url"
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/didjson"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did/base64url"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did/didjson"
 )
 
 const DIDVersion = 0x00

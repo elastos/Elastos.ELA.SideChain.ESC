@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ETH/core/vm/did/didjson"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm/did/didjson"
 
 	"github.com/elastos/Elastos.ELA/common"
 )
