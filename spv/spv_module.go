@@ -87,6 +87,8 @@ const (
 	ExtraElaHeight = 8
 
 	blockDiff = 6
+
+	IsOnlyCRConsensus = true
 )
 
 //type MinedBlockEvent struct{}
