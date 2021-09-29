@@ -233,12 +233,12 @@ func (s *spvservice) GetReceivedCustomIDs() (map[string]common.Uint168, error) {
 }
 
 // Get rate of custom ID fee.
-func (s *spvservice) GetRateOfCustomIDFee() (common.Fixed64, error) {
-	return s.db.CID().GetCustomIDFeeRate()
+func (s *spvservice) GetRateOfCustomIDFee(height uint32) (common.Fixed64, error) {
+	return s.db.CID().GetCustomIDFeeRate(height)
 }
 
 //GetReturnSideChainDepositCoin query tx data by tx hash
-func (s *spvservice)HaveRetSideChainDepositCoinTx(txHash common.Uint256)bool{
+func (s *spvservice) HaveRetSideChainDepositCoinTx(txHash common.Uint256) bool {
 	return s.db.CID().HaveRetSideChainDepositCoinTx(txHash)
 }
 
@@ -341,7 +341,7 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 			}
 		case payload.ChangeCustomIDFee:
 			if err := s.db.CID().BatchPutControversialChangeCustomIDFee(
-				p.RateOfCustomIDFee, p.Hash(tx.PayloadVersion), nakedBatch); err != nil {
+				p.RateOfCustomIDFee, p.Hash(tx.PayloadVersion), p.EIDEffectiveHeight, nakedBatch); err != nil {
 				return false, err
 			}
 		}
