@@ -1033,15 +1033,14 @@ func Getallregistertransactions(param Params) map[string]interface{} {
 	for k, v := range rs {
 		for k1, v1 := range v {
 			result = append(result, RsInfo{
-				SideChainName:          v1.SideChainName,
-				MagicNumber:            v1.MagicNumber,
-				DNSSeeds:               v1.DNSSeeds,
-				NodePort:               v1.NodePort,
-				GenesisHash:            common.ToReversedString(v1.GenesisHash),
-				GenesisTimestamp:       v1.GenesisTimestamp,
-				GenesisBlockDifficulty: v1.GenesisBlockDifficulty,
-				TxHash:                 common.ToReversedString(k1),
-				Height:                 k,
+				SideChainName:   v1.SideChainName,
+				MagicNumber:     v1.MagicNumber,
+				GenesisHash:     common.ToReversedString(v1.GenesisHash),
+				ExchangeRate:    v1.ExchangeRate,
+				TxHash:          common.ToReversedString(k1),
+				Height:          k,
+				EffectiveHeight: v1.EffectiveHeight,
+				ResourcePath:    v1.ResourcePath,
 			})
 		}
 	}
@@ -1058,15 +1057,14 @@ func Getregistertransactionsbyheight(param Params) map[string]interface{} {
 	var result []RsInfo
 	for k, v := range rs {
 		result = append(result, RsInfo{
-			SideChainName:          v.SideChainName,
-			MagicNumber:            v.MagicNumber,
-			DNSSeeds:               v.DNSSeeds,
-			NodePort:               v.NodePort,
-			GenesisHash:            common.ToReversedString(v.GenesisHash),
-			GenesisTimestamp:       v.GenesisTimestamp,
-			GenesisBlockDifficulty: v.GenesisBlockDifficulty,
-			TxHash:                 common.ToReversedString(k),
-			Height:                 height,
+			SideChainName:   v.SideChainName,
+			MagicNumber:     v.MagicNumber,
+			GenesisHash:     common.ToReversedString(v.GenesisHash),
+			ExchangeRate:    v.ExchangeRate,
+			EffectiveHeight: v.EffectiveHeight,
+			ResourcePath:    v.ResourcePath,
+			TxHash:          common.ToReversedString(k),
+			Height:          height,
 		})
 	}
 	return ResponsePack(Success, result)
@@ -1848,6 +1846,23 @@ type RPCSecretaryGeneralProposal struct {
 	CRCouncilMemberDID        string `json:"crcouncilmemberdid"`
 }
 
+type RegisterSideChainInfo struct {
+	SideChainName   string `json:"sidechainname"`
+	MagicNumber     uint32 `json:"magic"`
+	GenesisHash     string `json:"genesishash"`
+	ExchangeRate    string `json:"exchangerate"`
+	EffectiveHeight uint32 `json:"effectiveheight"`
+	ResourcePath    string `json:"resourcepath"`
+}
+
+type RPCRegisterSideChainProposal struct {
+	ProposalType   string                `json:"proposaltype"`
+	CategoryData   string                `json:"categorydata"`
+	OwnerPublicKey string                `json:"ownerpublickey"`
+	DraftHash      string                `json:"drafthash"`
+	SideChainInfo  RegisterSideChainInfo `json:"sidechaininfo"`
+}
+
 type RPCCRProposalStateInfo struct {
 	ProposalState RPCProposalState `json:"proposalstate"`
 }
@@ -2368,6 +2383,22 @@ func GetCRProposalState(param Params) map[string]interface{} {
 		rpcProposal.CRCouncilMemberDID = did
 
 		rpcProposalState.Proposal = rpcProposal
+
+	case payload.RegisterSideChain:
+		var rpcProposal RPCRegisterSideChainProposal
+		rpcProposal.ProposalType = proposalState.Proposal.ProposalType.Name()
+		rpcProposal.CategoryData = proposalState.Proposal.CategoryData
+		rpcProposal.OwnerPublicKey = common.BytesToHexString(proposalState.Proposal.OwnerPublicKey)
+		rpcProposal.DraftHash = common.ToReversedString(proposalState.Proposal.DraftHash)
+
+		rpcProposal.SideChainInfo.SideChainName = proposalState.Proposal.SideChainName
+		rpcProposal.SideChainInfo.MagicNumber = proposalState.Proposal.MagicNumber
+		rpcProposal.SideChainInfo.GenesisHash = common.ToReversedString(proposalState.Proposal.GenesisHash)
+		rpcProposal.SideChainInfo.ExchangeRate = proposalState.Proposal.ExchangeRate.String()
+		rpcProposal.SideChainInfo.EffectiveHeight = proposalState.Proposal.EffectiveHeight
+		rpcProposal.SideChainInfo.ResourcePath = proposalState.Proposal.ResourcePath
+
+		rpcProposalState.Proposal = rpcProposal
 	}
 
 	result := &RPCCRProposalStateInfo{ProposalState: rpcProposalState}
@@ -2806,6 +2837,7 @@ func getPayloadInfo(p Payload, payloadVersion byte) PayloadInfo {
 			obj.OwnerPublicKey = common.BytesToHexString(object.OwnerPublicKey)
 			obj.DraftHash = common.ToReversedString(object.DraftHash)
 			obj.FeeRate = int64(object.RateOfCustomIDFee)
+			obj.EIDEffectiveHeight = object.EIDEffectiveHeight
 			obj.Signature = common.BytesToHexString(object.Signature)
 			crmdid, _ := object.CRCouncilMemberDID.ToAddress()
 			obj.CRCouncilMemberDID = crmdid
@@ -2837,11 +2869,10 @@ func getPayloadInfo(p Payload, payloadVersion byte) PayloadInfo {
 			obj.DraftHash = common.ToReversedString(object.DraftHash)
 			obj.SideChainName = object.SideChainName
 			obj.MagicNumber = object.MagicNumber
-			obj.DNSSeeds = object.DNSSeeds
-			obj.NodePort = object.NodePort
 			obj.GenesisHash = common.ToReversedString(object.GenesisHash)
-			obj.GenesisTimestamp = object.GenesisTimestamp
-			obj.GenesisBlockDifficulty = object.GenesisBlockDifficulty
+			obj.ExchangeRate = object.ExchangeRate
+			obj.EffectiveHeight = object.EffectiveHeight
+			obj.ResourcePath = object.ResourcePath
 			obj.Signature = common.BytesToHexString(object.Signature)
 			crmdid, _ := object.CRCouncilMemberDID.ToAddress()
 			obj.CRCouncilMemberDID = crmdid

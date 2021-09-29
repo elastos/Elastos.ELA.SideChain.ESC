@@ -193,10 +193,11 @@ func (p *ProposalManager) updateProposals(height uint32,
 				recordPartProposalResult(&results, proposalType, k, false)
 				break
 			}
+
 			if p.shouldEndCRCVote(v.RegisterHeight, height) {
 				pass := true
 				if p.transferRegisteredState(v, height) == CRCanceled {
-
+					p.removeRegisterSideChainInfo(v, height)
 					unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
 					pass = false
 					recordPartProposalResult(&results, proposalType, k, pass)
@@ -211,6 +212,7 @@ func (p *ProposalManager) updateProposals(height uint32,
 			}
 			if p.shouldEndPublicVote(v.VoteStartHeight, height) {
 				if p.transferCRAgreedState(v, height, circulation) == VoterCanceled {
+					p.removeRegisterSideChainInfo(v, height)
 					unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
 					recordPartProposalResult(&results, proposalType, k, false)
 					continue
@@ -254,6 +256,7 @@ func (p *ProposalManager) abortProposal(proposalState *ProposalState,
 	for k, v := range proposalState.BudgetsStatus {
 		oriBudgetsStatus[k] = v
 	}
+	p.removeRegisterSideChainInfo(proposalState, height)
 	p.history.Append(height, func() {
 		proposalState.Status = Aborted
 		for k, _ := range proposalState.BudgetsStatus {
@@ -315,6 +318,7 @@ func (p *ProposalManager) transferRegisteredState(proposalState *ProposalState,
 		for k, v := range proposalState.BudgetsStatus {
 			oriBudgetsStatus[k] = v
 		}
+
 		p.history.Append(height, func() {
 			proposalState.Status = CRCanceled
 			for k, _ := range proposalState.BudgetsStatus {
@@ -383,14 +387,8 @@ func (p *ProposalManager) dealProposal(proposalState *ProposalState, unusedAmoun
 			p.ReceivedCustomIDLists = oriReceivedCustomIDLists
 		})
 	case payload.RegisterSideChain:
-		originRegisteredSideChainNames := p.RegisteredSideChainNames
-		originRegisteredMagicNumbers := p.RegisteredMagicNumbers
-		originRegisteredGenesisHash := p.RegisteredGenesisHashes
 		originRegisteredSideChainPayloadInfo := p.RegisteredSideChainPayloadInfo
 		p.history.Append(height, func() {
-			p.RegisteredSideChainNames = append(p.RegisteredSideChainNames, proposalState.Proposal.SideChainName)
-			p.RegisteredMagicNumbers = append(p.RegisteredMagicNumbers, proposalState.Proposal.MagicNumber)
-			p.RegisteredGenesisHashes = append(p.RegisteredGenesisHashes, proposalState.Proposal.GenesisHash)
 			if info, ok := p.RegisteredSideChainPayloadInfo[height]; ok {
 				info[proposalState.TxHash] = proposalState.Proposal.SideChainInfo
 			} else {
@@ -399,9 +397,6 @@ func (p *ProposalManager) dealProposal(proposalState *ProposalState, unusedAmoun
 				p.RegisteredSideChainPayloadInfo[height] = rs
 			}
 		}, func() {
-			p.RegisteredSideChainNames = originRegisteredSideChainNames
-			p.RegisteredMagicNumbers = originRegisteredMagicNumbers
-			p.RegisteredGenesisHashes = originRegisteredGenesisHash
 			p.RegisteredSideChainPayloadInfo = originRegisteredSideChainPayloadInfo
 		})
 	}
@@ -479,6 +474,55 @@ func (p *ProposalManager) shouldEndCRCVote(RegisterHeight uint32,
 	height uint32) bool {
 	//proposal.RegisterHeight
 	return RegisterHeight+p.params.ProposalCRVotingPeriod <= height
+}
+
+func (p *ProposalManager) addRegisterSideChainInfo(proposalState *ProposalState, height uint32) {
+	originRegisteredSideChainNames := p.RegisteredSideChainNames
+	originRegisteredMagicNumbers := p.RegisteredMagicNumbers
+	originRegisteredGenesisHash := p.RegisteredGenesisHashes
+	p.history.Append(height, func() {
+		p.RegisteredSideChainNames = append(p.RegisteredSideChainNames, proposalState.Proposal.SideChainName)
+		p.RegisteredMagicNumbers = append(p.RegisteredMagicNumbers, proposalState.Proposal.MagicNumber)
+		p.RegisteredGenesisHashes = append(p.RegisteredGenesisHashes, proposalState.Proposal.GenesisHash)
+	}, func() {
+		p.RegisteredSideChainNames = originRegisteredSideChainNames
+		p.RegisteredMagicNumbers = originRegisteredMagicNumbers
+		p.RegisteredGenesisHashes = originRegisteredGenesisHash
+	})
+}
+
+func (p *ProposalManager) removeRegisterSideChainInfo(proposalState *ProposalState, height uint32) {
+	if proposalState.Proposal.ProposalType != payload.RegisterSideChain {
+		return
+	}
+
+	location := 0
+	var exist bool
+	for i, name := range p.RegisteredSideChainNames {
+		if name == proposalState.Proposal.SideChainName {
+			location = i
+			exist = true
+			break
+		}
+	}
+	if exist {
+		originRegisteredSideChainNames := p.RegisteredSideChainNames
+		originRegisteredMagicNumbers := p.RegisteredMagicNumbers
+		originRegisteredGenesisHash := p.RegisteredGenesisHashes
+
+		p.history.Append(height, func() {
+			p.RegisteredSideChainNames = []string{}
+			p.RegisteredMagicNumbers = []uint32{}
+			p.RegisteredGenesisHashes = []common.Uint256{}
+			p.RegisteredSideChainNames = append(originRegisteredSideChainNames[0:location], originRegisteredSideChainNames[location+1:]...)
+			p.RegisteredMagicNumbers = append(originRegisteredMagicNumbers[0:location], originRegisteredMagicNumbers[location+1:]...)
+			p.RegisteredGenesisHashes = append(originRegisteredGenesisHash[0:location], originRegisteredGenesisHash[location+1:]...)
+		}, func() {
+			p.RegisteredSideChainNames = originRegisteredSideChainNames
+			p.RegisteredMagicNumbers = originRegisteredMagicNumbers
+			p.RegisteredGenesisHashes = originRegisteredGenesisHash
+		})
+	}
 }
 
 // shouldEndPublicVote returns if current height should end public vote
@@ -584,7 +628,8 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 	})
 
 	// record to PendingReceivedCustomIDMap
-	if proposal.ProposalType == payload.ReceiveCustomID {
+	switch proposal.ProposalType {
+	case payload.ReceiveCustomID:
 		oriPendingReceivedCustomIDMap := p.PendingReceivedCustomIDMap
 		history.Append(height, func() {
 			for _, id := range proposal.ReceivedCustomIDList {
@@ -593,6 +638,8 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 		}, func() {
 			p.PendingReceivedCustomIDMap = oriPendingReceivedCustomIDMap
 		})
+	case payload.RegisterSideChain:
+		p.addRegisterSideChainInfo(proposalState, height)
 	}
 }
 
