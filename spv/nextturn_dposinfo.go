@@ -47,6 +47,9 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	if err != nil {
 		return producers, totalCount, err
 	}
+	if IsOnlyCRConsensus {
+		normalArbitrs = make([][]byte, 0)
+	}
 	for _, arbiter := range crcArbiters {
 		if len(arbiter) > 0 {
 			producers = append(producers, arbiter)
