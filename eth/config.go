@@ -173,4 +173,6 @@ type Config struct {
 
 	DynamicArbiterHeight uint64
 	FrozenAccountList    []string
+	Layer2Height         *big.Int
+	Layer2SuperPubKey    string
 }
