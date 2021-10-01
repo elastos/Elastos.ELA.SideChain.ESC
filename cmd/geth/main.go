@@ -628,8 +628,13 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 			passwords := utils.MakePasswordList(ctx)
 			pbft := ethereum.BlockChain().GetDposEngine().(*pbft.Pbft)
 			if pbft.GetProducer() != nil {
-				chainbridge_core.Start(pbft, accPath, passwords[0])
-				pbft.AnnounceDAddr()
+				chainbridge_core.Init(pbft, accPath, passwords[0])
+				height := ethereum.BlockChain().CurrentHeader().Number
+				if ethereum.BlockChain().Config().IsLayer2Fork(height) {
+					if chainbridge_core.Start() {
+						pbft.AnnounceDAddr()
+					}
+				}
 			}
 		}()
 	}

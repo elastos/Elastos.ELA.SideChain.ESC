@@ -97,7 +97,7 @@ const (
 
 	blockDiff = 6
 
-	IsOnlyCRConsensus = true
+	IsOnlyCRConsensus = false
 )
 
 //type MinedBlockEvent struct{}
@@ -120,13 +120,14 @@ type Service struct {
 }
 
 //Spv database initialization
-func SpvDbInit(spvdataDir string) {
+func SpvDbInit(spvdataDir string, supernodePublickey string) {
 	db, err := leveldb.New(filepath.Join(spvdataDir, "spv_transaction_info.db"), databaseCache, handles, "eth/db/ela/")
 	if err != nil {
 		log.Error("spv Open db", "err", err)
 		return
 	}
 	spvTransactiondb = db
+	superNodePublicKey = ethCommon.Hex2Bytes(supernodePublickey)
 }
 
 //Spv service initialization
