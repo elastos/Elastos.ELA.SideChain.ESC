@@ -191,27 +191,6 @@ func isSameNexturnArbiters(workingHeight uint32, crcArbiters, normalArbiters [][
 	return true
 }
 
-//func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
-//	nextProducers := v.producers.nextProducers
-//	if len(curProducers) != len(nextProducers) {
-//		return false
-//	}
-//	sort.Slice(nextProducers, func(i, j int) bool {
-//		return bytes.Compare(nextProducers[i][:], nextProducers[j][:]) < 0
-//	})
-//
-//	sort.Slice(curProducers, func(i, j int) bool {
-//		return bytes.Compare(curProducers[i], curProducers[j]) < 0
-//	})
-//
-//	for index, v := range curProducers {
-//		if !bytes.Equal(v, nextProducers[index][:]) {
-//			return false
-//		}
-//	}
-//	return true
-//}
-
 func GetCurrentConsensusMode() spv.ConsensusAlgorithm {
 	if SpvService == nil {
 		log.Error("Spv is not started")
