@@ -88,3 +88,7 @@ func GetWorkingHeight() uint32  {
 	}
 	return 0
 }
+
+func GetSpvService() *Service  {
+	return SpvService
+}
