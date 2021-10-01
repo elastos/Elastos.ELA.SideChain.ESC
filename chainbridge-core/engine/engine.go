@@ -17,4 +17,5 @@ type ESCEngine interface {
 	GetBridgeArbiters() crypto.Keypair
 	GetTotalProducerCount() int
 	IsSyncFinished() bool
+	Layer2Started() bool
 }

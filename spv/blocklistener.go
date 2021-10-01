@@ -4,6 +4,7 @@ import (
 	"bytes"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	eevent "github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
@@ -130,8 +131,20 @@ func IsNexturnBlock(block interface{}) bool {
 	nextTurnDposInfo.WorkingHeight = payloadData.WorkingHeight
 	nextTurnDposInfo.CRPublicKeys = payloadData.CRPublicKeys
 	nextTurnDposInfo.DPOSPublicKeys = payloadData.DPOSPublicKeys
+	nextTurnDposInfo.SuperNodePublicKey = GetLayer2SuperNodePublickey()
 
 	return true
+}
+
+func GetLayer2SuperNodePublickey() []byte {
+	var superPubkey []byte
+	if engine, ok := PbftEngine.(engine.ESCEngine); ok {
+		if engine.Layer2Started() {
+			superPubkey = make([]byte, len(superNodePublicKey))
+			copy(superPubkey, superNodePublicKey)
+		}
+	}
+	return superPubkey
 }
 
 func InitNextTurnDposInfo() {
@@ -155,11 +168,14 @@ func InitNextTurnDposInfo() {
 	if isSameNexturnArbiters(workingHeight, crcArbiters, normalArbiters) {
 		return
 	}
-
-	nextTurnDposInfo = &payload.NextTurnDPOSInfo{
-		WorkingHeight: workingHeight,
-		CRPublicKeys: crcArbiters,
-		DPOSPublicKeys: normalArbiters,
+	superPubkey := GetLayer2SuperNodePublickey()
+	nextTurnDposInfo = &NextTurnDPOSInfo{
+		&payload.NextTurnDPOSInfo{
+			WorkingHeight: workingHeight,
+			CRPublicKeys: crcArbiters,
+			DPOSPublicKeys: normalArbiters,
+		},
+		superPubkey,
 	}
 	peers := DumpNextDposInfo()
 	events.Notify(dpos.ETNextProducers, peers)
@@ -190,27 +206,6 @@ func isSameNexturnArbiters(workingHeight uint32, crcArbiters, normalArbiters [][
 	}
 	return true
 }
-
-//func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
-//	nextProducers := v.producers.nextProducers
-//	if len(curProducers) != len(nextProducers) {
-//		return false
-//	}
-//	sort.Slice(nextProducers, func(i, j int) bool {
-//		return bytes.Compare(nextProducers[i][:], nextProducers[j][:]) < 0
-//	})
-//
-//	sort.Slice(curProducers, func(i, j int) bool {
-//		return bytes.Compare(curProducers[i], curProducers[j]) < 0
-//	})
-//
-//	for index, v := range curProducers {
-//		if !bytes.Equal(v, nextProducers[index][:]) {
-//			return false
-//		}
-//	}
-//	return true
-//}
 
 func GetCurrentConsensusMode() spv.ConsensusAlgorithm {
 	if SpvService == nil {
@@ -250,6 +245,10 @@ func DumpNextDposInfo() []peer.PID {
 		}
 		log.Info(common.Bytes2Hex(arbiter) + "\n")
 	}
+
+	log.Info("-------------------Super Node Publickey---------------")
+	log.Info(common.Bytes2Hex(nextTurnDposInfo.SuperNodePublicKey) + "\n")
+
 	log.Info("work height", "height", nextTurnDposInfo.WorkingHeight, "activeCount", len(peers), "count", GetTotalProducersCount())
 	return peers
 }
@@ -272,6 +271,12 @@ func GetNextTurnPeers() []peer.PID {
 			copy(pid[:], arbiter)
 			peers = append(peers, pid)
 		}
+	}
+
+	if len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
+		var pid peer.PID
+		copy(pid[:], nextTurnDposInfo.SuperNodePublicKey)
+		peers = append(peers, pid)
 	}
 	return peers
 }

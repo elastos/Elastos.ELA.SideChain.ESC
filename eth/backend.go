@@ -493,6 +493,11 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 					if res {
 						eevents.Notify(dpos.ETUpdateProducers, nil)
 					}
+					if eth.blockchain.Config().IsLayer2Fork(b.Block.Number()) {
+						if chainbridge_core.Start() {
+							pbftEngine.AnnounceDAddr()
+						}
+					}
 				}
 			case <-initProducersSub.Chan():
 				pbftEngine := engine.(*pbft.Pbft)
