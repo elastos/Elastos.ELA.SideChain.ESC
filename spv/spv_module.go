@@ -97,7 +97,7 @@ const (
 
 	blockDiff = 6
 
-	IsOnlyCRConsensus = true
+	IsOnlyCRConsensus = false
 )
 
 //type MinedBlockEvent struct{}
