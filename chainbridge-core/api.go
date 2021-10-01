@@ -27,14 +27,15 @@ func (a *API) UpdateArbiters(chainID uint8) uint64 {
 		count = 1
 	}
 
-	log.Info("UpdateArbiters ","len", len(list), "total", total, "producers", a.engine.GetTotalArbitersCount(), "sigCount", count)
+	log.Info("UpdateArbiters ","len", len(list), "total", total,
+		"producers", a.engine.GetTotalArbitersCount(), "sigCount", count)
 	if a.HasProducerMajorityCount(count, total) || IsFirstUpdateArbiter && len(list) == total {
 		sigs := make([][]byte, 0)
 		for ar, sig := range signatures {
 			log.Info("signature arbiter", "arbiter", ar)
 			sigs = append(sigs, sig)
 		}
-		err := MsgReleayer.UpdateArbiters(list, total, sigs, chainID)
+		err := MsgReleayer.UpdateArbiters(list, a.engine.GetTotalArbitersCount(), sigs, chainID)
 		if err != nil {
 			log.Error("UpdateArbiters error", "error", err)
 			return 0
