@@ -8,7 +8,6 @@ package pbft
 import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
-	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 )
 
 // API is a user facing RPC API to allow controlling the signer and voting
@@ -33,9 +32,9 @@ func (a *API) Dispatcher() *dpos.Dispatcher {
 	return a.pbft.dispatcher
 }
 
-func (a *API) Account() daccount.Account {
-	return a.pbft.account
-}
+//func (a *API) Account() daccount.Account {
+//	return a.pbft.account
+//}
 
 func (a *API) Network() *dpos.Network {
 	return a.pbft.network
