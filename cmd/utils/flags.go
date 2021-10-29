@@ -801,7 +801,7 @@ var (
 	DynamicArbiter = cli.Uint64Flag{
 		Name:  "spv.arbiter.height",
 		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
-		Value: 0,
+		Value: 1034900,
 	}
 )
 

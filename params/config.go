@@ -74,7 +74,6 @@ var (
 		},
 		PBFTBlock: big.NewInt(2426880),
 		PreConnectOffset: 20,
-		DynamicArbiterHeight: 0,
 		Pbft: &PbftConfig{
 			Producers: []string{
 				"02089d7e878171240ce0e3633d3ddc8b1128bc221f6b5f0d1551caa717c7493062",
