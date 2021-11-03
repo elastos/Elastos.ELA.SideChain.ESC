@@ -65,6 +65,10 @@ func (p *Pbft) IsSyncFinished() bool {
 	return p.IsCurrent()
 }
 
+func (p *Pbft) Layer2Started() bool{
+	return p.chain.Config().IsLayer2Fork(p.chain.CurrentHeader().Number)
+}
+
 func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 	switch c.CMD() {
 	case dpos_msg.CmdDepositproposal:
