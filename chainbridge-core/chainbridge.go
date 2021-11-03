@@ -46,6 +46,9 @@ var (
 
 	IsFirstUpdateArbiter bool
 	api *API
+
+	pbftEngine *pbft.Pbft
+	isStarted bool
 )
 
 func init() {
@@ -54,6 +57,7 @@ func init() {
 	arbiterManager = aribiters.CreateArbiterManager()
 	nextTurnArbiters = make([][]byte, 0)
 	atomic.StoreInt32(&canStart, 1)
+	isStarted = false
 }
 
 func APIs(engine *pbft.Pbft) []rpc.API {
@@ -68,8 +72,9 @@ func APIs(engine *pbft.Pbft) []rpc.API {
 	}}
 }
 
-func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
+func Init(engine *pbft.Pbft, accountPath, accountPassword string) {
 	log.Info("chain bridge start")
+	pbftEngine = engine
 	if MsgReleayer != nil {
 		log.Warn("chain bridge is started")
 		return
@@ -79,7 +84,14 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 		log.Error("chain bridge started error", "error", err)
 		return
 	}
-	chainID := uint8(engine.GetBlockChain().Config().ChainID.Uint64())
+}
+
+func Start() bool {
+	if isStarted {
+		return false
+	}
+	isStarted = true
+	chainID := uint8(pbftEngine.GetBlockChain().Config().ChainID.Uint64())
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
@@ -88,7 +100,7 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 				bridgelog.Info("is starting, can't restart")
 				return
 			}
-			self := engine.GetProducer()
+			self := pbftEngine.GetProducer()
 			judgeSame := true
 			arbiters := MsgReleayer.GetArbiters(chainID)
 			if IsFirstUpdateArbiter &&  len(arbiters) > 0 {
@@ -111,8 +123,8 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 				copy(nextTurnArbiters[i], p[:])
 			}
 			arbiterManager.Clear()
-			arbiterManager.SetTotalCount(engine.GetTotalArbitersCount())
-			isProducer := engine.IsProducer()
+			arbiterManager.SetTotalCount(pbftEngine.GetTotalArbitersCount())
+			isProducer := pbftEngine.IsProducer()
 			if !isProducer {
 				bridgelog.Info("self is not a producer, chain bridge is stop")
 				Stop()
@@ -122,21 +134,21 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 			if IsFirstUpdateArbiter || nexturnHasSelf(self) {
 				var pid peer.PID
 				copy(pid[:], self)
-				arbiterManager.AddArbiter(pid, engine.GetBridgeArbiters().PublicKeyBytes())//add self
+				arbiterManager.AddArbiter(pid, pbftEngine.GetBridgeArbiters().PublicKeyBytes())//add self
 			} else {
 				bridgelog.Info("nexturn self is not a producer")
 			}
-			go onSelfIsArbiter(engine)
+			go onSelfIsArbiter()
 		case dpos.ETUpdateProducers:
 			api.UpdateArbiters(0)
-			isProducer := engine.IsProducer()
+			isProducer := pbftEngine.IsProducer()
 			if !isProducer {
 				log.Info("self is not a producer, chain bridge is stop")
 				Stop()
 				return
 			}
 		case dpos_msg.ETOnArbiter:
-			res, _ := hanleDArbiter(engine, e)
+			res, _ := hanleDArbiter(pbftEngine, e)
 			if res {
 				list := arbiterManager.GetArbiterList()
 				log.Info("now arbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
@@ -144,18 +156,19 @@ func Start(engine *pbft.Pbft, accountPath, accountPassword string) {
 					if IsFirstUpdateArbiter {
 						api.UpdateArbiters(0)
 					} else {
-						requireArbitersSignature(engine)
+						requireArbitersSignature(pbftEngine)
 					}
 				}
 			}
 		case dpos_msg.ETRequireArbiter:
-			receivedRequireArbiter(engine, e)
+			receivedRequireArbiter(pbftEngine, e)
 		case dpos_msg.ETReqArbiterSig:
-			receivedReqArbiterSignature(engine, e)
+			receivedReqArbiterSignature(pbftEngine, e)
 		case dpos_msg.ETFeedBackArbiterSig:
-			handleFeedBackArbitersSig(engine, e)
+			handleFeedBackArbitersSig(pbftEngine, e)
 		}
 	})
+	return true
 }
 
 func isSameNexturnArbiter(producers []peer.PID) bool {
@@ -363,7 +376,7 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 	return true, nil
 }
 
-func onSelfIsArbiter(engine *pbft.Pbft) {
+func onSelfIsArbiter() {
 	for{
 		select {
 		case <-time.After(time.Second * 2):
@@ -372,7 +385,7 @@ func onSelfIsArbiter(engine *pbft.Pbft) {
 			if len(list) == requireArbitersCount && requireArbitersCount > 0 {
 				return
 			}
-			if requireArbiters(engine) {
+			if requireArbiters(pbftEngine) {
 				atomic.StoreInt32(&canStart, 1)
 				if !relayStarted {
 					relayStarted = true
