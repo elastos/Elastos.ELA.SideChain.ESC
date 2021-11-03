@@ -2,7 +2,7 @@ package spv
 
 import (
 	"errors"
-
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
@@ -10,8 +10,16 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
+type NextTurnDPOSInfo struct {
+	*payload.NextTurnDPOSInfo
+
+	SuperNodePublicKey []byte
+}
+
 var (
-	nextTurnDposInfo *payload.NextTurnDPOSInfo
+	nextTurnDposInfo *NextTurnDPOSInfo
+
+	superNodePublicKey []byte
 )
 
 func GetTotalProducersCount() int {
@@ -19,6 +27,9 @@ func GetTotalProducersCount() int {
 		return 0
 	}
 	count, err := SafeAdd(len(nextTurnDposInfo.CRPublicKeys), len(nextTurnDposInfo.DPOSPublicKeys))
+	if len(nextTurnDposInfo.SuperNodePublicKey) > 0 && err == nil {
+		count, err = SafeAdd(count, 1)
+	}
 	if err != nil {
 		log.Error("SafeAdd error", "error", err)
 		return 0
@@ -53,6 +64,13 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	if IsOnlyCRConsensus {
 		normalArbitrs = make([][]byte, 0)
 	}
+	isLayer2Started := false
+	if engine, ok := PbftEngine.(engine.ESCEngine); ok {
+		isLayer2Started = engine.Layer2Started()
+		if isLayer2Started {
+			producers = append(producers, superNodePublicKey)
+		}
+	}
 	for _, arbiter := range crcArbiters {
 		if len(arbiter) > 0 {
 			producers = append(producers, arbiter)
@@ -64,6 +82,9 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 		}
 	}
 	totalCount, err = SafeAdd(len(crcArbiters), len(normalArbitrs))
+	if isLayer2Started && err == nil {
+		totalCount, err =  SafeAdd(totalCount, 1)
+	}
 	if err != nil {
 		return nil, totalCount, err
 	}

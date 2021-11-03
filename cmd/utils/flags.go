@@ -803,6 +803,19 @@ var (
 		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
 		Value: 1034900,
 	}
+
+	//layer2 setting
+	Layer2EnableFlag = cli.Uint64Flag{
+		Name:  "layer2.height",
+		Usage: "start the height of layer2",
+		Value: 0,
+	}
+
+	Layer2SuperNode = cli.StringFlag{
+		Name:  "layer2.supernode.publickey",
+		Usage: "layer2 of supernode publickey,one vote veto",
+		Value: "",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1559,6 +1572,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
+	cfg.Layer2Height = new(big.Int).SetUint64(ctx.GlobalUint64(Layer2EnableFlag.Name))
+	cfg.Layer2SuperPubKey = ctx.GlobalString(Layer2SuperNode.Name)
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
@@ -1573,6 +1588,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
 			cfg.DynamicArbiterHeight = 1
 		}
+		if !ctx.GlobalIsSet(Layer2EnableFlag.Name) {
+			cfg.Layer2Height = new(big.Int).SetUint64(1)
+		}
+		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
+			cfg.Layer2SuperPubKey = ""
+		}
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 22
@@ -1585,6 +1606,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
 			cfg.DynamicArbiterHeight = 2
 		}
+		if !ctx.GlobalIsSet(Layer2EnableFlag.Name) {
+			cfg.Layer2Height = new(big.Int).SetUint64(1)
+		}
+		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
+			cfg.Layer2SuperPubKey = ""
+		}
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 23
@@ -1594,12 +1621,24 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(DataDirFlag.Name) {
 			cfg.EvilSignersJournalDir = filepath.Join(node.DefaultDataDir(), "goerli", "geth")
 		}
+		if !ctx.GlobalIsSet(Layer2EnableFlag.Name) {
+			cfg.Layer2Height = new(big.Int).SetUint64(1)
+		}
+		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
+			cfg.Layer2SuperPubKey = ""
+		}
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
 		}
 		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
 			cfg.DynamicArbiterHeight = 3
+		}
+		if !ctx.GlobalIsSet(Layer2EnableFlag.Name) {
+			cfg.Layer2Height = new(big.Int).SetUint64(1)
+		}
+		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
+			cfg.Layer2SuperPubKey = ""
 		}
 		// Create new developer account or reuse existing one
 		var (
