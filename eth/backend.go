@@ -214,6 +214,8 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	if config.DynamicArbiterHeight > 0 {
 		chainConfig.DynamicArbiterHeight = config.DynamicArbiterHeight
 	}
+	chainConfig.Layer2Height = config.Layer2Height
+	chainConfig.Layer2SuperPubKey = config.Layer2SuperPubKey
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{
@@ -491,6 +493,11 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 					blocksigner.SelfIsProducer = pbftEngine.IsProducer()
 					if res {
 						eevents.Notify(dpos.ETUpdateProducers, nil)
+					}
+					if eth.blockchain.Config().IsLayer2Fork(b.Block.Number()) {
+						if chainbridge_core.Start() {
+							pbftEngine.AnnounceDAddr()
+						}
 					}
 				}
 			case <-initProducersSub.Chan():
