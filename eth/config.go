@@ -172,4 +172,7 @@ type Config struct {
 	PbftDPosPort uint16
 
 	DynamicArbiterHeight uint64
+
+	Layer2Height *big.Int
+	Layer2SuperPubKey string
 }

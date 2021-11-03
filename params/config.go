@@ -424,6 +424,9 @@ type ChainConfig struct {
 	PbftKeyStorePassWord  string
 	DynamicArbiterHeight  uint64 `json:"dynamicArbiterHeight,omitempty"`
 	BridgeContractAddr    string
+
+	Layer2Height *big.Int
+	Layer2SuperPubKey string
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -552,6 +555,10 @@ func (c *ChainConfig) IsChainIDFork(num *big.Int) bool {
 
 func (c *ChainConfig) IsPBFTFork(num *big.Int) bool {
 	return isForked(c.PBFTBlock, num)
+}
+
+func (c *ChainConfig) IsLayer2Fork(num *big.Int) bool {
+	return isForked(c.Layer2Height, num)
 }
 
 func (c *ChainConfig) GetPbftBlock() uint64 {
