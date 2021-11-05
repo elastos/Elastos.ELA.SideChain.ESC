@@ -46,9 +46,10 @@ var (
 
 	IsFirstUpdateArbiter bool
 	api *API
-
 	pbftEngine *pbft.Pbft
 	isStarted bool
+	wasArbiter bool
+	selfIsSuperVoter bool
 )
 
 func init() {
@@ -73,7 +74,6 @@ func APIs(engine *pbft.Pbft) []rpc.API {
 }
 
 func Init(engine *pbft.Pbft, accountPath, accountPassword string) {
-	log.Info("chain bridge start")
 	pbftEngine = engine
 	if MsgReleayer != nil {
 		log.Warn("chain bridge is started")
@@ -81,56 +81,62 @@ func Init(engine *pbft.Pbft, accountPath, accountPassword string) {
 	}
 	err := initRelayer(engine, accountPath, accountPassword)
 	if err != nil {
-		log.Error("chain bridge started error", "error", err)
+		bridgelog.Error("chain bridge started error", "error", err)
 		return
 	}
 }
 
 func Start() bool {
+	if MsgReleayer == nil || pbftEngine == nil {
+		bridgelog.Warn("chain bridge is not init")
+		return false
+	}
 	if isStarted {
 		return false
 	}
+	bridgelog.Info("chain bridge start")
 	isStarted = true
 	chainID := uint8(pbftEngine.GetBlockChain().Config().ChainID.Uint64())
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
-			bridgelog.Info("ETDirectPeersChanged")
+			bridgelog.Info("ETDirectPeersChanged, to collect old arbiter signed new arbiter's signature")
 			if atomic.LoadInt32(&canStart) == 0 {
 				bridgelog.Info("is starting, can't restart")
 				return
 			}
+			isProducer := pbftEngine.IsProducer()
 			self := pbftEngine.GetProducer()
-			judgeSame := true
+			selfIsSuperVoter = bytes.Equal(self, common.Hex2Bytes(pbftEngine.GetBlockChain().Config().Layer2SuperPubKey))
+			bridgelog.Info("selfIsSuperVoter", selfIsSuperVoter)
 			arbiters := MsgReleayer.GetArbiters(chainID)
-			if IsFirstUpdateArbiter &&  len(arbiters) > 0 {
-				IsFirstUpdateArbiter = false
-				judgeSame = false
-			} else {
-				IsFirstUpdateArbiter =  len(arbiters) == 0
-			}
-
+			IsFirstUpdateArbiter = len(arbiters) == 0
 			producers := spv.GetNextTurnPeers()
-			if judgeSame && isSameNexturnArbiter(producers) {
+			if !IsFirstUpdateArbiter && isSameNexturnArbiter(producers) && wasArbiter == isProducer {
 				bridgelog.Info("ETDirectPeersChanged is same current producers")
 				return
 			}
-			atomic.StoreInt32(&canStart, 0)
-			bridgelog.Info("IsFirstUpdateArbiter", "IsFirstUpdateArbiter", IsFirstUpdateArbiter, "producers count", len(producers))
 			nextTurnArbiters = make([][]byte, len(producers))
-			for i, p := range producers {
-				nextTurnArbiters[i] = make([]byte, len(p))
-				copy(nextTurnArbiters[i], p[:])
+			if !IsFirstUpdateArbiter {
+				for i, p := range producers {
+					nextTurnArbiters[i] = make([]byte, len(p))
+					copy(nextTurnArbiters[i], p[:])
+				}
 			}
-			arbiterManager.Clear()
-			arbiterManager.SetTotalCount(pbftEngine.GetTotalArbitersCount())
-			isProducer := pbftEngine.IsProducer()
+			atomic.StoreInt32(&canStart, 0)
 			if !isProducer {
+				if wasArbiter {
+					api.UpdateArbiters(0)
+				}
 				bridgelog.Info("self is not a producer, chain bridge is stop")
 				Stop()
 				return
 			}
+			arbiterManager.Clear()
+			arbiterManager.SetTotalCount(pbftEngine.GetTotalArbitersCount())
+			wasArbiter = true
 			bridgelog.Info("became a producer, collet arbiter")
+
 			if IsFirstUpdateArbiter || nexturnHasSelf(self) {
 				var pid peer.PID
 				copy(pid[:], self)
@@ -143,7 +149,7 @@ func Start() bool {
 			api.UpdateArbiters(0)
 			isProducer := pbftEngine.IsProducer()
 			if !isProducer {
-				log.Info("self is not a producer, chain bridge is stop")
+				bridgelog.Info("ETUpdateProducers self is not a producer, chain bridge is stop")
 				Stop()
 				return
 			}
@@ -151,7 +157,7 @@ func Start() bool {
 			res, _ := hanleDArbiter(pbftEngine, e)
 			if res {
 				list := arbiterManager.GetArbiterList()
-				log.Info("now arbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
+				bridgelog.Info("now arbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount, "selfIsSuperVoter", selfIsSuperVoter)
 				if len(list) == requireArbitersCount {
 					if IsFirstUpdateArbiter {
 						api.UpdateArbiters(0)
@@ -224,26 +230,12 @@ func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
 	copy(pid[:], producer)
 	err = arbiterManager.AddSignature(pid, m.Signature)
 	if err != nil {
-		log.Info("AddSignature failed", "error", err, "from", common.Bytes2Hex(producer))
+		bridgelog.Info("AddSignature failed", "error", err, "from", common.Bytes2Hex(producer))
 		return
 	}
 	signatures := arbiterManager.GetSignatures()
 	count := len(signatures)
-	log.Info("handleFeedBackArbitersSig", "count", count, "producer", common.Bytes2Hex(producer), "engine.GetTotalArbitersCount()", engine.GetTotalArbitersCount())
-
-	//if hasProducerMajorityCount(count, engine.GetTotalArbitersCount()) {
-	//	//TODO will update by consensus update
-	//	list := arbiterManager.GetArbiterList()
-	//	total := arbiterManager.GetTotalCount()
-	//	sigs := make([][]byte, 0)
-	//	for _, sig := range signatures {
-	//		sigs = append(sigs, sig)
-	//	}
-	//	err := MsgReleayer.UpdateArbiters(list, total, sigs, 0)
-	//	if err != nil {
-	//		log.Error("Update Arbiter error", "error", err)
-	//	}
-	//}
+	bridgelog.Info("handleFeedBackArbitersSig", "count", count, "producer", common.Bytes2Hex(producer), "engine.GetTotalArbitersCount()", engine.GetTotalArbitersCount())
 }
 
 func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
@@ -251,13 +243,12 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 	if !ok {
 		return
 	}
-
 	if engine.IsProducerByAccount(m.PID[:]) == false {
-		log.Warn("[receivedReqArbiterSignature] target is not a producer", "pid", common.Bytes2Hex(m.PID[:]))
+		bridgelog.Warn("[receivedReqArbiterSignature] target is not a producer", "pid", common.Bytes2Hex(m.PID[:]))
 		return
 	}
 	if int(m.ArbiterCount) != len(arbiterManager.GetArbiterList()) {
-		log.Warn("[receivedReqArbiterSignature] ArbiterCount is not same", "m.arbiterCount", m.ArbiterCount, "arbiterList", len(arbiterManager.GetArbiterList()))
+		bridgelog.Warn("[receivedReqArbiterSignature] ArbiterCount is not same", "m.arbiterCount", m.ArbiterCount, "arbiterList", len(arbiterManager.GetArbiterList()))
 		return
 	}
 	selfProducer := engine.GetProducer()
@@ -268,17 +259,17 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 	privateKey := kp.PrivateKey()
 	hash, err := arbiterManager.HashArbiterList()
 	if err != nil {
-		log.Error("receivedReqArbiterSignature HashArbiterList failed", "error", err)
+		bridgelog.Error("receivedReqArbiterSignature HashArbiterList failed", "error", err)
 	}
 	sign, err := crypto.Sign(accounts.TextHash(hash.Bytes()), privateKey)
 	if err != nil {
-		log.Warn("sign arbiters error", "error", err)
+		bridgelog.Warn("sign arbiters error", "error", err)
 		return
 	}
 	msg.Signature = sign
 	engine.SendMsgToPeer(msg, m.PID)
 	if !arbiterManager.HasSignature(selfProducer) {
-		log.Info("add self signature")
+		bridgelog.Info("add self signature")
 		go events.Notify(dpos_msg.ETFeedBackArbiterSig, msg)//add self signature
 	}
 }
@@ -349,7 +340,7 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 		log.Error("hanleDArbiter invalid signature", "pid", common.Bytes2Hex(m.PID[:]))
 		return false, err
 	}
-	data := GetNextProducersData()
+	data := GetProducersData()
 	err = elaCrypto.Verify(*pubKey, data, m.ArbitersSignature)
 	if err != nil {
 		log.Error("hanleDArbiter producers verify error", "pid", common.Bytes2Hex(m.PID[:]), "data", common.Bytes2Hex(data))
@@ -361,17 +352,20 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 		log.Error("hanleDArbiter decrypt address cipher error", "error:", err, "self", common.Bytes2Hex(selfSigner), "cipher", common.Bytes2Hex(m.Cipher))
 		return false, err
 	}
+	efVoter := common.Bytes2Hex(signerPublicKey)
+	superPubkey := common.Hex2Bytes(engine.GetBlockChain().Config().Layer2SuperPubKey)
+	if bytes.Equal(superPubkey, m.PID[:]) {
+		if efVoter != engine.GetBlockChain().Config().Layer2EFVoter {
+			engine.GetBlockChain().Config().Layer2EFVoter = efVoter
+			go events.Notify(dpos_msg.ETUpdateLayer2SuperVoter, signerPublicKey)
+		}
+	}
 	err = arbiterManager.AddArbiter(m.PID, signerPublicKey)
 	if err != nil {
 		log.Error("add arbiter error", "error", err)
 		return false, nil
 	}
-	//escssaPUb, err := crypto.DecompressPubkey(signerPublicKey)
-	//if err != nil {
-	//	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey), "err", err)
-	//	return true, nil
-	//}
-	//log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey),  "addr", crypto.PubkeyToAddress(*escssaPUb), "err", err)
+
 	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey))
 	return true, nil
 }
@@ -389,8 +383,10 @@ func onSelfIsArbiter() {
 				atomic.StoreInt32(&canStart, 1)
 				if !relayStarted {
 					relayStarted = true
-					err := relayerStart()
-					log.Error("bridge relay error", "error", err)
+					go func() {
+						err := relayerStart()
+						log.Error("bridge relay error", "error", err)
+					}()
 				} else {
 					log.Info("bridge is starting relay")
 				}
@@ -414,14 +410,14 @@ func requireArbiters(engine *pbft.Pbft) bool {
 	}
 	requireArbitersCount = len(peers)
 	count := getActivePeerCount(engine, peers)
-	log.Info("getActivePeerCount", "count", count, "total", len(peers))
+	log.Info("getActivePeerCount", "count", count, "total", len(peers), "IsFirstUpdateArbiter", IsFirstUpdateArbiter)
 	if count >= len(peers) {
 		selfProducer := engine.GetProducer()
 		msg := &dpos_msg.RequireArbiter{}
 		copy(msg.PID[:], selfProducer)
 
 		list := arbiterManager.FilterArbiters(peers)
-		log.Info("request arbiters", "len", len(list))
+		bridgelog.Info("request arbiters", "len", len(list))
 		engine.BroadMessageToPeers(msg, list)
 		return true
 	}
@@ -440,7 +436,7 @@ func SendAriberToPeer(engine *pbft.Pbft, pid peer.PID) {
 		log.Error("DecodePoint pbk error", "error", err, "selfProducer", common.Bytes2Hex(selfProducer))
 		return
 	}
-	producersData := GetNextProducersData()
+	producersData := GetProducersData()
 	cipher, err := elaCrypto.Encrypt(publicKey, signer)
 	msg := &dpos_msg.DArbiter{
 		Timestamp: time.Now(),
@@ -454,7 +450,7 @@ func SendAriberToPeer(engine *pbft.Pbft, pid peer.PID) {
 	engine.SendMsgToPeer(msg, pid)
 }
 
-func GetNextProducersData() []byte {
+func GetProducersData() []byte {
 	if len(nextTurnArbiters) <= 0 {
 		return []byte{}
 	}
@@ -538,6 +534,7 @@ func Stop()  {
 		errChn <- fmt.Errorf("chain bridge is shut down")
 	}
 	atomic.StoreInt32(&canStart, 1)
+	wasArbiter = false
 }
 
 func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
@@ -565,6 +562,7 @@ func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.P
 	}
 	voter := voter.NewVoter(messageHandler, ethClient, kp)
 
-	chain := evm.NewEVMChain(evmListener, voter, db, ethCfg.SharedEVMConfig.Id, &ethCfg.SharedEVMConfig, arbiterManager)
+	chain := evm.NewEVMChain(evmListener, voter, db, ethCfg.SharedEVMConfig.Id,
+		&ethCfg.SharedEVMConfig, arbiterManager, engine.GetBlockChain().Config().Layer2EFVoter)
 	return chain, nil
 }
