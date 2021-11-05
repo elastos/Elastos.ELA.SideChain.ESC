@@ -282,6 +282,24 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			return true
 		}
 	}
+	if p.chain.Config().IsLayer2Fork(block.Number()) {
+		producers := p.dispatcher.GetConsensusView().GetProducers()
+		superPbk := common.Hex2Bytes(p.chain.Config().Layer2SuperPubKey)
+		hashSuperPbk := false
+		for _, pbk := range producers {
+			if bytes.Equal(pbk, superPbk) {
+				hashSuperPbk = true
+				break
+			}
+		}
+		if !hashSuperPbk {
+			producers = append(producers, superPbk)
+			p.dispatcher.GetConsensusView().UpdateProducers(producers, len(producers), block.Nonce())
+			go p.AnnounceDAddr()
+			go p.Recover()
+			return true
+		}
+	}
 	return false
 }
 

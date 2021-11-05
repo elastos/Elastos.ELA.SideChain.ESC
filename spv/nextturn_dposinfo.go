@@ -1,6 +1,7 @@
 package spv
 
 import (
+	"bytes"
 	"errors"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
@@ -14,6 +15,7 @@ type NextTurnDPOSInfo struct {
 	*payload.NextTurnDPOSInfo
 
 	SuperNodePublicKey []byte
+	SuperNodeIsArbiter bool
 }
 
 var (
@@ -27,7 +29,7 @@ func GetTotalProducersCount() int {
 		return 0
 	}
 	count, err := SafeAdd(len(nextTurnDposInfo.CRPublicKeys), len(nextTurnDposInfo.DPOSPublicKeys))
-	if len(nextTurnDposInfo.SuperNodePublicKey) > 0 && err == nil {
+	if !nextTurnDposInfo.SuperNodeIsArbiter && len(nextTurnDposInfo.SuperNodePublicKey) > 0 && err == nil {
 		count, err = SafeAdd(count, 1)
 	}
 	if err != nil {
@@ -52,7 +54,7 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	producers := make([][]byte, 0)
 	totalCount := 0
 	if SpvService == nil {
-		return producers, totalCount,  errors.New("spv is not start")
+		return producers, totalCount, errors.New("spv is not start")
 	}
 	if GetCurrentConsensusMode() == spv.POW {
 		return producers, totalCount, nil
@@ -64,25 +66,35 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	if IsOnlyCRConsensus {
 		normalArbitrs = make([][]byte, 0)
 	}
-	isLayer2Started := false
-	if engine, ok := PbftEngine.(engine.ESCEngine); ok {
-		isLayer2Started = engine.Layer2Started()
-		if isLayer2Started {
-			producers = append(producers, superNodePublicKey)
-		}
-	}
+
+	superNodeIsNotArbiter := true
 	for _, arbiter := range crcArbiters {
 		if len(arbiter) > 0 {
 			producers = append(producers, arbiter)
+			if superNodeIsNotArbiter && bytes.Equal(arbiter, superNodePublicKey) {
+				superNodeIsNotArbiter = false
+			}
 		}
 	}
 	for _, arbiter := range normalArbitrs {
 		if len(arbiter) > 0 {
 			producers = append(producers, arbiter)
+			if superNodeIsNotArbiter && bytes.Equal(arbiter, superNodePublicKey) {
+				superNodeIsNotArbiter = false
+			}
 		}
 	}
 	totalCount, err = SafeAdd(len(crcArbiters), len(normalArbitrs))
-	if isLayer2Started && err == nil {
+
+	isLayer2Started := false
+	if engine, ok := PbftEngine.(engine.ESCEngine); ok {
+		isLayer2Started = engine.Layer2Started()
+		if isLayer2Started && superNodeIsNotArbiter {
+			producers = append(producers, superNodePublicKey)
+		}
+	}
+
+	if isLayer2Started && err == nil && superNodeIsNotArbiter {
 		totalCount, err =  SafeAdd(totalCount, 1)
 	}
 	if err != nil {
