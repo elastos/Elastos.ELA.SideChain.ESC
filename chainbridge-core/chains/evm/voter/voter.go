@@ -44,7 +44,7 @@ type ChainClient interface {
 
 type Proposer interface {
 	Status(client ChainClient) (relayer.ProposalStatus, error)
-	Execute(client ChainClient, signatures [][]byte) error
+	Execute(client ChainClient, signatures [][]byte, superSig []byte) error
 }
 
 type MessageHandler interface {
