@@ -132,7 +132,21 @@ func IsNexturnBlock(block interface{}) bool {
 	nextTurnDposInfo.CRPublicKeys = payloadData.CRPublicKeys
 	nextTurnDposInfo.DPOSPublicKeys = payloadData.DPOSPublicKeys
 	nextTurnDposInfo.SuperNodePublicKey = GetLayer2SuperNodePublickey()
-
+	nextTurnDposInfo.SuperNodeIsArbiter = false
+	for _, arbiter := range payloadData.CRPublicKeys {
+		if bytes.Equal(arbiter, nextTurnDposInfo.SuperNodePublicKey) {
+			nextTurnDposInfo.SuperNodeIsArbiter = true
+			break
+		}
+	}
+	if !nextTurnDposInfo.SuperNodeIsArbiter {
+		for _, arbiter := range payloadData.CRPublicKeys {
+			if bytes.Equal(arbiter, nextTurnDposInfo.SuperNodePublicKey) {
+				nextTurnDposInfo.SuperNodeIsArbiter = true
+				break
+			}
+		}
+	}
 	return true
 }
 
@@ -176,6 +190,24 @@ func InitNextTurnDposInfo() {
 			DPOSPublicKeys: normalArbiters,
 		},
 		superPubkey,
+		false,
+	}
+
+
+	nextTurnDposInfo.SuperNodeIsArbiter = false
+	for _, arbiter := range crcArbiters {
+		if bytes.Equal(arbiter, superPubkey) {
+			nextTurnDposInfo.SuperNodeIsArbiter = true
+			break
+		}
+	}
+	if !nextTurnDposInfo.SuperNodeIsArbiter {
+		for _, arbiter := range normalArbiters {
+			if bytes.Equal(arbiter, superPubkey) {
+				nextTurnDposInfo.SuperNodeIsArbiter = true
+				break
+			}
+		}
 	}
 	peers := DumpNextDposInfo()
 	events.Notify(dpos.ETNextProducers, peers)
@@ -248,7 +280,11 @@ func DumpNextDposInfo() []peer.PID {
 
 	log.Info("-------------------Super Node Publickey---------------")
 	log.Info(common.Bytes2Hex(nextTurnDposInfo.SuperNodePublicKey) + "\n")
-
+	if !nextTurnDposInfo.SuperNodeIsArbiter {
+		var pid peer.PID
+		copy(pid[:], nextTurnDposInfo.SuperNodePublicKey)
+		peers = append(peers, pid)
+	}
 	log.Info("work height", "height", nextTurnDposInfo.WorkingHeight, "activeCount", len(peers), "count", GetTotalProducersCount())
 	return peers
 }
@@ -273,7 +309,7 @@ func GetNextTurnPeers() []peer.PID {
 		}
 	}
 
-	if len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
+	if !nextTurnDposInfo.SuperNodeIsArbiter && len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
 		var pid peer.PID
 		copy(pid[:], nextTurnDposInfo.SuperNodePublicKey)
 		peers = append(peers, pid)
