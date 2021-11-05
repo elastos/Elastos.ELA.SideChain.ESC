@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
@@ -79,19 +80,37 @@ type MsgPool struct {
 
 	verifiedProposalSignatures map[common.Hash][][]byte
 	verifiedProposalArbiter map[common.Hash][][]byte
+	supernodeProposalSignature map[common.Hash][]byte
+	supernodeProposalVerifed map[common.Hash][]byte
 	arbiterLock sync.RWMutex
 
 	pendingList NonceProposal
+
+	superVoter []byte
+
 	pendingLock sync.RWMutex
+
+	beforeLock sync.RWMutex
+	beforeList map[uint64][]*dpos_msg.DepositProposalMsg
 }
 
-func NewMsgPool() *MsgPool {
+func NewMsgPool(supervoter []byte) *MsgPool {
 	return &MsgPool{
 		queueList: make(map[uint64]*voter.Proposal),
 		verifiedProposalSignatures: make(map[common.Hash][][]byte),
 		verifiedProposalArbiter: make(map[common.Hash][][]byte),
+		supernodeProposalSignature: make(map[common.Hash][]byte),
+		supernodeProposalVerifed: make(map[common.Hash][]byte),
 		pendingList: make(NonceProposal, 0),
+		beforeList: make(map[uint64][]*dpos_msg.DepositProposalMsg, 0),
+		superVoter: supervoter,
 	}
+}
+
+func (m *MsgPool) UpdateSuperVoter(voter []byte) {
+	m.arbiterLock.Lock()
+	defer m.arbiterLock.Unlock()
+	m.superVoter = voter
 }
 
 func (m *MsgPool) GetQueueProposal(nonce uint64) *voter.Proposal {
@@ -126,9 +145,18 @@ func (m *MsgPool) PutProposal(msg *voter.Proposal) error {
 	return nil
 }
 
-func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte) error {
+func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte) bool {
 	m.arbiterLock.Lock()
 	defer m.arbiterLock.Unlock()
+	log.Info("OnProposalVerified", "supervoter", common.Bytes2Hex(m.superVoter), "arbiter", common.Bytes2Hex(arbiter))
+	isSuperVoter := false
+	if bytes.Equal(arbiter, m.superVoter) {
+		log.Info("received super voter signature", "arbiter", common.Bytes2Hex(arbiter))
+		m.supernodeProposalSignature[proposalHash] = signature
+		m.supernodeProposalVerifed[proposalHash] = arbiter
+		isSuperVoter = true
+	}
+
 	arbiterList := m.verifiedProposalArbiter[proposalHash]
 	arbiterList = append(arbiterList, arbiter)
 	m.verifiedProposalArbiter[proposalHash] = arbiterList
@@ -136,7 +164,14 @@ func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signatur
 	sigList := m.verifiedProposalSignatures[proposalHash]
 	sigList = append(sigList, signature)
 	m.verifiedProposalSignatures[proposalHash] = sigList
-	return nil
+	return isSuperVoter
+}
+
+func (m *MsgPool) GetSuperVoterSigner(proposalHash common.Hash) []byte {
+	m.arbiterLock.Lock()
+	defer m.arbiterLock.Unlock()
+	sig := m.supernodeProposalSignature[proposalHash]
+	return sig
 }
 
 func (m *MsgPool) GetVerifiedCount(proposalHash common.Hash) int {
@@ -161,11 +196,16 @@ func (m *MsgPool) GetArbiters(proposalHash common.Hash) [][]byte {
 }
 
 func (m *MsgPool) ArbiterIsVerified(proposalHash common.Hash, arbiter []byte) bool {
+	m.arbiterLock.Lock()
+	defer m.arbiterLock.Unlock()
 	arbiterList := m.verifiedProposalArbiter[proposalHash]
 	for _, arb := range arbiterList {
 		if bytes.Compare(arb, arbiter) == 0 {
 			return true
 		}
+	}
+	if bytes.Compare(m.supernodeProposalVerifed[proposalHash], arbiter) == 0 {
+		return true
 	}
 	return false
 }
@@ -203,14 +243,36 @@ func (m *MsgPool) IsPeningProposal(proposal *voter.Proposal) bool {
 	return false
 }
 
+func (m *MsgPool) PutBeforeProposal(proposal *dpos_msg.DepositProposalMsg) {
+	m.beforeLock.Lock()
+	defer m.beforeLock.Unlock()
+	list := m.beforeList[proposal.Item.DepositNonce]
+	for _, msg := range list {
+		if bytes.Equal(msg.Proposer, proposal.Proposer) {
+			return
+		}
+	}
+	list = append(list, proposal)
+	m.beforeList[proposal.Item.DepositNonce] = list
+}
+
+func (m *MsgPool) GetBeforeProposal(proposal *voter.Proposal) []*dpos_msg.DepositProposalMsg {
+	m.beforeLock.Lock()
+	defer m.beforeLock.Unlock()
+	return m.beforeList[proposal.DepositNonce]
+}
+
 func (m *MsgPool) OnProposalExecuted(nonce uint64) {
     proposal := m.GetQueueProposal(nonce)
     if proposal == nil {
 		return
 	}
 	m.arbiterLock.Lock()
-    delete(m.verifiedProposalArbiter, proposal.Hash())
-	delete(m.verifiedProposalSignatures, proposal.Hash())
+    hash := proposal.Hash()
+    delete(m.verifiedProposalArbiter, hash)
+	delete(m.verifiedProposalSignatures, hash)
+    delete(m.supernodeProposalSignature, hash)
+    delete(m.verifiedProposalArbiter, hash)
 	m.arbiterLock.Unlock()
 
 	m.pendingLock.Lock()
