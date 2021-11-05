@@ -9,16 +9,15 @@ import (
 	"errors"
 	"io"
 	"math/big"
-	"strings"
 
 	ethereum "github.com/elastos/Elastos.ELA.SideChain.ESC"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+
 	elaCom "github.com/elastos/Elastos.ELA/common"
 )
 
@@ -145,15 +144,15 @@ func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 	return propStates == relayer.ProposalStatusExecuted || propStates == relayer.ProposalStatusCanceled
 }
 
-func (p *Proposal) Execute(client ChainClient, signature [][]byte) error {
+func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []byte) error {
 	nowBlock, _ := client.LatestBlock()
-	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "nowBlock", nowBlock.Uint64())
+	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "nowBlock", nowBlock.Uint64(), "signature len", len(signature), "superSig", len(superSig))
 
 	a, err := chainbridge_abi.GetExecuteProposalAbi()
 	if err != nil {
 		return err // Not sure what status to use here
 	}
-	input, err := a.Pack("executeProposal", p.Source, p.DepositNonce, p.Data, p.ResourceId, signature)
+	input, err := a.Pack("executeProposal", p.Source, p.DepositNonce, p.Data, p.ResourceId, signature, superSig)
 	if err != nil {
 		return err
 	}
@@ -188,11 +187,10 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte) error {
 	return nil
 }
 
-func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte) error {
+func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, superSig []byte) error {
 	nowBlock, _ := client.LatestBlock()
 	log.Info("Executing ExecuteBatch", "list", len(list))
-	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"internalType\":\"bytes[]\",\"name\":\"data\",\"type\":\"bytes[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"},{\"internalType\":\"bytes[]\",\"name\":\"sig\",\"type\":\"bytes[]\"}],\"name\":\"executeProposalBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
-	a, err := abi.JSON(strings.NewReader(definition))
+	a, err := chainbridge_abi.GetExecuteBatchProposalAbi()
 	if err != nil {
 		return err // Not sure what status to use here
 	}
@@ -206,7 +204,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte) erro
 		dataList = append(dataList, p.Data)
 		resourceID = append(resourceID, p.ResourceId)
 	}
-	input, err := a.Pack("executeProposalBatch", source, nonceList, dataList, resourceID, signature)
+	input, err := a.Pack("executeProposalBatch", source, nonceList, dataList, resourceID, signature, superSig)
 	if err != nil {
 		return err
 	}
