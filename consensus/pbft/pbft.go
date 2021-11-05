@@ -125,17 +125,20 @@ type Pbft struct {
 	isRecovering   bool
 }
 
-func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir string, dposStartHeight uint64) *Pbft {
+func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 	logpath := filepath.Join(dataDir, "/logs/dpos")
 	dposPath := filepath.Join(dataDir, "/network/dpos")
 	if strings.LastIndex(dataDir, "/") == len(dataDir)-1 {
 		dposPath = filepath.Join(dataDir, "network/dpos")
 		logpath = filepath.Join(dataDir, "logs/dpos")
 	}
+	cfg := chainConfig.Pbft
 	if cfg == nil {
 		dpos.InitLog(0, 0, 0, logpath)
 		return &Pbft{}
 	}
+	pbftKeystore := chainConfig.PbftKeyStore
+	password := []byte(chainConfig.PbftKeyStorePassWord)
 	dpos.InitLog(cfg.PrintLevel, cfg.MaxPerLogSize, cfg.MaxLogsSize, logpath)
 	producers := make([][]byte, len(cfg.Producers))
 	for i, v := range cfg.Producers {
@@ -157,6 +160,12 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 				fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password")
 			} else {
 				fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
+			}
+		} else {
+			efAccount := common.Hex2Bytes(chainConfig.Layer2SuperPubKey)
+			if bytes.Compare(account.PublicKeyBytes(), efAccount) == 0 {
+				chainConfig.Layer2EFVoter = bridgeAccount.PublicKey()[2:]
+				log.Info(">>>> Layer2EFVoter", "public_key:", chainConfig.Layer2EFVoter, "pri:", common.Bytes2Hex(bridgeAccount.Encode()))
 			}
 		}
 	}
@@ -204,7 +213,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 		pbft.subscribeEvent()
 	}
 	pbft.dispatcher = dpos.NewDispatcher(producers, pbft.onConfirm, pbft.onUnConfirm,
-		10*time.Second, accpubkey, medianTimeSouce, pbft, dposStartHeight)
+		10*time.Second, accpubkey, medianTimeSouce, pbft, chainConfig.GetPbftBlock())
 	return pbft
 }
 
