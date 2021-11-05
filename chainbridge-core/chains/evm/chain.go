@@ -7,12 +7,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
 	"math/big"
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
@@ -58,12 +59,17 @@ type EVMChain struct {
 	msgPool               *msg_pool.MsgPool
 	currentProposal       *dpos_msg.BatchMsg
 	arbiterManager        *aribiters.ArbiterManager
+	superVoter            []byte
 }
 
-func NewEVMChain(dr EventListener, writer ProposalVoter, kvdb blockstore.KeyValueReaderWriter, chainID uint8, config *config.GeneralChainConfig, arbiterManager *aribiters.ArbiterManager) *EVMChain {
+func NewEVMChain(dr EventListener, writer ProposalVoter,
+	kvdb blockstore.KeyValueReaderWriter, chainID uint8,
+	config *config.GeneralChainConfig, arbiterManager *aribiters.ArbiterManager,
+	supervoter string) *EVMChain {
 	chain := &EVMChain{listener: dr, writer: writer, kvdb: kvdb, chainID: chainID, config: config}
 	chain.bridgeContractAddress = config.Opts.Bridge
-	chain.msgPool = msg_pool.NewMsgPool()
+	chain.superVoter = common.Hex2Bytes(supervoter)
+	chain.msgPool = msg_pool.NewMsgPool(chain.superVoter)
 	chain.arbiterManager = arbiterManager
 	go chain.subscribeEvent()
 	return chain
@@ -79,6 +85,10 @@ func (c *EVMChain) subscribeEvent() {
 				time.Sleep(1 * time.Second) //wait block data write to db
 				c.selfOnDuty(e)
 			}()
+		case dpos_msg.ETUpdateLayer2SuperVoter:
+			c.superVoter =  e.Data.([]byte)
+			c.msgPool.UpdateSuperVoter(c.superVoter)
+			bridgelog.Info("update super voter", "publickey:", common.Bytes2Hex(c.superVoter))
 		}
 	})
 }
@@ -113,6 +123,10 @@ func (c *EVMChain) broadProposal(p *voter.Proposal) {
 	}
 	hash := c.writer.SignAndBroadProposal(p)
 	log.Info("SignAndBroadProposal", "hash", hash.String())
+	list := c.msgPool.GetBeforeProposal(p)
+	for _, msg := range list {
+		go events.Notify(dpos_msg.ETOnProposal, msg) //self is a signature
+	}
 }
 
 func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
@@ -123,7 +137,8 @@ func (c *EVMChain) ExecuteProposals(list []*voter.Proposal) error {
 			continue
 		}
 		signature := c.msgPool.GetSignatures(p.Hash())
-		err := p.Execute(c.writer.GetClient(), signature)
+		superSig := c.msgPool.GetSuperVoterSigner(p.Hash())
+		err := p.Execute(c.writer.GetClient(), signature, superSig)
 		if err != nil {
 			log.Error("proposal is execute error", "error", err)
 			return err
@@ -144,8 +159,10 @@ func (c *EVMChain) ExecuteProposalBatch(msg *dpos_msg.BatchMsg) error {
 		items = append(items, p)
 	}
 	if len(items) > 0 {
-		signature := c.msgPool.GetSignatures(msg.GetHash())
-		err := voter.ExecuteBatch(c.writer.GetClient(), items, signature)
+		hash := msg.GetHash()
+		signature := c.msgPool.GetSignatures(hash)
+		superSig := c.msgPool.GetSuperVoterSigner(hash)
+		err := voter.ExecuteBatch(c.writer.GetClient(), items, signature, superSig)
 		if err != nil {
 			return err
 		}
@@ -196,7 +213,11 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	if c.msgPool.ArbiterIsVerified(msg.BatchMsgHash, msg.Signer) {
 		return errors.New(fmt.Sprintf("is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
 	}
-	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > c.getMaxArbitersSign() {
+
+	superVoterSignature := c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
+	maxsign := c.getMaxArbitersSign()
+
+	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > maxsign && len(superVoterSignature) > 0 {
 		return errors.New("is collect enough feedback")
 	}
 
@@ -204,9 +225,12 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 		return err
 	}
 
-	c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature)
-	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash))
-	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > c.getMaxArbitersSign() {
+	isSuperVoter := c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature)
+	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash), "superVoterSignature", len(superVoterSignature), "isSuperVoter", isSuperVoter)
+	if isSuperVoter {
+		superVoterSignature = c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
+	}
+	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > maxsign && len(superVoterSignature) > 0 {
 		err := c.ExecuteProposalBatch(c.currentProposal)
 		if err != nil {
 			log.Error("ExecuteProposalBatch error", "error", err)
@@ -224,7 +248,7 @@ func (c *EVMChain) verifySignature(msg *dpos_msg.FeedbackBatchMsg) error {
 	if bytes.Compare(msg.Signer, pub) != 0 {
 		return errors.New(fmt.Sprintf("verified signature error, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
 	}
-	if !c.arbiterManager.HasArbiter(pub) {
+	if !c.arbiterManager.HasArbiter(pub) && bytes.Compare(c.superVoter, pub) != 0 {
 		return errors.New(fmt.Sprintf("verified signature is not in arbiterList, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
 	}
 	return nil
@@ -265,7 +289,8 @@ func (c *EVMChain) onBatchMsg(msg *dpos_msg.BatchMsg) error {
 func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 	proposal := c.msgPool.GetQueueProposal(msg.Item.DepositNonce)
 	if proposal == nil {
-		return errors.New(fmt.Sprintf("not have this proposal, nonce:%d", msg.Item.DepositNonce))
+		c.msgPool.PutBeforeProposal(msg)
+		return errors.New(fmt.Sprintf("not have this proposal, nonce:%d, proposor:%s", msg.Item.DepositNonce, common.Bytes2Hex(msg.Proposer)) )
 	}
 	if proposal.Destination != c.chainID {
 		return errors.New(fmt.Sprintf("proposal destination is not correct, chainID:%d, propsal destination:%d", c.chainID, proposal.Destination))
@@ -279,11 +304,15 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		c.msgPool.OnProposalExecuted(proposal.DepositNonce)
 		return errors.New("all ready executed proposal")
 	}
-
-	if c.msgPool.ArbiterIsVerified(proposal.Hash(), msg.Proposer) {
+	phash := proposal.Hash()
+	if c.msgPool.ArbiterIsVerified(phash, msg.Proposer) {
 		return errors.New(fmt.Sprintf("onDepositMsg is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
 	}
-	if c.msgPool.GetVerifiedCount(proposal.Hash()) > c.getMaxArbitersSign() {
+
+	superVoterSignature := c.msgPool.GetSuperVoterSigner(phash)
+	maxsign := c.getMaxArbitersSign()
+	if c.msgPool.GetVerifiedCount(proposal.Hash()) > maxsign &&
+		len(superVoterSignature) > 0 {
 		return errors.New("is collect enough signature")
 	}
 
@@ -292,9 +321,13 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		if err != nil {
 			return errors.New(fmt.Sprintf("OnProposal error: %s", err.Error()))
 		} else {
-			c.msgPool.OnProposalVerified(proposal.Hash(), msg.Proposer, msg.Signature)
-			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(proposal.Hash()))
-			if c.msgPool.GetVerifiedCount(proposal.Hash()) > c.getMaxArbitersSign() {
+			issuperVoter := c.msgPool.OnProposalVerified(phash, msg.Proposer, msg.Signature)
+			if issuperVoter {
+				superVoterSignature = c.msgPool.GetSuperVoterSigner(phash)
+			}
+			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(phash), "getMaxArbitersSign", maxsign, "superVoterSignature", len(superVoterSignature))
+			if c.msgPool.GetVerifiedCount(phash) > maxsign  &&
+				len(superVoterSignature) > 0 {
 				c.msgPool.PutExecuteProposal(proposal)
 			}
 		}
@@ -324,7 +357,7 @@ func compareMsg(msg1 *dpos_msg.DepositItem, msg2 *voter.Proposal) bool {
 }
 
 func (c *EVMChain) getMaxArbitersSign() int {
-	total := c.writer.GetClient().Engine().GetTotalProducerCount()
+	total := c.writer.GetClient().Engine().GetTotalArbitersCount()
 	return total * 2 / 3
 }
 

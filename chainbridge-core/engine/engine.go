@@ -15,7 +15,7 @@ type ESCEngine interface {
 	DecryptArbiter(cipher []byte) (arbiter []byte, err error)
 	GetProducer() []byte
 	GetBridgeArbiters() crypto.Keypair
-	GetTotalProducerCount() int
+	GetTotalArbitersCount() int
 	IsSyncFinished() bool
 	Layer2Started() bool
 }
