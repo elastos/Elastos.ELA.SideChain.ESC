@@ -261,7 +261,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			TrieTimeLimit:       config.TrieTimeout,
 		}
 	)
-	engine := pbft.New(chainConfig.Pbft, chainConfig.PbftKeyStore, []byte(chainConfig.PbftKeyStorePassWord), ctx.ResolvePath(""), chainConfig.GetPbftBlock())
+	engine := pbft.New(chainConfig, ctx.ResolvePath(""))
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, engine, vmConfig, eth.shouldPreserve)
 	if err != nil {
 		return nil, err

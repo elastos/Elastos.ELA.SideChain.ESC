@@ -1807,7 +1807,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	}
 	var engine consensus.Engine
 	if config.Pbft != nil {
-		engine = pbft.New(config.Pbft, config.PbftKeyStore, []byte(config.PbftKeyStorePassWord), stack.ResolvePath(""), config.PBFTBlock.Uint64())
+		engine = pbft.New(config, stack.ResolvePath(""))
 	} else if config.Clique != nil {
 		engine = clique.New(config.Clique, chainDb)
 	} else {
