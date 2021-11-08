@@ -53,8 +53,8 @@ module.exports = async function (json_data, res) {
                 console.log("params", params);
 
                 if (txreceipt.status) {
-                    let crosschainamount = String(common.retnum(log["returnValues"]["_crosschainamount"] / 1e18));
-                    let outputamount = String(common.retnum(log["returnValues"]["_amount"] / 1e18));
+                    let crosschainamount = String(common.retnum(common.web3.utils.fromWei(log["returnValues"]["_crosschainamount"])));
+                    let outputamount = String(common.retnum(common.web3.utils.fromWei(log["returnValues"]["_amount"])));
                     console.log("crosschainamount", crosschainamount);
                     console.log("outputamount", outputamount);
                     txlog["crosschainassets"].push({
