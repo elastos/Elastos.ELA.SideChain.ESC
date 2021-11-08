@@ -43,7 +43,9 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/node"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/contract"
@@ -169,6 +171,7 @@ var (
 		utils.PbftKeystorePassWord,
 		utils.PbftIPAddress,
 		utils.PbftDposPort,
+		utils.DynamicArbiter,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -419,6 +422,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 	// as the ELA mainchain address for the SPV module to monitor on
 	// if no --spvmoniaddr commandline parameter is provided, use the sidechain genesis block hash
 	// to generate the corresponding ELA mainchain address for the SPV module to monitor on
+	var dynamicArbiterHeight uint64
 	if ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name) != "" {
 		// --spvmoniaddr parameter is provided, set the SPV monitor address accordingly
 		log.Info("SPV Start Monitoring... ", "SpvMonitoringAddr", ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name))
@@ -436,11 +440,13 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Blockchain not running: %v", err)
 			}
 			ghash = lightnode.BlockChain().Genesis().Hash()
+			dynamicArbiterHeight = lightnode.BlockChain().Config().DynamicArbiterHeight
 		} else {
 			if err := stack.Service(&fullnode); err != nil {
 				utils.Fatalf("Blockchain not running: %v", err)
 			}
 			ghash = fullnode.BlockChain().Genesis().Hash()
+			dynamicArbiterHeight = fullnode.BlockChain().Config().DynamicArbiterHeight
 		}
 
 		// calculate ELA mainchain address from the genesis block hash and set the SPV monitor address accordingly
@@ -468,14 +474,15 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 	if err != nil {
 		log.Error("Attach client: ", "err", err)
 	}
-
-	if spvService, err := spv.NewService(spvCfg,client); err != nil {
+	if spvService, err := spv.NewService(spvCfg,client, stack.EventMux(), dynamicArbiterHeight); err != nil {
 		utils.Fatalf("SPV service init error: %v", err)
 	} else {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})
 		OnDutySub := stack.EventMux().Subscribe(events.OnDutyEvent{})
 		go spv.MinedBroadcastLoop(MinedBlockSub, OnDutySub)
 		spvService.Start()
+		stack.EventMux().Post(events.InitCurrentProducers{})
+		spv.InitNextTurnDposInfo()
 	}
 }
 
@@ -494,6 +501,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	//start the SPV service
 	//log.Info(fmt.Sprintf("Starting SPV service with config: %+v \n", *spvCfg))
 	startSpv(ctx, stack)
+	startSmallCrossTx(ctx, stack)
 
 	// Register wallet event handlers to open and auto-derive wallets
 	events := make(chan accounts.WalletEvent, 16)
@@ -634,4 +642,25 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	for i, account := range unlocks {
 		unlockAccount(ks, account, i, passwords)
 	}
+}
+
+func startSmallCrossTx(ctx *cli.Context, stack *node.Node) {
+	var datadir string
+	switch {
+	case ctx.GlobalIsSet(utils.DataDirFlag.Name):
+		datadir = ctx.GlobalString(utils.DataDirFlag.Name)
+	case ctx.GlobalBool(utils.DeveloperFlag.Name):
+		datadir = "" // unless explicitly requested, use memory databases
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "testnet")
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+		datadir = filepath.Join(node.DefaultDataDir(), "goerli")
+	default:
+		datadir = node.DefaultDataDir()
+	}
+	smallcrosstx.SmallCrossTxInit(datadir, stack.EventMux())
+
+	withdrawfailedtx.FailedWithrawInit(datadir, stack.EventMux())
 }

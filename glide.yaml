@@ -126,9 +126,9 @@ import:
 #- package: github.com/elastos/Elastos.ELA.SideChain
 #  version: v0.1.7
 - package: github.com/elastos/Elastos.ELA.SPV
-  version: 7cd5d0711432c603e426021ed32ae5985d57b2e5
+  version: 8ca3705008dc3e41758f4d74c52a26e6f331dde2 #feature_customID
 - package: github.com/elastos/Elastos.ELA
-  version: release_v0.4.0
+  version: 805be25514e3cbeb31f84edbfb249261ba8d54f2 #feature_customID
 - package: github.com/gorilla/websocket
 - package: github.com/mattn/go-sqlite3
 - package: github.com/btcsuite/btcd/wire

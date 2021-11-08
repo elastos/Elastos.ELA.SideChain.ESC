@@ -41,4 +41,10 @@ var (
 
 	// ErrElaToEthAddress   is returned if Ethereum address is incorrect
 	ErrElaToEthAddress = errors.New("Ethereum address is incorrect ")
+
+	ErrMainChainInPowMode = errors.New("not support withdrawal by the main chain in POW consensus")
+
+	ErrWithdawrefundVerify = errors.New("refund withdraw tx verify signature error")
+
+	ErrRefunded = errors.New("all ready refund withdraw amount")
 )

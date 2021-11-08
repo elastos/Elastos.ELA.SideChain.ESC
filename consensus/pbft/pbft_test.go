@@ -36,7 +36,7 @@ func TestReimportMirroredState(t *testing.T) {
 			"03bfd8bd2b10e887ec785360f9b329c2ae567975c784daca2f223cb19840b51914",
 		},
 	}
-	PbftProtocolChanges := &params.ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0), nil, nil, cfg, "", 0, "", 1, "test/keystore.dat", "123"}
+	PbftProtocolChanges := &params.ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: nil, EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: nil, Clique: nil, Pbft: cfg, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 1, PbftKeyStore: "test/keystore.dat", PbftKeyStorePassWord: "123"}
 	var (
 		db     = rawdb.NewMemoryDatabase()
 		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
@@ -122,13 +122,14 @@ func createConfirm(block *types.Block, ac account.Account) *payload.Confirm {
 	proposal, _ := dpos.StartProposal(ac, *sealHash, 0)
 
 	proposalHash := proposal.Hash()
-	vote, _ := dpos.StartVote(&proposalHash, true, ac)
-
 	confirm := &payload.Confirm{
 		Proposal: *proposal,
 		Votes:    make([]payload.DPOSProposalVote, 0),
 	}
-	confirm.Votes = append(confirm.Votes, *vote)
+	for i := 1; i <= 8; i++ {
+		vote, _ := dpos.StartVote(&proposalHash, true, ac)
+		confirm.Votes = append(confirm.Votes, *vote)
+	}
 	return confirm
 }
 
@@ -147,7 +148,7 @@ func TestChangeEngine(t *testing.T) {
 	}
 	cliqueCfg := &params.CliqueConfig{Period: 0, Epoch: 30000}
 	var (
-		PbftProtocolChanges = &params.ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(10), nil, cliqueCfg, cfg, "", 0, "", 1, "test/keystore.dat", "123"}
+		PbftProtocolChanges = &params.ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: nil, EWASMBlock: nil, PBFTBlock: big.NewInt(10), Ethash: nil, Clique: cliqueCfg, Pbft: cfg, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 1, PbftKeyStore: "test/keystore.dat", PbftKeyStorePassWord: "123"}
 		db     = rawdb.NewMemoryDatabase()
 		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr   = crypto.PubkeyToAddress(key.PublicKey)

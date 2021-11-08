@@ -33,8 +33,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
-	whisper "github.com/elastos/Elastos.ELA.SideChain.ESC/whisper/whisperv6"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	whisper "github.com/elastos/Elastos.ELA.SideChain.ESC/whisper/whisperv6"
 	"github.com/naoina/toml"
 )
 
@@ -168,7 +168,6 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 		SpvDbDir = node.DefaultDataDir()
 	}
 	spv.SpvDbInit(SpvDbDir)
-
 	if ctx.GlobalIsSet(utils.OverrideIstanbulFlag.Name) {
 		cfg.Eth.OverrideIstanbul = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideIstanbulFlag.Name))
 	}

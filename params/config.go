@@ -95,15 +95,16 @@ var (
 			Magic: 202000,
 			IPAddress: "",
 			DPoSPort: 0,
+			MaxNodePerHost: 100,
 		},
 	}
 
 	// MainnetTrustedCheckpoint contains the light client trusted checkpoint for the main network.
 	MainnetTrustedCheckpoint = &TrustedCheckpoint{
-		SectionIndex: 30,
-		SectionHead:  common.HexToHash("0xe1f3f93a9e4a4155abaefefb268c9d3f28a12c87d3d62f668b6d7b528199ba7a"),
-		CHTRoot:      common.HexToHash("0x4faf71e39a25604bff04af3265a416ced4659be338675209d3323356668fef8e"),
-		BloomRoot:    common.HexToHash("0xad831af452d3ce534e8ed3ce271826c1310c786ee135fae5acbacc41b03142a6"),
+		SectionIndex: 274,
+		SectionHead:  common.HexToHash("0x6ce58f5e700569088755cc07d3d695171537f103b1bfb42f9b494e29c7f472d7"),
+		CHTRoot:      common.HexToHash("0x91cb9442bbdd6d0445814c16ff709eb95d114308a8d3095370eba35d6c70257e"),
+		BloomRoot:    common.HexToHash("0xe37290f648d50176ab1e52b65258d0d970c4bba464c93a81d355205546c484e2"),
 	}
 
 	// MainnetCheckpointOracle contains a set of configs for the main network oracle.
@@ -162,15 +163,16 @@ var (
 			Magic: 202000,
 			IPAddress: "",
 			DPoSPort: 0,
+			MaxNodePerHost: 100,
 		},
 	}
 
 	// TestnetTrustedCheckpoint contains the light client trusted checkpoint for the Ropsten test network.
 	TestnetTrustedCheckpoint = &TrustedCheckpoint{
-		SectionIndex: 36,
-		SectionHead:  common.HexToHash("0xfeddddc5cf093ad3454b58eeeeaa37df6e45d94a5c5908926422fc289d33f397"),
-		CHTRoot:      common.HexToHash("0x959e4184054ce06490be80115554cdf72e4fd0ffe5c6dcd382976dfa0ef2d9e0"),
-		BloomRoot:    common.HexToHash("0x15abe2948f02d44b77d6b34f8c9e451cdc8f4e302fd448a384b6483997ee38a2"),
+		SectionIndex: 265,
+		SectionHead:  common.HexToHash("0x2ddaea7ec90503c361fd80657f6ea282257a517b4e88f1a16572305a62559ef8"),
+		CHTRoot:      common.HexToHash("0xd4de1426c6a0c8dbfa0b1bf95db37ac945e711128ff8eb613d6eafbc52e80ba2"),
+		BloomRoot:    common.HexToHash("0xa90e98ef287496d1844b9dbe8449a98ca06f88ea8c59f100fb11a3a34ddf10b0"),
 	}
 
 	// TestnetCheckpointOracle contains a set of configs for the Ropsten test network oracle.
@@ -229,6 +231,7 @@ var (
 			Magic: 202000,
 			IPAddress: "",
 			DPoSPort: 0,
+			MaxNodePerHost: 100,
 		},
 	}
 
@@ -294,6 +297,7 @@ var (
 			Magic: 202000,
 			IPAddress: "",
 			DPoSPort: 0,
+			MaxNodePerHost: 100,
 		},
 	}
 
@@ -323,16 +327,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0),new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
+	AllEthashProtocolChanges = &ChainConfig{OldChainID: big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0),ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil, "", 0, "",0, "", ""}
+	AllCliqueProtocolChanges = &ChainConfig{OldChainID:big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "",PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(20), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, big.NewInt(0), new(EthashConfig), nil, nil, "", 0, "", 0, "", ""}
+	TestChainConfig = &ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -418,6 +422,7 @@ type ChainConfig struct {
 	PreConnectOffset      uint64 `json:"preConnectOffset,omitempty"`
 	PbftKeyStore          string `json:"pbftKeyStore,omitempty"`
 	PbftKeyStorePassWord  string
+	DynamicArbiterHeight  uint64 `json:"dynamicArbiterHeight,omitempty"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -447,6 +452,7 @@ type PbftConfig struct {
 	PrintLevel    uint8  `json:"printlevel"`
 	MaxLogsSize   int64  `json:"maxlogssize"`
 	MaxPerLogSize int64  `json:"maxperlogsize"`
+	MaxNodePerHost uint32 `json:"maxnodeperhost"`//MaxNodePerHost defines max nodes that one host can establish.
 }
 
 func (p *PbftConfig) String() string {
@@ -466,7 +472,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v PBFTBlock:%v Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v PBFTBlock:%v Engine: %v DynamicArbiterHeight: %v}",
 		c.ChainID,
 		c.OldChainID,
 		c.HomesteadBlock,
@@ -482,6 +488,7 @@ func (c *ChainConfig) String() string {
 		c.ChainIDBlock,
 		c.PBFTBlock,
 		engine,
+		c.DynamicArbiterHeight,
 	)
 }
 

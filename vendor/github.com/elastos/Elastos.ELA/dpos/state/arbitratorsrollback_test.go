@@ -48,11 +48,15 @@ func initArbiters() {
 	}
 	bestHeight := uint32(0)
 
-	abt, _ = NewArbitrators(activeNetParams,
+	abt, _ = NewArbitrators(activeNetParams, nil, nil,
 		nil, nil, nil, nil)
-	abt.RegisterFunction(func() uint32 { return bestHeight }, nil, nil)
-	abt.State = NewState(activeNetParams, nil, nil, nil,
-		nil, nil, nil)
+	abt.RegisterFunction(func() uint32 { return bestHeight },
+		func() *common.Uint256 { return &common.Uint256{} },
+		nil, nil)
+	abt.State = NewState(activeNetParams, nil, nil,
+		func() bool { return false },
+		nil, nil, nil,
+		nil, nil)
 }
 
 func checkPointEqual(first, second *CheckPoint) bool {
@@ -65,7 +69,7 @@ func checkPointEqual(first, second *CheckPoint) bool {
 		first.accumulativeReward != second.accumulativeReward ||
 		first.finalRoundChange != second.finalRoundChange ||
 		first.clearingHeight != second.clearingHeight ||
-		len(first.NextCRCArbiters) != len(second.NextCRCArbiters) ||
+		len(first.NextCRCArbitersMap) != len(second.NextCRCArbitersMap) ||
 		len(first.arbitersRoundReward) != len(second.arbitersRoundReward) ||
 		len(first.illegalBlocksPayloadHashes) !=
 			len(second.illegalBlocksPayloadHashes) {
@@ -82,8 +86,8 @@ func checkPointEqual(first, second *CheckPoint) bool {
 		return false
 	}
 
-	for k, v := range first.NextCRCArbiters {
-		a, ok := second.NextCRCArbiters[k]
+	for k, v := range first.NextCRCArbitersMap {
+		a, ok := second.NextCRCArbitersMap[k]
 		if !ok {
 			return false
 		}

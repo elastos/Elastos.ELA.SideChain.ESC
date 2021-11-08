@@ -15,7 +15,6 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/core/types"
-	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/elanet/pact"
 	"github.com/elastos/Elastos.ELA/elanet/peer"
 	"github.com/elastos/Elastos.ELA/errors"
@@ -172,7 +171,7 @@ func (sm *SyncManager) startSync() {
 	}
 
 	// Start syncing from the best peer if one was selected.
-	if bestPeer != nil {
+	if bestPeer != nil && sm.syncPeer == nil {
 		// Do not start syncing if we have the same height with best peer.
 		if bestPeer.Height() == bestHeight {
 			return
@@ -191,12 +190,13 @@ func (sm *SyncManager) startSync() {
 			return
 		}
 
-		log.Infof("Syncing to block height %d from peer %v",
-			bestPeer.Height(), bestPeer.Addr())
+		log.Infof("Syncing to block height %d from peer %v, locator:%v",
+			bestPeer.Height(), bestPeer.Addr(), locator)
 
 		sm.syncPeer = bestPeer
 		sm.syncHeight = bestPeer.Height()
 		sm.syncStartTime = time.Now()
+		log.Info("########### PushGetBlocksMsg 3:", locator)
 		bestPeer.PushGetBlocksMsg(locator, &zeroHash)
 	} else {
 		log.Warnf("No sync peer candidates available")
@@ -398,13 +398,19 @@ func (sm *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		delete(sm.requestedConfirmedBlocks, blockHash)
 	} else {
 		if _, exists = state.requestedBlocks[blockHash]; !exists {
-			log.Warnf("Got unrequested block %v from %s -- "+
-				"disconnecting", blockHash, peer)
-			peer.Disconnect()
-			return
+			if _, exists = state.requestedConfirmedBlocks[blockHash]; !exists {
+				log.Warnf("Got unrequested block %v from %s -- "+
+					"disconnecting", blockHash, peer)
+				peer.Disconnect()
+				return
+			} else {
+				delete(state.requestedConfirmedBlocks, blockHash)
+				delete(sm.requestedConfirmedBlocks, blockHash)
+			}
+		} else {
+			delete(state.requestedBlocks, blockHash)
+			delete(sm.requestedBlocks, blockHash)
 		}
-		delete(state.requestedBlocks, blockHash)
-		delete(sm.requestedBlocks, blockHash)
 	}
 
 	// Process the block to include validation, best chain selection, orphan
@@ -429,6 +435,8 @@ func (sm *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		sm.syncPeer = nil
 	}
 
+	log.Debug("sm.chain.BestChain.Height:", sm.chain.BestChain.Height,
+		"sm.syncHeight:", sm.syncHeight, "isOrphan:", isOrphan)
 	// Request the parents for the orphan block from the peer that sent it.
 	if isOrphan {
 		orphanRoot := sm.chain.GetOrphanRoot(&blockHash)
@@ -441,8 +449,8 @@ func (sm *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 				sm.syncPeer = peer
 				sm.syncHeight = bmsg.block.Block.Height
 				sm.syncStartTime = time.Now()
-			}
-			if sm.syncPeer == peer {
+				log.Debug("Syncing blocks locator:", locator)
+				log.Info("###### PushGetBlocksMsgSyncing blocks locator:", locator, "height:", bmsg.block.Height)
 				peer.PushGetBlocksMsg(locator, orphanRoot)
 			}
 		}
@@ -590,6 +598,7 @@ func (sm *SyncManager) handleInvMsg(imsg *invMsg) {
 					sm.syncStartTime = time.Now()
 				}
 				if sm.syncPeer == peer {
+					log.Info("########### PushGetBlocksMsg 1:", locator)
 					peer.PushGetBlocksMsg(locator, orphanRoot)
 				}
 				continue
@@ -647,6 +656,15 @@ func (sm *SyncManager) handleInvMsg(imsg *invMsg) {
 	state.requestQueue = requestQueue
 	if len(gdmsg.InvList) > 0 {
 		peer.QueueMessage(gdmsg, nil)
+	}
+
+	// maxBlockLocators = 500
+	if len(gdmsg.InvList) == 500 {
+		locator := sm.chain.GetOrphanBlockLocator(invVects)
+		log.Info("########### PushGetBlocksMsg 2:", locator, "count:", len(gdmsg.InvList))
+		if err := peer.PushGetBlocksMsg(locator, &zeroHash); err != nil {
+			log.Info("PushGetBlocksMsg error:", err)
+		}
 	}
 }
 
@@ -733,15 +751,15 @@ func (sm *SyncManager) handleBlockchainEvents(event *events.Event) {
 	// is a illegal block transaction.
 	case events.ETTransactionAccepted:
 		tx := event.Data.(*types.Transaction)
-		if tx.IsIllegalBlockTx() {
-			sm.chain.ProcessIllegalBlock(tx.Payload.(*payload.DPOSIllegalBlocks))
-		}
+		//if tx.IsIllegalBlockTx() {
+		//	sm.chain.ProcessIllegalBlock(tx.Payload.(*payload.DPOSIllegalBlocks))
+		//}
+		//
+		//if tx.IsInactiveArbitrators() {
+		//	sm.chain.ProcessInactiveArbiter(tx.Payload.(*payload.InactiveArbitrators))
+		//}
 
-		if tx.IsInactiveArbitrators() {
-			sm.chain.ProcessInactiveArbiter(tx.Payload.(*payload.InactiveArbitrators))
-		}
-
-		if tx.IsIllegalTypeTx() || tx.IsInactiveArbitrators() {
+		if tx.IsIllegalTypeTx() || tx.IsInactiveArbitrators() || tx.IsRevertToDPOS() {
 			// Relay tx inventory to other peers.
 			txHash := tx.Hash()
 			iv := msg.NewInvVect(msg.InvTypeTx, &txHash)
@@ -787,8 +805,14 @@ func (sm *SyncManager) handleBlockchainEvents(event *events.Event) {
 		sm.peerNotifier.RelayInventory(iv, block.Header)
 
 	case events.ETBlockProcessed:
+		block, ok := event.Data.(*types.Block)
+		if !ok {
+			log.Warnf("ETBlockProcessed accepted event is not a block.")
+			break
+		}
 		// check all transactions in pool.
 		sm.txMemPool.CheckAndCleanAllTransactions()
+		sm.txMemPool.BroadcastSmallCrossChainTransactions(block.Height)
 
 		// A block has been connected to the main block chain.
 	case events.ETBlockConnected:
@@ -851,6 +875,27 @@ func (sm *SyncManager) handleBlockchainEvents(event *events.Event) {
 		if err := sm.txMemPool.AppendToTxPool(tx); err != nil {
 			log.Warnf("ETAppendTxToTxPool tx append to txpool failed TxType %v, err %v", tx.TxType, err)
 			break
+		}
+	case events.ETAppendTxToTxPoolWithoutRelay:
+		tx, ok := event.Data.(*types.Transaction)
+		if !ok {
+			log.Warnf("ETAppendTxToTxPool event is not a tx")
+			break
+		}
+
+		if err := sm.txMemPool.AppendToTxPoolWithoutEvent(tx); err != nil {
+			log.Warnf("ETAppendTxToTxPool tx append to txpool failed TxType %v, err %v", tx.TxType, err)
+			break
+		}
+	case events.ETSmallCrossChainNeedRelay:
+		txs, ok := event.Data.([]*types.Transaction)
+		if !ok {
+			log.Error("ETSmallCrossChainNeedRelay event is not a tx list")
+		}
+		for _, tx := range txs {
+			txHash := tx.Hash()
+			iv := msg.NewInvVect(msg.InvTypeTx, &txHash)
+			sm.peerNotifier.RelayInventory(iv, tx)
 		}
 	}
 }

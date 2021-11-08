@@ -59,23 +59,35 @@ const (
 	//ETNextTurnDPOSInfo indicates need add an NextTurnDPOSInfo to tx pool
 	ETAppendTxToTxPool
 
-	//ETCRCChangeCommittee indicates need add crc chaged committee
+	//ETAppendTxToTxPoolWithoutRelay indicates need add an NextTurnDPOSInfo
+	//to tx pool but do not relay.
+	ETAppendTxToTxPoolWithoutRelay
+
+	//ETCRCChangeCommittee indicates need add crc changed committee
 	ETCRCChangeCommittee
+
+	//ETSmallCrossChainNeedRelay indicates that need to relay some small cross
+	//chain transaction
+	ETSmallCrossChainNeedRelay
 )
 
 // notificationTypeStrings is a map of notification types back to their constant
 // names for pretty printing.
 var notificationTypeStrings = map[EventType]string{
-	ETBlockAccepted:        "ETBlockAccepted",
-	ETBlockConnected:       "ETBlockConnected",
-	ETBlockDisconnected:    "ETBlockDisconnected",
-	ETTransactionAccepted:  "ETTransactionAccepted",
-	ETNewBlockReceived:     "ETNewBlockReceived",
-	ETConfirmAccepted:      "ETConfirmAccepted",
-	ETDirectPeersChanged:   "ETDirectPeersChanged",
-	ETBlockConfirmAccepted: "ETBlockConfirmAccepted",
-	ETIllegalBlockEvidence: "ETIllegalBlockEvidence",
-	ETAppendTxToTxPool:     "ETAppendTxToTxPool",
+	ETBlockAccepted:                "ETBlockAccepted",
+	ETBlockConnected:               "ETBlockConnected",
+	ETBlockDisconnected:            "ETBlockDisconnected",
+	ETTransactionAccepted:          "ETTransactionAccepted",
+	ETNewBlockReceived:             "ETNewBlockReceived",
+	ETConfirmAccepted:              "ETConfirmAccepted",
+	ETDirectPeersChanged:           "ETDirectPeersChanged",
+	ETBlockConfirmAccepted:         "ETBlockConfirmAccepted",
+	ETBlockProcessed:               "ETBlockProcessed",
+	ETIllegalBlockEvidence:         "ETIllegalBlockEvidence",
+	ETAppendTxToTxPool:             "ETAppendTxToTxPool",
+	ETAppendTxToTxPoolWithoutRelay: "ETAppendTxToTxPoolWithoutRelay",
+	ETCRCChangeCommittee:           "ETCRCChangeCommittee",
+	ETSmallCrossChainNeedRelay:     "ETSmallCrossChainNeedRelay",
 }
 
 // String returns the EventType in human-readable form.

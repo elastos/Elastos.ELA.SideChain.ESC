@@ -24,6 +24,9 @@ import (
 	"testing"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
+	"github.com/stretchr/testify/assert"
 )
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.
@@ -635,5 +638,76 @@ func TestPrecompiledEcrecover(t *testing.T) {
 	for _, test := range ecRecoverTests {
 		testPrecompiled("01", test, t)
 	}
+}
 
+func TestElaToEth(t *testing.T) {
+	pubkey, err := crypto.DecompressPubkey(common.Hex2Bytes("025321ed6ff0618808f8cbd5d4b89845e0898865ee68ba88e335c90401b186660c"))
+	if err != nil {
+		t.Error(err)
+	}
+	pubkeyAddress := crypto.PubkeyToAddress(*pubkey)
+	fmt.Println(pubkeyAddress.Hex())
+
+	ecdsaKey, err := crypto.ToECDSA(common.Hex2Bytes("c71915877df0eb9d6ea115e222c539cd1f1b1af8ac2a06dd4e5da3a96dc97497"))
+	if err != nil {
+		t.Error(err)
+	}
+
+	privateAddress := crypto.PubkeyToAddress(ecdsaKey.PublicKey)
+	fmt.Println(ecdsaKey.PublicKey)
+	fmt.Println(privateAddress.Hex())
+}
+
+func TestP256Verify_Run(t *testing.T) {
+	length := common.Hex2Bytes("00000000000000000000000000000000000000000000000000000000000000a1")
+	private := common.Hex2Bytes("41f8a791476092cb3bbd632dcbf5217ff0f6107bc76e322f8159a1fb63d9670d")
+	pubkey := common.Hex2Bytes("03585451831671d32c12da70f009adb6e423dfbfdd012368d9038c8b896918a62a")
+	//data := common.LeftPadBytes(common.Hex2Bytes("010203"), 64)
+	convert := common.HexToAddress("0x5b4A755b609bca3CAFb48bA893973ef6Fa146554")
+	first := crypto.Keccak256(convert.Bytes())
+	second := crypto.Keccak256([]byte("asdfasfd"))
+	data := merge(first,second)
+
+	signature, err := elaCrypto.Sign(private, data)
+	assert.NoError(t, err)
+
+	fmt.Println(common.Bytes2Hex(data))
+	fmt.Println(common.Bytes2Hex(signature))
+
+	var verify p256Verify
+	input := append(length, pubkey...)
+	input = append(input, data...)
+	input = append(input, signature...)
+	ret, err := verify.Run(input)
+
+	assert.NoError(t, err)
+	assert.Equal(t, true32Byte, ret)
+
+	fmt.Println(common.Bytes2Hex(input))
+
+	r, err := verify.Run(common.Hex2Bytes("00000000000000000000000000000000000000000000000000000000000000a103585451831671d32c12da70f009adb6e423dfbfdd012368d9038c8b896918a62a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010203ee0978fa8d6918e856f50a77a1b6c75814c2ca0eeb51f778ef96669f9e9c24bf4c315d718d6d54415e04e53744760d32e5e031c90ead2dc99024d6a7c6499af5"))
+	assert.NoError(t, err)
+	assert.Equal(t, true32Byte, r)
+}
+
+func getP256Keypair()  {
+	a, b, _ := elaCrypto.GenerateKeyPair()
+	fmt.Println(common.Bytes2Hex(a))
+	bb, _ := b.EncodePoint(true)
+	fmt.Println(common.Bytes2Hex(bb))
+}
+
+func merge(first , second []byte) []byte{
+	var merged []byte
+	k := 0
+	for i := 0; i < len(first); i++ {
+		merged = append(merged ,first[i])
+		k++
+	}
+
+	for i := 0; i < len(second); i++ {
+		merged = append(merged ,second[i])
+		k++
+	}
+	return merged
 }

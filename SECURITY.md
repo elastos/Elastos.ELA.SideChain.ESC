@@ -6,7 +6,7 @@ Please see Releases. We recommend to use the most recent released version.
 
 ## Audit reports
 
-Audit reports are published in the `docs` folder: https://github.com/elastos/Elastos.ELA.SideChain.ESC/tree/master/docs/audits 
+Audit reports are published in the `docs` folder: https://github.com/elastos/Elastos.ELA.SideChain.ESC/tree/master/docs/audits
 
 
 | Scope | Date | Report Link |

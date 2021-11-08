@@ -61,7 +61,9 @@ func TestCheckBlockSanity(t *testing.T) {
 	defer chainStore.Close()
 
 	chain, _ := New(chainStore, params, state.NewState(params,
-		nil, nil, nil, nil, nil, nil), nil)
+		nil, nil, nil, nil,
+		nil, nil, nil,
+		nil), nil)
 	//chain.Init(nil)
 	if DefaultLedger == nil {
 		DefaultLedger = &Ledger{
@@ -121,7 +123,7 @@ func TestCheckCoinbaseArbitratorsReward(t *testing.T) {
 	for i, v := range arbitratorsStr {
 		vote := i + 10
 		a, _ := common.HexStringToBytes(v)
-		ar, _ := state.NewOriginArbiter(state.Origin, a)
+		ar, _ := state.NewOriginArbiter(a)
 		arbitrators = append(arbitrators, ar)
 		hash, _ := contract.PublicKeyToStandardProgramHash(a)
 		arbitratorHashes = append(arbitratorHashes, hash)
@@ -132,7 +134,7 @@ func TestCheckCoinbaseArbitratorsReward(t *testing.T) {
 	for i, v := range candidatesStr {
 		vote := i + 1
 		a, _ := common.HexStringToBytes(v)
-		ar, _ := state.NewOriginArbiter(state.Origin, a)
+		ar, _ := state.NewOriginArbiter(a)
 		arbitrators = append(arbitrators, ar)
 		hash, _ := contract.PublicKeyToStandardProgramHash(a)
 		candidateHashes = append(candidateHashes, hash)

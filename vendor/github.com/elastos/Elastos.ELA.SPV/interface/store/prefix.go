@@ -27,4 +27,17 @@ var (
 	BKTArbPositions      = []byte("arbpts")
 	BKTArbitersData      = []byte("arbdata")
 	BKTTransactionHeight = []byte("txheight")
+
+	// revert to pow
+	BKTRevertPosition  = []byte("revertp")
+	BKTRevertPositions = []byte("revertps")
+	BKTConsensus       = []byte("consensus")
+
+	//ReturnSideChainDepositCoin
+	BKTReturnSideChainDepositCoin = []byte("retschdepositcoin")
+
+	BKTReservedCustomID     = []byte("rscid")
+	BKTReceivedCustomID     = []byte("rccid")
+	BKTChangeCustomIDFee    = []byte("ccidf")
+	BKTCustomIDFeePositions = []byte("cidfps")
 )

@@ -28,6 +28,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto/blake2b"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto/bn256"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -51,28 +53,32 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
 var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{},
-	common.BytesToAddress([]byte{6}): &bn256AddByzantium{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulByzantium{},
-	common.BytesToAddress([]byte{8}): &bn256PairingByzantium{},
+	common.BytesToAddress([]byte{1}):  &ecrecover{},
+	common.BytesToAddress([]byte{2}):  &sha256hash{},
+	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):  &dataCopy{},
+	common.BytesToAddress([]byte{5}):  &bigModExp{},
+	common.BytesToAddress([]byte{6}):  &bn256AddByzantium{},
+	common.BytesToAddress([]byte{7}):  &bn256ScalarMulByzantium{},
+	common.BytesToAddress([]byte{8}):  &bn256PairingByzantium{},
+	//common.BytesToAddress([]byte{20}): &arbiters{},
+	//common.BytesToAddress([]byte{21}): &p256Verify{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
 // contracts used in the Istanbul release.
 var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
+	common.BytesToAddress([]byte{1}):  &ecrecover{},
+	common.BytesToAddress([]byte{2}):  &sha256hash{},
+	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):  &dataCopy{},
+	common.BytesToAddress([]byte{5}):  &bigModExp{},
+	common.BytesToAddress([]byte{6}):  &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):  &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):  &blake2F{},
+	//common.BytesToAddress([]byte{20}): &arbiters{},
+	//common.BytesToAddress([]byte{21}): &p256Verify{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -499,4 +505,63 @@ func (c *blake2F) Run(input []byte) ([]byte, error) {
 		binary.LittleEndian.PutUint64(output[offset:offset+8], h[i])
 	}
 	return output, nil
+}
+
+var (
+	errGettingArbitersFailed = errors.New("getting arbiters failed")
+)
+
+type arbiters struct{}
+
+func (c *arbiters) RequiredGas(input []byte) uint64 {
+	return params.ArbitersBaseGas
+}
+
+func (c *arbiters) Run(input []byte) ([]byte, error) {
+	arbiters, err := spv.GetArbiters()
+	if err != nil {
+		return nil, errGettingArbitersFailed
+	}
+	ret := make([]byte, 0)
+	for _, pubkey := range arbiters {
+		hash := crypto.Keccak256(common.Hex2Bytes(pubkey))
+		ret = append(ret, common.LeftPadBytes(hash[:], 32)...)
+	}
+
+	return ret, nil
+}
+
+const (
+	p256VerifyInputLength = 193
+)
+
+var (
+	errP256VerifyInvalidInputLength = errors.New("invalid input length")
+	errP256VerifyInvalidPublicKey = errors.New("invalid public key")
+)
+
+type p256Verify struct{}
+
+func (c *p256Verify) RequiredGas(input []byte) uint64 {
+	return params.P256VerifyBaseGas
+}
+
+func (c *p256Verify) Run(input []byte) ([]byte, error) {
+	// Make sure the input is valid (correct length)
+	if len(input) != p256VerifyInputLength {
+		return nil, errP256VerifyInvalidInputLength
+	}
+	//length := getData(input, 0, 32)
+	pubkey := getData(input, 32, 33)
+	data := getData(input, 65, 64)
+	sig := getData(input, 129, 64)
+	publicKey, err := elaCrypto.DecodePoint(pubkey)
+	if err != nil {
+		return nil, errP256VerifyInvalidPublicKey
+	}
+	err = elaCrypto.Verify(*publicKey, data, sig)
+	if err != nil {
+		return false32Byte, nil
+	}
+	return true32Byte, nil
 }

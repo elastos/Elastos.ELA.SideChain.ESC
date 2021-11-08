@@ -23,6 +23,7 @@ type arbiters struct {
 	db             *leveldb.DB
 	b              *leveldb.Batch
 	posCache       []uint32
+	revertPOSCache []uint32
 	cache          map[common.Uint256]uint32
 	originArbiters [][]byte
 	arbitersCount  int
@@ -50,16 +51,20 @@ func (c *arbiters) Put(height uint32, crcArbiters [][]byte, normalArbiters [][]b
 }
 
 func (c *arbiters) batchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error {
-	pos := c.getCurrentPosition()
-	var isRollback bool
-	if height == pos {
-		isRollback = true
-	}
 	batch.Put(BKTArbPosition, uint32toBytes(height))
-	if !isRollback {
-		c.posCache = append(c.getCurrentPositions(), height)
-		batch.Put(BKTArbPositions, uint32ArrayToBytes(c.posCache))
+
+	// update positions
+	posCache := c.getCurrentPositions()
+	newPosCache := make([]uint32, 0)
+	for _, p := range posCache {
+		if p < height {
+			newPosCache = append(newPosCache, p)
+		}
 	}
+	newPosCache = append(newPosCache, height)
+	c.posCache = newPosCache
+	batch.Put(BKTArbPositions, uint32ArrayToBytes(c.posCache))
+
 	data := getValueBytes(crcArbiters, normalArbiters)
 	hash := calcHash(data)
 	key, err := common.Uint256FromBytes(hash[:])
@@ -98,6 +103,14 @@ func (c *arbiters) Get() (crcArbiters [][]byte, normalArbiters [][]byte, err err
 	c.RLock()
 	defer c.RUnlock()
 	return c.GetByHeight(c.getCurrentPosition())
+}
+
+func (c *arbiters) GetNext() (workingHeight uint32, crcArbiters [][]byte, normalArbiters [][]byte, err error) {
+	c.RLock()
+	defer c.RUnlock()
+	workingHeight = c.getCurrentPosition()
+	crcArbiters, normalArbiters, err = c.get(workingHeight)
+	return
 }
 
 func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error) {
@@ -187,6 +200,23 @@ func (c *arbiters) getCurrentPosition() uint32 {
 
 func (c *arbiters) getCurrentPositions() []uint32 {
 	pos, err := c.db.Get(BKTArbPositions, nil)
+	if err == nil {
+		return bytesToUint32Array(pos)
+	}
+	return nil
+}
+
+func (c *arbiters) getCurrentRevertPosition() uint32 {
+	pos, err := c.db.Get(BKTRevertPosition, nil)
+	if err == nil {
+		return bytesToUint32(pos)
+	}
+
+	return 0
+}
+
+func (c *arbiters) getCurrentRevertPositions() []uint32 {
+	pos, err := c.db.Get(BKTRevertPositions, nil)
 	if err == nil {
 		return bytesToUint32Array(pos)
 	}
@@ -289,4 +319,70 @@ func findSlot(pos []uint32, height uint32, arbitersCount int) (uint32, error) {
 
 func calcHash(data []byte) [32]byte {
 	return sha256.Sum256(data)
+}
+
+func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
+	c.RLock()
+	defer c.RUnlock()
+	var pos []uint32
+	if len(c.revertPOSCache) == 0 {
+		pos = c.getCurrentRevertPositions()
+		c.revertPOSCache = pos
+	} else {
+		pos = c.revertPOSCache
+	}
+
+	var modeHeight uint32
+	for _, p := range pos {
+		if p > height {
+			break
+		}
+		modeHeight = p
+	}
+
+	buf := new(bytes.Buffer)
+	if err := common.WriteUint32(buf, modeHeight); err != nil {
+		return 0, err
+	}
+	key := toKey(BKTConsensus, buf.Bytes()...)
+
+	mode, _ := c.db.Get(key, nil)
+	if len(mode) != 1 {
+		return 0, errors.New("failed to get consensus mode")
+	}
+
+	return mode[0], nil
+}
+
+func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight uint32, mode byte) error {
+	c.Lock()
+	defer c.Unlock()
+
+	pos := c.getCurrentRevertPosition()
+	var isRollback bool
+	if workingHeight <= pos {
+		isRollback = true
+	}
+	batch.Put(BKTRevertPosition, uint32toBytes(workingHeight))
+	if !isRollback {
+		posCache := c.getCurrentRevertPositions()
+		newPosCache := make([]uint32, 0)
+		for _, p := range posCache {
+			if p < workingHeight {
+				newPosCache = append(newPosCache, p)
+			}
+		}
+		newPosCache = append(newPosCache, workingHeight)
+		c.revertPOSCache = newPosCache
+		batch.Put(BKTRevertPositions, uint32ArrayToBytes(c.revertPOSCache))
+	}
+
+	buf := new(bytes.Buffer)
+	if err := common.WriteUint32(buf, workingHeight); err != nil {
+		return err
+	}
+	key := toKey(BKTConsensus, buf.Bytes()...)
+	batch.Put(key, []byte{mode})
+
+	return nil
 }

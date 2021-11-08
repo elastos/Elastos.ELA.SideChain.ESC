@@ -530,12 +530,29 @@ func (ec *Client) SendPublicTransaction(ctx context.Context, msg ethereum.TXMsg)
 	return hex, nil
 }
 
+func (ec *Client) GetCurrentProducers(ctx context.Context) ([]string, error) {
+	var result []string
+	err := ec.c.CallContext(ctx, &result, "eth_getCurrentProducers")
+	return result, err
+}
+
+
+
+func (ec *Client) CurrentBlockNumber(ctx context.Context) (uint64, error) {
+	var hex hexutil.Uint64
+	err := ec.c.CallContext(ctx, &hex, "eth_blockNumber")
+	if err != nil {
+		return 0, err
+	}
+	return uint64(hex), nil
+}
+
 func toSendTxArg(msg ethereum.TXMsg) interface{} {
 	arg := map[string]interface{}{
 		"from": msg.From,
 		"to":   msg.To,
 	}
-	if len(msg.Data) == 32 {
+	if len(msg.Data) > 0 {
 		arg["data"] = hexutil.Bytes(msg.Data)
 	}
 	if msg.Value != nil {

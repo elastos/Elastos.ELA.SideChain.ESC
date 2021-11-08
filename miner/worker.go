@@ -19,7 +19,6 @@ package miner
 import (
 	"bytes"
 	"errors"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/clique"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -27,7 +26,9 @@ import (
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/misc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
@@ -37,6 +38,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 )
 
 const (
@@ -753,7 +755,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		}
 		// If we don't have enough gas for any further transactions then we're done
 		if w.current.gasPool.Gas() < params.TxGas {
-			log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
+			log.Info("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
 			break
 		}
 		// Retrieve the next transaction and abort if all done
@@ -781,17 +783,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		switch err {
 		case core.ErrGasLimitReached:
 			// Pop the current out-of-gas transaction without shifting in the next from the account
-			log.Trace("Gas limit exceeded for current block", "sender", from)
-			txs.Pop()
-			var addr common.Address
-			if tx.To() != nil {
-				to := *tx.To()
-				if len(tx.Data()) == 32 && to == addr {
-					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
-				}
-			}
-		case core.ErrMainTxHashPresence:
-			log.Trace("ErrTxHashTooHigh  is returned if Main chain transaction has been processed", "sender", from)
+			log.Error("Gas limit exceeded for current block", "sender", from, "tx", tx.Hash().String())
 			txs.Pop()
 			var addr common.Address
 			if tx.To() != nil {
@@ -800,6 +792,20 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
 				}
 			}
+		case core.ErrMainTxHashPresence:
+			log.Info("ErrTxHashTooHigh  is returned if Main chain transaction has been processed", "sender", from)
+			txs.Pop()
+			var addr common.Address
+			if tx.To() != nil {
+				to := *tx.To()
+				if len(tx.Data()) == 32 && to == addr {
+					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
+				}
+			}
+		case core.ErrRefunded:
+			log.Info("ErrRefunded  is returned", "sender", from)
+			txs.Pop()
+			core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
 		case core.ErrNonceTooLow:
 			// New head notification data race between the transaction pool and miner, shift
 			log.Trace("Skipping transaction with low nonce", "sender", from, "nonce", tx.Nonce())
@@ -819,8 +825,21 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
 			// nonce-too-high clause will prevent us from executing in vain).
-			log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
+			log.Error("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 			txs.Shift()
+			if tx.To() != nil {
+				var addr common.Address
+				to := *tx.To()
+				if len(tx.Data()) == 32 && to == addr {
+					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
+					txhash := hexutil.Encode(tx.Data())
+					_, addr, _ := spv.FindOutputFeeAndaddressByTxHash(txhash)
+					var blackAddr common.Address
+					if addr != blackAddr {
+						spv.OnTx2Failed(txhash)
+					}
+				}
+			}
 		}
 	}
 

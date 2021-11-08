@@ -39,6 +39,26 @@ type OutputPayloadInfo interface{}
 
 type DefaultOutputInfo struct{}
 
+type CrossChainOutputInfo struct {
+	Version       byte   `json:"Version"`
+	TargetAddress string `json:"TargetAddress"`
+	TargetAmount  string `json:"TargetAmount"`
+	TargetData    string `json:"TargetData"`
+}
+
+type WithdrawInfo struct {
+	Version                  byte   `json:"Version"`
+	GenesisBlockAddress      string `json:"GenesisBlockAddress"`
+	SideChainTransactionHash string `json:"SideChainTransactionHash"`
+	TargetData               string `json:"TargetData"`
+}
+
+type ReturnSideChainDepositInfo struct {
+	Version                byte   `json:"Version"`
+	GenesisBlockAddress    string `json:"GenesisBlockAddress"`
+	DepositTransactionHash string `json:"DepositTransactionHash"`
+}
+
 type CandidateVotes struct {
 	Candidate string `json:"candidate"`
 	Votes     string `json:"votes"`
@@ -204,6 +224,16 @@ type InactiveArbitratorsInfo struct {
 	BlockHeight uint32   `json:"blockheight"`
 }
 
+type RevertToDPOSInfo struct {
+	WorkHeightInterval     uint32
+	RevertToPOWBlockHeight uint32
+}
+
+type RevertToPOWInfo struct {
+	Type          string
+	WorkingHeight uint32
+}
+
 type ActivateProducerInfo struct {
 	NodePublicKey string `json:"nodepublickey"`
 	Signature     string `json:"signature"`
@@ -282,6 +312,44 @@ type CRCCloseProposalInfo struct {
 	Hash                     string `json:"hash"`
 }
 
+type CRCReservedCustomIDProposalInfo struct {
+	ProposalType             string   `json:"proposaltype"`
+	CategoryData             string   `json:"categorydata"`
+	OwnerPublicKey           string   `json:"ownerpublickey"`
+	DraftHash                string   `json:"drafthash"`
+	ReservedCustomIDList     []string `json:"reservedcustomidlist"`
+	Signature                string   `json:"signature"`
+	CRCouncilMemberDID       string   `json:"crcouncilmemberdid"`
+	CRCouncilMemberSignature string   `json:"crcouncilmembersignature"`
+	Hash                     string   `json:"hash"`
+}
+
+type CRCChangeCustomIDFeeInfo struct {
+	ProposalType             string `json:"proposaltype"`
+	CategoryData             string `json:"categorydata"`
+	OwnerPublicKey           string `json:"ownerpublickey"`
+	DraftHash                string `json:"drafthash"`
+	FeeRate                  int64  `json:"feerate"`
+	EIDEffectiveHeight       uint32 `json:"eideffectiveheight"`
+	Signature                string `json:"signature"`
+	CRCouncilMemberDID       string `json:"crcouncilmemberdid"`
+	CRCouncilMemberSignature string `json:"crcouncilmembersignature"`
+	Hash                     string `json:"hash"`
+}
+
+type CRCReceivedCustomIDProposalInfo struct {
+	ProposalType             string   `json:"proposaltype"`
+	CategoryData             string   `json:"categorydata"`
+	OwnerPublicKey           string   `json:"ownerpublickey"`
+	DraftHash                string   `json:"drafthash"`
+	ReceiveCustomIDList      []string `json:"receivecustomidlist"`
+	ReceiverDID              string   `json:"receiverdid"`
+	Signature                string   `json:"signature"`
+	CRCouncilMemberDID       string   `json:"crcouncilmemberdid"`
+	CRCouncilMemberSignature string   `json:"crcouncilmembersignature"`
+	Hash                     string   `json:"hash"`
+}
+
 type CRCSecretaryGeneralProposalInfo struct {
 	ProposalType              string `json:"proposaltype"`
 	CategoryData              string `json:"categorydata"`
@@ -296,12 +364,39 @@ type CRCSecretaryGeneralProposalInfo struct {
 	Hash                      string `json:"hash"`
 }
 
+type CRCRegisterSideChainProposalInfo struct {
+	ProposalType             string         `json:"proposaltype"`
+	CategoryData             string         `json:"categorydata"`
+	OwnerPublicKey           string         `json:"ownerpublickey"`
+	DraftHash                string         `json:"drafthash"`
+	SideChainName            string         `json:"sidechainname"`
+	MagicNumber              uint32         `json:"magicnumber"`
+	GenesisHash              string         `json:"genesishash"`
+	ExchangeRate             common.Fixed64 `json:"exchangerate"`
+	EffectiveHeight          uint32         `json:"effectiveheight"`
+	ResourcePath             string         `json:"resourcepath"`
+	Signature                string         `json:"signature"`
+	CRCouncilMemberDID       string         `json:"crcouncilmemberdid"`
+	CRCouncilMemberSignature string         `json:"crcouncilmembersignature"`
+	Hash                     string         `json:"hash"`
+}
+
 type CRCProposalReviewInfo struct {
 	ProposalHash string `json:"proposalhash"`
 	VoteResult   string `json:"voteresult"`
 	OpinionHash  string `json:"opinionhash"`
 	DID          string `json:"did"`
 	Sign         string `json:"sign"`
+}
+
+type CRCCustomIDProposalResultInfo struct {
+	ProposalResults []ProposalResultInfo `json:"proposalresults"`
+}
+
+type ProposalResultInfo struct {
+	ProposalHash string `json:"proposalhash"`
+	ProposalType string `json:"proposaltype"`
+	Result       bool   `json:"result"`
 }
 
 type CRCProposalTrackingInfo struct {
@@ -341,6 +436,61 @@ type CRCProposalRealWithdrawInfo struct {
 	WithdrawTransactionHashes []string `json:"withdrawtransactionhashes"`
 }
 
+type DPOSProposalInfo struct {
+	Sponsor    string `json:"sponsor"`
+	BlockHash  string `json:"blockhash"`
+	ViewOffset uint32 `json:"viewoffset"`
+	Sign       string `json:"sign"`
+	Hash       string `json:"hash"`
+}
+
+type BlockEvidenceInfo struct {
+	Header       string   `json:"header"`
+	BlockConfirm string   `json:"blockconfirm"`
+	Signers      []string `json:"signers"`
+
+	Hash string `json:"hash"`
+}
+
+type DPOSIllegalBlocksInfo struct {
+	CoinType        uint32            `json:"cointype"`
+	BlockHeight     uint32            `json:"blockheight"`
+	Evidence        BlockEvidenceInfo `json:"evidence"`
+	CompareEvidence BlockEvidenceInfo `json:"compareevidence"`
+
+	Hash string `json:"hash"`
+}
+
+type ProposalEvidenceInfo struct {
+	Proposal    DPOSProposalInfo `json:"proposal"`
+	BlockHeight uint32           `json:"blockheight"`
+}
+
+type DPOSIllegalProposalsInfo struct {
+	Evidence        ProposalEvidenceInfo `json:"evidence"`
+	CompareEvidence ProposalEvidenceInfo `json:"compareevidence"`
+	Hash            string               `json:"hash"`
+}
+
+type DPOSProposalVoteInfo struct {
+	ProposalHash string `json:"proposalhash"`
+	Signer       string `json:"signer"`
+	Accept       bool   `json:"accept"`
+	Sign         string `json:"sign"`
+	Hash         string `json:"hash"`
+}
+
+type VoteEvidenceInfo struct {
+	ProposalEvidenceInfo
+	Vote DPOSProposalVoteInfo `json:"vote"`
+}
+
+type DPOSIllegalVotesInfo struct {
+	Evidence        VoteEvidenceInfo `json:"evidence"`
+	CompareEvidence VoteEvidenceInfo `json:"compareevidence"`
+	Hash            string           `json:"hash"`
+}
+
 type UTXOInfo struct {
 	TxType        byte   `json:"txtype"`
 	TxID          string `json:"txid"`
@@ -360,4 +510,15 @@ type SidechainIllegalDataInfo struct {
 	CompareEvidence     string   `json:"compareevidence"`
 	GenesisBlockAddress string   `json:"genesisblockaddress"`
 	Signs               []string `json:"signs"`
+}
+
+type RsInfo struct {
+	SideChainName   string         `json:"sidechainname"`
+	MagicNumber     uint32         `json:"magicnumber"`
+	GenesisHash     string         `json:"genesishash"`
+	ExchangeRate    common.Fixed64 `json:"exchangerate"`
+	ResourcePath    string         `json:"resourcepath"`
+	TxHash          string         `json:"txhash"`
+	Height          uint32         `json:"height"`
+	EffectiveHeight uint32         `json:"effectiveheight"`
 }

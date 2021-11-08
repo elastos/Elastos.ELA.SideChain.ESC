@@ -7,6 +7,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/sdk"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/core/types"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -23,6 +25,7 @@ type DataStore interface {
 	Ops() Ops
 	Que() Que
 	Arbiters() Arbiters
+	CID() CustomID
 	Batch() DataBatch
 }
 
@@ -123,5 +126,45 @@ type Arbiters interface {
 	Put(height uint32, crcArbiters [][]byte, normalArbiters [][]byte) error
 	BatchPut(height uint32, crcArbiters [][]byte, normalArbiters [][]byte, batch *leveldb.Batch) error
 	Get() (crcArbiters [][]byte, normalArbiters [][]byte, err error)
+	GetNext() (workingHeight uint32, crcArbiters [][]byte, normalArbiters [][]byte, err error)
 	GetByHeight(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error)
+	BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight uint32, mode byte) error
+	GetConsensusAlgorithmByHeight(height uint32) (byte, error)
+}
+
+type CustomID interface {
+	database.DB
+	PutControversialReservedCustomIDs(
+		reservedCustomIDs []string, proposalHash common.Uint256) error
+	BatchPutControversialReservedCustomIDs(reservedCustomIDs []string,
+		proposalHash common.Uint256, batch *leveldb.Batch) error
+	BatchDeleteControversialReservedCustomIDs(
+		proposalHash common.Uint256, batch *leveldb.Batch)
+
+	PutControversialReceivedCustomIDs(reservedCustomIDs []string,
+		did common.Uint168, proposalHash common.Uint256) error
+	BatchPutControversialReceivedCustomIDs(receivedCustomIDs []string,
+		did common.Uint168, proposalHash common.Uint256, batch *leveldb.Batch) error
+	BatchDeleteControversialReceivedCustomIDs(
+		proposalHash common.Uint256, batch *leveldb.Batch)
+
+	BatchPutRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error
+	BatchDeleteRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error
+
+
+	PutControversialChangeCustomIDFee(rate common.Fixed64,
+		proposalHash common.Uint256, workingHeight uint32) error
+	BatchPutControversialChangeCustomIDFee(rate common.Fixed64,
+		proposalHash common.Uint256, workingHeight uint32, batch *leveldb.Batch) error
+	BatchDeleteControversialChangeCustomIDFee(
+		proposalHash common.Uint256, batch *leveldb.Batch)
+
+	PutCustomIDProposalResults(results []payload.ProposalResult) error
+	BatchPutCustomIDProposalResults(results []payload.ProposalResult, batch *leveldb.Batch) error
+
+	GetReservedCustomIDs() (map[string]struct{}, error)
+	GetReceivedCustomIDs() (map[string]common.Uint168, error)
+	GetCustomIDFeeRate(height uint32) (common.Fixed64, error)
+	//Is this RetSideChainDepositCoin tx exist
+	HaveRetSideChainDepositCoinTx(txHash common.Uint256)bool
 }

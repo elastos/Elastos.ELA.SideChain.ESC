@@ -13,27 +13,35 @@ import (
 )
 
 const (
-	slotDPoSOwnerPublicKey                    = "DPoSOwnerPublicKey"
-	slotDPoSNodePublicKey                     = "DPoSNodePublicKey"
-	slotDPoSNickname                          = "DPoSNickname"
-	slotCRDID                                 = "CrDID"
-	slotCRNickname                            = "CrNickname"
-	slotProgramCode                           = "ProgramCode"
-	slotCRCProposalDraftHash                  = "CRCProposalDraftHash"
-	slotCRCProposalDID                        = "CRCProposalDID"
-	slotCRCProposalHash                       = "CRCProposalHash"
-	slotCRCProposalTrackingHash               = "CRCProposalTrackingHash"
-	slotCRCProposalReviewKey                  = "CRCProposalReviewKey"
-	slotCRCAppropriationKey                   = "CRCAppropriationKey"
-	slotCRCProposalRealWithdrawKey            = "CRCProposalRealWithdrawKey"
-	slotCloseProposalTargetProposalHash       = "CloseProposalTargetProposalHash"
-	slotChangeProposalOwnerTargetProposalHash = "ChangeProposalOwnerTargetProposalHash"
-	slotSpecialTxHash                         = "SpecialTxHash"
-	slotSidechainTxHashes                     = "SidechainTxHashes"
-	slotTxInputsReferKeys                     = "TxInputsReferKeys"
-	slotCRCouncilMemberNodePublicKey          = "CRCouncilMemberNodePublicKey"
-	slotCRCouncilMemberDID                    = "CRCouncilMemberDID"
-	slotCRCSecretaryGeneral                   = "CRCSecretaryGeneral"
+	slotDPoSOwnerPublicKey                      = "DPoSOwnerPublicKey"
+	slotDPoSNodePublicKey                       = "DPoSNodePublicKey"
+	slotDPoSNickname                            = "DPoSNickname"
+	slotCRDID                                   = "CrDID"
+	slotCRNickname                              = "CrNickname"
+	slotProgramCode                             = "ProgramCode"
+	slotCRCProposalDraftHash                    = "CRCProposalDraftHash"
+	slotCRCProposalDID                          = "CRCProposalDID"
+	slotCRCProposalHash                         = "CRCProposalHash"
+	slotCRCProposalTrackingHash                 = "CRCProposalTrackingHash"
+	slotCRCProposalReviewKey                    = "CRCProposalReviewKey"
+	slotCRCProposalCustomID                     = "CRCProposalCustomID"
+	slotCRCProposalRegisterSideChainName        = "CRCProposalRegisterSideChainName"
+	slotCRCProposalRegisterSideChainMagicNumber = "CRCProposalRegisterSideChainMagicNumber"
+	slotCRCProposalRegisterSideChainGenesisHash = "CRCProposalRegisterSideChainGenesisHash"
+	slotCRCAppropriationKey                     = "CRCAppropriationKey"
+	slotCRCProposalRealWithdrawKey              = "CRCProposalRealWithdrawKey"
+	slotCloseProposalTargetProposalHash         = "CloseProposalTargetProposalHash"
+	slotChangeProposalOwnerTargetProposalHash   = "ChangeProposalOwnerTargetProposalHash"
+	slotChangeCustomIDFee                       = "slotChangeCustomIDFee"
+	slotSpecialTxHash                           = "SpecialTxHash"
+	slotSidechainTxHashes                       = "SidechainTxHashes"
+	slotSidechainReturnDepositTxHashes          = "SidechainReturnDepositTxHashes"
+	slotCustomIDProposalResult                  = "CustomIDProposalResult"
+	slotTxInputsReferKeys                       = "TxInputsReferKeys"
+	slotCRCouncilMemberNodePublicKey            = "CRCouncilMemberNodePublicKey"
+	slotCRCouncilMemberDID                      = "CRCouncilMemberDID"
+	slotCRCSecretaryGeneral                     = "CRCSecretaryGeneral"
+	slotRevertToDPOSHash                        = "RevertToDPOSHash"
 )
 
 type conflict struct {
@@ -246,6 +254,16 @@ func newConflictManager() conflictManager {
 					},
 				),
 			},
+			// Proposal change custom ID fee.
+			{
+				name: slotChangeCustomIDFee,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.CRCProposal,
+						Func: strChangeCustomIDFee,
+					},
+				),
+			},
 			// CRC Proposal target proposal hash
 			{
 				name: slotCloseProposalTargetProposalHash,
@@ -282,6 +300,46 @@ func newConflictManager() conflictManager {
 					keyTypeFuncPair{
 						Type: types.CRCProposal,
 						Func: hashCRCProposalDID,
+					},
+				),
+			},
+			// CRC proposal CustomID
+			{
+				name: slotCRCProposalCustomID,
+				slot: newConflictSlot(strArray,
+					keyTypeFuncPair{
+						Type: types.CRCProposal,
+						Func: strArrayCRCProposalCustomID,
+					},
+				),
+			},
+			// CRC Proposal register sidechain sidechain name
+			{
+				name: slotCRCProposalRegisterSideChainName,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.CRCProposal,
+						Func: hashCRCProposalRegisterSideChainName,
+					},
+				),
+			},
+			// CRC Proposal register sidechain magic number
+			{
+				name: slotCRCProposalRegisterSideChainMagicNumber,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.CRCProposal,
+						Func: hashCRCProposalRegisterSideChainMagicNumber,
+					},
+				),
+			},
+			// CRC Proposal register sidechain
+			{
+				name: slotCRCProposalRegisterSideChainGenesisHash,
+				slot: newConflictSlot(hash,
+					keyTypeFuncPair{
+						Type: types.CRCProposal,
+						Func: hashCRCProposalRegisterSideChainGenesisHash,
 					},
 				),
 			},
@@ -345,6 +403,15 @@ func newConflictManager() conflictManager {
 					},
 				),
 			},
+			{
+				name: slotRevertToDPOSHash,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.RevertToDPOS,
+						Func: hashRevertToDPOS,
+					},
+				),
+			},
 			// special tx hash
 			{
 				name: slotSpecialTxHash,
@@ -375,6 +442,16 @@ func newConflictManager() conflictManager {
 					},
 				),
 			},
+			// custom id proposal result.
+			{
+				name: slotCustomIDProposalResult,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: types.ProposalResult,
+						Func: hashCustomIDProposalResultTxPayloadHash,
+					},
+				),
+			},
 			// side chain transaction hashes
 			{
 				name: slotSidechainTxHashes,
@@ -382,6 +459,16 @@ func newConflictManager() conflictManager {
 					keyTypeFuncPair{
 						Type: types.WithdrawFromSideChain,
 						Func: hashArraySidechainTransactionHashes,
+					},
+				),
+			},
+			// side chain transaction hashes
+			{
+				name: slotSidechainReturnDepositTxHashes,
+				slot: newConflictSlot(hashArray,
+					keyTypeFuncPair{
+						Type: types.ReturnSideChainDepositCoin,
+						Func: hashArraySidechainReturnDepositTransactionHashes,
 					},
 				),
 			},

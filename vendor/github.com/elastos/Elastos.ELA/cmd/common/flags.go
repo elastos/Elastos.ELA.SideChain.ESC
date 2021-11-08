@@ -97,6 +97,10 @@ var (
 		Name:  "rpcport",
 		Usage: "JSON-RPC server listening port `<number>`",
 	}
+	RPCIpFlag = cli.StringFlag{
+		Name:  "rpcip",
+		Usage: "JSON-RPC server listening ip `<string>`",
+	}
 	EnableRPCFlag = cli.StringFlag{
 		Name:  "server",
 		Usage: "decide if open JSON-RPC server or not",
@@ -187,6 +191,10 @@ var (
 		Name:  "foundation",
 		Usage: "specify the foundation address",
 	}
+	DIDSideChainAddressFlag = cli.StringFlag{
+		Name:  "didsidechainaddress",
+		Usage: "specify the did sidechain address",
+	}
 	PayToAddrFlag = cli.StringFlag{
 		Name:  "paytoaddr",
 		Usage: "specify the miner reward address",
@@ -225,6 +233,10 @@ var (
 		Name: "publicdposheight",
 		Usage: "(H2) indicates the height when public registered and elected " +
 			"producers participate in DPOS consensus",
+	}
+	IllegalPenaltyFlag = cli.StringFlag{
+		Name:  "illegalpenalty",
+		Usage: "defines the num of illegal penalty should be punished ",
 	}
 	CRCommitteeStartHeightFlag = cli.StringFlag{
 		Name:  "crcommitteestartheight",
@@ -375,6 +387,10 @@ var (
 		Name:  "registercrbydidheight",
 		Usage: "defines the height to support register CR by CID",
 	}
+	ProhibitTransferToDIDHeightFlag = cli.StringFlag{
+		Name:  "prohibittransfertodidheight",
+		Usage: "defines the height to prohibit transfer to did",
+	}
 	MaxCRAssetsAddressUTXOCount = cli.StringFlag{
 		Name:  "maxcrassetsaddressutxocount",
 		Usage: "defines the maximum number of utxo cr assets address can have ",
@@ -408,6 +424,96 @@ var (
 		Name:  "newversionheight",
 		Usage: "defines the new version message height",
 	}
+
+	ChangeCommitteeNewCRHeight = cli.StringFlag{
+		Name:  "changecommitteenewcrheight",
+		Usage: "defines the change committee new cr height",
+	}
+
+	CRCProposalDraftDataStartHeight = cli.StringFlag{
+		Name:  "crcproposaldraftdatastartheight",
+		Usage: "defines the proposal draft data start height",
+	}
+
+	CustomIDProposalStartHeight = cli.StringFlag{
+		Name:  "CustomIDProposalStartHeight",
+		Usage: "defines the height to allow custom ID related transaction",
+	}
+
+	MaxReservedCustomIDLength = cli.StringFlag{
+		Name:  "maxreservedcustomidlength",
+		Usage: "defines the max count of reserved custom iid list per tx",
+	}
+
+	NoCRCDPOSNodeHeight = cli.StringFlag{
+		Name:  "nocrcdposnodeheight",
+		Usage: "defines the height when there is no DPOS node of CRC",
+	}
+
+	RandomCandidatePeriod = cli.StringFlag{
+		Name:  "randomcandidateperiod",
+		Usage: "defines the period to get a candidate as DPOS node at random",
+	}
+
+	MaxInactiveRoundsOfRandomNode = cli.StringFlag{
+		Name:  "maxinactiveroundsofrandomnode",
+		Usage: "defines the maximum inactive rounds before the random producer takes penalty",
+	}
+
+	DPOSNodeCrossChainHeight = cli.StringFlag{
+		Name:  "dposnodecrosschainheight",
+		Usage: "defines the height at which not only CR members are responsible for working across the chain",
+	}
+
+	RevertToPOWNoBlockTimeFlag = cli.StringFlag{
+		Name:  "reverttopownoblocktime",
+		Usage: "defines how long time does it take to revert to POW mode",
+	}
+
+	StopConfirmBlockTimeFlag = cli.StringFlag{
+		Name:  "stopconfirmblocktime",
+		Usage: "defines how long time does it take to stop confirm block",
+	}
+
+	RevertToPOWStartHeightFlag = cli.StringFlag{
+		Name:  "reverttopowstartheight",
+		Usage: "defines the start height to allow to revert to POW mode",
+	}
+
+	HalvingRewardHeightFlag = cli.StringFlag{
+		Name:  "halvingrewardheight",
+		Usage: "defines height of having reward",
+	}
+
+	HalvingRewardIntervalFlag = cli.StringFlag{
+		Name:  "halvingrewardinterval",
+		Usage: "defines interval of having reward",
+	}
+
+	NewELAIssuanceHeightFlag = cli.StringFlag{
+		Name:  "newelaissuanceheight",
+		Usage: "defines height of using the new ela issuance (2000w)",
+	}
+
+	SmallCrossTransferThreshold = cli.StringFlag{
+		Name:  "smallcrosstransferthreshold",
+		Usage: "defines the minimum amount of transfer consider as small cross transfer",
+	}
+
+	ReturnDepositCoinFeeFlag = cli.StringFlag{
+		Name:  "returndepositcoinfee",
+		Usage: "defines the fee of return cross chain deposit coin",
+	}
+
+	NewCrossChainStartHeightFlag = cli.StringFlag{
+		Name:  "newcrosschainstartheight",
+		Usage: "defines the height to only support TransferCrossChainAsset v1",
+	}
+
+	ReturnCrossChainCoinStartHeightFlag = cli.StringFlag{
+		Name:  "returncrosschaincoinstartheight",
+		Usage: "defines the start height to support ReturnCrossChainDepositCoin transaction",
+	}
 )
 
 // MoveRPCFlags finds the rpc argument and moves it to the front
@@ -418,6 +524,8 @@ func MoveRPCFlags(args []string) ([]string, error) {
 
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
+		case "--rpcip":
+			fallthrough
 		case "--rpcport":
 			fallthrough
 		case "--rpcuser":

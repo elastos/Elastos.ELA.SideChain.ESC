@@ -122,6 +122,8 @@ type Engine interface {
 	SignersCount() int
 
 	IsInBlockPool(hash common.Hash) bool
+
+    GetCurrentProducers() [][]byte
 }
 
 // PoW is a consensus engine based on proof-of-work.

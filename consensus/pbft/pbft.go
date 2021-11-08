@@ -21,17 +21,19 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
-	emsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
+	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
 	ecom "github.com/elastos/Elastos.ELA/common"
 	daccount "github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
-	dmsg "github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
@@ -173,6 +175,7 @@ func New(cfg *params.PbftConfig, pbftKeystore string, password []byte, dataDir s
 			DefaultPort: cfg.DPoSPort,
 			Account:     account,
 			MedianTime:  medianTimeSouce,
+			MaxNodePerHost: cfg.MaxNodePerHost,
 			Listener:    pbft,
 			DataPath:    dposPath,
 			PublicKey:   accpubkey,
@@ -211,8 +214,44 @@ func (p *Pbft) subscribeEvent() {
 				log.Info("end change engine AnnounceDAddr")
 				go p.AnnounceDAddr()
 			}
+		case dpos.ETNextProducers:
+			producers := e.Data.([]peer.PID)
+			log.Info("update next producers", "totalCount", spv.GetTotalProducersCount())
+			p.dispatcher.GetConsensusView().UpdateNextProducers(producers, spv.GetTotalProducersCount())
+		case dpos.ETOnSPVHeight:
+			height := e.Data.(uint32)
+			if spv.GetWorkingHeight() >= height {
+				if uint64(spv.GetWorkingHeight() - height) <= p.chain.Config().PreConnectOffset {
+					curProducers := p.dispatcher.GetConsensusView().GetProducers()
+					isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+					if !isSame {
+						go p.AnnounceDAddr()
+					} else {
+						log.Info("For the same batch of aribters, no need to re-connect direct net")
+					}
+				}
+			}
+		case dpos.ETSmallCroTx:
+			if croTx, ok := e.Data.(*smallcrosstx.ETSmallCrossTx); ok {
+				msg := dmsg.NewSmallCroTx(croTx.Signature, croTx.RawTx)
+				p.BroadMessage(msg)
+			}
+
+		case dpos.ETFailedWithdrawTx:
+			if failEvt, ok := e.Data.(*withdrawfailedtx.FailedWithdrawEvent); ok {
+				msg := dmsg.NewFailedWithdrawTx(failEvt.Signature, failEvt.Txid)
+				p.BroadMessage(msg)
+			}
 		}
 	})
+}
+
+func (p *Pbft) IsSameProducers(curProducers[][]byte) bool {
+	return p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+}
+
+func (p *Pbft) IsCurrentProducers(curProducers[][]byte) bool {
+	return p.dispatcher.GetConsensusView().IsCurrentProducers(curProducers)
 }
 
 func (p *Pbft) GetDataDir() string {
@@ -224,8 +263,6 @@ func (p *Pbft) GetPbftConfig() params.PbftConfig {
 }
 
 func (p *Pbft) Author(header *types.Header) (common.Address, error) {
-	//dpos.Info("Pbft Author")
-	// TODO panic("implement me")
 	return header.Coinbase, nil
 }
 
@@ -352,7 +389,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 	if err != nil {
 		return err
 	}
-	err = p.verifyConfirm(&confirm)
+	err = p.verifyConfirm(&confirm, header.Nonce.Uint64())
 	if err != nil {
 		return err
 	}
@@ -384,6 +421,9 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 		nowTime = uint64(p.dispatcher.GetNowTime().Unix())
 	}
 	header.Difficulty = p.CalcDifficulty(chain, nowTime, nil)
+	if p.dispatcher != nil {
+		header.Nonce = types.EncodeNonce(p.dispatcher.GetConsensusView().GetSpvHeight())
+	}
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
@@ -450,7 +490,9 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	if block.NumberU64() <= p.dispatcher.GetFinishedHeight() {
 		return ErrAlreadyConfirmedBlock
 	}
-
+	if !p.IsProducer() {
+		return errUnauthorizedSigner
+	}
 	if !p.IsOnduty() {
 		return ErrSignerNotOnduty
 	}
@@ -674,6 +716,8 @@ func (p *Pbft) changeViewLoop() {
 func (p *Pbft) Recover() {
 	if p.IsCurrent == nil || p.account == nil || p.isRecovering ||
 		!p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
+		log.Info(" Recover Error")
+		p.dispatcher.GetConsensusView().DumpInfo()
 		return
 	}
 	p.isRecovering = true
@@ -708,12 +752,22 @@ func (p *Pbft) SetBlockChain(chain *core.BlockChain) {
 }
 
 func (p *Pbft) broadConfirmMsg(confirm *payload.Confirm, height uint64) {
-	msg := emsg.NewConfirmMsg(confirm, height)
-	p.network.BroadcastMessage(msg)
+	msg := dmsg.NewConfirmMsg(confirm, height)
+	p.BroadMessage(msg)
 }
 
-func (p *Pbft) verifyConfirm(confirm *payload.Confirm) error {
-	err := dpos.CheckConfirm(confirm, p.dispatcher.GetConsensusView().GetMajorityCount())
+func (p *Pbft) verifyConfirm(confirm *payload.Confirm, elaHeight uint64) error {
+	minSignCount := 0
+	if elaHeight == 0 {
+		minSignCount = p.dispatcher.GetConsensusView().GetCRMajorityCount()
+	} else {
+		_, count, err := spv.GetProducers(elaHeight)
+		if err != nil {
+			return err
+		}
+		minSignCount = p.dispatcher.GetConsensusView().GetMajorityCountByTotalSigners(count)
+	}
+	err := dpos.CheckConfirm(confirm, minSignCount)
 	return err
 }
 

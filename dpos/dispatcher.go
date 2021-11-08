@@ -8,7 +8,7 @@ package dpos
 import (
 	"bytes"
 	"errors"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"fmt"
 	"sync"
 	"time"
 
@@ -18,6 +18,8 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+
+	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
 )
 
 type Dispatcher struct {
@@ -42,10 +44,10 @@ type Dispatcher struct {
 }
 
 func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal) (err error, isSendReject bool, handled bool) {
-	Info("[ProcessProposal] start ", proposal.Hash().String())
+	Info("[ProcessProposal] start ", proposal.Hash().String() , "peerID", id.String(), "Sponsor", common.BytesToHexString(proposal.Sponsor))
 	defer Info("[ProcessProposal] end", proposal.Hash().String())
 	self := bytes.Equal(id[:], proposal.Sponsor)
-
+	Info("is self", self)
 	if d.GetConsensusView().GetViewOffset() != proposal.ViewOffset {
 		Info("have different view offset")
 		if proposal.ViewOffset > d.GetConsensusView().GetViewOffset() {
@@ -63,7 +65,8 @@ func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal
 	}
 
 	if !d.consensusView.IsProducers(proposal.Sponsor) {
-		return errors.New("current signer is not producer"), true, true
+		str := fmt.Sprintf("%s proposal signer is not producer", common.BytesToHexString(proposal.Sponsor))
+		return errors.New(str), true, true
 	}
 	err = CheckProposal(proposal)
 	if err != nil {
@@ -96,8 +99,8 @@ func (d *Dispatcher) GetFinishedProposal() common.Uint256 {
 
 func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
 	d.processingProposal = p
-	log.Info("setProcessingProposal start")
-	defer log.Info("setProcessingProposal end")
+	Info("setProcessingProposal start")
+	defer Info("setProcessingProposal end")
 	for _, v := range d.pendingVotes {
 		if v.ProposalHash.IsEqual(p.Hash()) {
 			_, finished, _ := d.ProcessVote(v)
@@ -137,7 +140,8 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	}
 
 	if !d.consensusView.IsProducers(vote.Signer) {
-		err = errors.New("current signer is not producer")
+		str := fmt.Sprintf("%s vote signer is not producer", common.BytesToHexString(vote.Signer))
+		err = errors.New(str)
 		return false, false, err
 	}
 
@@ -222,13 +226,13 @@ func (d *Dispatcher) UpdatePrecociousProposals() *payload.DPOSProposal {
 func (d *Dispatcher) alreadyExistVote(v *payload.DPOSProposalVote) bool {
 	_, ok := d.acceptVotes[v.Hash()]
 	if ok {
-		Info("[alreadyExistVote]: ", v.Signer, "already in the AcceptVotes!")
+		Info("[alreadyExistVote]: ", common.BytesToHexString(v.Signer), "already in the AcceptVotes!")
 		return true
 	}
 
 	_, ok = d.rejectedVotes[v.Hash()]
 	if ok {
-		Info("[alreadyExistVote]: ", v.Signer, "already in the RejectedVotes!")
+		Info("[alreadyExistVote]: ", common.BytesToHexString(v.Signer), "already in the RejectedVotes!")
 		return true
 	}
 
@@ -261,7 +265,7 @@ func (d *Dispatcher) RejectProposal(proposal *payload.DPOSProposal, ac account.A
 
 func (d *Dispatcher) createConfirm() *payload.Confirm {
 	if d.processingProposal == nil {
-		log.Warn("processingProposal is nil, can't create confirm")
+		Warn("processingProposal is nil, can't create confirm")
 		return nil
 	}
 	confirm := &payload.Confirm{
@@ -300,13 +304,7 @@ func (d *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
 }
 
 func (d *Dispatcher) GetNeedConnectProducers() []peer.PID {
-	peers := make([]peer.PID, len(d.consensusView.producers.producers))
-	for i, p := range d.consensusView.producers.producers {
-		var pid peer.PID
-		copy(pid[:], p)
-		peers[i] = pid
-	}
-	return peers
+	return d.consensusView.GetNeedConnectArbiters()
 }
 
 func (d *Dispatcher) OnChangeView() {
@@ -321,14 +319,14 @@ func (d *Dispatcher) GetConsensusView() *ConsensusView {
 	return d.consensusView
 }
 
-func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHeight uint64) *msg.ConsensusStatus {
+func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHeight uint64) *dmsg.ConsensusStatus {
 	Info("[HelpToRecoverAbnormal] peer id:", common.BytesToHexString(id[:]))
 
 	if height > currentHeight {
 		Warn("Requesting height greater than current processing height")
 		return nil
 	}
-	status := &msg.ConsensusStatus{}
+	status := &dmsg.ConsensusStatus{}
 	status.ConsensusStatus = d.consensusView.consensusStatus
 	status.ViewOffset = d.consensusView.viewOffset
 	status.ViewStartTime = d.consensusView.GetViewStartTime()
@@ -352,11 +350,12 @@ func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHe
 	for _, v := range d.pendingVotes {
 		status.PendingVotes = append(status.PendingVotes, *v)
 	}
+	status.WorkingHeight = d.consensusView.producers.workingHeight
 	return status
 
 }
 
-func (d *Dispatcher) RecoverAbnormal(status *msg.ConsensusStatus, medianTime int64) {
+func (d *Dispatcher) RecoverAbnormal(status *dmsg.ConsensusStatus, medianTime int64) {
 	status.ViewStartTime = dtime.Int64ToTime(medianTime)
 	if medianTime != 0 {
 		offset, offsetTime := d.consensusView.calculateOffsetTime(status.ViewStartTime, d.timeSource.AdjustedTime())
@@ -366,7 +365,7 @@ func (d *Dispatcher) RecoverAbnormal(status *msg.ConsensusStatus, medianTime int
 	d.RecoverFromConsensusStatus(status)
 }
 
-func (d *Dispatcher) RecoverFromConsensusStatus(status *msg.ConsensusStatus) error {
+func (d *Dispatcher) RecoverFromConsensusStatus(status *dmsg.ConsensusStatus) error {
 	d.consensusView.consensusStatus = status.ConsensusStatus
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	for _, v := range status.AcceptVotes {
@@ -393,7 +392,8 @@ func (d *Dispatcher) RecoverFromConsensusStatus(status *msg.ConsensusStatus) err
 	d.consensusView.viewOffset = status.ViewOffset
 	d.consensusView.ResetView(uint64(status.ViewStartTime.Unix()))
 	d.consensusView.isDposOnDuty = d.consensusView.ProducerIsOnDuty(d.consensusView.publicKey)
-	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime())
+	d.consensusView.SetWorkingHeight(status.WorkingHeight)
+	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime(), "WorkingHeight", status.WorkingHeight)
 	d.consensusView.DumpInfo()
 	Info("\n\n\n\n \n\n\n\n")
 	return nil

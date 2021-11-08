@@ -25,6 +25,7 @@ type NetworkConfig struct {
 	IPAddress   string
 	Magic       uint32
 	DefaultPort uint16
+	MaxNodePerHost uint32
 
 	Account    account.Account
 	MedianTime dtime.MedianTimeSource
@@ -59,7 +60,7 @@ type StatusSyncEventListener interface {
 	OnGetBlocks(id dpeer.PID, startBlockHeight, endBlockHeight uint32)
 	OnResponseBlocks(id dpeer.PID, blockConfirms []*dmsg.BlockMsg)
 	OnRequestConsensus(id dpeer.PID, height uint64)
-	OnResponseConsensus(id dpeer.PID, status *msg.ConsensusStatus)
+	OnResponseConsensus(id dpeer.PID, status *dmsg.ConsensusStatus)
 	OnRequestProposal(id dpeer.PID, hash common.Uint256)
 	OnIllegalProposalReceived(id dpeer.PID, proposals *payload.DPOSIllegalProposals)
 	OnIllegalVotesReceived(id dpeer.PID, votes *payload.DPOSIllegalVotes)
@@ -78,6 +79,9 @@ type NetworkEventListener interface {
 
 	OnBlockReceived(id dpeer.PID, b *dmsg.BlockMsg, confirmed bool)
 	OnConfirmReceived(id dpeer.PID, c *payload.Confirm, height uint64)
+
+	OnSmallCroTxReceived(id dpeer.PID, c *dmsg.SmallCroTx)
+	OnFailedWithdrawTxReceived(id dpeer.PID, c *dmsg.FailedWithdrawTx)
 }
 
 type messageItem struct {
@@ -208,7 +212,7 @@ func (n *Network) processMessage(msgItem *messageItem) {
 			n.listener.OnRequestConsensus(msgItem.ID, msgRequestConsensus.Height)
 		}
 	case msg.CmdResponseConsensus:
-		msgResponseConsensus, processed := m.(*msg.ResponseConsensus)
+		msgResponseConsensus, processed := m.(*dmsg.ResponseConsensus)
 		if processed {
 			n.listener.OnResponseConsensus(msgItem.ID, &msgResponseConsensus.Consensus)
 		}
@@ -231,6 +235,16 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		msgConfirm, processed := m.(*dmsg.ConfirmMsg)
 		if processed {
 			n.listener.OnConfirmReceived(msgItem.ID, msgConfirm.Confirm, msgConfirm.Height)
+		}
+	case dmsg.CmdSmallCroTx:
+		msgCro, processed := m.(*dmsg.SmallCroTx)
+		if processed {
+			n.listener.OnSmallCroTxReceived(msgItem.ID, msgCro)
+		}
+	case dmsg.CmdFailedWithdrawTx:
+		withdrawTx, processed := m.(*dmsg.FailedWithdrawTx)
+		if processed {
+			n.listener.OnFailedWithdrawTxReceived(msgItem.ID, withdrawTx)
 		}
 	}
 }
@@ -283,8 +297,8 @@ func (n *Network) BroadcastMessage(msg elap2p.Message) {
 //
 // This function is safe for concurrent access and is part of the
 // IServer interface implementation.
-func (s *Network) DumpPeersInfo() []*p2p.PeerInfo {
-	return s.p2pServer.DumpPeersInfo()
+func (n *Network) DumpPeersInfo() []*p2p.PeerInfo {
+	return n.p2pServer.DumpPeersInfo()
 }
 
 func NewNetwork(cfg *NetworkConfig) (*Network, error) {
@@ -312,6 +326,7 @@ func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 		MagicNumber:      cfg.Magic,
 		DefaultPort:      cfg.DefaultPort,
 		TimeSource:       cfg.MedianTime,
+		MaxNodePerHost:   cfg.MaxNodePerHost,
 		MakeEmptyMessage: makeEmptyMessage,
 		HandleMessage:    network.handleMessage,
 		PingNonce:        network.GetCurrentHeight,
@@ -348,7 +363,7 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 	case msg.CmdRequestConsensus:
 		message = &dmsg.RequestConsensus{}
 	case msg.CmdResponseConsensus:
-		message = &msg.ResponseConsensus{}
+		message = &dmsg.ResponseConsensus{}
 	case msg.CmdRequestProposal:
 		message = &msg.RequestProposal{}
 	case msg.CmdIllegalProposals:
@@ -361,6 +376,10 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &msg.ResponseInactiveArbitrators{}
 	case dmsg.CmdConfirm:
 		message = &dmsg.ConfirmMsg{}
+	case dmsg.CmdSmallCroTx:
+		message = &dmsg.SmallCroTx{}
+	case dmsg.CmdFailedWithdrawTx:
+		message = &dmsg.FailedWithdrawTx{}
 	default:
 		return nil, errors.New("Received unsupported message, CMD " + cmd)
 	}

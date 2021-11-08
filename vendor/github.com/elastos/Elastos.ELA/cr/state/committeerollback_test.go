@@ -722,7 +722,7 @@ func TestCommittee_RollbackChangeCommittee(t *testing.T) {
 	// avoid getting UTXOs from database
 	currentHeight := cfg.CRVotingStartHeight
 
-	// register cr
+	// register cr   every cr DepositAmount is 5000
 	committee.ProcessBlock(&types.Block{
 		Header: types.Header{
 			Height: currentHeight,
@@ -759,13 +759,16 @@ func TestCommittee_RollbackChangeCommittee(t *testing.T) {
 	}, nil)
 	assert.Equal(t, common.Fixed64(3), committee.GetCandidate(*did1).votes)
 
-	// end first voting period
+	// end first voting period into election
+	//did1 did2 is cr did3 is candidate
+	//did1 did2 DepositAmount 5000 ela
+	//did3 is candidate DepositAmount 0 ela
 	currentHeight = cfg.CRCommitteeStartHeight
 	committee.ProcessBlock(&types.Block{
 		Header: types.Header{Height: currentHeight}}, nil)
 	assert.Equal(t, 2, len(committee.GetAllMembers()))
 
-	// register cr again
+	// register cr again  did1 did2 10000  did3 5000
 	currentHeight = config.DefaultParams.CRCommitteeStartHeight +
 		cfg.CRDutyPeriod - cfg.CRVotingPeriod
 	committee.ProcessBlock(&types.Block{
@@ -806,6 +809,9 @@ func TestCommittee_RollbackChangeCommittee(t *testing.T) {
 	keyFrameA := committee.Snapshot()
 
 	// end second voting period
+	//change commitee old cr  did1 did2 -5000  DepositAmount 5000
+	//did1 is candidate -5000 DepositAmount 0
+	//did3 5000
 	currentHeight = cfg.CRCommitteeStartHeight + cfg.CRDutyPeriod
 	committee.ProcessBlock(&types.Block{
 		Header: types.Header{Height: currentHeight}}, nil)
@@ -910,7 +916,7 @@ func TestCommittee_RollbackCRCProposal(t *testing.T) {
 	elaAddress := "EZaqDYAPFsjynGpvHwbuiiiL4dEiHtX4gD"
 	proposalTx := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash()
+	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	currentHeight++
 	committee.ProcessBlock(&types.Block{
 		Header: types.Header{Height: currentHeight},
@@ -1108,7 +1114,7 @@ func TestCommittee_RollbackCRCProposalTracking(t *testing.T) {
 	elaAddress := "EZaqDYAPFsjynGpvHwbuiiiL4dEiHtX4gD"
 	proposalTx := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash()
+	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	currentHeight++
 	committee.ProcessBlock(&types.Block{
 		Header: types.Header{Height: currentHeight},
@@ -1306,7 +1312,7 @@ func TestCommittee_RollbackCRCProposalWithdraw(t *testing.T) {
 	elaAddress := "EZaqDYAPFsjynGpvHwbuiiiL4dEiHtX4gD"
 	proposalTx := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash()
+	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	currentHeight++
 	committee.ProcessBlock(&types.Block{
 		Header: types.Header{Height: currentHeight},
@@ -2184,14 +2190,14 @@ func TestCommitee_RollbackCRCBlendTx(t *testing.T) {
 	elaAddress := "EZaqDYAPFsjynGpvHwbuiiiL4dEiHtX4gD"
 	proposalTxA := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalAHash := proposalTxA.Payload.(*payload.CRCProposal).Hash()
+	proposalAHash := proposalTxA.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 
 	proposalTxB := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalBHash := proposalTxB.Payload.(*payload.CRCProposal).Hash()
+	proposalBHash := proposalTxB.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	proposalTxC := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalCHash := proposalTxC.Payload.(*payload.CRCProposal).Hash()
+	proposalCHash := proposalTxC.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	proposalTxD := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
 
@@ -2420,14 +2426,14 @@ func TestCommitee_RollbackCRCBlendAppropriationTx(t *testing.T) {
 	elaAddress := "EZaqDYAPFsjynGpvHwbuiiiL4dEiHtX4gD"
 	proposalTxA := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalAHash := proposalTxA.Payload.(*payload.CRCProposal).Hash()
+	proposalAHash := proposalTxA.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 
 	proposalTxB := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalBHash := proposalTxB.Payload.(*payload.CRCProposal).Hash()
+	proposalBHash := proposalTxB.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	proposalTxC := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalCHash := proposalTxC.Payload.(*payload.CRCProposal).Hash()
+	proposalCHash := proposalTxC.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	proposalTxD := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
 
@@ -2683,11 +2689,11 @@ func TestCommitee_RollbackCRCBlendTxPropoalVert(t *testing.T) {
 
 	proposalTxB := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalBHash := proposalTxB.Payload.(*payload.CRCProposal).Hash()
+	proposalBHash := proposalTxB.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 
 	proposalTxC := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalCHash := proposalTxC.Payload.(*payload.CRCProposal).Hash()
+	proposalCHash := proposalTxC.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 
 	currentHeight = cfg.CRCommitteeStartHeight
 	committee.ProcessBlock(&types.Block{
@@ -3000,7 +3006,7 @@ func TestCommittee_RollbackReview(t *testing.T) {
 	elaAddress := "EZaqDYAPFsjynGpvHwbuiiiL4dEiHtX4gD"
 	proposalTx := getCRCProposalTx(elaAddress, publicKeyStr1, privateKeyStr1,
 		publicKeyStr2, privateKeyStr2)
-	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash()
+	proposalHash := proposalTx.Payload.(*payload.CRCProposal).Hash(payload.CRCProposalVersion01)
 	currentHeight++
 	committee.ProcessBlock(&types.Block{
 		Header: types.Header{Height: currentHeight},

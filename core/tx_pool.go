@@ -26,16 +26,17 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/prque"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/metrics"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
 )
 
 const (
@@ -554,10 +555,21 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		if len(tx.Data()) != 32 || to != addr {
 			// Transactor should have enough funds to cover the costs
 			// cost == V + GP * GL
-			if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-				return ErrInsufficientFunds
+			isWithdrawRefund := false
+			if to == addr {
+				isWithdrawRefund, _ = withdrawfailedtx.IsWithdawFailedTx(tx.Data(), pool.chainconfig.BlackContractAddr)
+			}
+			if !isWithdrawRefund {
+				if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+					return ErrInsufficientFunds
+				}
 			}
 		}
+		if to.String() == pool.chainconfig.BlackContractAddr && spv.MainChainIsPowMode() {
+			log.Error("[validateTx]", "error", ErrMainChainInPowMode.Error())
+			return ErrMainChainInPowMode
+		}
+
 	} else {
 		contractAddr := crypto.CreateAddress(from, pool.currentState.GetNonce(from))
 		if contractAddr.String() != pool.chainconfig.BlackContractAddr {
@@ -802,16 +814,22 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 			knownTxMeter.Mark(1)
 			continue
 		}
+		// Exclude transactions with invalid signatures as soon as
+		// possible and cache senders in transactions before
+		// obtaining lock
+		_, err := types.Sender(pool.signer, tx)
+		if err != nil {
+			errs[i] = ErrInvalidSender
+			invalidTxMeter.Mark(1)
+			continue
+		}
 		// Accumulate all unknown transactions for deeper processing
 		news = append(news, tx)
 	}
 	if len(news) == 0 {
 		return errs
 	}
-	// Cache senders in transactions before obtaining lock (pool.signer is immutable)
-	for _, tx := range news {
-		types.Sender(pool.signer, tx)
-	}
+
 	// Process all the new transaction and merge any errors into the original slice
 	pool.mu.Lock()
 	newErrs, dirtyAddrs := pool.addTxsLocked(news, local)
@@ -823,6 +841,7 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 			nilSlot++
 		}
 		errs[nilSlot] = err
+		nilSlot++
 	}
 	// Reorg the pool internals if needed and return
 	done := pool.requestPromoteExecutables(dirtyAddrs)
@@ -841,23 +860,25 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) ([]error,
 		if tx.To() != nil {
 			to := *tx.To()
 			var blackAddr common.Address
-			if len(tx.Data()) == 32 && to == blackAddr {
-				txhash :=  hexutil.Encode(tx.Data())
-				fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
-				if addr != blackAddr {
-					if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 {
-						ethFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
-						completeTxHash := pool.currentState.GetState(blackAddr, common.HexToHash(txhash))
-						if fee.Cmp(ethFee) < 0 {
+			if  to == blackAddr {
+				if len(tx.Data()) == 32 {
+					txhash :=  hexutil.Encode(tx.Data())
+					fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
+					if addr != blackAddr {
+						if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 {
+							ethFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
+							completeTxHash := pool.currentState.GetState(blackAddr, common.HexToHash(txhash))
+							if fee.Cmp(ethFee) < 0 {
+								errs[i] = ErrGasLimitReached
+							} else if (completeTxHash != common.Hash{}) {
+								errs[i] = ErrMainTxHashPresence
+							}
+						} else {
 							errs[i] = ErrGasLimitReached
-						} else if (completeTxHash != common.Hash{}) {
-							errs[i] = ErrMainTxHashPresence
 						}
 					} else {
-						errs[i] = ErrGasLimitReached
+						errs[i] = ErrElaToEthAddress
 					}
-				} else {
-					errs[i] = ErrElaToEthAddress
 				}
 			}
 		}
@@ -944,11 +965,12 @@ func RemoveLocalTx(pool *TxPool, hash common.Hash, outofbound bool, removetx boo
 	// Transaction is in the future queue
 	if future := pool.queue[addr]; future != nil {
 		queuetxs := future.Flatten()
-		for _, tx := range queuetxs {
-			if UptxhashIndex(pool, tx) {
-				future.Remove(tx)
+		for _, queue := range queuetxs {
+			var blackaddr common.Address
+			if len(queue.Data()) == 32 && *queue.To() == blackaddr {
+				UptxhashIndex(pool, queue)
+				future.Remove(queue)
 			}
-
 		}
 
 		if future.Empty() {

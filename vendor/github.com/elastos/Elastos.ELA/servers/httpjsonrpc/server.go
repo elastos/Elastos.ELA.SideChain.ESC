@@ -66,6 +66,12 @@ func StartRPCServer() {
 	mainMux["getblockbyheight"] = GetBlockByHeight
 	mainMux["getexistwithdrawtransactions"] = GetExistWithdrawTransactions
 	mainMux["getreceivedbyaddress"] = GetReceivedByAddress
+	mainMux["getexistreturndeposittransactions"] = GetExistSideChainReturnDepositTransactions
+
+	// register sidechain interfaces
+	mainMux["getregistertransactionsbyheight"] = Getregistertransactionsbyheight
+	mainMux["getallregistertransactions"] = Getallregistertransactions
+
 	// wallet interfaces
 	mainMux["getamountbyinputs"] = GetAmountByInputs
 	mainMux["getutxosbyamount"] = GetUTXOsByAmount
@@ -86,6 +92,7 @@ func StartRPCServer() {
 	mainMux["listcurrentcrs"] = ListCurrentCRs
 	mainMux["listcrproposalbasestate"] = ListCRProposalBaseState
 	mainMux["getcrproposalstate"] = GetCRProposalState
+	mainMux["getproposaldraftdata"] = GetProposalDraftData
 	mainMux["getsecretarygeneral"] = GetSecretaryGeneral
 	mainMux["getcrrelatedstage"] = GetCRRelatedStage
 	mainMux["getcommitteecanuseamount"] = GetCommitteeCanUseAmount
@@ -98,6 +105,8 @@ func StartRPCServer() {
 	mainMux["submitsidechainillegaldata"] = SubmitSidechainIllegalData
 	mainMux["getarbiterpeersinfo"] = GetArbiterPeersInfo
 	mainMux["getcrcpeersinfo"] = GetCRCPeersInfo
+	mainMux["getcrosschainpeersinfo"] = GetCrossChainPeersInfo
+	mainMux["getsmallcrosstransfertxs"] = GetSmallCrossTransferTxs
 
 	mainMux["estimatesmartfee"] = EstimateSmartFee
 	mainMux["getdepositcoin"] = GetDepositCoin
@@ -381,6 +390,8 @@ func convertParams(method string, params []interface{}) Params {
 		return FromArray(params, "height")
 	case "estimatesmartfee":
 		return FromArray(params, "confirmations")
+	case "getrawmempool":
+		return FromArray(params, "state")
 	default:
 		return Params{}
 	}

@@ -129,6 +129,9 @@ const (
 	Bn256PairingBaseGasIstanbul      uint64 = 45000  // Base price for an elliptic curve pairing check
 	Bn256PairingPerPointGasByzantium uint64 = 80000  // Byzantium per-point price for an elliptic curve pairing check
 	Bn256PairingPerPointGasIstanbul  uint64 = 34000  // Per-point price for an elliptic curve pairing check
+
+	ArbitersBaseGas uint64 = 1000 // Gas needed for getting DPos arbiters
+	P256VerifyBaseGas uint64 = 1000 // Gas needed for verifying P256 signature
 )
 
 var (

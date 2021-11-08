@@ -29,6 +29,9 @@ type Config struct {
 
 	//node version
 	NodeVersion string
+
+	//this spv GenesisBlockAddress
+	GenesisBlockAddress string
 }
 
 /*
@@ -44,6 +47,10 @@ type SPVService interface {
 	// RegisterBlockListener register the listener to receive block notifications
 	// listeners must be registered before call Start() method, or some notifications will go missing.
 	RegisterBlockListener(BlockListener) error
+
+	// RegisterRevertListener register the listener to receive revert related transactions notifications.
+	// listeners must be registered before call Start() method, or some notifications will go missing.
+	RegisterRevertListener(listener RevertListener) error
 
 	// After receive the transaction callback, call this method
 	// to confirm that the transaction with the given ID was handled,
@@ -64,8 +71,26 @@ type SPVService interface {
 	// GetTransactionIds query all transaction hashes on the given block height.
 	GetTransactionIds(height uint32) ([]*common.Uint256, error)
 
-	// GetArbiters Get arbiters according to height
+	// GetArbiters Get arbiters according to height.
 	GetArbiters(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error)
+
+	// Get next turn arbiters.
+	GetNextArbiters() (workingHeight uint32, crcArbiters [][]byte, normalArbiters [][]byte, err error)
+
+	// Get consensus algorithm by height.
+	GetConsensusAlgorithm(height uint32) (ConsensusAlgorithm, error)
+
+	// GetReservedCustomIDs query all controversial reserved custom ID.
+	GetReservedCustomIDs() (map[string]struct{}, error)
+
+	// GetReceivedCustomIDs query all controversial received custom ID.
+	GetReceivedCustomIDs() (map[string]common.Uint168, error)
+
+	//HaveRetSideChainDepositCoinTx query tx data by tx hash
+	HaveRetSideChainDepositCoinTx(txHash common.Uint256) bool
+
+	// GetRateOfCustomIDFee query current rate of custom ID fee.
+	GetRateOfCustomIDFee(height uint32) (common.Fixed64, error)
 
 	// GetBlockListener Get block listener
 	GetBlockListener() BlockListener
@@ -110,6 +135,23 @@ type TransactionListener interface {
 	// with the merkle tree proof to verify it, the notifyId is key of this
 	// notify message and it must be submitted with the receipt together.
 	Notify(notifyId common.Uint256, proof bloom.MerkleProof, tx types.Transaction)
+}
+
+/*
+Register this listener to IService RegisterRevertListener() method
+to receive revert related transactions notifications.
+*/
+type RevertListener interface {
+	// NotifyRevertToPow is the method to callback when received RevertToPow transaction.
+	NotifyRevertToPow(tx types.Transaction)
+
+	// NotifyRevertToPow is the method to callback when received RevertToDPOS transaction.
+	NotifyRevertToDPOS(tx types.Transaction)
+
+	NotifyRollbackRevertToPow(tx types.Transaction)
+
+	// NotifyRollbackRevertToDPOS is the method to callback when rolled back RevertToDPOS transaction.
+	NotifyRollbackRevertToDPOS(tx types.Transaction)
 }
 
 /*

@@ -50,3 +50,13 @@ type ChainHeadEvent struct{ Block *types.Block }
 type DangerousChainSideEvent struct{}
 
 type EngineChangeEvent struct{}
+
+type GetSmallCrossTxEvent struct{
+	ElaTx string
+}
+
+type SmallCrossTxEvent struct{
+	RawTxID string
+	RawTx string
+	Signatures []string
+}

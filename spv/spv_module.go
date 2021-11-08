@@ -16,6 +16,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb/leveldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
@@ -27,6 +28,7 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	core "github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
 )
@@ -44,6 +46,13 @@ var (
 	MinedBlockSub    *event.TypeMuxSubscription
 
 	GetDefaultSingerAddr func() ethCommon.Address
+
+	failedMutex      sync.RWMutex
+	failedTxList = make(map[uint64][]string)
+	consensusMode spv.ConsensusAlgorithm
+
+	PbftEngine consensus.Engine
+	stopChn = make(chan  struct{})
 )
 
 const (
@@ -77,6 +86,9 @@ const (
 	ExtraElaHeight = 8
 
 	GASLimtScale = 10
+	blockDiff = 6
+
+	IsOnlyCRConsensus = true
 )
 
 //type MinedBlockEvent struct{}
@@ -94,6 +106,8 @@ type Config struct {
 
 type Service struct {
 	spv.SPVService
+
+	mux      *event.TypeMux
 }
 
 //Spv database initialization
@@ -107,7 +121,7 @@ func SpvDbInit(spvdataDir string) {
 }
 
 //Spv service initialization
-func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
+func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux, dynamicArbiterHeight uint64) (*Service, error) {
 	var chainParams *config.Params
 	switch strings.ToLower(cfg.ActiveNet) {
 	case "testnet", "test", "t":
@@ -124,14 +138,16 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 	}
 	spvCfg := &spv.Config{
 		DataDir:    cfg.DataDir,
-		FilterType: filter.FTNexTTurnDPOSInfo,
+		FilterType: filter.FTReturnSidechainDepositCoinFilter,
 		OnRollback: nil, // Not implemented yet
+		GenesisBlockAddress: cfg.GenesisAddress,
 	}
 	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
 	spvCfg.ChainParams = chainParams
 	spvCfg.PermanentPeers = chainParams.PermanentPeers
 	dataDir = cfg.DataDir
+	spvCfg.NodeVersion = "ESC_1.9.7"
 	initLog(cfg.DataDir)
 
 	service, err := spv.NewSPVService(spvCfg)
@@ -140,7 +156,7 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 		return nil, err
 	}
 
-	SpvService = &Service{service}
+	SpvService = &Service{service, tmux}
 	err = service.RegisterTransactionListener(&listener{
 		address: cfg.GenesisAddress,
 		service: service,
@@ -149,7 +165,9 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 		log.Error("Spv Register Transaction Listener: ", "err", err)
 		return nil, err
 	}
-	err = service.RegisterBlockListener(&BlockListener{})
+	err = service.RegisterBlockListener(&BlockListener{
+		dynamicArbiterHeight: dynamicArbiterHeight,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +193,8 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 			blocksigner.Signers[signer] = struct{}{}
 		}
 	}
-
+	addr :=  GetDefaultSingerAddr()
+	_, blocksigner.SelfIsProducer = blocksigner.Signers[addr]
 	return SpvService, nil
 }
 
@@ -183,6 +202,10 @@ func NewService(cfg *Config, client *rpc.Client) (*Service, error) {
 func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *event.TypeMuxSubscription) {
 	var i = 0
 
+	defer func() {
+		minedBlockSub.Unsubscribe()
+		ondutySub.Unsubscribe()
+	}()
 	for {
 		select {
 		case <-minedBlockSub.Chan():
@@ -197,6 +220,8 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription, ondutySub *eve
 				log.Info("receive onduty event")
 				atomic.StoreInt32(&candSend, 0)
 			}
+		case _ = <-stopChn:
+			return
 		}
 	}
 }
@@ -278,12 +303,122 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	log.Info("----------------------------------------------------------------------------------------")
 	log.Info(string(tx.String()))
 	log.Info("----------------------------------------------------------------------------------------")
+	if !blocksigner.SelfIsProducer {
+		atomic.StoreInt32(&candSend, 0)
+	}
 	savePayloadInfo(tx, l)
 	l.service.SubmitTransactionReceipt(id, tx.Hash())// give spv service a receipt, Indicates receipt of notice
 }
 
+func NotifySmallCrossTx(tx core.Transaction) {
+	log.Info("========================================================================================")
+	log.Info("smallMainchain transaction info")
+	log.Info("----------------------------------------------------------------------------------------")
+	log.Info(string(tx.String()))
+	log.Info("----------------------------------------------------------------------------------------")
+	savePayloadInfo(tx, nil)
+}
+
+func OnReceivedRechargeTx(tx core.Transaction) error {
+	output := make([]*core.Output, 0)
+	for _, v := range tx.Outputs {
+		if v.Type != core.OTCrossChain {
+			continue
+		}
+		op, ok := v.Payload.(*outputpayload.CrossChainOutput)
+		if !ok {
+			return errors.New("invalid cross chain output payload")
+		}
+		err := op.Validate()
+		if err != nil {
+			return err
+		}
+		output = append(output, v)
+	}
+	if len(output) > 0 {
+		err := saveOutputPayload(output, tx.Hash().String())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func saveOutputPayload(outputs []*core.Output, txHash string) error {
+	var fees []string
+	var address []string
+	var amounts []string
+	var memos [][]byte
+	for _, output := range outputs {
+		op, ok := output.Payload.(*outputpayload.CrossChainOutput)
+		if !ok {
+			return errors.New("invalid cross chain output payload")
+		}
+		fees = append(fees, (output.Value -op.TargetAmount).String())
+		amounts = append(amounts, output.Value.String())
+		address = append(address, op.TargetAddress)
+		memos = append(memos, op.TargetData)
+	}
+	addr := strings.Join(address, ",")
+	fee := strings.Join(fees, ",")
+	output := strings.Join(amounts, ",")
+	if spvTxhash == txHash {
+		return nil
+	}
+	spvTxhash = txHash
+	err := spvTransactiondb.Put([]byte(txHash + "Fee"), []byte(fee))
+	if err != nil {
+		log.Error("saveOutputPayload Put Fee: ", "err", err, "elaHash", txHash)
+	}
+
+	err = spvTransactiondb.Put([]byte(txHash + "Address"), []byte(addr))
+	if err != nil {
+		log.Error("saveOutputPayload Put Address: ", "err", err, "elaHash", txHash)
+	}
+	err = spvTransactiondb.Put([]byte(txHash + "Output"), []byte(output))
+	if err != nil {
+		log.Error("saveOutputPayload Put Output: ", "err", err, "elaHash", txHash)
+	}
+
+	input  := memos[0]
+	err = spvTransactiondb.Put([]byte(txHash + "Input"), input)
+	if err != nil {
+		log.Error("saveOutputPayload Put Input: ", "err", err, "elaHash", txHash)
+	}
+	if atomic.LoadInt32(&candSend) == 1 {
+		from := GetDefaultSingerAddr()
+		IteratorUnTransaction(from)
+		f, err := common.StringToFixed64(fees[0])
+		if err != nil {
+			log.Error("saveOutputPayload Fee StringToFixed64: ", "err", err, "elaHash", txHash)
+			return err
+
+		}
+		fe := new(big.Int).SetInt64(f.IntValue())
+		y := new(big.Int).SetInt64(rate)
+		feeValue := new(big.Int).Mul(fe, y)
+		err, _ = SendTransaction(from, txHash, feeValue)
+		if err != nil {
+			log.Info("SendTransaction failed", "error", err.Error())
+		}
+
+	} else {
+		UpTransactionIndex(txHash)
+	}
+
+	return nil
+}
+
+//
 //savePayloadInfo save and send spv perception
 func savePayloadInfo(elaTx core.Transaction, l *listener) {
+	if elaTx.PayloadVersion >= payload.TransferCrossChainVersionV1 {
+		err := OnReceivedRechargeTx(elaTx)
+		if err != nil {
+			log.Error("new recharge tx resolve error", "error", err)
+		}
+		return
+	}
 	nr := bytes.NewReader(elaTx.Payload.Data(elaTx.PayloadVersion))
 	p := new(payload.TransferCrossChainAsset)
 	p.Deserialize(nr, elaTx.PayloadVersion)
@@ -291,7 +426,12 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 	var address []string
 	var outputs []string
 	for i, amount := range p.CrossChainAmounts {
-		fees = append(fees, (elaTx.Outputs[i].Value - amount).String())
+		v, err := SafeFixed64Minus(elaTx.Outputs[i].Value, amount)
+		if err != nil {
+			log.Error("SafeFixed64Minus error", "error", err)
+			continue
+		}
+		fees = append(fees, v.String())
 		outputs = append(outputs, elaTx.Outputs[i].Value.String())
 		address = append(address, p.CrossChainAddresses[i])
 	}
@@ -318,6 +458,12 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 	if err != nil {
 		log.Error("SpvServicedb Put Output: ", "err", err, "elaHash", elaTx.Hash().String())
 	}
+
+	input  := []byte("")
+	err = spvTransactiondb.Put([]byte(elaTx.Hash().String()+"Input"), input)
+	if err != nil {
+		log.Error("SpvServicedb Put Input: ", "err", err, "elaHash", elaTx.Hash().String())
+	}
 	if atomic.LoadInt32(&candSend) == 1 {
 		from := GetDefaultSingerAddr()
 		IteratorUnTransaction(from)
@@ -329,8 +475,11 @@ func savePayloadInfo(elaTx core.Transaction, l *listener) {
 		}
 		fe := new(big.Int).SetInt64(f.IntValue())
 		y := new(big.Int).SetInt64(rate)
-		fee := new(big.Int).Mul(fe, y)
-		SendTransaction(from, elaTx.Hash().String(), fee)
+		feeValue := new(big.Int).Mul(fe, y)
+		err, _ = SendTransaction(from, elaTx.Hash().String(), feeValue)
+		if err != nil {
+			log.Error("SendTransaction error", "error", err)
+		}
 
 	} else {
 		UpTransactionIndex(elaTx.Hash().String())
@@ -367,9 +516,7 @@ func UpTransactionIndex(elaTx string) {
 func IteratorUnTransaction(from ethCommon.Address) {
 	muiterator.Lock()
 	defer muiterator.Unlock()
-
-	_, ok := blocksigner.Signers[from]
-	if !ok && !blocksigner.SelfIsProducer {
+	if !blocksigner.SelfIsProducer {
 		log.Error("error signers", "signer", from.String())
 		return
 	}
@@ -407,6 +554,18 @@ func IteratorUnTransaction(from ethCommon.Address) {
 			}
 			fee, _, _ := FindOutputFeeAndaddressByTxHash(string(txHash))
 			if fee.Uint64() <= 0 {
+				log.Error("FindOutputFeeAndaddressByTxHash fee is 0")
+				res, err := IsFailedElaTx(string(txHash))
+				if err != nil {
+					log.Error("IsFailedElaTx error", "err", err)
+					break
+				}
+				if res {
+					setNextSeek(seek)
+					break
+				}
+				OnTx2Failed(string(txHash))
+				setNextSeek(seek)
 				break
 			}
 			err, finished := SendTransaction(from, string(txHash), fee)
@@ -445,6 +604,7 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 	}
 	h := ethCommon.Hash{}
 	if ethCommon.BytesToHash(ethTx) != h {
+		onElaTxPacked(elaTx)
 		err = errors.New("Cross-chain transactions have been processed")
 		return err, true
 	}
@@ -453,18 +613,42 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 		log.Error("elaTx HexStringToBytes: "+elaTx, "err", err)
 		return err, true
 	}
-	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: []byte{}}
-	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
+
+	res, err := IsFailedElaTx(elaTx)
 	if err != nil {
-		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
-		UpTransactionIndex(elaTx)
+		return err, false
+	}
+	if res {
+		err = errors.New("is failed tx, can't to send")
 		return err, true
 	}
 
+	msg := ethereum.CallMsg{From: from, To: &ethCommon.Address{}, Data: data}
+	gasLimit, err := ipcClient.EstimateGas(context.Background(), msg)
+	if err != nil {
+		log.Error("IpcClient EstimateGas:", "err", err, "main txhash", elaTx)
+		res, err = IsFailedElaTx(elaTx)
+		if err != nil {
+			return err, false
+		}
+		if res {
+			return err, true
+		}
+		OnTx2Failed(elaTx)
+		return err, false
+	}
+
 	if gasLimit == 0 {
+		res, err = IsFailedElaTx(elaTx)
+		if err != nil {
+			return err, false
+		}
+		if res {
+			return err, true
+		}
+		OnTx2Failed(elaTx)
 		log.Error("gasLimit is zero:","main txhash", elaTx)
-		UpTransactionIndex(elaTx)
-		return err, true
+		return err, false
 	}
 	gasLimit = gasLimit * GASLimtScale
 
@@ -478,7 +662,7 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int)(err err
 	if err != nil {
 		return err, true
 	}
-	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String())
+	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String(), "gasLimit", gasLimit)
 	return nil, true
 }
 
@@ -486,6 +670,34 @@ func encodeUnTransactionNumber(number uint64) []byte {
 	enc := make([]byte, 8)
 	binary.BigEndian.PutUint64(enc, number)
 	return enc
+}
+
+func encodeTxList(txlist []string) []byte {
+	buffer := new(bytes.Buffer)
+	common.WriteVarUint(buffer, uint64(len(txlist)))
+	for _, txid := range txlist {
+		common.WriteVarString(buffer, txid)
+	}
+	return buffer.Bytes()
+}
+
+func decodeTxList(data []byte) ([]string, error) {
+	buffer := new(bytes.Buffer)
+	buffer.Write(data)
+	txList := make([]string, 0)
+	len, err := common.ReadVarUint(buffer, 0)
+	if err != nil {
+		return txList, err
+	}
+	var i uint64 = 0
+	for i = 0; i < len; i++ {
+		txid, err := common.ReadVarString(buffer)
+		if err != nil {
+			return txList, err
+		}
+		txList = append(txList, txid)
+	}
+	return txList, nil
 }
 
 func GetUnTransactionNum(db DatabaseReader, Prefix string) uint64 {
@@ -504,10 +716,24 @@ type DatabaseReader interface {
 //FindOutputFeeAndaddressByTxHash Finds the eth recharge address, recharge amount, and transaction fee based on the main chain hash.
 func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommon.Address, *big.Int) {
 	var emptyaddr ethCommon.Address
-	transactionHash = strings.Replace(transactionHash, "0x", "", 1)
+	if transactionHash[0:2] == "0x" {
+		transactionHash = transactionHash[2:]
+	}
 	if spvTransactiondb == nil {
+		log.Info("spvTransactiondb is nil")
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
+
+	res, err := IsFailedElaTx(transactionHash)
+	if err != nil {
+		log.Error("IsFailedElaTx", "transactionHash", transactionHash, "error", err)
+		return new(big.Int), emptyaddr, new(big.Int)
+	}
+	if res {
+		log.Error("IsFailedElaTx", "transactionHash", transactionHash)
+		return new(big.Int), emptyaddr, new(big.Int)
+	}
+
 	v, err := spvTransactiondb.Get([]byte(transactionHash + "Fee"))
 	if err != nil {
 		log.Error("SpvServicedb Get Fee: ", "err", err, "elaHash", transactionHash)
@@ -531,6 +757,7 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	}
 	addrs := strings.Split(string(addrss), ",")
 	if !ethCommon.IsHexAddress(addrs[0]) {
+		log.Error("SpvServicedb destion address: ", "addrs", addrs, "elaHash", transactionHash)
 		return new(big.Int), emptyaddr, new(big.Int)
 	}
 	outputs, err := spvTransactiondb.Get([]byte(transactionHash + "Output"))
@@ -550,13 +777,282 @@ func FindOutputFeeAndaddressByTxHash(transactionHash string) (*big.Int, ethCommo
 	return new(big.Int).Mul(fe, y), ethCommon.HexToAddress(addrs[0]), new(big.Int).Mul(op, y)
 }
 
+func FindOutRechargeInput(transactionHash string) []byte {
+	if spvTransactiondb == nil {
+		return []byte{}
+	}
+	if transactionHash[0:2] == "0x" {
+		transactionHash = transactionHash[2:]
+	}
+
+	input, err := spvTransactiondb.Get([]byte(transactionHash + "Input"))
+	if err != nil {
+		input = []byte{}
+	}
+	return input
+}
+
+func OnTx2Failed(elaTx string) {
+	if IsPackagedElaTx(elaTx) {
+		return
+	}
+	res, err := IsFailedElaTx (elaTx)
+	if err != nil {
+		return
+	}
+	if res {
+		return
+	}
+	failedMutex.Lock()
+	defer failedMutex.Unlock()
+	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
+	if err != nil {
+		log.Error(fmt.Sprintf("%s StorageAt: %v",elaTx, err))
+		return
+	}
+
+	h := ethCommon.Hash{}
+	if ethHash := ethCommon.BytesToHash(ethTx); ethHash.String() != h.String() {
+		log.Error(fmt.Sprintf("%s submit by: %s",elaTx, ethHash.String()))
+		return
+	}
+	height, err := ipcClient.CurrentBlockNumber(context.Background())
+	if err != nil {
+		log.Error("get CurrentBlockNumber failed", "error",  err.Error())
+		return
+	}
+	txList := failedTxList[height]
+	if txList == nil {
+		txList = make([]string, 0)
+	}
+	txList = append(txList, elaTx)
+	failedTxList[height] = txList
+	data := encodeTxList(txList)
+	err = spvTransactiondb.Put(encodeUnTransactionNumber(height), data)
+	log.Info("recharge tx failed", "height", height, "tx", elaTx)
+}
+
+func IsPackagedElaTx(elaTx string) bool {
+	ethTx, err := ipcClient.StorageAt(context.Background(), ethCommon.Address{}, ethCommon.HexToHash("0x"+elaTx), nil)
+	if err == nil {
+		h := ethCommon.Hash{}
+		if ethCommon.BytesToHash(ethTx) != h {
+			onElaTxPacked(elaTx)
+			return true
+		}
+	}
+	return false
+}
+
+func IsFailedElaTx(elaTx string) (bool, error) {
+	failedMutex.Lock()
+	defer failedMutex.Unlock()
+
+	if elaTx[0:2] == "0x" {
+		elaTx = elaTx[2:]
+	}
+
+	//HaveRetSideChainDepositCoinTx
+	hash, err := common.Uint256FromHexString(elaTx)
+	if err != nil {
+		log.Error("IsFailedElaTx, tx id format error", "elaTx", elaTx)
+		return false, err
+	}
+
+	for _, txs := range failedTxList {
+		for _, txid := range txs {
+			if txid[0:2] == "0x" {
+				txid = txid[2:]
+			}
+			if txid == elaTx {
+				return true, nil
+			}
+		}
+	}
+
+	it := spvTransactiondb.NewIterator()
+	defer it.Release()
+	for it.Next() {
+		value := it.Value()
+		txs, err := decodeTxList(value)
+		if err != nil {
+			continue
+		}
+		key := it.Key()
+		if len(key) != 8 || len(txs) == 0 {
+			continue
+		}
+		for _, txid := range txs {
+			if txid[0:2] == "0x" {
+				txid = txid[2:]
+			}
+			if txid == elaTx {
+				return true, nil
+			}
+		}
+	}
+	if SpvService == nil {
+		return false, errors.New("SpvService is not initialized")
+	}
+	res := SpvService.HaveRetSideChainDepositCoinTx(*hash)
+	log.Info("HaveRetSideChainDepositCoinTx", "res", res)
+	return res, nil
+}
+
+func onElaTxPacked(elaTx string) {
+	failedMutex.Lock()
+	defer failedMutex.Unlock()
+	for height, txs := range failedTxList {
+		for i, txid := range txs {
+			if txid == elaTx {
+				if len(txs) == 1 {
+					delete(failedTxList, height)
+					spvTransactiondb.Delete(encodeUnTransactionNumber(height))
+				} else {
+					txs = append(txs[:i], txs[i+1:]...)
+					data := encodeTxList(txs)
+					spvTransactiondb.Put(encodeUnTransactionNumber(height), data)
+				}
+				break
+			}
+		}
+	}
+
+	it := spvTransactiondb.NewIterator()
+	defer it.Release()
+	for it.Next() {
+		value := it.Value()
+		txs, err := decodeTxList(value)
+		if err != nil {
+			continue
+		}
+		if len(it.Key()) != 8 || len(txs) == 0 {
+			continue
+		}
+		height := binary.BigEndian.Uint64(it.Key())
+		for i, txid := range txs {
+			if txid == elaTx {
+				if len(txs) == 1 {
+					delete(failedTxList, height)
+					spvTransactiondb.Delete(encodeUnTransactionNumber(height))
+				} else {
+					txs = append(txs[:i], txs[i+1:]...)
+					data := encodeTxList(txs)
+					spvTransactiondb.Put(encodeUnTransactionNumber(height), data)
+				}
+				break
+			}
+		}
+	}
+}
+
+func GetFailedRechargeTxs(height uint64) []string {
+	failedMutex.Lock()
+	defer failedMutex.Unlock()
+	list := make([]string, 0)
+	height, err := SafeUInt64Minus(height, blockDiff)
+	if err != nil {
+		return list
+	}
+	txs := failedTxList[height]
+	if txs == nil || len(txs) == 0 {
+		txs = getTxsOnDb(height)
+	}
+	for _, txid := range txs {
+		list = append(list, txid)
+	}
+	return list
+}
+
+func GetFailedRechargeTxByHash(hash string) string {
+	failedMutex.Lock()
+	defer failedMutex.Unlock()
+	currentHeight, err := ipcClient.CurrentBlockNumber(context.Background())
+	if err != nil {
+		log.Error("GetFailedRechargeTxByHash CurrentBlockNumber failed", "error",  err.Error())
+		return ""
+	}
+	for height, txs := range failedTxList {
+		v, err := SafeUInt64Minus(currentHeight, height)
+		if err != nil || v < blockDiff {
+			continue
+		}
+		for _, tx := range txs {
+			if tx == hash {
+				return tx
+			}
+		}
+	}
+
+	it := spvTransactiondb.NewIterator()
+	defer it.Release()
+	for it.Next() {
+		value := it.Value()
+		txs, err := decodeTxList(value)
+		if err != nil {
+			continue
+		}
+		key := it.Key()
+		if len(key) != 8 || len(txs) == 0 {
+			continue
+		}
+		height := binary.BigEndian.Uint64(key)
+		diff, err := SafeUInt64Minus(currentHeight, height)
+		if err != nil ||  diff < blockDiff {
+			continue
+		}
+		for _, tx := range txs {
+			if tx == hash {
+				return tx
+			}
+		}
+	}
+	return ""
+}
+
+func getTxsOnDb(height uint64) []string {
+	list := make([]string, 0)
+	data, err := spvTransactiondb.Get(encodeUnTransactionNumber(height))
+	if err != nil {
+		return list
+	}
+	list, err = decodeTxList(data)
+	if err != nil {
+		return list
+	}
+	return list
+}
+
 func SendEvilProof(addr ethCommon.Address, info interface{}) {
 	log.Info("Send evil Proof", "signer", addr.String())
 	//ToDO connect ela chain
 
 }
 
-func GetElaHeight() uint64 {
-	//ToDO
-	return 0
+func GetArbiters() ([]string, error) {
+	if PbftEngine != nil {
+		producers := make([]string, 0)
+		list := PbftEngine.GetCurrentProducers()
+		for _, p := range list {
+			producers = append(producers, common.BytesToHexString(p))
+		}
+		return producers, nil
+	}
+	producers, err := ipcClient.GetCurrentProducers(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return producers, nil
+}
+
+func GetClient() *ethclient.Client {
+	return ipcClient
+}
+
+func Close()  {
+	spvdb := SpvService.GetDatabase()
+	if spvdb != nil {
+		spvdb.Close()
+		close(stopChn)
+	}
 }

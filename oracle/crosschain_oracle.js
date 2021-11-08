@@ -10,6 +10,11 @@ const getBlkLogs = require("./getblklogs");
 const getExistTxs = require("./getexisttxs");
 const GetIllegalEvidenceByHeight=require("./getillegalevidencebyheight");
 const CheckIllegalEvidence=require("./checkillegalevidence");
+const Smallcrosschaintransaction=require("./smallcrosschaintransaction");
+const FailedDepositTransactions=require("./faileddeposittransactions");
+const GetFailedDepositTxByHash=require("./getfaileddeposittransactionbyhash");
+const FailedWithdrawTxByHash=require("./receivedInvaliedwithrawtx");
+const ProcessedFailedWithdrawTxs=require("./processedinvalidwithdrawtx");
 
 const app = express();
 
@@ -47,9 +52,29 @@ app.post("/", async function(req, res) {
         if (json_data["method"] === "getillegalevidencebyheight") {
             await GetIllegalEvidenceByHeight(json_data, res);
              return;
-    }
+        }
         if (json_data["method"] === "checkillegalevidence") {
             await CheckIllegalEvidence(json_data, res);
+            return;
+        }
+        if (json_data["method"] === "sendsmallcrosstransaction") {
+            await Smallcrosschaintransaction(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "getfaileddeposittransactions") {
+            await FailedDepositTransactions(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "getfaileddeposittransactionbyhash") {
+            await GetFailedDepositTxByHash(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "sendinvalidwithdrawtransaction") {
+            await FailedWithdrawTxByHash(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "getprocessedinvalidwithdrawtransactions") {
+            await  ProcessedFailedWithdrawTxs(json_data, res)
             return;
         }
     } catch (err) {

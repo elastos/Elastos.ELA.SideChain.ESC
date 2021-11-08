@@ -62,6 +62,8 @@ const (
 	ReceiptsMsg        = 0x10
 
 	ELAMSG             = 0x08
+	GetSmallCrossTxmsg = 0x09
+	SmallCrossTxmsg    = 0x0a
 )
 
 type errCode int

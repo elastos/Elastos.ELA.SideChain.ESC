@@ -40,7 +40,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -687,7 +686,7 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 
 	length := len(header.Extra)
 	in := new(bytes.Buffer)
-	elaHeight := spv.GetElaHeight()
+	elaHeight := 0
 	if err := binary.Write(in, binary.BigEndian, elaHeight); err == nil {
 		copy(header.Extra[length-extraElaHeight-extraSeal:length-extraSeal], in.Bytes())
 	}
@@ -754,6 +753,10 @@ func (c *Clique) SignersCount() int {
 
 func (c *Clique) IsInBlockPool(hash common.Hash) bool {
 	return false
+}
+
+func (c *Clique) GetCurrentProducers() [][]byte {
+	return [][]byte{}
 }
 
 // Used for test

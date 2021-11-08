@@ -7,4 +7,6 @@ package msg
 
 const (
 	CmdConfirm  = "confirm"
+	CmdSmallCroTx  = "smallCroTx"
+	CmdFailedWithdrawTx  = "failedWTx"
 )

@@ -18,12 +18,16 @@ import (
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
-	"github.com/elastos/Elastos.ELA/events"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
 
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+	"github.com/elastos/Elastos.ELA/events"
+	elap2p "github.com/elastos/Elastos.ELA/p2p"
 )
 
 func (p *Pbft) StartProposal(block *types.Block) error {
@@ -50,15 +54,27 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 		Proposal: *proposal,
 	}
 	log.Info("[StartProposal] send proposal message", "proposal", msg.GetMessageHash(m))
-	p.network.BroadcastMessage(m)
-
+	p.BroadMessage(m)
 	// Broadcast vote
 	voteMsg := p.dispatcher.AcceptProposal(proposal, p.account)
 	if voteMsg != nil {
 		go p.OnVoteAccepted(id, &voteMsg.Vote)
-		p.network.BroadcastMessage(voteMsg)
+		p.BroadMessage(voteMsg)
 	}
 	return nil
+}
+
+func (p *Pbft) BroadMessage(msg elap2p.Message) {
+	peers :=  p.network.DumpPeersInfo()
+
+	for _, peer := range peers {
+		pid := peer.PID[:]
+		producer := p.dispatcher.GetConsensusView().IsProducers(pid)
+		if producer == false {
+			continue
+		}
+		p.network.SendMessageToPeer(peer.PID, msg)
+	}
 }
 
 type peerInfo struct {
@@ -102,6 +118,17 @@ func (p *Pbft) AnnounceDAddr() bool {
 	return true
 }
 
+func (p *Pbft) UpdateCurrentProducers(producers [][]byte, totalCount int, spvHeight uint64) {
+	p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, spvHeight)
+}
+
+func (p *Pbft) GetCurrentProducers() [][]byte {
+	if p.dispatcher != nil {
+		return p.dispatcher.GetConsensusView().GetProducers()
+	}
+	return [][]byte{}
+}
+
 func (p *Pbft) BroadBlockMsg(block *types.Block) error {
 	sealHash := p.SealHash(block.Header())
 	log.Info("BroadPreBlock,", "block Height:", block.NumberU64(), "hash:", sealHash.String())
@@ -111,7 +138,7 @@ func (p *Pbft) BroadBlockMsg(block *types.Block) error {
 		return err
 	}
 	msg := dmsg.NewBlockMsg(buffer.Bytes())
-	p.network.BroadcastMessage(msg)
+	p.BroadMessage(msg)
 	p.blockPool.AppendDposBlock(block)
 	return nil
 }
@@ -120,15 +147,20 @@ func (p *Pbft) RequestAbnormalRecovering() {
 	height := p.chain.CurrentHeader().Height()
 	msgItem := &dmsg.RequestConsensus{Height: height}
 	log.Info("[RequestAbnormalRecovering]", "height", height)
-	p.network.BroadcastMessage(msgItem)
+	p.BroadMessage(msgItem)
 }
 
 func (p *Pbft) tryGetCurrentProposal(id peer.PID, v *payload.DPOSProposalVote) (elacom.Uint256, bool) {
 	currentProposal := p.dispatcher.GetProcessingProposal()
 	if currentProposal == nil {
+		if v.ProposalHash.IsEqual(p.dispatcher.GetFinishedProposal()) {
+			log.Info("received finished proposal vote")
+			return elacom.EmptyHash, true
+		}
 		if _, ok := p.requestedProposals[v.ProposalHash]; !ok {
 			requestProposal := &msg.RequestProposal{ProposalHash: v.ProposalHash}
 			go p.network.SendMessageToPeer(id, requestProposal)
+			p.requestedProposals[v.ProposalHash] = struct{}{}
 		}
 		return elacom.EmptyHash, false
 	}
@@ -186,8 +218,48 @@ func (p *Pbft) AccessFutureBlock(parent *types.Block) {
 	if p.blockPool.HandleParentBlock(parent) {
 		log.Info("----[Send RequestProposal]-----")
 		requestProposal := &msg.RequestProposal{ProposalHash: elacom.EmptyHash}
-		go p.network.BroadcastMessage(requestProposal)
+		go p.BroadMessage(requestProposal)
 	}
+}
+
+func (p *Pbft) OnInsertBlock(block *types.Block) bool {
+	if p.dispatcher == nil {
+		return false
+	}
+	dutyIndex := p.dispatcher.GetConsensusView().GetDutyIndex()
+	isWorkingHeight := spv.SpvIsWorkingHeight()
+	log.Info("[OnInsertBlock]", "dutyIndex", dutyIndex, "isWorkingHeight", isWorkingHeight)
+	if dutyIndex == 0 && isWorkingHeight {
+		curProducers := p.dispatcher.GetConsensusView().GetProducers()
+		isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
+		if !isSame {
+			p.dispatcher.GetConsensusView().ChangeCurrentProducers(block.NumberU64() + 1, spv.GetSpvHeight())
+			go p.AnnounceDAddr()
+			go p.Recover()
+			p.dispatcher.GetConsensusView().DumpInfo()
+		} else {
+			log.Info("For the same batch of producers, no need to change current producers")
+		}
+		spv.InitNextTurnDposInfo()
+		return !isSame
+	} else if block.Nonce() > 0 {
+		//used to sync completed to consensus
+		producers, totalCount, err := spv.GetProducers(block.Nonce())
+		if err != nil {
+			log.Error("OnInsertBlock error", "GetProducers", err)
+			return false
+		}
+		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce()
+		isCurrent := p.IsCurrentProducers(producers)
+		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword, "isCurrent", isCurrent)
+		if  isBackword && !isCurrent {
+			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
+			go p.AnnounceDAddr()
+			go p.Recover()
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Pbft) OnInv(id peer.PID, blockHash elacom.Uint256) {
@@ -241,12 +313,12 @@ func (p *Pbft) OnRequestConsensus(id peer.PID, height uint64) {
 
 	status := p.dispatcher.HelpToRecoverAbnormal(id, height, p.chain.CurrentHeader().Height())
 	if status != nil {
-		msg := &msg.ResponseConsensus{Consensus: *status}
+		msg := &dmsg.ResponseConsensus{Consensus: *status}
 		go p.network.SendMessageToPeer(id, msg)
 	}
 }
 
-func (p *Pbft) OnResponseConsensus(id peer.PID, status *msg.ConsensusStatus) {
+func (p *Pbft) OnResponseConsensus(id peer.PID, status *dmsg.ConsensusStatus) {
 	log.Info("---------[OnResponseConsensus]------------")
 	if !p.IsProducer() {
 		return
@@ -255,7 +327,7 @@ func (p *Pbft) OnResponseConsensus(id peer.PID, status *msg.ConsensusStatus) {
 		return
 	}
 	if _, ok := p.statusMap[status.ViewOffset]; !ok {
-		p.statusMap[status.ViewOffset] = make(map[string]*msg.ConsensusStatus)
+		p.statusMap[status.ViewOffset] = make(map[string]*dmsg.ConsensusStatus)
 	}
 	p.statusMap[status.ViewOffset][common.Bytes2Hex(id[:])] = status
 }
@@ -340,7 +412,7 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 		p.notHandledProposal = make(map[string]struct{})
 	}
 	if voteMsg != nil && !p.dispatcher.GetProposalProcessFinished() {
-		p.network.BroadcastMessage(voteMsg)
+		p.BroadMessage(voteMsg)
 		p.dispatcher.SetProposalProcessFinished()
 	}
 }
@@ -365,7 +437,7 @@ func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 	}
 	currentProposal, ok := p.tryGetCurrentProposal(id, vote)
 	if !ok {
-		log.Info("not have proposal, get it and push vote into pending vote")
+		log.Info("not have proposal, get it and push vote into pending vote", "proposal", vote.ProposalHash.String())
 		p.dispatcher.AddPendingVote(vote)
 	} else if currentProposal.IsEqual(vote.ProposalHash) {
 		if p.dispatcher.GetProcessingProposal() == nil {
@@ -433,7 +505,7 @@ func (p *Pbft) OnRecoverTimeout() {
 			p.DoRecover()
 		}
 		p.recoverStarted = false
-		p.statusMap = make(map[uint32]map[string]*msg.ConsensusStatus)
+		p.statusMap = make(map[uint32]map[string]*dmsg.ConsensusStatus)
 	}
 }
 
@@ -448,7 +520,7 @@ func (p *Pbft) DoRecover() {
 			maxCountMaxViewOffset = k
 		}
 	}
-	var status *msg.ConsensusStatus
+	var status *dmsg.ConsensusStatus
 	startTimes := make([]int64, 0)
 	for _, v := range p.statusMap[maxCountMaxViewOffset] {
 		if status == nil {
@@ -577,5 +649,16 @@ func (p *Pbft) limitMap(m map[common.Hash]struct{}, limit int) {
 			delete(m, hash)
 			return
 		}
+	}
+}
+
+func (p *Pbft) OnSmallCroTxReceived(id peer.PID, msg *dmsg.SmallCroTx) {
+	smallcrosstx.OnReceivedSmallCroTxFromDirectNet(msg.GetSignature(), msg.GetRawTx())
+}
+
+func (p* Pbft) OnFailedWithdrawTxReceived(id peer.PID, msg *dmsg.FailedWithdrawTx) {
+	err := withdrawfailedtx.ReceivedFailedWithdrawTx(msg.GetHash(), msg.GetSignature())
+	if err != nil {
+		log.Error("ReceivedFailedWithdrawTx", "error", err)
 	}
 }

@@ -132,10 +132,6 @@ web3._extend({
 			getter: 'pbft_dispatcher'
 		}),
 		new web3._extend.Property({
-			name: 'account',
-			getter: 'pbft_account'
-		}),
-		new web3._extend.Property({
 			name: 'network',
 			getter: 'pbft_network'
 		}),
@@ -558,6 +554,31 @@ web3._extend({
 			call: 'eth_getProof',
 			params: 3,
 			inputFormatter: [web3._extend.formatters.inputAddressFormatter, null, web3._extend.formatters.inputBlockNumberFormatter]
+		}),
+		new web3._extend.Method({
+			name: 'receivedSmallCrossTx',
+			call: 'eth_receivedSmallCrossTx',
+			params: 2,
+		}),
+		new web3._extend.Method({
+			name: 'getCurrentProducers',
+			call: 'eth_getCurrentProducers',
+			params: 0,
+		}),
+		new web3._extend.Method({
+			name: 'getFailedRechargeTxs',
+			call: 'eth_getFailedRechargeTxs',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'getFailedRechargeTxByHash',
+			call: 'eth_getFailedRechargeTxByHash',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'sendInvalidWithdrawTransaction',
+			call: 'eth_sendInvalidWithdrawTransaction',
+			params: 2,
 		}),
 	],
 	properties: [

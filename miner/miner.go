@@ -119,6 +119,7 @@ func (self *Miner) update() {
 						go pbftEngine.Recover()
 					}
 				}
+				//self.mux.Post(cevent.InitCurrentProducers{})
 				return
 			}
 		case <-self.exitCh:

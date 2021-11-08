@@ -22,16 +22,20 @@ import (
 	"github.com/elastos/Elastos.ELA/events"
 )
 
+const broadcastCrossChainTransactionInterval = 30
+
 type TxPool struct {
 	conflictManager
 	*txPoolCheckpoint
 	chainParams *config.Params
 	//proposal of txpool used amout
-	proposalsUsedAmount Fixed64
+	proposalsUsedAmount  Fixed64
+	crossChainHeightList map[Uint256]uint32
+
 	sync.RWMutex
 }
 
-//append transaction to txnpool when check ok.
+//append transaction to txnpool when check ok, and broadcast the transaction.
 //1.check  2.check with ledger(db) 3.check with pool
 func (mp *TxPool) AppendToTxPool(tx *Transaction) elaerr.ELAError {
 	mp.Lock()
@@ -42,6 +46,18 @@ func (mp *TxPool) AppendToTxPool(tx *Transaction) elaerr.ELAError {
 	}
 
 	go events.Notify(events.ETTransactionAccepted, tx)
+	return nil
+}
+
+//append transaction to txnpool when check ok.
+//1.check  2.check with ledger(db) 3.check with pool
+func (mp *TxPool) AppendToTxPoolWithoutEvent(tx *Transaction) elaerr.ELAError {
+	mp.Lock()
+	defer mp.Unlock()
+	err := mp.appendToTxPool(tx)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -62,6 +78,9 @@ func (mp *TxPool) appendToTxPool(tx *Transaction) elaerr.ELAError {
 		mp.removeCRAppropriationConflictTransactions()
 	}
 
+	chain := blockchain.DefaultLedger.Blockchain
+	bestHeight := chain.GetHeight()
+
 	// Don't accept the transaction if it already exists in the pool.  This
 	// applies to orphan transactions as well.  This check is intended to
 	// be a quick check to weed out duplicates.
@@ -74,13 +93,12 @@ func (mp *TxPool) appendToTxPool(tx *Transaction) elaerr.ELAError {
 		return elaerr.Simple(elaerr.ErrBlockIneffectiveCoinbase, nil)
 	}
 
-	chain := blockchain.DefaultLedger.Blockchain
-	bestHeight := blockchain.DefaultLedger.Blockchain.GetHeight()
 	if errCode := chain.CheckTransactionSanity(bestHeight+1, tx); errCode != nil {
 		log.Warn("[TxPool CheckTransactionSanity] failed", tx.Hash())
 		return errCode
 	}
-	if _, errCode := chain.CheckTransactionContext(bestHeight+1, tx, mp.proposalsUsedAmount); errCode != nil {
+	if _, errCode := chain.CheckTransactionContext(
+		bestHeight+1, tx, mp.proposalsUsedAmount, 0); errCode != nil {
 		log.Warn("[TxPool CheckTransactionContext] failed", tx.Hash())
 		return errCode
 	}
@@ -95,18 +113,27 @@ func (mp *TxPool) appendToTxPool(tx *Transaction) elaerr.ELAError {
 		log.Warn("TxPool check transactions size failed", tx.Hash())
 		return elaerr.Simple(elaerr.ErrTxPoolOverCapacity, nil)
 	}
-
 	if errCode := mp.AppendTx(tx); errCode != nil {
 		log.Warn("[TxPool verifyTransactionWithTxnPool] failed", tx.Hash())
 		return errCode
 	}
-
 	// Add the transaction to mem pool
 	if err := mp.doAddTransaction(tx); err != nil {
 		mp.removeTx(tx)
 		return err
 	}
 
+	if bestHeight > mp.chainParams.NewCrossChainStartHeight &&
+		tx.IsTransferCrossChainAssetTx() &&
+		tx.IsSmallTransfer(mp.chainParams.SmallCrossTransferThreshold) {
+		err := blockchain.DefaultLedger.Store.SaveSmallCrossTransferTx(tx)
+		if err != nil {
+			log.Warnf("failed to save small cross chain transaction %s", tx.Hash())
+			return elaerr.Simple(elaerr.ErrTxValidation, nil)
+		}
+		mp.crossChainHeightList[tx.Hash()] = bestHeight
+	}
+	//log.Infof("endAppendToTxPool:  Hash: %s, %d", tx.Hash(), tx.TxType)
 	return nil
 }
 
@@ -159,6 +186,27 @@ func (mp *TxPool) CleanSubmittedTransactions(block *Block) {
 func (mp *TxPool) CheckAndCleanAllTransactions() {
 	mp.Lock()
 	mp.checkAndCleanAllTransactions()
+	mp.Unlock()
+}
+
+func (mp *TxPool) BroadcastSmallCrossChainTransactions(bestHeight uint32) {
+	mp.Lock()
+	txs := make([]*Transaction, 0)
+	for txHash, height := range mp.crossChainHeightList {
+		if bestHeight >= height+broadcastCrossChainTransactionInterval {
+			mp.crossChainHeightList[txHash] = bestHeight
+			tx, ok := mp.txnList[txHash]
+			if !ok {
+				log.Warn("BroadcastSmallCrossChainTransactions invalid cross chain transaction")
+				continue
+			}
+			txs = append(txs, tx)
+		}
+	}
+
+	if len(txs) != 0 {
+		go events.Notify(events.ETSmallCrossChainNeedRelay, txs)
+	}
 	mp.Unlock()
 }
 
@@ -219,6 +267,10 @@ func (mp *TxPool) cleanTransactions(blockTxs []*Transaction) {
 		if err := mp.removeTx(blockTx); err != nil {
 			log.Warnf("remove tx %s when delete", blockTx.Hash())
 		}
+
+		if blockTx.IsTransferCrossChainAssetTx() && blockTx.IsSmallTransfer(mp.chainParams.SmallCrossTransferThreshold) {
+			blockchain.DefaultLedger.Store.CleanSmallCrossTransferTx(blockTx.Hash())
+		}
 	}
 	log.Debug(fmt.Sprintf("[cleanTransactionList],transaction %d in block, %d in transaction pool before, %d deleted,"+
 		" Remains %d in TxPool",
@@ -258,7 +310,7 @@ func (mp *TxPool) checkAndCleanAllTransactions() {
 	var deleteCount int
 	var proposalsUsedAmount Fixed64
 	for _, tx := range mp.txnList {
-		_, err := chain.CheckTransactionContext(bestHeight+1, tx, proposalsUsedAmount)
+		_, err := chain.CheckTransactionContext(bestHeight+1, tx, proposalsUsedAmount, 0)
 		if err != nil {
 			log.Warn("[checkAndCleanAllTransactions] check transaction context failed,", err)
 			deleteCount++
@@ -390,6 +442,12 @@ func (mp *TxPool) IsDuplicateSidechainTx(sidechainTxHash Uint256) bool {
 	return mp.ContainsKey(sidechainTxHash, slotSidechainTxHashes)
 }
 
+func (mp *TxPool) IsDuplicateSidechainReturnDepositTx(sidechainReturnDepositTxHash Uint256) bool {
+	mp.RLock()
+	defer mp.RUnlock()
+	return mp.ContainsKey(sidechainReturnDepositTxHash, slotSidechainReturnDepositTxHashes)
+}
+
 // check and replace the duplicate sidechainpow tx
 func (mp *TxPool) replaceDuplicateSideChainPowTx(txn *Transaction) {
 	var replaceList []*Transaction
@@ -504,6 +562,9 @@ func (mp *TxPool) doRemoveTransaction(tx *Transaction) {
 		if tx.IsCRCProposalTx() {
 			mp.dealDelProposalTx(tx)
 		}
+		if _, ok := mp.crossChainHeightList[hash]; ok {
+			delete(mp.crossChainHeightList, hash)
+		}
 		mp.txFees.RemoveTx(hash, uint64(txSize), feeRate)
 		mp.removeTx(tx)
 	}
@@ -526,9 +587,10 @@ func (mp *TxPool) onPopBack(hash Uint256) {
 
 func NewTxPool(params *config.Params) *TxPool {
 	rtn := &TxPool{
-		conflictManager:     newConflictManager(),
-		chainParams:         params,
-		proposalsUsedAmount: 0,
+		conflictManager:      newConflictManager(),
+		chainParams:          params,
+		proposalsUsedAmount:  0,
+		crossChainHeightList: make(map[Uint256]uint32),
 	}
 	rtn.txPoolCheckpoint = newTxPoolCheckpoint(
 		rtn, func(m map[Uint256]*Transaction) {

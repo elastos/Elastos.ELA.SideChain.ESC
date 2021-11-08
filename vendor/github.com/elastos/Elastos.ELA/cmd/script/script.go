@@ -49,6 +49,7 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	proposalTrackingType := c.Int64("proposaltrackingtype")
 	MessageHash := c.String("messagehash")
 	crOpinionHash := c.String("cropinionhash")
+	crOpinionData := c.String("cropiniondata")
 	SecretaryGeneralOpinionHash := c.String("secretarygeneralopinionhash")
 	stage := c.Int64("stage")
 
@@ -59,12 +60,26 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	recipient := c.String("recipient")
 	targetHash := c.String("targethash")
 	closeProposalHash := c.String("closeproposalhash")
+	reservedCustomIDList := c.String("reservedcustomidlist")
+	receivedCustomIDList := c.String("receivedcustomidlist")
+	customidrate := c.String("customidrate")
+	receiverDID := c.String("receiverdid")
 	CRExpensesAddress := c.String("crccommiteeaddr")
 	payloadVersion := c.Int64("payloadversion")
 
 	crManagementPublicKey := c.String("crmanagementpublickey")
 	crDPOSPrivateKey := c.String("crdposprivatekey")
 	crCommitteeDID := c.String("crcommitteedid")
+
+	targetData := c.String("targetdata")
+
+	// Register SideChain
+	sideChainName := c.String("sidechainname")
+	magicNumber := c.Uint("magicnumber")
+	genesisHash := c.String("genesishash")
+	exchangeRate := c.String("exchangerate")
+	effectiveHeight := c.Uint("effectiveheight")
+	resourcePath := c.String("resourcepath")
 
 	getWallet := func(L *lua.LState) int {
 		L.Push(lua.LString(wallet))
@@ -201,6 +216,11 @@ func registerParams(c *cli.Context, L *lua.LState) {
 		L.Push(lua.LString(crOpinionHash))
 		return 1
 	}
+	getCROpinionData := func(L *lua.LState) int {
+		L.Push(lua.LString(crOpinionData))
+		return 1
+	}
+
 	getSecretaryGeneralOpinionHash := func(L *lua.LState) int {
 		L.Push(lua.LString(SecretaryGeneralOpinionHash))
 		return 1
@@ -245,6 +265,22 @@ func registerParams(c *cli.Context, L *lua.LState) {
 		L.Push(lua.LString(closeProposalHash))
 		return 1
 	}
+	getReservedCustomIDList := func(L *lua.LState) int {
+		L.Push(lua.LString(reservedCustomIDList))
+		return 1
+	}
+	getReceivedCustomIDList := func(L *lua.LState) int {
+		L.Push(lua.LString(receivedCustomIDList))
+		return 1
+	}
+	getRateOfCustomIDFee := func(L *lua.LState) int {
+		L.Push(lua.LString(customidrate))
+		return 1
+	}
+	getReceiverDID := func(L *lua.LState) int {
+		L.Push(lua.LString(receiverDID))
+		return 1
+	}
 	getCRExpensesAddress := func(L *lua.LState) int {
 		L.Push(lua.LString(CRExpensesAddress))
 		return 1
@@ -263,6 +299,41 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	}
 	getCRCommitteeDID := func(L *lua.LState) int {
 		L.Push(lua.LString(crCommitteeDID))
+		return 1
+	}
+	getTargetData := func(L *lua.LState) int {
+		L.Push(lua.LString(targetData))
+		return 1
+	}
+
+	// Register SideChain
+	getSideChainName := func(L *lua.LState) int {
+		L.Push(lua.LString(sideChainName))
+		return 1
+	}
+
+	getMagicNumber := func(L *lua.LState) int {
+		L.Push(lua.LNumber(magicNumber))
+		return 1
+	}
+
+	getGenesisHash := func(L *lua.LState) int {
+		L.Push(lua.LString(genesisHash))
+		return 1
+	}
+
+	getExchangeRate := func(L *lua.LState) int {
+		L.Push(lua.LString(exchangeRate))
+		return 1
+	}
+
+	getEffectiveHeight := func(L *lua.LState) int {
+		L.Push(lua.LString(effectiveHeight))
+		return 1
+	}
+
+	getResourcePath := func(L *lua.LState) int {
+		L.Push(lua.LString(resourcePath))
 		return 1
 	}
 
@@ -296,6 +367,8 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	L.Register("getProposalTrackingType", getProposalTrackingType)
 	L.Register("getMessageHash", getMessageHash)
 	L.Register("getCROpinionHash", getCROpinionHash)
+	L.Register("getCROpinionData", getCROpinionData)
+
 	L.Register("getSecretaryGeneralOpinionHash", getSecretaryGeneralOpinionHash)
 	L.Register("getStage", getStage)
 
@@ -308,11 +381,24 @@ func registerParams(c *cli.Context, L *lua.LState) {
 	L.Register("getNewOwnerPrivateKey", getNewOwnerPrivateKey)
 	L.Register("getTargetHash", getTargetHash)
 	L.Register("getCloseProposalHash", getCloseProposalHash)
+	L.Register("getReservedCustomIDList", getReservedCustomIDList)
+	L.Register("getReceivedCustomIDList", getReceivedCustomIDList)
+	L.Register("getRateOfCustomIDFee", getRateOfCustomIDFee)
+	L.Register("getReceiverDID", getReceiverDID)
 	L.Register("getCRExpensesAddress", getCRExpensesAddress)
 	L.Register("getPayloadVersion", getPayloadVersion)
 	L.Register("getCRManagementPublicKey", getCRManagementPublicKey)
 	L.Register("getCRDPOSPrivateKey", getCRDPOSPrivateKey)
 	L.Register("getCRCommitteeDID", getCRCommitteeDID)
+	L.Register("getTargetData", getTargetData)
+
+	//Register SideChain
+	L.Register("getSideChainName", getSideChainName)
+	L.Register("getMagicNumber", getMagicNumber)
+	L.Register("getGenesisHash", getGenesisHash)
+	L.Register("getExchangeRate", getExchangeRate)
+	L.Register("getEffectiveHeight", getEffectiveHeight)
+	L.Register("getResourcePath", getResourcePath)
 }
 
 func scriptAction(c *cli.Context) error {
@@ -458,6 +544,10 @@ func NewCommand() *cli.Command {
 				Usage: "set the draft proposal hash",
 			},
 			cli.StringFlag{
+				Name:  "draftdata",
+				Usage: "set the draft data",
+			},
+			cli.StringFlag{
 				Name:  "targethash",
 				Usage: "set the target proposal hash",
 			},
@@ -468,6 +558,18 @@ func NewCommand() *cli.Command {
 			cli.StringFlag{
 				Name:  "closeproposalhash",
 				Usage: "set the close proposal hash",
+			},
+			cli.StringFlag{
+				Name:  "reservedcustomidlist",
+				Usage: "reserved custom id list",
+			},
+			cli.StringFlag{
+				Name:  "receivedcustomidlist",
+				Usage: "received custom id list",
+			},
+			cli.StringFlag{
+				Name:  "receiverdid",
+				Usage: "receiver did",
 			},
 			cli.StringFlag{
 				Name:  "voteresult, votres",
@@ -496,6 +598,10 @@ func NewCommand() *cli.Command {
 			cli.StringFlag{
 				Name:  "cropinionhash",
 				Usage: "set the hash of proposal opinion",
+			},
+			cli.StringFlag{
+				Name:  "cropiniondata",
+				Usage: "set the data of cr opinion",
 			},
 			cli.StringFlag{
 				Name:  "secretarygeneralopinionhash",
@@ -528,7 +634,8 @@ func NewCommand() *cli.Command {
 			cli.Int64Flag{
 				Name:  "payloadversion",
 				Usage: "set the version of payload",
-			}, cli.StringFlag{
+			},
+			cli.StringFlag{
 				Name:  "crmanagementpublickey",
 				Usage: "set the public key of crmanagement",
 			},
@@ -539,6 +646,43 @@ func NewCommand() *cli.Command {
 			cli.StringFlag{
 				Name:  "crcommitteedid",
 				Usage: "set the crcommittee did",
+			},
+			cli.StringFlag{
+				Name:  "customidrate",
+				Usage: "set the rate of custom id",
+			},
+			cli.StringFlag{
+				Name:  "targetdata",
+				Usage: "set the target data of proposal",
+			},
+			// Register SideChain
+			cli.StringFlag{
+				Name:  "sidechainname",
+				Usage: "set the sidechain name ",
+			},
+			cli.Int64Flag{
+				Name:  "magicnumber",
+				Usage: "set magic number ",
+			},
+			cli.StringFlag{
+				Name:  "dnsseeds",
+				Usage: "set dns seeds ",
+			},
+			cli.Int64Flag{
+				Name:  "nodeport",
+				Usage: "set node port ",
+			},
+			cli.StringFlag{
+				Name:  "genesishash",
+				Usage: "set genesis hash ",
+			},
+			cli.Int64Flag{
+				Name:  "genesistimestamp",
+				Usage: "set genesis timestamp ",
+			},
+			cli.StringFlag{
+				Name:  "genesisblockdifficulty",
+				Usage: "set genesis block difficulty ",
 			},
 		},
 		Action: scriptAction,

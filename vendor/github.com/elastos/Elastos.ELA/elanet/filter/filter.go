@@ -19,8 +19,18 @@ const (
 
 	// FTDPOS indicates the TxFilter's Filter is a DPOS filter.
 	FTDPOS
-	//FTNexTTurnDPOSInfo indicates the TxFilter's Filter is a next turn dpos info filter.
+
+	// FTNexTTurnDPOSInfo indicates the TxFilter's Filter is a next turn dpos info filter.
 	FTNexTTurnDPOSInfo
+
+	// FTCustomID indicates the TxFilter's Filter is a custom ID related filter.
+	FTCustomID
+
+	// FTUpgrade indicates the TxFilter's Filter is a UpgradeCode related filter.
+	FTUpgrade
+
+	//FTReturnSidechainDepositCoinFilter indicates the TxFilter's Filter is a ReturnSidechainDepositCoin related filter.
+	FTReturnSidechainDepositCoinFilter
 )
 
 // TxFilter indicates the methods a transaction filter should implement.

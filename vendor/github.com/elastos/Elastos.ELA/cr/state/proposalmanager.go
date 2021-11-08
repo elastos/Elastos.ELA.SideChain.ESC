@@ -128,6 +128,14 @@ func (p *ProposalManager) getProposals(status ProposalStatus) (dst ProposalsMap)
 	return
 }
 
+func (p *ProposalManager) getRegisteredSideChainByHeight(height uint32) map[common.Uint256]payload.SideChainInfo {
+	return p.RegisteredSideChainPayloadInfo[height]
+}
+
+func (p *ProposalManager) getAllRegisteredSideChain() map[uint32]map[common.Uint256]payload.SideChainInfo {
+	return p.RegisteredSideChainPayloadInfo
+}
+
 // getProposal will return a proposal with specified hash,
 // and return nil if not found.
 func (p *ProposalManager) getProposal(hash common.Uint256) *ProposalState {
@@ -152,7 +160,7 @@ func (p *ProposalManager) availableWithdrawalAmount(hash common.Uint256) common.
 	return amount
 }
 
-func getProposalTotalBudgetAmount(proposal payload.CRCProposal) common.Fixed64 {
+func getProposalTotalBudgetAmount(proposal payload.CRCProposalInfo) common.Fixed64 {
 	var budget common.Fixed64
 	for _, b := range proposal.Budgets {
 		budget += b.Amount
@@ -172,38 +180,72 @@ func getProposalUnusedBudgetAmount(proposalState *ProposalState) common.Fixed64 
 
 // updateProposals will update proposals' status.
 func (p *ProposalManager) updateProposals(height uint32,
-	circulation common.Fixed64, inElectionPeriod bool) common.Fixed64 {
+	circulation common.Fixed64, inElectionPeriod bool) (common.Fixed64, []payload.ProposalResult) {
 	var unusedAmount common.Fixed64
-	for _, v := range p.Proposals {
+	results := make([]payload.ProposalResult, 0)
+	for k, v := range p.Proposals {
+		proposalType := v.Proposal.ProposalType
 		switch v.Status {
 		case Registered:
 			if !inElectionPeriod {
 				p.abortProposal(v, height)
 				unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
+				recordPartProposalResult(&results, proposalType, k, false)
 				break
 			}
+
 			if p.shouldEndCRCVote(v.RegisterHeight, height) {
+				pass := true
 				if p.transferRegisteredState(v, height) == CRCanceled {
+					p.removeRegisterSideChainInfo(v, height)
 					unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
+					pass = false
+					recordPartProposalResult(&results, proposalType, k, pass)
 				}
 			}
 		case CRAgreed:
 			if !inElectionPeriod {
 				p.abortProposal(v, height)
 				unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
+				recordPartProposalResult(&results, proposalType, k, false)
 				break
 			}
 			if p.shouldEndPublicVote(v.VoteStartHeight, height) {
 				if p.transferCRAgreedState(v, height, circulation) == VoterCanceled {
+					p.removeRegisterSideChainInfo(v, height)
 					unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
+					recordPartProposalResult(&results, proposalType, k, false)
 					continue
 				}
 				p.dealProposal(v, &unusedAmount, height)
+				recordPartProposalResult(&results, proposalType, k, true)
 			}
 		}
 	}
 
-	return unusedAmount
+	return unusedAmount, results
+}
+
+func recordPartProposalResult(results *[]payload.ProposalResult,
+	proposalType payload.CRCProposalType, proposalHash common.Uint256, result bool) {
+	var needRecordResult bool
+	switch proposalType {
+	case payload.ReserveCustomID, payload.ReceiveCustomID, payload.ChangeCustomIDFee:
+		needRecordResult = true
+
+	default:
+		if proposalType > payload.MinUpgradeProposalType && proposalType <= payload.MaxUpgradeProposalType {
+			needRecordResult = true
+		}
+	}
+
+	if needRecordResult {
+		*results = append(*results, payload.ProposalResult{
+			ProposalHash: proposalHash,
+			ProposalType: proposalType,
+			Result:       result,
+		})
+	}
 }
 
 // abortProposal will transfer the status to aborted.
@@ -214,6 +256,7 @@ func (p *ProposalManager) abortProposal(proposalState *ProposalState,
 	for k, v := range proposalState.BudgetsStatus {
 		oriBudgetsStatus[k] = v
 	}
+	p.removeRegisterSideChainInfo(proposalState, height)
 	p.history.Append(height, func() {
 		proposalState.Status = Aborted
 		for k, _ := range proposalState.BudgetsStatus {
@@ -275,6 +318,7 @@ func (p *ProposalManager) transferRegisteredState(proposalState *ProposalState,
 		for k, v := range proposalState.BudgetsStatus {
 			oriBudgetsStatus[k] = v
 		}
+
 		p.history.Append(height, func() {
 			proposalState.Status = CRCanceled
 			for k, _ := range proposalState.BudgetsStatus {
@@ -284,6 +328,16 @@ func (p *ProposalManager) transferRegisteredState(proposalState *ProposalState,
 			proposalState.Status = Registered
 			proposalState.BudgetsStatus = oriBudgetsStatus
 		})
+		if proposalState.Proposal.ProposalType == payload.ReceiveCustomID {
+			oriPendingReceivedCustomIDMap := p.PendingReceivedCustomIDMap
+			p.history.Append(height, func() {
+				for _, id := range proposalState.Proposal.ReceivedCustomIDList {
+					delete(p.PendingReceivedCustomIDMap, id)
+				}
+			}, func() {
+				p.PendingReceivedCustomIDMap = oriPendingReceivedCustomIDMap
+			})
+		}
 	}
 	return
 }
@@ -318,6 +372,33 @@ func (p *ProposalManager) dealProposal(proposalState *ProposalState, unusedAmoun
 		}, func() {
 			p.SecretaryGeneralPublicKey = oriSecretaryGeneralPublicKey
 		})
+	case payload.ReserveCustomID:
+		oriReservedCustomIDLists := p.ReservedCustomIDLists
+		p.history.Append(height, func() {
+			p.ReservedCustomIDLists = append(p.ReservedCustomIDLists, proposalState.Proposal.ReservedCustomIDList)
+		}, func() {
+			p.ReservedCustomIDLists = oriReservedCustomIDLists
+		})
+	case payload.ReceiveCustomID:
+		oriReceivedCustomIDLists := p.ReceivedCustomIDLists
+		p.history.Append(height, func() {
+			p.ReceivedCustomIDLists = append(p.ReceivedCustomIDLists, proposalState.Proposal.ReceivedCustomIDList)
+		}, func() {
+			p.ReceivedCustomIDLists = oriReceivedCustomIDLists
+		})
+	case payload.RegisterSideChain:
+		originRegisteredSideChainPayloadInfo := p.RegisteredSideChainPayloadInfo
+		p.history.Append(height, func() {
+			if info, ok := p.RegisteredSideChainPayloadInfo[height]; ok {
+				info[proposalState.TxHash] = proposalState.Proposal.SideChainInfo
+			} else {
+				rs := make(map[common.Uint256]payload.SideChainInfo)
+				rs[proposalState.TxHash] = proposalState.Proposal.SideChainInfo
+				p.RegisteredSideChainPayloadInfo[height] = rs
+			}
+		}, func() {
+			p.RegisteredSideChainPayloadInfo = originRegisteredSideChainPayloadInfo
+		})
 	}
 }
 
@@ -340,6 +421,16 @@ func (p *ProposalManager) transferCRAgreedState(proposalState *ProposalState,
 			proposalState.Status = CRAgreed
 			proposalState.BudgetsStatus = oriBudgetsStatus
 		})
+		if proposalState.Proposal.ProposalType == payload.ReceiveCustomID {
+			oriPendingReceivedCustomIDMap := p.PendingReceivedCustomIDMap
+			p.history.Append(height, func() {
+				for _, id := range proposalState.Proposal.ReceivedCustomIDList {
+					delete(p.PendingReceivedCustomIDMap, id)
+				}
+			}, func() {
+				p.PendingReceivedCustomIDMap = oriPendingReceivedCustomIDMap
+			})
+		}
 	} else {
 		if isSpecialProposal(proposalState.Proposal.ProposalType) {
 			status = Finished
@@ -369,7 +460,8 @@ func (p *ProposalManager) transferCRAgreedState(proposalState *ProposalState,
 
 func isSpecialProposal(proposalType payload.CRCProposalType) bool {
 	switch proposalType {
-	case payload.SecretaryGeneral, payload.ChangeProposalOwner, payload.CloseProposal:
+	case payload.SecretaryGeneral, payload.ChangeProposalOwner, payload.CloseProposal, payload.ReserveCustomID,
+		payload.ReceiveCustomID, payload.ChangeCustomIDFee, payload.RegisterSideChain:
 		return true
 	default:
 		return false
@@ -382,6 +474,55 @@ func (p *ProposalManager) shouldEndCRCVote(RegisterHeight uint32,
 	height uint32) bool {
 	//proposal.RegisterHeight
 	return RegisterHeight+p.params.ProposalCRVotingPeriod <= height
+}
+
+func (p *ProposalManager) addRegisterSideChainInfo(proposalState *ProposalState, height uint32) {
+	originRegisteredSideChainNames := p.RegisteredSideChainNames
+	originRegisteredMagicNumbers := p.RegisteredMagicNumbers
+	originRegisteredGenesisHash := p.RegisteredGenesisHashes
+	p.history.Append(height, func() {
+		p.RegisteredSideChainNames = append(p.RegisteredSideChainNames, proposalState.Proposal.SideChainName)
+		p.RegisteredMagicNumbers = append(p.RegisteredMagicNumbers, proposalState.Proposal.MagicNumber)
+		p.RegisteredGenesisHashes = append(p.RegisteredGenesisHashes, proposalState.Proposal.GenesisHash)
+	}, func() {
+		p.RegisteredSideChainNames = originRegisteredSideChainNames
+		p.RegisteredMagicNumbers = originRegisteredMagicNumbers
+		p.RegisteredGenesisHashes = originRegisteredGenesisHash
+	})
+}
+
+func (p *ProposalManager) removeRegisterSideChainInfo(proposalState *ProposalState, height uint32) {
+	if proposalState.Proposal.ProposalType != payload.RegisterSideChain {
+		return
+	}
+
+	location := 0
+	var exist bool
+	for i, name := range p.RegisteredSideChainNames {
+		if name == proposalState.Proposal.SideChainName {
+			location = i
+			exist = true
+			break
+		}
+	}
+	if exist {
+		originRegisteredSideChainNames := p.RegisteredSideChainNames
+		originRegisteredMagicNumbers := p.RegisteredMagicNumbers
+		originRegisteredGenesisHash := p.RegisteredGenesisHashes
+
+		p.history.Append(height, func() {
+			p.RegisteredSideChainNames = []string{}
+			p.RegisteredMagicNumbers = []uint32{}
+			p.RegisteredGenesisHashes = []common.Uint256{}
+			p.RegisteredSideChainNames = append(originRegisteredSideChainNames[0:location], originRegisteredSideChainNames[location+1:]...)
+			p.RegisteredMagicNumbers = append(originRegisteredMagicNumbers[0:location], originRegisteredMagicNumbers[location+1:]...)
+			p.RegisteredGenesisHashes = append(originRegisteredGenesisHash[0:location], originRegisteredGenesisHash[location+1:]...)
+		}, func() {
+			p.RegisteredSideChainNames = originRegisteredSideChainNames
+			p.RegisteredMagicNumbers = originRegisteredMagicNumbers
+			p.RegisteredGenesisHashes = originRegisteredGenesisHash
+		})
+	}
 }
 
 // shouldEndPublicVote returns if current height should end public vote
@@ -446,8 +587,9 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 	}
 	proposalState := &ProposalState{
 		Status:              Registered,
-		Proposal:            *proposal,
+		Proposal:            proposal.ToProposalInfo(tx.PayloadVersion),
 		TxHash:              tx.Hash(),
+		TxPayloadVer:        tx.PayloadVersion,
 		CRVotes:             map[common.Uint168]payload.VoteResult{},
 		VotersRejectAmount:  common.Fixed64(0),
 		RegisterHeight:      height,
@@ -462,18 +604,20 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 		Recipient:           proposal.Recipient,
 	}
 	crCouncilMemberDID := proposal.CRCouncilMemberDID
-	hash := proposal.Hash()
+	hash := proposal.Hash(tx.PayloadVersion)
 
 	history.Append(height, func() {
-		p.Proposals[proposal.Hash()] = proposalState
+		hash := proposal.Hash(tx.PayloadVersion)
+		log.Debug("registerProposal hash", hash.String())
+		p.Proposals[hash] = proposalState
 		p.addProposal(crCouncilMemberDID, hash)
 		if _, ok := p.ProposalSession[currentsSession]; !ok {
 			p.ProposalSession[currentsSession] = make([]common.Uint256, 0)
 		}
 		p.ProposalSession[currentsSession] =
-			append(p.ProposalSession[currentsSession], proposal.Hash())
+			append(p.ProposalSession[currentsSession], proposal.Hash(tx.PayloadVersion))
 	}, func() {
-		delete(p.Proposals, proposal.Hash())
+		delete(p.Proposals, proposal.Hash(tx.PayloadVersion))
 		p.delProposal(crCouncilMemberDID, hash)
 		if len(p.ProposalSession[currentsSession]) == 1 {
 			delete(p.ProposalSession, currentsSession)
@@ -482,6 +626,21 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 			p.ProposalSession[currentsSession] = p.ProposalSession[currentsSession][:count-1]
 		}
 	})
+
+	// record to PendingReceivedCustomIDMap
+	switch proposal.ProposalType {
+	case payload.ReceiveCustomID:
+		oriPendingReceivedCustomIDMap := p.PendingReceivedCustomIDMap
+		history.Append(height, func() {
+			for _, id := range proposal.ReceivedCustomIDList {
+				p.PendingReceivedCustomIDMap[id] = struct{}{}
+			}
+		}, func() {
+			p.PendingReceivedCustomIDMap = oriPendingReceivedCustomIDMap
+		})
+	case payload.RegisterSideChain:
+		p.addRegisterSideChainInfo(proposalState, height)
+	}
 }
 
 func getCIDByCode(code []byte) (*common.Uint168, error) {
@@ -536,7 +695,6 @@ func (p *ProposalManager) proposalReview(tx *types.Transaction,
 		} else {
 			delete(proposalState.CRVotes, did)
 		}
-
 	})
 }
 

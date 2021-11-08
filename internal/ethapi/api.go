@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/tyler-smith/go-bip39"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/scwallet"
@@ -39,12 +41,17 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
-	"github.com/tyler-smith/go-bip39"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
+
+	"github.com/elastos/Elastos.ELA/events"
 )
 
 const (
@@ -732,6 +739,64 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 	}
 	res := state.GetState(address, common.HexToHash(key))
 	return res[:], state.Error()
+}
+
+func (s *PublicBlockChainAPI) GetCurrentProducers(ctx context.Context) ([]string, error) {
+	block := s.b.CurrentBlock()
+	elaHeight := block.Nonce()
+	if elaHeight == 0 {
+		return s.b.ChainConfig().Pbft.Producers, nil
+	}
+
+	list, _, err := spv.GetProducers(elaHeight)
+	producers := make([]string, len(list))
+
+	for i, v := range list {
+		producer := common.Bytes2Hex(v)
+		producers[i] = producer
+	}
+	return producers, err
+}
+
+func (s *PublicBlockChainAPI) ReceivedSmallCrossTx(ctx context.Context, signature string, rawTx string) error {
+	arbiters, err := s.GetCurrentProducers(ctx)
+	if err != nil {
+		return err
+	}
+	err = smallcrosstx.OnSmallCrossTx(arbiters, signature, rawTx)
+	if err != nil {
+		return nil
+	}
+	croTx := smallcrosstx.ETSmallCrossTx{RawTx: rawTx, Signature: signature}
+	events.Notify(dpos.ETSmallCroTx, &croTx)
+	return err
+}
+
+func (s *PublicBlockChainAPI) GetFailedRechargeTxs(ctx context.Context, height uint64) ([]string, error) {
+	txs := spv.GetFailedRechargeTxs(height)
+	return txs, nil
+}
+
+func (s *PublicBlockChainAPI) GetFailedRechargeTxByHash(ctx context.Context, hash string) (string, error) {
+	txid := spv.GetFailedRechargeTxByHash(hash)
+	return txid, nil
+}
+
+func (s *PublicBlockChainAPI) SendInvalidWithdrawTransaction(ctx context.Context, signature string, hash string) error {
+	txid := common.HexToHash(hash)
+	tx, _, _, _, err := s.b.GetTransaction(ctx, txid)
+	if tx == nil || err != nil {
+		return errors.New(fmt.Sprintf("not found withdraw tx, txid:%s", txid.String()))
+	}
+	if tx.To().String() != s.b.ChainConfig().BlackContractAddr {
+		msg := fmt.Sprintf("is not withdraw tx, txid:%s", hash)
+		return errors.New(msg)
+	}
+	err = withdrawfailedtx.ReceivedFailedWithdrawTx(hash, signature)
+	if err != nil {
+		log.Error("ReceivedFailedWithdrawTx", "error", err)
+	}
+	return err
 }
 
 // CallArgs represents the arguments for a call.

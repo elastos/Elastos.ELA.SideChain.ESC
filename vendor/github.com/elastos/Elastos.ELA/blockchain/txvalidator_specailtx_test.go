@@ -64,7 +64,7 @@ func (s *txValidatorSpecialTxTestSuite) SetupSuite() {
 	}
 	for _, v := range arbitratorsStr {
 		a, _ := common.HexStringToBytes(v)
-		ar, _ := state.NewOriginArbiter(state.Origin, a)
+		ar, _ := state.NewOriginArbiter(a)
 		s.arbitrators.CurrentArbitrators = append(
 			s.arbitrators.CurrentArbitrators, ar)
 	}
@@ -85,6 +85,7 @@ func (s *txValidatorSpecialTxTestSuite) SetupSuite() {
 	}
 	s.Chain, err = New(chainStore, &config.DefaultParams,
 		state.NewState(&config.DefaultParams, nil, nil, nil,
+			nil, nil,
 			nil, nil, nil), nil)
 	if err != nil {
 		s.Error(err)
@@ -506,6 +507,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckDPOSIllegalBlocks() {
 		},
 		Votes: []payload.DPOSProposalVote{},
 	}
+
 	confirm.Proposal.Sign, _ = crypto.Sign(s.arbitratorsPriKeys[0],
 		confirm.Proposal.Data())
 	cmpConfirm.Proposal.Sign, _ = crypto.Sign(s.arbitratorsPriKeys[0],
@@ -513,7 +515,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckDPOSIllegalBlocks() {
 	s.updateIllegaBlocks(confirm, evidence, cmpConfirm, cmpEvidence, asc,
 		illegalBlocks)
 	s.EqualError(CheckDPOSIllegalBlocks(illegalBlocks),
-		"[ConfirmContextCheck] signers less than majority count")
+		"[IllegalConfirmContextCheck] signers less than majority count")
 
 	// fill votes of confirms
 	for i := 0; i < 4; i++ {
@@ -537,7 +539,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckDPOSIllegalBlocks() {
 	s.updateIllegaBlocks(confirm, evidence, cmpConfirm, cmpEvidence, asc,
 		illegalBlocks)
 	s.EqualError(CheckDPOSIllegalBlocks(illegalBlocks),
-		"confirm view offset should not be same")
+		"confirm view offset should be same")
 
 	// correct view offset
 	proposal := payload.DPOSProposal{
@@ -693,7 +695,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckInactiveArbitrators() {
 		"sponsor is not belong to arbitrators")
 
 	// correct sponsor
-	ar, _ := state.NewOriginArbiter(state.Origin, p.Sponsor)
+	ar, _ := state.NewOriginArbiter(p.Sponsor)
 	s.arbitrators.CRCArbitrators = []state.ArbiterMember{ar}
 	for i := 0; i < 3; i++ { // add more than InactiveEliminateCount arbiters
 		p.Arbitrators = append(p.Arbitrators,
@@ -716,7 +718,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckInactiveArbitrators() {
 		"invalid multi sign script code")
 
 	// let "Arbitrators" has CRC arbitrators
-	ar, _ = state.NewOriginArbiter(state.Origin, p.Sponsor)
+	ar, _ = state.NewOriginArbiter(p.Sponsor)
 	s.arbitrators.CRCArbitrators = []state.ArbiterMember{
 		ar,
 		s.arbitrators.CurrentArbitrators[4],
@@ -729,7 +731,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckInactiveArbitrators() {
 	for i := 0; i < 5; i++ {
 		_, pk, _ := crypto.GenerateKeyPair()
 		pkBuf, _ := pk.EncodePoint(true)
-		ar, _ = state.NewOriginArbiter(state.Origin, pkBuf)
+		ar, _ = state.NewOriginArbiter(pkBuf)
 		s.arbitrators.CRCArbitrators = append(s.arbitrators.CRCArbitrators, ar)
 	}
 	s.arbitrators.CRCArbitratorsMap = map[string]*state.Producer{}
@@ -744,7 +746,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckInactiveArbitrators() {
 	}
 	_, pk, _ := crypto.GenerateKeyPair()
 	pkBuf, _ := pk.EncodePoint(true)
-	ar, _ = state.NewOriginArbiter(state.Origin, pkBuf)
+	ar, _ = state.NewOriginArbiter(pkBuf)
 	arbitrators = append(arbitrators, ar)
 	tx.Programs[0].Code = s.createArbitratorsRedeemScript(arbitrators)
 	s.EqualError(CheckInactiveArbitrators(tx),
@@ -789,7 +791,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckUpdateVersion() {
 	for i := 0; i < 5; i++ {
 		_, pk, _ := crypto.GenerateKeyPair()
 		pkBuf, _ := pk.EncodePoint(true)
-		ar, _ := state.NewOriginArbiter(state.Origin, pkBuf)
+		ar, _ := state.NewOriginArbiter(pkBuf)
 		s.arbitrators.CRCArbitrators = append(s.arbitrators.CRCArbitrators, ar)
 	}
 	s.arbitrators.CRCArbitratorsMap = map[string]*state.Producer{}
@@ -803,7 +805,7 @@ func (s *txValidatorSpecialTxTestSuite) TestCheckUpdateVersion() {
 	}
 	_, pk, _ := crypto.GenerateKeyPair()
 	pkBuf, _ := pk.EncodePoint(true)
-	ar, _ := state.NewOriginArbiter(state.Origin, pkBuf)
+	ar, _ := state.NewOriginArbiter(pkBuf)
 	arbitrators = append(arbitrators, ar)
 	tx.Programs[0].Code = s.createArbitratorsRedeemScript(arbitrators)
 	s.EqualError(s.Chain.checkUpdateVersionTransaction(tx),
