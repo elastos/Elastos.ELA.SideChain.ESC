@@ -31,7 +31,6 @@ var (
 	// revert to pow
 	BKTRevertPosition  = []byte("revertp")
 	BKTRevertPositions = []byte("revertps")
-	BKTConsensus       = []byte("consensus")
 
 	//ReturnSideChainDepositCoin
 	BKTReturnSideChainDepositCoin = []byte("retschdepositcoin")

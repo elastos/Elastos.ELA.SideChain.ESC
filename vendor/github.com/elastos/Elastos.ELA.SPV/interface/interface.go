@@ -81,10 +81,12 @@ type SPVService interface {
 	GetConsensusAlgorithm(height uint32) (ConsensusAlgorithm, error)
 
 	// GetReservedCustomIDs query all controversial reserved custom ID.
-	GetReservedCustomIDs() (map[string]struct{}, error)
+	// height need to be the height of main chain.
+	GetReservedCustomIDs(height uint32) (map[string]struct{}, error)
 
 	// GetReceivedCustomIDs query all controversial received custom ID.
-	GetReceivedCustomIDs() (map[string]common.Uint168, error)
+	// height need to be the height of main chain.
+	GetReceivedCustomIDs(height uint32) (map[string]common.Uint168, error)
 
 	//HaveRetSideChainDepositCoinTx query tx data by tx hash
 	HaveRetSideChainDepositCoinTx(txHash common.Uint256) bool
