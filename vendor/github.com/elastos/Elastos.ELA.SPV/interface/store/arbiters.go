@@ -17,13 +17,18 @@ import (
 // Ensure arbiters implement arbiters interface.
 var _ Arbiters = (*arbiters)(nil)
 
+type RevertInfo struct {
+	WorkingHeight uint32
+	Mode          byte
+}
+
 type arbiters struct {
 	batch
 	sync.RWMutex
 	db             *leveldb.DB
 	b              *leveldb.Batch
 	posCache       []uint32
-	revertPOSCache []uint32
+	revertPOSCache []RevertInfo
 	cache          map[common.Uint256]uint32
 	originArbiters [][]byte
 	arbitersCount  int
@@ -215,12 +220,12 @@ func (c *arbiters) getCurrentRevertPosition() uint32 {
 	return 0
 }
 
-func (c *arbiters) getCurrentRevertPositions() []uint32 {
+func (c *arbiters) getCurrentRevertPositions() ([]RevertInfo, error) {
 	pos, err := c.db.Get(BKTRevertPositions, nil)
-	if err == nil {
-		return bytesToUint32Array(pos)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return bytesToRevertInfoArray(pos)
 }
 
 func (c *arbiters) Commit() error {
@@ -256,6 +261,48 @@ func uint32ArrayToBytes(data []uint32) []byte {
 		buffer.Write(uint32toBytes(data[i]))
 	}
 	return buffer.Bytes()
+}
+
+func revertInfoArrayToBytes(data []RevertInfo) ([]byte, error) {
+	w := new(bytes.Buffer)
+	if err := common.WriteVarUint(w, uint64(len(data))); err != nil {
+		return nil, err
+	}
+	for _, r := range data {
+		if err := common.WriteUint32(w, r.WorkingHeight); err != nil {
+			return nil, err
+		}
+		if err := w.WriteByte(r.Mode); err != nil {
+			return nil, err
+		}
+
+	}
+	return w.Bytes(), nil
+}
+
+func bytesToRevertInfoArray(data []byte) ([]RevertInfo, error) {
+	r := bytes.NewReader(data)
+	count, err := common.ReadVarUint(r, 0)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]RevertInfo, 0)
+	for i := uint64(0); i < count; i++ {
+		workingHeight, err := common.ReadUint32(r)
+		if err != nil {
+			return nil, err
+		}
+		mode, err := r.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, RevertInfo{
+			WorkingHeight: workingHeight,
+			Mode:          mode,
+		})
+	}
+	return results, nil
 }
 
 func getIndex(data uint32) []byte {
@@ -321,37 +368,48 @@ func calcHash(data []byte) [32]byte {
 	return sha256.Sum256(data)
 }
 
-func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
+func (c *arbiters) GetRevertInfo() []RevertInfo {
 	c.RLock()
 	defer c.RUnlock()
-	var pos []uint32
+	var pos []RevertInfo
 	if len(c.revertPOSCache) == 0 {
-		pos = c.getCurrentRevertPositions()
+		var err error
+		pos, err = c.getCurrentRevertPositions()
+		if err!= nil && err != leveldb.ErrNotFound {
+			return pos
+		}
 		c.revertPOSCache = pos
 	} else {
 		pos = c.revertPOSCache
 	}
 
-	var modeHeight uint32
+	return pos
+}
+
+func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
+	c.RLock()
+	defer c.RUnlock()
+	var pos []RevertInfo
+	if len(c.revertPOSCache) == 0 {
+		var err error
+		pos, err = c.getCurrentRevertPositions()
+		if err!= nil && err != leveldb.ErrNotFound {
+			return 0, err
+		}
+		c.revertPOSCache = pos
+	} else {
+		pos = c.revertPOSCache
+	}
+
+	var revertInfo RevertInfo
 	for _, p := range pos {
-		if p > height {
+		if p.WorkingHeight > height {
 			break
 		}
-		modeHeight = p
+		revertInfo = p
 	}
 
-	buf := new(bytes.Buffer)
-	if err := common.WriteUint32(buf, modeHeight); err != nil {
-		return 0, err
-	}
-	key := toKey(BKTConsensus, buf.Bytes()...)
-
-	mode, _ := c.db.Get(key, nil)
-	if len(mode) != 1 {
-		return 0, errors.New("failed to get consensus mode")
-	}
-
-	return mode[0], nil
+	return revertInfo.Mode, nil
 }
 
 func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight uint32, mode byte) error {
@@ -365,24 +423,27 @@ func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight
 	}
 	batch.Put(BKTRevertPosition, uint32toBytes(workingHeight))
 	if !isRollback {
-		posCache := c.getCurrentRevertPositions()
-		newPosCache := make([]uint32, 0)
+		posCache, err := c.getCurrentRevertPositions()
+		if err != nil && err != leveldb.ErrNotFound {
+			return err
+		}
+		newPosCache := make([]RevertInfo, 0)
 		for _, p := range posCache {
-			if p < workingHeight {
+			if p.WorkingHeight < workingHeight {
 				newPosCache = append(newPosCache, p)
 			}
 		}
-		newPosCache = append(newPosCache, workingHeight)
+		newPosCache = append(newPosCache, RevertInfo{
+			WorkingHeight: workingHeight,
+			Mode:          mode,
+		})
 		c.revertPOSCache = newPosCache
-		batch.Put(BKTRevertPositions, uint32ArrayToBytes(c.revertPOSCache))
+		data, err := revertInfoArrayToBytes(c.revertPOSCache)
+		if err != nil {
+			return err
+		}
+		batch.Put(BKTRevertPositions, data)
 	}
-
-	buf := new(bytes.Buffer)
-	if err := common.WriteUint32(buf, workingHeight); err != nil {
-		return err
-	}
-	key := toKey(BKTConsensus, buf.Bytes()...)
-	batch.Put(key, []byte{mode})
 
 	return nil
 }

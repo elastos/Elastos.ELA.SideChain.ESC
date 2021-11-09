@@ -43,6 +43,9 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	if SpvService == nil {
 		return producers, totalCount,  errors.New("spv is not start")
 	}
+	if GetCurrentConsensusMode() == spv.POW {
+		return producers, totalCount, nil
+	}
 	crcArbiters, normalArbitrs, err := SpvService.GetArbiters(uint32(elaHeight))
 	if err != nil {
 		return producers, totalCount, err
