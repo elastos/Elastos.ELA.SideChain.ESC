@@ -72,7 +72,12 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 
 func GetSpvHeight() uint64  {
 	if SpvService != nil && SpvService.GetBlockListener() != nil {
-		return uint64(SpvService.GetBlockListener().BlockHeight())
+		header, err := SpvService.HeaderStore().GetBest()
+		if err != nil {
+			log.Error("SpvService getBest error", "error", err)
+			return uint64(SpvService.GetBlockListener().BlockHeight())
+		}
+		return uint64(header.Height)
 	}
 	return 0
 }
