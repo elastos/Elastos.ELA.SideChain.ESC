@@ -71,7 +71,9 @@ func NewEVMChain(dr EventListener, writer ProposalVoter,
 	chain.superVoter = common.Hex2Bytes(supervoter)
 	chain.msgPool = msg_pool.NewMsgPool(chain.superVoter)
 	chain.arbiterManager = arbiterManager
-	go chain.subscribeEvent()
+	if writer != nil {
+		go chain.subscribeEvent()
+	}
 	return chain
 }
 

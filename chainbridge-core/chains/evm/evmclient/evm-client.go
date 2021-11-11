@@ -67,11 +67,10 @@ func (c *EVMClient) Configurate(path string, accountPath, password string) error
 		accountPath = generalConfig.KeystorePath
 	}
 	kp, err := keystore.KeypairFromAddress(keystore.EthChain, accountPath, []byte(password), generalConfig.Insecure)
-	if err != nil {
-		panic(err)
+	if err == nil {
+		krp := kp.(*secp256k1.Keypair)
+		c.config.kp = krp
 	}
-	krp := kp.(*secp256k1.Keypair)
-	c.config.kp = krp
 	rpcClient, err := rpc.DialContext(context.TODO(), generalConfig.Endpoint)
 	if err != nil {
 		return err
