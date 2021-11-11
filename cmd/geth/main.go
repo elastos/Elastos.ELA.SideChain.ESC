@@ -36,6 +36,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/console"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/downloader"
@@ -595,12 +596,13 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 	}
 
 	// Start auxiliary services if enabled
+	var ethereum *eth.Ethereum
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		// Mining only makes sense if a full Ethereum node is running
 		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
 			utils.Fatalf("Light clients do not support mining")
 		}
-		var ethereum *eth.Ethereum
+
 		if err := stack.Service(&ethereum); err != nil {
 			utils.Fatalf("Ethereum service not running: %v", err)
 		}
@@ -620,23 +622,29 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Failed to start mining: %v", err)
 			}
 		}
-		go func() {
-			accPath := ""
-			if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
-				accPath = wallets[0].URL().Path
-			}
-			passwords := utils.MakePasswordList(ctx)
-			pbft := ethereum.BlockChain().GetDposEngine().(*pbft.Pbft)
-			if pbft.GetProducer() != nil {
-				chainbridge_core.Init(pbft, accPath, passwords[0])
-				height := ethereum.BlockChain().CurrentHeader().Number
-				if ethereum.BlockChain().Config().IsLayer2Fork(height) {
-					if chainbridge_core.Start() {
-						pbft.AnnounceDAddr()
-					}
+	}
+	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
+		go startLayer2(ctx, stack, ethereum.BlockChain())
+	}
+}
+
+func startLayer2(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain) {
+	accPath := ""
+	if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
+		accPath = wallets[0].URL().Path
+	}
+	passwords := utils.MakePasswordList(ctx)
+	engine := blockChain.GetDposEngine().(*pbft.Pbft)
+	chainbridge_core.Init(engine, accPath, passwords[0])
+	if engine.GetProducer() != nil {
+		if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
+			height := blockChain.CurrentHeader().Number
+			if blockChain.Config().IsLayer2Fork(height) {
+				if chainbridge_core.Start() {
+					engine.AnnounceDAddr()
 				}
 			}
-		}()
+		}
 	}
 }
 
