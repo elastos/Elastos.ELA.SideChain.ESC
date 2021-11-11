@@ -555,14 +555,14 @@ func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.P
 	messageHandler := voter.NewEVMMessageHandler(ethClient, common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge))
 	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Erc20Handler), voter.ERC20MessageHandler)
 	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.WEthHandler), voter.ERC20MessageHandler)
-
-	kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
-	if kp == nil {
-		return nil, errors.New("GetBridgeArbiters is nil")
+	var evmVoter *voter.EVMVoter
+	if engine.GetBridgeArbiters() != nil {
+		kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
+		if kp != nil {
+			evmVoter = voter.NewVoter(messageHandler, ethClient, kp)
+		}
 	}
-	voter := voter.NewVoter(messageHandler, ethClient, kp)
-
-	chain := evm.NewEVMChain(evmListener, voter, db, ethCfg.SharedEVMConfig.Id,
+	chain := evm.NewEVMChain(evmListener, evmVoter, db, ethCfg.SharedEVMConfig.Id,
 		&ethCfg.SharedEVMConfig, arbiterManager, engine.GetBlockChain().Config().Layer2EFVoter)
 	return chain, nil
 }
