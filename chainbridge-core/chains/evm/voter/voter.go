@@ -19,6 +19,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -202,7 +203,29 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 	out0 := make([]common.Address, 0)
 	err = a.Unpack(&out0, "getAbiterList", out)
 	if err != nil {
-		return nil, err
+		return []common.Address{}, err
+	}
+	return out0, err
+}
+
+func (w *EVMVoter) GetSuperSigner(bridgeAddress string) (common.Address, error) {
+	a, err := chainbridge_abi.GetCurrentSuperSignerABI()
+	if err != nil {
+		return common.Address{}, err
+	}
+	input, err := a.Pack("getCurrentSuperSigner")
+	if err != nil {
+		return common.Address{}, err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
+	out, err:= w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	log.Info("GetSuperSigner", "error", err, "out", out)
+
+	var out0 common.Address
+	err = a.Unpack(&out0, "getCurrentSuperSigner", out)
+	if err != nil {
+		return common.Address{}, err
 	}
 	return out0, err
 }
