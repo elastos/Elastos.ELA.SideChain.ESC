@@ -17,6 +17,7 @@ type RelayedChain interface {
 	WriteArbiters(aribters []common.Address, signatures [][]byte, totalCount int) error
 	GetArbiters() []common.Address
 	GetBridgeContract() string
+	GetCurrentSuperSigner() common.Address
 }
 
 func NewRelayer(chains []RelayedChain) *Relayer {
@@ -105,4 +106,13 @@ func (r *Relayer) GetArbiters(chainID uint8) []common.Address {
 		return []common.Address{}
 	}
 	return c.GetArbiters()
+}
+
+func (r *Relayer) GetCurrentSuperSigner(chainID uint8) common.Address {
+	c := r.registry[chainID]
+	if c == nil {
+		log.Error("not register chainID", "chainID", chainID)
+		return common.Address{}
+	}
+	return c.GetCurrentSuperSigner()
 }

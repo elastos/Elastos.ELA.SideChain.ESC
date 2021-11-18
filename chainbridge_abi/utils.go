@@ -47,6 +47,12 @@ func GetExecuteBatchNoSigABI() (abi.ABI, error) {
 	return a, err
 }
 
+func GetCurrentSuperSignerABI() (abi.ABI, error) {
+	definition := "[{\"inputs\":[],\"name\":\"getCurrentSuperSigner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}
+
 func GetTestExecuteProposalAbi() (abi.ABI, error) {
 	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"internalType\":\"bytes[]\",\"name\":\"data\",\"type\":\"bytes[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"}],\"name\":\"test\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
