@@ -45,6 +45,7 @@ type ProposalVoter interface {
 	GetSignerAddress() (common.Address, error)
 	SetArbiterList(arbiters []common.Address, totalCount int, signature [][]byte, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
+	GetSuperSigner(bridgeAddress string) (common.Address, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 }
 
@@ -101,11 +102,12 @@ func (c *EVMChain) selfOnDuty(e *events.Event) {
 
 	log.Info("selfOnDuty selfOnDuty", "chainID", c.chainID, "queueList", len(queueList), "pendingList", len(pendingList))
 	if c.chainID == Layer2ChainID {
-		if len(queueList) > 0 && len(pendingList) == 0 {
+		if len(queueList) > 0 {
 			for _, p := range queueList {
 				c.broadProposal(p)
 			}
-		} else if len(pendingList) > 0 {
+		}
+		if len(pendingList) > 0 {
 			log.Info("ExecuteToLayer2Proposal", "list count", len(pendingList))
 			err := c.ExecuteProposals(pendingList)
 			if err != nil {
@@ -219,9 +221,9 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	superVoterSignature := c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
 	maxsign := c.getMaxArbitersSign()
 
-	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > maxsign && len(superVoterSignature) > 0 {
-		return errors.New("is collect enough feedback")
-	}
+	//if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > maxsign && len(superVoterSignature) > 0 {
+	//	return errors.New("is collect enough feedback")
+	//}
 
 	if err := c.verifySignature(msg); err != nil {
 		return err
@@ -313,10 +315,10 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 
 	superVoterSignature := c.msgPool.GetSuperVoterSigner(phash)
 	maxsign := c.getMaxArbitersSign()
-	if c.msgPool.GetVerifiedCount(proposal.Hash()) > maxsign &&
-		len(superVoterSignature) > 0 {
-		return errors.New("is collect enough signature")
-	}
+	//if c.msgPool.GetVerifiedCount(proposal.Hash()) > maxsign &&
+	//	len(superVoterSignature) > 0 {
+	//	return errors.New("is collect enough signature")
+	//}
 
 	if compareMsg(&msg.Item, proposal) {
 		err := c.onProposal(msg, proposal.Hash().Bytes())
@@ -360,7 +362,7 @@ func compareMsg(msg1 *dpos_msg.DepositItem, msg2 *voter.Proposal) bool {
 
 func (c *EVMChain) getMaxArbitersSign() int {
 	total := c.writer.GetClient().Engine().GetTotalArbitersCount()
-	return total * 2 / 3
+	return total * 2 / 3 + 1
 }
 
 func (c *EVMChain) onProposal(msg *dpos_msg.DepositProposalMsg, proposalHash []byte) error {
@@ -433,6 +435,15 @@ func (c *EVMChain) GetArbiters() []common.Address {
 		return []common.Address{}
 	}
 	return list
+}
+
+func (c *EVMChain) GetCurrentSuperSigner() common.Address {
+	addr, err := c.writer.GetSuperSigner(c.bridgeContractAddress)
+	if err != nil {
+		log.Error("GetArbiterList error", "error", err)
+		return common.Address{}
+	}
+	return addr
 }
 
 func (c *EVMChain) GetBridgeContract() string {
