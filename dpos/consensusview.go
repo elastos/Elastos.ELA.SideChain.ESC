@@ -73,6 +73,10 @@ func (v *ConsensusView) GetSpvHeight() uint64 {
 	return v.producers.spvHeight
 }
 
+func (v *ConsensusView) GetTotalProducersCount() int {
+	return v.producers.totalProducers
+}
+
 func (v *ConsensusView) UpdateProducers(producers [][]byte, totalCount int, spvHeight uint64) {
 	sort.Slice(producers, func(i, j int) bool {
 		return bytes.Compare(producers[i], producers[j]) < 0

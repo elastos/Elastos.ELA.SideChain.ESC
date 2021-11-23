@@ -23,10 +23,11 @@ import (
 	"sort"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/state"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crosschain"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
 // nonceHeap is a heap.Interface implementation over 64bit unsigned integers for
@@ -103,11 +104,10 @@ func (m *txSortedMap) Forward(threshold uint64) types.Transactions {
 // the specified function evaluates to true.
 func (m *txSortedMap) Filter(filter func(*types.Transaction) bool, gasLimit uint64, currentState *state.StateDB, from common.Address, blackContractAddr string) types.Transactions {
 	var removed types.Transactions
-	var addr common.Address
 	// Collect all the transactions to filter out
 	for nonce, tx := range m.items {
 		if tx.To() != nil {//recharge tx
-			if len(tx.Data())==  32  && *tx.To() == addr {
+			if crosschain.IsRechargeTx(tx) {
 				filter = func(transaction *types.Transaction) bool {
 					return tx.Gas() > gasLimit
 				}

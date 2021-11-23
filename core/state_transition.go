@@ -17,6 +17,8 @@
 package core
 
 import (
+	"bytes"
+	"encoding/hex"
 	"errors"
 	"math"
 	"math/big"
@@ -29,6 +31,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
+
+	elaType "github.com/elastos/Elastos.ELA/core/types"
 )
 
 var (
@@ -87,6 +91,10 @@ func IntrinsicGas(data []byte, contractCreation, isEIP155 bool, isEIP2028 bool) 
 		gas = params.TxGasContractCreation
 	} else {
 		gas = params.TxGas
+	}
+	rawTxid, _, _ , _:= spv.IsSmallCrossTxByData(data)
+	if rawTxid != "" {
+		return gas, nil
 	}
 	// Bump the required gas by the amount of transactional data
 	if len(data) > 0 {
@@ -214,7 +222,6 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			if completetxhash != emptyHash {
 				return nil, 0, false, ErrRefunded
 			} else {
-
 				st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
 				defer func() {
 					usedFee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
@@ -244,46 +251,66 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 				}()
 			}
 			isRefundWithdrawTx = true
-		} else if len(msg.Data()) == 32 {
-			txhash = hexutil.Encode(msg.Data())
-			fee, toaddr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
-			if toaddr != blackaddr {
-				completetxhash := evm.StateDB.GetState(blackaddr, common.HexToHash(txhash))
-				if (completetxhash == emptyHash) && output.Cmp(fee) > 0 {
-					st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
-					defer func() {
-						ethfee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
-						if fee.Cmp(new(big.Int)) <= 0 || fee.Cmp(ethfee) < 0 || st.state.GetBalance(toaddr).Uint64() < 0 || vmerr != nil {
-							ret = nil
-							usedGas = 0
-							failed = false
-							if err == nil {
-								log.Error("fee is not enough ：", "fee", fee.String(), "need",ethfee.String(), "vmerr", vmerr)
-								err = ErrGasLimitReached
-							}
-							evm.StateDB.RevertToSnapshot(snapshot)
-							return
-						} else {
-							st.state.AddBalance(st.msg.From(), fee)
-						}
-
-						if st.state.GetBalance(st.msg.From()).Cmp(new(big.Int).SetUint64(evm.ChainConfig().PassBalance)) < 0 {
-							ret = nil
-							usedGas = 0
-							failed = false
-							if err == nil {
-								err = ErrGasLimitReached
-							}
-							evm.StateDB.RevertToSnapshot(snapshot)
-						} else {
-							st.state.SubBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
-						}
-					}()
-				} else {
-					return nil, 0, false, ErrMainTxHashPresence
+		} else {
+			isSmallRechargeTx := false
+			verified:= false
+			rawTxID := ""
+			if len(msg.Data()) > 32 {
+				isSmallRechargeTx, verified, rawTxID, err = st.dealSmallCrossTx()
+				if err != nil && isSmallRechargeTx {
+					log.Warn("TransitionDb dealSmallCrossTx >>", "isSmallRechargeTx", isSmallRechargeTx, "verified", verified, "rawTxID", rawTxID, "err", err)
+					return nil, 0, false, err
 				}
-			} else {
-				return nil, 0, false, ErrElaToEthAddress
+				if isSmallRechargeTx && verified == false {
+					log.Warn("TransitionDb dealSmallCrossTx >>", "isSmallRechargeTx", isSmallRechargeTx, "verified", verified, "rawTxID", rawTxID, "err", err)
+					return nil, 0, false, ErrSmallCrossTxVerify
+				}
+				txhash = rawTxID
+			}
+			if len(msg.Data()) == 32 {
+				txhash = hexutil.Encode(msg.Data())
+			}
+			if len(msg.Data()) == 32 || isSmallRechargeTx {
+				fee, toaddr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
+				if toaddr != blackaddr {
+					completetxhash := evm.StateDB.GetState(blackaddr, common.HexToHash(txhash))
+					if (completetxhash == emptyHash) && output.Cmp(fee) > 0 {
+						st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
+						defer func() {
+							ethfee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
+							if fee.Cmp(new(big.Int)) <= 0 || fee.Cmp(ethfee) < 0 || st.state.GetBalance(toaddr).Uint64() < 0 || vmerr != nil {
+								ret = nil
+								usedGas = 0
+								failed = false
+								if err == nil {
+									log.Error("fee is not enough ：", "fee", fee.String(), "need",ethfee.String(), "vmerr", vmerr)
+									err = ErrGasLimitReached
+								}
+								evm.StateDB.RevertToSnapshot(snapshot)
+								return
+							} else {
+								st.state.AddBalance(st.msg.From(), fee)
+							}
+
+							if st.state.GetBalance(st.msg.From()).Cmp(new(big.Int).SetUint64(evm.ChainConfig().PassBalance)) < 0 {
+								ret = nil
+								usedGas = 0
+								failed = false
+								if err == nil {
+									err = ErrGasLimitReached
+								}
+								evm.StateDB.RevertToSnapshot(snapshot)
+							} else {
+								st.state.SubBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
+							}
+						}()
+					} else {
+						return nil, 0, false, ErrMainTxHashPresence
+					}
+				} else {
+					log.Info("recharge failed ", "fee", fee.String(), "toaddr", toaddr, "output", output, "isSmallRechargeTx", isSmallRechargeTx)
+					return nil, 0, false, ErrElaToEthAddress
+				}
 			}
 		}
 	} else if contractCreation {//deploy contract
@@ -350,6 +377,40 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 
 	return ret, st.gasUsed(), vmerr != nil, err
+}
+
+func (st *StateTransition) dealSmallCrossTx() (isSmallCrossTx, verifyed bool, txHash string, err error) {
+	msg := st.msg
+	err = nil
+	rawTxid, rawTx, signatures, height := spv.IsSmallCrossTxByData(msg.Data())
+	isSmallCrossTx = len(rawTxid) > 0
+	if !isSmallCrossTx {
+		verifyed = false
+		return isSmallCrossTx, verifyed, rawTxid, errors.New("is not small cross transaction")
+	}
+	verifyed, err = spv.VerifySmallCrossTx(rawTxid, rawTx, signatures, height)
+	if err != nil {
+		return isSmallCrossTx, verifyed, rawTxid, err
+	}
+	if !verifyed {
+		return isSmallCrossTx, verifyed, rawTxid, err
+	}
+	buff, err := hex.DecodeString(rawTx)
+	if err != nil {
+		log.Error("VerifySmallCrossTx DecodeString raw error", "error", err)
+		verifyed = false
+		return isSmallCrossTx, verifyed, rawTxid, err
+	}
+
+	var txn elaType.Transaction
+	err = txn.Deserialize(bytes.NewReader(buff))
+	if err != nil {
+		log.Error("[Small-Transfer] Decode transaction error", err.Error())
+		verifyed = false
+		return isSmallCrossTx, verifyed, rawTxid, err
+	}
+	spv.NotifySmallCrossTx(txn)
+	return isSmallCrossTx, verifyed, rawTxid, err
 }
 
 func (st *StateTransition) refundGas() {

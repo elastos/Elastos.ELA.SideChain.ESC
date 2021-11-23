@@ -91,14 +91,14 @@ func ReceivedFailedWithdrawTx(hash string, signature string) error {
 		OnProcessFaildWithdrawTx(hash)
 		return errors.New("all ready refund this amount" + common.BytesToHash(txhash).String())
 	}
-	arbiters, err := spv.GetArbiters()
+	arbiters, total, err := spv.GetArbiters()
 	if err != nil {
 		return err
 	}
 
 	verifiedSigList := failedTxList[hash]
 	verifiedArbiterList := verifiedArbiter[hash]
-	if len(verifiedArbiterList) >= getMaxArbitersSign(len(arbiters)) {
+	if len(verifiedArbiterList) >= getMaxArbitersSign(total) {
 		return errors.New("all ready received 2/3 signatures")
 	}
 
@@ -107,7 +107,7 @@ func ReceivedFailedWithdrawTx(hash string, signature string) error {
 		verifiedArbiterList = append(verifiedArbiterList, arb)
 		failedTxList[hash] = verifiedSigList
 		verifiedArbiter[hash] = verifiedArbiterList
-		if len(verifiedArbiterList) >= getMaxArbitersSign(len(arbiters)) {
+		if len(verifiedArbiterList) >= getMaxArbitersSign(total) {
 			err := SendRefundTx(spv.GetDefaultSingerAddr(), hash)
 			if err != nil {
 				log.Error("SendRefundTx error", "error", err)
@@ -213,7 +213,7 @@ func VerifySignatures(input []byte) bool {
 		return false
 	}
 
-	arbiters, err := spv.GetArbiters()
+	arbiters, total, err := spv.GetArbiters()
 	if err != nil {
 		return false
 	}
@@ -238,7 +238,7 @@ func VerifySignatures(input []byte) bool {
 	txid = txid[2:]
 
 	verifiedArbiterList := verifiedArbiter[txid]
-	if len(verifiedArbiterList) >= getMaxArbitersSign(len(arbiters)) {
+	if len(verifiedArbiterList) >= getMaxArbitersSign(total) {
 		log.Info("all ready verified refund withdraw tx", "txid", txid)
 		return true
 	}
@@ -259,8 +259,8 @@ func VerifySignatures(input []byte) bool {
 				break
 			}
 		}
-		fmt.Println(">>>> verified true ", "count", count, "arbiter", "txid", txid)
-		if count >= getMaxArbitersSign(len(arbiters)) {
+		log.Info(">>>> verified true ", "count", count, "arbiter", "txid", txid)
+		if count >= getMaxArbitersSign(total) {
 			return true
 		}
 	}

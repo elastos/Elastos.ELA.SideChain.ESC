@@ -25,6 +25,11 @@ web3.extend({
         name: 'receivedSmallCrossTx',
         call: 'eth_receivedSmallCrossTx',
         params: 2,
+    },
+    {
+        name: 'onSmallCrossTxSuccess',
+        call: 'eth_onSmallCrossTxSuccess',
+        params: 1,
     }
     ]
 });

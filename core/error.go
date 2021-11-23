@@ -47,4 +47,6 @@ var (
 	ErrWithdawrefundVerify = errors.New("refund withdraw tx verify signature error")
 
 	ErrRefunded = errors.New("all ready refund withdraw amount")
+
+	ErrSmallCrossTxVerify = errors.New("small cross chain transaction verify signature error")
 )

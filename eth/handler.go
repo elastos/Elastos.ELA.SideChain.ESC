@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"math"
 	"math/big"
 	"sync"
@@ -31,6 +32,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/forkid"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crosschain"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/downloader"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/fetcher"
@@ -41,7 +43,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p/enode"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/trie"
 
 	"github.com/elastos/Elastos.ELA/events"
@@ -88,9 +89,6 @@ type ProtocolManager struct {
 	eventMux      *event.TypeMux
 	txsCh         chan core.NewTxsEvent
 	txsSub        event.Subscription
-	getSmallCroTxCh  chan core.GetSmallCrossTxEvent
-	getSmallCroTxSub event.Subscription
-	sendSmallCroTxSub *event.TypeMuxSubscription
 	minedBlockSub *event.TypeMuxSubscription
 
 	whitelist map[uint64]common.Hash
@@ -270,13 +268,6 @@ func (pm *ProtocolManager) Start(maxPeers int) {
 	// start sync handlers
 	go pm.syncer()
 	go pm.txsyncLoop()
-
-	pm.getSmallCroTxCh = make(chan core.GetSmallCrossTxEvent, txChanSize)
-	pm.getSmallCroTxSub = pm.blockchain.SubscribeSmallCrossTxEvent(pm.getSmallCroTxCh)
-	pm.sendSmallCroTxSub = pm.eventMux.Subscribe(core.SmallCrossTxEvent{})
-
-	go pm.smallCrossTxloop()
-	go pm.smallCroTxConfirmLoop()
 }
 
 func (pm *ProtocolManager) Stop() {
@@ -284,8 +275,6 @@ func (pm *ProtocolManager) Stop() {
 
 	pm.txsSub.Unsubscribe()        // quits txBroadcastLoop
 	pm.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
-	pm.getSmallCroTxSub.Unsubscribe()
-	pm.sendSmallCroTxSub.Unsubscribe()
 
 	// Quit the sync loop.
 	// After this send has completed, no new peers will be accepted.
@@ -764,22 +753,6 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 			ElaMsg: elaMsg,
 			Peer:  	p,
 		})
-	case msg.Code == GetSmallCrossTxmsg:
-		evt :=core.GetSmallCrossTxEvent{}
-		if err := msg.Decode(&evt); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-		croTx := smallcrosstx.GetSmallCrossTxMsg(evt.ElaTx)
-		if croTx != nil {
-			p.SendCrossTxMsg(croTx)
-		}
-	case msg.Code == SmallCrossTxmsg:
-		smallTx := smallcrosstx.SmallCrossTx{}
-		if err := msg.Decode(&smallTx); err != nil {
-			return errResp(ErrDecode, "msg %v: %v", msg, err)
-		}
-		smallcrosstx.OnSmallCrossTxMsg(smallTx.Signatures, smallTx.RawTx)
-		p.MarkSmallCroTx(smallTx.RawTxID)
 	default:
 		return errResp(ErrInvalidMsgCode, "%v", msg.Code)
 	}
@@ -831,9 +804,8 @@ func (pm *ProtocolManager) BroadcastTxs(txs types.Transactions) {
 	var txset = make(map[*peer]types.Transactions)
 
 	// Broadcast transactions to a batch of peers not knowing about it
-	blackAddr := common.Address{}
 	for _, tx := range txs {
-		if tx.To() != nil && *tx.To() == blackAddr && len(tx.Data()) == 32 {
+		if crosschain.IsRechargeTx(tx) {
 			continue
 		}
 		//Because the recharge transaction is the packaging of the current node on duty, there is no need to broadcast
@@ -858,32 +830,6 @@ func (pm *ProtocolManager) BroadcastDAddr(elaMsg *dpos.ElaMsg) {
 	}
 }
 
-func (pm *ProtocolManager) BroadcastGetCrossTxMsg(evt *core.GetSmallCrossTxEvent) {
-	p := pm.peers.BestPeer()
-	pm.peers.lock.Lock()
-	if p != nil {
-		p.SendGetCrossTxMsg(evt)
-	} else {
-		for _, peer := range pm.peers.peers {
-			peer.SendGetCrossTxMsg(evt)
-		}
-	}
-	pm.peers.lock.Unlock()
-}
-
-func (pm *ProtocolManager) BroadSmallCroTx(evt *core.SmallCrossTxEvent) {
-		peers := pm.peers.PeersWithoutSmallCroTx(evt.RawTxID)
-		croTx := smallcrosstx.SmallCrossTx{
-			RawTxID: evt.RawTxID,
-			RawTx: evt.RawTx,
-			Signatures: evt.Signatures,
-		}
-		for _, peer := range peers {
-			peer.SendCrossTxMsg(&croTx)
-		}
-		log.Info("Broadcast small cross transaction", "hash", evt.RawTxID, "recipients", len(peers))
-}
-
 // Mined broadcast loop
 func (pm *ProtocolManager) minedBroadcastLoop() {
 	// automatically stops if unsubscribe
@@ -903,26 +849,6 @@ func (pm *ProtocolManager) txBroadcastLoop() {
 
 		// Err() channel will be closed when unsubscribing.
 		case <-pm.txsSub.Err():
-			return
-		}
-	}
-}
-
-func (pm *ProtocolManager) smallCroTxConfirmLoop() {
-	for obj := range pm.sendSmallCroTxSub.Chan() {
-		if ev, ok := obj.Data.(core.SmallCrossTxEvent); ok {
-			pm.BroadSmallCroTx(&ev)
-		}
-	}
-}
-
-func (pm *ProtocolManager) smallCrossTxloop() {
-	for {
-		select {
-		case event := <-pm.getSmallCroTxCh:
-			pm.BroadcastGetCrossTxMsg(&event)
-		// Err() channel will be closed when unsubscribing.
-		case <-pm.getSmallCroTxSub.Err():
 			return
 		}
 	}
