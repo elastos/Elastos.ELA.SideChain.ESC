@@ -262,6 +262,20 @@ func (p *Pbft) GetPbftConfig() params.PbftConfig {
 	return p.cfg
 }
 
+func (p *Pbft) CurrentBlock () *types.Block {
+	if p.chain == nil {
+		return nil
+	}
+	return p.chain.CurrentBlock()
+}
+
+func (p *Pbft) GetBlockByHeight(height uint64) *types.Block {
+	if p.chain == nil {
+		return nil
+	}
+	return p.chain.GetBlockByNumber(height)
+}
+
 func (p *Pbft) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
@@ -618,7 +632,7 @@ func (p *Pbft) Close() error {
 
 func (p *Pbft) SignersCount() int {
 	dpos.Info("Pbft SignersCount")
-	count := len(p.dispatcher.GetConsensusView().GetProducers())
+	count := p.dispatcher.GetConsensusView().GetTotalProducersCount()
 	return count
 }
 

@@ -561,6 +561,11 @@ web3._extend({
 			params: 2,
 		}),
 		new web3._extend.Method({
+			name: 'onSmallCrossTxSuccess',
+			call: 'eth_onSmallCrossTxSuccess',
+			params: 1,
+		}),
+		new web3._extend.Method({
 			name: 'getCurrentProducers',
 			call: 'eth_getCurrentProducers',
 			params: 0,

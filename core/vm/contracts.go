@@ -518,7 +518,7 @@ func (c *arbiters) RequiredGas(input []byte) uint64 {
 }
 
 func (c *arbiters) Run(input []byte) ([]byte, error) {
-	arbiters, err := spv.GetArbiters()
+	arbiters, _, err := spv.GetArbiters()
 	if err != nil {
 		return nil, errGettingArbitersFailed
 	}

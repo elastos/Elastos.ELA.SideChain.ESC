@@ -15,6 +15,7 @@ module.exports = async function (json_data, res) {
         let txprocessed = await common.web3.eth.getStorageAt(common.blackAdr, mctxhash, common.latest)
         if (txprocessed != common.zeroHash64) {
             console.log("allready accept txid", mctxhash)
+            common.web3.onSmallCrossTxSuccess(mctxhash)
             res.json({"error": null, "id": null, "jsonrpc": "2.0", "result": true});
             return;
         }

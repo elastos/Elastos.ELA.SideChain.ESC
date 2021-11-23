@@ -18,9 +18,7 @@ package core
 
 import (
 	"math/big"
-	"time"
 
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
@@ -77,14 +75,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
 		receipt, err := ApplyTransaction(p.config, p.bc, nil, gp, statedb, header, tx, usedGas, cfg)
 		if err != nil {
-			if err.Error() == ErrElaToEthAddress.Error() {
-				var blackAddr common.Address
-				if len(tx.Data()) == 32 && *tx.To() == blackAddr && !blocksigner.SelfIsProducer {//common node need sync
-					txHash := hexutil.Encode(tx.Data())[2:]
-					p.bc.smallCroFeed.Send(GetSmallCrossTxEvent{txHash})
-					time.Sleep(2 * time.Second)//delay to get data
-				}
-			}
 			return nil, nil, 0, err
 		}
 		receipts = append(receipts, receipt)
@@ -127,8 +117,8 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	if tx.To() != nil {
 		to := *tx.To()
 		var blackAddr common.Address
-		iswithdraw, txHash := withdrawfailedtx.IsWithdawFailedTx(tx.Data(), config.BlackContractAddr)
 		if to == blackAddr {
+			iswithdraw, txHash := withdrawfailedtx.IsWithdawFailedTx(tx.Data(), config.BlackContractAddr)
 			if iswithdraw {
 				statedb.SetState(blackAddr, common.HexToHash(txHash), tx.Hash())
 				statedb.SetNonce(blackAddr, statedb.GetNonce(blackAddr) + 1)
@@ -136,6 +126,12 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 				txHash = hexutil.Encode(tx.Data())
 				fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txHash)
 				if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 && addr != blackAddr {
+					statedb.SetState(blackAddr, common.HexToHash(txHash),tx.Hash())
+					statedb.SetNonce(blackAddr, statedb.GetNonce(blackAddr) + 1)
+				}
+			} else {
+				txHash, _, _, _ = spv.IsSmallCrossTxByData(tx.Data())
+				if txHash != "" {
 					statedb.SetState(blackAddr, common.HexToHash(txHash),tx.Hash())
 					statedb.SetNonce(blackAddr, statedb.GetNonce(blackAddr) + 1)
 				}

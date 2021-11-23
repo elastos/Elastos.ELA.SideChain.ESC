@@ -35,6 +35,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crosschain"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
@@ -785,23 +786,19 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			// Pop the current out-of-gas transaction without shifting in the next from the account
 			log.Error("Gas limit exceeded for current block", "sender", from, "tx", tx.Hash().String())
 			txs.Pop()
-			var addr common.Address
-			if tx.To() != nil {
-				to := *tx.To()
-				if len(tx.Data()) == 32 && to == addr {
-					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
-				}
+			if crosschain.IsRechargeTx(tx) {
+				core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
 			}
 		case core.ErrMainTxHashPresence:
-			log.Info("ErrTxHashTooHigh  is returned if Main chain transaction has been processed", "sender", from)
+			log.Info("ErrMainTxHashPresence  is returned if Main chain transaction has been processed", "sender", from)
 			txs.Pop()
-			var addr common.Address
-			if tx.To() != nil {
-				to := *tx.To()
-				if len(tx.Data()) == 32 && to == addr {
-					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
-				}
+			if crosschain.IsRechargeTx(tx) {
+				core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
 			}
+		case core.ErrSmallCrossTxVerify:
+			log.Info("small cross chain verified error", "sender", from)
+			txs.Pop()
+			core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, true)
 		case core.ErrRefunded:
 			log.Info("ErrRefunded  is returned", "sender", from)
 			txs.Pop()
@@ -829,14 +826,21 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			txs.Shift()
 			if tx.To() != nil {
 				var addr common.Address
-				to := *tx.To()
-				if len(tx.Data()) == 32 && to == addr {
+				if crosschain.IsRechargeTx(tx) {
 					core.RemoveLocalTx(w.eth.TxPool(), tx.Hash(), true, false)
-					txhash := hexutil.Encode(tx.Data())
-					_, addr, _ := spv.FindOutputFeeAndaddressByTxHash(txhash)
-					var blackAddr common.Address
-					if addr != blackAddr {
-						spv.OnTx2Failed(txhash)
+					txhash := ""
+					if len(tx.Data()) == 32 {
+						txhash = hexutil.Encode(tx.Data())
+					} else if len(tx.Data()) > 32 {
+						log.Error("small cross chain run error", "error", err)
+						txhash, _, _, _ = spv.IsSmallCrossTxByData(tx.Data())
+					}
+					if txhash != "" {
+						_, addr, _ = spv.FindOutputFeeAndaddressByTxHash(txhash)
+						var blackAddr common.Address
+						if addr != blackAddr {
+							spv.OnTx2Failed(txhash)
+						}
 					}
 				}
 			}

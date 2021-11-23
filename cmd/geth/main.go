@@ -479,7 +479,8 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 	} else {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})
 		OnDutySub := stack.EventMux().Subscribe(events.OnDutyEvent{})
-		go spv.MinedBroadcastLoop(MinedBlockSub, OnDutySub)
+		smallCroTxSub := stack.EventMux().Subscribe(events.CmallCrossTx{})
+		go spv.MinedBroadcastLoop(MinedBlockSub, OnDutySub, smallCroTxSub)
 		spvService.Start()
 		stack.EventMux().Post(events.InitCurrentProducers{})
 		spv.InitNextTurnDposInfo()
