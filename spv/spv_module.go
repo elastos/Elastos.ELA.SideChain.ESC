@@ -230,12 +230,36 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription,
 				log.Info("receive onduty event")
 				atomic.StoreInt32(&candSend, 0)
 			}
+			accessFailedRechargeTx()
 		case obj := <-smallCrossTxSub.Chan():
 			if evt, ok := obj.Data.(events.CmallCrossTx); ok {
 				NotifySmallCrossTx(*evt.Tx)
 			}
 		case _ = <-stopChn:
 			return
+		}
+	}
+}
+
+func accessFailedRechargeTx()  {
+	failedMutex.Lock()
+	defer failedMutex.Unlock()
+	for height, txs := range failedTxList {
+		for index, txHash := range txs {
+			hash, err := common.Uint256FromHexString(txHash)
+			if err != nil {
+				continue
+			}
+			if SpvService.HaveRetSideChainDepositCoinTx(*hash) {
+				txs = append(txs[:index], txs[index+1:]...)
+				failedTxList[height] = txs
+				log.Info("failed recharge transaction is rested", "txHash", txHash, "txs.len", len(txs))
+				break
+			}
+		}
+		if len(txs) == 0 {
+			delete(failedTxList, height)
+			break
 		}
 	}
 }

@@ -49,7 +49,7 @@ func SmallCrossTxInit(datadir string, evtMux *event.TypeMux) {
 
 func OnSmallCrossTx(arbiters []string, total int, signature, rawTx string,
 	blockNumber uint64) error {
-	if smallCrossTxDb == nil {
+	if smallCrossTxDb == nil || eventMux == nil {
 		return errors.New("smallCrossTxDb is nil")
 	}
 	if smallCrossTxMsgMap[rawTx] == true {
