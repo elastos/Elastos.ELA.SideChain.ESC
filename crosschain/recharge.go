@@ -6,7 +6,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 )
 
-func IsRechargeTx(tx *types.Transaction) (bool, ) {
+func IsRechargeTx(tx *types.Transaction) bool {
+	if tx == nil || tx.To() == nil {
+		return false
+	}
 	var empty common.Address
 	if *tx.To() == empty {
 		if len(tx.Data()) == 32 {
