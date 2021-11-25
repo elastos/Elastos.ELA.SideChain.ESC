@@ -1227,6 +1227,6 @@ func Close() {
 	if spvdb != nil {
 		spvdb.Close()
 		close(stopChn)
+		SpvService.Stop()
 	}
-	SpvService.Stop()
 }
