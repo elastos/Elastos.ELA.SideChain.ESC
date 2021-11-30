@@ -43,6 +43,9 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	if SpvService == nil {
 		return producers, totalCount,  errors.New("spv is not start")
 	}
+	if GetCurrentConsensusMode() == spv.POW {
+		return producers, totalCount, nil
+	}
 	crcArbiters, normalArbitrs, err := SpvService.GetArbiters(uint32(elaHeight))
 	if err != nil {
 		return producers, totalCount, err
@@ -69,7 +72,12 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 
 func GetSpvHeight() uint64  {
 	if SpvService != nil && SpvService.GetBlockListener() != nil {
-		return uint64(SpvService.GetBlockListener().BlockHeight())
+		header, err := SpvService.HeaderStore().GetBest()
+		if err != nil {
+			log.Error("SpvService getBest error", "error", err)
+			return uint64(SpvService.GetBlockListener().BlockHeight())
+		}
+		return uint64(header.Height)
 	}
 	return 0
 }

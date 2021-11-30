@@ -51,10 +51,6 @@ type DangerousChainSideEvent struct{}
 
 type EngineChangeEvent struct{}
 
-type GetSmallCrossTxEvent struct{
-	ElaTx string
-}
-
 type SmallCrossTxEvent struct{
 	RawTxID string
 	RawTx string

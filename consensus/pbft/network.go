@@ -653,7 +653,10 @@ func (p *Pbft) limitMap(m map[common.Hash]struct{}, limit int) {
 }
 
 func (p *Pbft) OnSmallCroTxReceived(id peer.PID, msg *dmsg.SmallCroTx) {
-	smallcrosstx.OnReceivedSmallCroTxFromDirectNet(msg.GetSignature(), msg.GetRawTx())
+	list := p.GetCurrentProducers()
+	total := p.dispatcher.GetConsensusView().GetTotalProducersCount()
+	height := p.chain.CurrentBlock().GetHeight()
+	smallcrosstx.OnReceivedSmallCroTxFromDirectNet(list, total, msg.GetSignature(), msg.GetRawTx(), height)
 }
 
 func (p* Pbft) OnFailedWithdrawTxReceived(id peer.PID, msg *dmsg.FailedWithdrawTx) {

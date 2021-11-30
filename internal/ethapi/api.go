@@ -741,35 +741,42 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 	return res[:], state.Error()
 }
 
-func (s *PublicBlockChainAPI) GetCurrentProducers(ctx context.Context) ([]string, error) {
+func (s *PublicBlockChainAPI) GetCurrentProducers(ctx context.Context) ([]string, int, error) {
 	block := s.b.CurrentBlock()
 	elaHeight := block.Nonce()
 	if elaHeight == 0 {
-		return s.b.ChainConfig().Pbft.Producers, nil
+		return s.b.ChainConfig().Pbft.Producers, len(s.b.ChainConfig().Pbft.Producers), nil
 	}
 
-	list, _, err := spv.GetProducers(elaHeight)
+	list, total, err := spv.GetProducers(elaHeight)
 	producers := make([]string, len(list))
 
 	for i, v := range list {
 		producer := common.Bytes2Hex(v)
 		producers[i] = producer
 	}
-	return producers, err
+	return producers, total, err
 }
 
 func (s *PublicBlockChainAPI) ReceivedSmallCrossTx(ctx context.Context, signature string, rawTx string) error {
-	arbiters, err := s.GetCurrentProducers(ctx)
+	arbiters, total, err := s.GetCurrentProducers(ctx)
 	if err != nil {
 		return err
 	}
-	err = smallcrosstx.OnSmallCrossTx(arbiters, signature, rawTx)
+	height := uint64(s.BlockNumber())
+	err = smallcrosstx.OnSmallCrossTx(arbiters, total, signature, rawTx, height)
 	if err != nil {
+		log.Error("ReceivedSmallCrossTx OnSmallCrossTx error", "msg", err.Error())
 		return nil
 	}
 	croTx := smallcrosstx.ETSmallCrossTx{RawTx: rawTx, Signature: signature}
 	events.Notify(dpos.ETSmallCroTx, &croTx)
 	return err
+}
+
+func (s *PublicBlockChainAPI) OnSmallCrossTxSuccess(ctx context.Context, elaHash string) error {
+	smallcrosstx.OnSmallTxSuccess(elaHash)
+	return nil
 }
 
 func (s *PublicBlockChainAPI) GetFailedRechargeTxs(ctx context.Context, height uint64) ([]string, error) {
@@ -973,19 +980,20 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	cap = hi
 
 	// Create a helper to check if a gas allowance results in an executable transaction
-	executable := func(gas uint64) bool {
+	executable := func(gas uint64) (bool, error) {
 		args.Gas = (*hexutil.Uint64)(&gas)
 
 		_, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
 		if err != nil || failed {
-			return false
+			return false, err
 		}
-		return true
+		return true, nil
 	}
 	// Execute the binary search and hone in on an executable gas limit
 	for lo+1 < hi {
 		mid := (hi + lo) / 2
-		if !executable(mid) {
+		suc, _ := executable(mid)
+		if !suc {
 			lo = mid
 		} else {
 			hi = mid
@@ -993,8 +1001,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	}
 	// Reject the transaction as invalid if it still fails at the highest allowance
 	if hi == cap {
-		if !executable(hi) {
-			return 0, fmt.Errorf("gas required exceeds allowance (%d) or always failing transaction", cap)
+		suc, err := executable(hi)
+		if !suc || err != nil {
+			return 0, err
 		}
 	}
 	return hexutil.Uint64(hi), nil

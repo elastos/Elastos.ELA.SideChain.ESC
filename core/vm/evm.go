@@ -240,32 +240,43 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			} else {
 				return nil, gas, ErrWithdawrefundCallFailed
 			}
-		} else if len(input) == 32 {
-			txHash = hexutil.Encode(input)
-			completeTxHash := evm.StateDB.GetState(blackAddr, common.HexToHash(txHash))
-			fee, address, output :=  spv.FindOutputFeeAndaddressByTxHash(txHash)
-			addr = address
-			if completeTxHash == emptyHash && addr != blackAddr && output.Cmp(fee) > 0 {
-				isRechargeTx = true
-				to = AccountRef(addr)
-				value = new(big.Int).Sub(output, fee)
-				topics := make([]common.Hash, 5)
-				topics[0] = common.HexToHash("0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a")
-				topics[1] = common.HexToHash(caller.Address().String())
-				topics[2] = common.HexToHash(txHash)
-				topics[3] = common.HexToHash(addr.String())
-				topics[4] = common.BigToHash(value)
-				evm.StateDB.AddLog(&types.Log{
-					Address:blackAddr,
-					Topics:topics,
-					Data:nil,
-					// This is a non-consensus field, but assigned here because
-					// core/state doesn't know the current block number.
-					BlockNumber:evm.BlockNumber.Uint64(),
-				})
-				evm.StateDB.AddBalance(caller.Address(), value)
+		} else {
+			isSmallRechargeTx := false
+			if len(input) > 32 {
+				rawTxid, _, _, _ := spv.IsSmallCrossTxByData(input)
+				isSmallRechargeTx = len(rawTxid) > 0
+				txHash = rawTxid
+			}
+			if len(input) == 32 {
+				txHash = hexutil.Encode(input)
+			}
+			if len(input) == 32 || isSmallRechargeTx {
+				completeTxHash := evm.StateDB.GetState(blackAddr, common.HexToHash(txHash))
+				fee, address, output :=  spv.FindOutputFeeAndaddressByTxHash(txHash)
+				addr = address
+				if completeTxHash == emptyHash && addr != blackAddr && output.Cmp(fee) > 0 {
+					isRechargeTx = true
+					to = AccountRef(addr)
+					value = new(big.Int).Sub(output, fee)
+					topics := make([]common.Hash, 5)
+					topics[0] = common.HexToHash("0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a")
+					topics[1] = common.HexToHash(caller.Address().String())
+					topics[2] = common.HexToHash(txHash)
+					topics[3] = common.HexToHash(addr.String())
+					topics[4] = common.BigToHash(value)
+					evm.StateDB.AddLog(&types.Log{
+						Address:blackAddr,
+						Topics:topics,
+						Data:nil,
+						// This is a non-consensus field, but assigned here because
+						// core/state doesn't know the current block number.
+						BlockNumber:evm.BlockNumber.Uint64(),
+					})
+					evm.StateDB.AddBalance(caller.Address(), value)
+				}
 			}
 		}
+
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {

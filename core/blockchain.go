@@ -2403,10 +2403,6 @@ func (bc *BlockChain) SubscribeChangeEnginesEvent(ch chan<- EngineChangeEvent) e
 	return bc.scope.Track(bc.engineChange.Subscribe(ch))
 }
 
-func (bc *BlockChain) SubscribeSmallCrossTxEvent(ch chan<- GetSmallCrossTxEvent) event.Subscription {
-	return bc.scope.Track(bc.smallCroFeed.Subscribe(ch))
-}
-
 // SubscribeBlockProcessingEvent registers a subscription of bool where true means
 // block processing has started while false means it has stopped.
 func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscription {
