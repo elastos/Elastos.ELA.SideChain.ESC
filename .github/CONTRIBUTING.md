@@ -8,7 +8,7 @@ If you'd like to contribute to Elastos.ELA.SideChain.ESC, please fork, fix, comm
 pull request for the maintainers to review and merge into the main code base. If
 you wish to submit more complex changes though, please check up with the core 
 devs first on [our gitter channel](https://gitter.im/ethereum/Elastos.ELA.SideChain.ESC) to
-ensure those changes are in line with the general philosophy of the project 
+ensure those changes are in line with the general philosophy of the project
 and/or get some early feedback which can make both your efforts much lighter as
 well as our review and merge procedures quick and simple.
 

@@ -25,7 +25,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
-
+  
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"golang.org/x/net/context"
 
@@ -93,6 +93,7 @@ const (
 	// Fixed height of ela chain height with LitterEnd encode
 	ExtraElaHeight = 8
 
+	GASLimtScale = 10
 	blockDiff = 6
 
 	IsOnlyCRConsensus = true
@@ -720,6 +721,7 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int) (err er
 		log.Error("gasLimit is zero:", "main txhash", elaTx)
 		return err, false
 	}
+	gasLimit = gasLimit * GASLimtScale
 
 	if atomic.LoadInt32(&candSend) == 0 {
 		err = errors.New("canSend is 0")
