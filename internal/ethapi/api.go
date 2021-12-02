@@ -1003,6 +1003,9 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	if hi == cap {
 		suc, err := executable(hi)
 		if !suc || err != nil {
+			if err == nil {
+				return 0, fmt.Errorf("gas required exceeds allowance (%d)", cap)
+			}
 			return 0, err
 		}
 	}
