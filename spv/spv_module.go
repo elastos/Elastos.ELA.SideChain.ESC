@@ -346,11 +346,11 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	}
 	fee, addr, output := FindOutputFeeAndaddressByTxHash(tx.Hash().String())
 	var blackAddr ethCommon.Address
-	if fee.Cmp(new(big.Int)) > 0 || output.Cmp(new(big.Int)) > 0 && addr != blackAddr {
+	if fee.Cmp(new(big.Int)) <= 0  && output.Cmp(new(big.Int)) <= 0 && addr == blackAddr {
+		savePayloadInfo(tx, l)
+	} else {
 		log.Info("all ready received this cross transaction")
-		return
 	}
-	savePayloadInfo(tx, l)
 	l.service.SubmitTransactionReceipt(id, tx.Hash()) // give spv service a receipt, Indicates receipt of notice
 }
 
