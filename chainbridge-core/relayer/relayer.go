@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA/events"
 )
 
 type RelayedChain interface {
-	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message)
+	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message, changeSuperChan chan *ChangeSuperSigner)
 	Write(message *Message) error
 	ChainID() uint8
 	WriteArbiters(aribters []common.Address, signatures [][]byte, totalCount int) error
@@ -38,15 +40,18 @@ type Relayer struct {
 func (r *Relayer) Start(stop <-chan struct{}, sysErr chan error) {
 	log.Info("Starting relayer")
 	messagesChannel := make(chan *Message)
+	changeSuperCh := make(chan *ChangeSuperSigner)
 	for _, c := range r.relayedChains {
 		log.Info("Starting chain", "chainid", c.ChainID())
-		go c.PollEvents(stop, sysErr, messagesChannel)
+		go c.PollEvents(stop, sysErr, messagesChannel, changeSuperCh)
 	}
 	for {
 		select {
 		case m := <-messagesChannel:
 			go r.route(m)
 			continue
+		case m := <-changeSuperCh:
+			go events.Notify(dpos.ETChangeSuperSigner, m)
 		case _ = <-stop:
 			return
 		}

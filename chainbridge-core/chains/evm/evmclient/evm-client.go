@@ -35,6 +35,7 @@ type EVMClient struct {
 
 	engine   engine.ESCEngine
 	depositRecordABI abi.ABI
+	changeSuperSignerABI abi.ABI
 }
 
 type CommonTransaction interface {
@@ -49,7 +50,12 @@ func NewEVMClient(engine engine.ESCEngine) *EVMClient {
 	if err != nil {
 		return nil
 	}
-	return &EVMClient{engine: engine, depositRecordABI: abi}
+	changeSuperSignerABI, err := chainbridge_abi.GetChangeSuperSignerABI()
+	if err != nil {
+		return nil
+	}
+	client := &EVMClient{engine: engine, depositRecordABI: abi, changeSuperSignerABI: changeSuperSignerABI}
+	return client
 }
 
 func (c *EVMClient) Configurate(path string, accountPath, password string) error {
@@ -133,7 +139,8 @@ func (c *EVMClient) GetClientAddress() common.Address {
 
 const (
 	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
-	DepositRecord string = "DepositRecord(address,uint8,bytes32,uint64,address,uint256)"
+	DepositRecord string = "DepositRecord(address,uint8,bytes32,uint64,address,uint256,uint256)"
+	ChangeSuperSigner string = "ChangeSuperSigner(address,address)"
 )
 
 func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositRecord, error) {
@@ -152,6 +159,24 @@ func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common
 	}
 	return depositLogs, nil
 }
+
+func (c *EVMClient) FetchChangeSuperSigner(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.ChangeSuperSigner, error) {
+	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, ChangeSuperSigner, startBlock, endBlock))
+	if err != nil {
+		return nil, err
+	}
+	changeLogs := make([]*listener.ChangeSuperSigner, 0)
+	for _, l := range logs {
+		record := new (listener.ChangeSuperSigner)
+		err = c.changeSuperSignerABI.Unpack(record,  "ChangeSuperSigner", l.Data)
+		if err != nil {
+			return nil, errors.New("change super signer resolved error:" + err.Error())
+		}
+		changeLogs = append(changeLogs, record)
+	}
+	return changeLogs, nil
+}
+
 
 // SendRawTransaction accepts rlp-encode of signed transaction and sends it via RPC call
 func (c *EVMClient) SendRawTransaction(ctx context.Context, tx []byte) error {
