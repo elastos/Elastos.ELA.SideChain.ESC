@@ -41,7 +41,7 @@ func (mh *EVMMessageHandler) HandleMessage(m *relayer.Message) (Proposer, error)
 		return nil, err
 	}
 	// Based on handler that registered on BridgeContract
-	log.Info("Handling new message", "type", m.Type, "src", m.Source, "dst", m.Destination, "nonce", m.DepositNonce, "rid", common.Bytes2Hex(m.ResourceId[:]), "handlerAddress", addr.String())
+	log.Info("Handling new message", "src", m.Source, "dst", m.Destination, "nonce", m.DepositNonce, "rid", common.Bytes2Hex(m.ResourceId[:]), "handlerAddress", addr.String())
 	handleMessage, err := mh.MatchAddressWithHandlerFunc(addr)
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (mh *EVMMessageHandler) RegisterMessageHandler(address common.Address, hand
 }
 
 func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.Address) (Proposer, error) {
-	if len(m.Payload) != 2 {
+	if len(m.Payload) != 3 {
 		return nil, errors.New("malformed payload. Len  of payload should be 2")
 	}
 	amount, ok := m.Payload[0].([]byte)
@@ -107,15 +107,21 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 		return nil, errors.New("wrong payloads recipient format")
 
 	}
+	fee, ok := m.Payload[2].([]byte)
+	if !ok {
+		return nil, errors.New("wrong payloads fee format")
+
+	}
 	var data []byte
 	data = append(data, common.LeftPadBytes(amount, 32)...) // amount (uint256)
+	data = append(data, common.LeftPadBytes(fee, 32)...)          // fee ([]byte)
 
 	recipientLen := big.NewInt(int64(len(recipient))).Bytes()
 	data = append(data, common.LeftPadBytes(recipientLen, 32)...) // length of recipient (uint256)
-	data = append(data, recipient.Bytes()...)                             // recipient ([]byte)
+	data = append(data, recipient.Bytes()...)                     // recipient ([]byte)
 
 	log.Info("ERC20MessageHandler", "source", m.Source, "Destination", m.Destination)
-	return &Proposal {
+	return &Proposal{
 		Source:         m.Source,
 		Destination:    m.Destination,
 		DepositNonce:   m.DepositNonce,
@@ -164,7 +170,7 @@ func ERC721MessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress commo
 }
 
 func GenericMessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress common.Address) (*Proposal, error) {
-	if len(msg.Payload) != 1 {
+	if len(msg.Payload) != 3 {
 		return nil, errors.New("malformed payload. Len  of payload should be 1")
 	}
 	metadata, ok := msg.Payload[0].([]byte)
