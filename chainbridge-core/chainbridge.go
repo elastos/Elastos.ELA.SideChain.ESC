@@ -194,9 +194,20 @@ func Start() bool {
 			receivedReqArbiterSignature(pbftEngine, e)
 		case dpos_msg.ETFeedBackArbiterSig:
 			handleFeedBackArbitersSig(pbftEngine, e)
+		case dpos.ETChangeSuperSigner:
+			onReceivedChangSuperMsg(pbftEngine, e)
 		}
 	})
 	return true
+}
+
+func onReceivedChangSuperMsg(engine *pbft.Pbft, e *events.Event) {
+	m, ok := e.Data.(relayer.ChangeSuperSigner)
+	if !ok {
+		bridgelog.Error("onReceivedChangSuperMsg event data is not ChangeSuperSigner")
+		return
+	}
+	bridgelog.Info("onReceivedChangSuperMsg", "m", m.NewSuperSigner.String())
 }
 
 func currentArbitersHasself() bool {
