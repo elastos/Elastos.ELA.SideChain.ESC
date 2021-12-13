@@ -32,7 +32,7 @@ var Layer2ChainID uint8
 const MaxBatchCount = 100
 
 type EventListener interface {
-	ListenToEvents(startBlock *big.Int, chainID uint8, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.Message
+	ListenToEvents(startBlock *big.Int, chainID uint8, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner)
 }
 
 type ProposalVoter interface {
@@ -399,7 +399,7 @@ func (c *EVMChain) onBatchProposal(msg *dpos_msg.BatchMsg, proposalHash []byte) 
 }
 
 // PollEvents is the goroutine that polling blocks and searching Deposit Events in them. Event then sent to eventsChan
-func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *relayer.Message) {
+func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *relayer.Message, changeSuperChan chan *relayer.ChangeSuperSigner) {
 	log.Info("Polling Blocks...")
 	// Handler chain specific configs and flags
 	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(c.config.Opts.StartBlock))
@@ -407,7 +407,7 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 		sysErr <- fmt.Errorf("error %w on getting last stored block", err)
 		return
 	}
-	ech := c.listener.ListenToEvents(block, c.chainID, c.kvdb, stop, sysErr)
+	ech, changeSuperCh := c.listener.ListenToEvents(block, c.chainID, c.kvdb, stop, sysErr)
 	for {
 		select {
 		case <-stop:
@@ -415,6 +415,9 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 		case newEvent := <-ech:
 			// Here we can place middlewares for custom logic?
 			eventsChan <- newEvent
+			continue
+		case change := <-changeSuperCh:
+			changeSuperChan <- change
 			continue
 		}
 	}

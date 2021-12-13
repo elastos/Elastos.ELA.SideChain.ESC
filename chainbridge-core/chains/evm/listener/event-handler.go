@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"strings"
 
@@ -38,7 +37,6 @@ func (e *ETHEventHandler) HandleEvent(sourceID, destID uint8, depositNonce uint6
 	if err != nil {
 		return err
 	}
-	fmt.Println("handlerAddress", addr.String(), "chainID", sourceID, "dest", destID, "depositNonce", depositNonce)
 	eventHandler, err := e.matchAddressWithHandlerFunc(addr)
 	if err != nil {
 		return err

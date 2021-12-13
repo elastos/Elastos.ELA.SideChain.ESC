@@ -282,7 +282,7 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			return true
 		}
 	}
-	if p.chain.Config().IsLayer2Fork(block.Number()) {
+	if p.chain.Config().IsLayer2Fork(block.Number()) && len(p.chain.Config().Layer2SuperPubKey) > 0 {
 		producers := p.dispatcher.GetConsensusView().GetProducers()
 		superPbk := common.Hex2Bytes(p.chain.Config().Layer2SuperPubKey)
 		hashSuperPbk := false
