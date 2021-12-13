@@ -3,6 +3,8 @@
 
 package relayer
 
+import "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+
 type TransferType string
 
 const (
@@ -31,5 +33,10 @@ type Message struct {
 	DepositNonce uint64 // Nonce for the deposit
 	ResourceId   [32]byte
 	Payload      []interface{} // data associated with event sequence
-	Type         TransferType
+}
+
+type ChangeSuperSigner struct {
+	SourceChain uint8
+	OldSuperSigner common.Address
+	NewSuperSigner common.Address
 }
