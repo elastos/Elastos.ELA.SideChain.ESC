@@ -176,6 +176,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
 	}
+	gasLimit = gasLimit + gasLimit * 10 / 100
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
