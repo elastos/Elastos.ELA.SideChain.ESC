@@ -133,7 +133,7 @@ func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint8, msg ch
 			},
 		}
 		msg <- m
-		log.Info(fmt.Sprintf("Resolved message %+v in block %s", m, startBlock.String()))
+		log.Info(fmt.Sprintf("Resolved message %+v in block %s fee %d", m, startBlock.String(), eventLog.Fee.Uint64()))
 	}
 	return nil
 }
