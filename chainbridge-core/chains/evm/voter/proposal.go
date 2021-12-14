@@ -229,6 +229,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, supe
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
 	}
+	gasLimit = gasLimit + gasLimit * 10 / 100
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
