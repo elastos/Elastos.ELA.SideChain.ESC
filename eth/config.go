@@ -174,5 +174,5 @@ type Config struct {
 	DynamicArbiterHeight uint64
 
 	Layer2Height *big.Int
-	Layer2SuperPubKey string
+	Layer2SuperNodePubKey string
 }
