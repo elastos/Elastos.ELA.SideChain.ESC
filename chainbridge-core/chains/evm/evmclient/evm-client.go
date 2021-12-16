@@ -21,6 +21,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
@@ -127,6 +128,10 @@ func (c *EVMClient) LatestBlock() (*big.Int, error) {
 		return nil, err
 	}
 	return head.Number, err
+}
+
+func (c *EVMClient) CurrentBlock() (*types.Block, error) {
+	return c.Client.BlockByNumber(context.Background(), nil)
 }
 
 func (c *EVMClient) Engine() engine.ESCEngine {
