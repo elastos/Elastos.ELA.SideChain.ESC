@@ -3,7 +3,6 @@ package spv
 import (
 	"bytes"
 	"errors"
-
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
@@ -376,7 +375,7 @@ func UpdateSuperNodePublickey(newSuperNode string) error {
 		oldSuperNode = make([]byte, len(superNodePublicKey))
 		copy(oldSuperNode, superNodePublicKey)
 	}
-
+ 	isUpdate := bytes.Compare(superNodePublicKey, nodePubkey) != 0
 	superNodePublicKey = nodePubkey
 	if nextTurnDposInfo != nil {
 		nextTurnDposInfo.SuperNodePublicKey = superNodePublicKey
@@ -391,8 +390,8 @@ func UpdateSuperNodePublickey(newSuperNode string) error {
 		copy(pid[:], arbiter)
 		peers = append(peers, pid)
 	}
-
-	if PbftEngine.Layer2SuperNodeUpdate(oldSuperNode, nodePubkey, currentHeader.Nonce()) {
+	if PbftEngine.Layer2SuperNodeUpdate(oldSuperNode, nodePubkey, currentHeader.Nonce()) ||
+		isUpdate {
 		go func() {
 			events.Notify(events.ETDirectPeersChanged, peers)
 			InitNextTurnDposInfo()
