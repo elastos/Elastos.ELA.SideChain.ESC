@@ -171,7 +171,13 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	msg := ethereum.CallMsg{From: client.GetClientAddress(), To: &p.BridgeAddress, Data: input}
 	gasLimit, err = client.EstimateGasLimit(context.TODO(), msg)
 	if err != nil {
-		return err
+		b, msg := client.CurrentBlock()
+		var addr common.Address
+		if msg == nil && b.Coinbase() == addr {
+			gasLimit = 300000
+		} else {
+			return err
+		}
 	}
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
