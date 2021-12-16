@@ -32,6 +32,7 @@ type DepositRecord struct {
 type ChangeSuperSigner struct {
 	OldSuperSigner common.Address
 	NewSuperSigner common.Address
+	NodePublickey  []byte
 }
 
 type ChainClient interface {
@@ -144,7 +145,7 @@ func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8,
 	if err != nil {
 		// Filtering logs error really can appear only on wrong configuration or temporary network problem
 		// so i do no see any reason to break execution
-		log.Error("FetchChangeSuperSigner errors", "ChainID", chainID)
+		log.Error("FetchChangeSuperSigner errors", "ChainID", chainID, "error", err)
 		return nil
 	}
 	for _, eventLog := range logs {
@@ -152,6 +153,7 @@ func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8,
 			SourceChain: chainID,
 			OldSuperSigner: eventLog.OldSuperSigner,
 			NewSuperSigner: eventLog.NewSuperSigner,
+			NodePublicKey: common.Bytes2Hex(eventLog.NodePublickey[:]),
 		}
 		msg <- m
 		log.Info(fmt.Sprintf("Resolved change super msg %+v in block %s", m.NewSuperSigner.String(), startBlock.String()))

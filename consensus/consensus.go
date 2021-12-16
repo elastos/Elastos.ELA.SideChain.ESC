@@ -139,4 +139,5 @@ type IPbftEngine interface {
 	GetPbftConfig() params.PbftConfig
 	CurrentBlock () *types.Block
 	GetBlockByHeight(height uint64) *types.Block
+	Layer2SuperNodeUpdate(oldNodePeer, newNodePeer []byte, blockNonce uint64) bool
 }
