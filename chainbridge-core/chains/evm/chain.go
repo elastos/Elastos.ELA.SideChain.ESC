@@ -46,6 +46,7 @@ type ProposalVoter interface {
 	SetArbiterList(arbiters []common.Address, totalCount int, signature [][]byte, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
 	GetSuperSigner(bridgeAddress string) (common.Address, error)
+	SuperSignerNodePublickey(bridgeAddress string) (string, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 }
 
@@ -447,6 +448,15 @@ func (c *EVMChain) GetCurrentSuperSigner() common.Address {
 		return common.Address{}
 	}
 	return addr
+}
+
+func (c *EVMChain) GetSuperSignerNodePublickey() string {
+	nodePublickey, err := c.writer.SuperSignerNodePublickey(c.bridgeContractAddress)
+	if err != nil {
+		log.Error("GetSuperSignerNodePublickey error", "error", err)
+		return ""
+	}
+	return nodePublickey
 }
 
 func (c *EVMChain) GetBridgeContract() string {
