@@ -140,7 +140,7 @@ func (c *EVMClient) GetClientAddress() common.Address {
 const (
 	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
 	DepositRecord string = "DepositRecord(address,uint8,bytes32,uint64,address,uint256,uint256)"
-	ChangeSuperSigner string = "ChangeSuperSigner(address,address)"
+	ChangeSuperSigner string = "ChangeSuperSigner(address,address,bytes)"
 )
 
 func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositRecord, error) {
@@ -168,6 +168,7 @@ func (c *EVMClient) FetchChangeSuperSigner(ctx context.Context, contractAddress 
 	changeLogs := make([]*listener.ChangeSuperSigner, 0)
 	for _, l := range logs {
 		record := new (listener.ChangeSuperSigner)
+		record.NodePublickey = make([]byte, 33)
 		err = c.changeSuperSignerABI.Unpack(record,  "ChangeSuperSigner", l.Data)
 		if err != nil {
 			return nil, errors.New("change super signer resolved error:" + err.Error())
