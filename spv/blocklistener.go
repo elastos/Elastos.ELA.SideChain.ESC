@@ -2,6 +2,8 @@ package spv
 
 import (
 	"bytes"
+	"errors"
+
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
@@ -315,4 +317,86 @@ func GetNextTurnPeers() []peer.PID {
 		peers = append(peers, pid)
 	}
 	return peers
+}
+
+func oldSuperNodeIsArbiter(elaHeight uint64) (bool, error) {
+	if SpvService == nil || PbftEngine == nil {
+		return false, errors.New("spv is not start")
+	}
+	if elaHeight == 0 {
+		producers := PbftEngine.GetPbftConfig().Producers
+		for _, p := range producers {
+			producer := common.Hex2Bytes(p)
+			if bytes.Equal(superNodePublicKey, producer) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+
+	crcArbiters, normalArbitrs, err := SpvService.GetArbiters(uint32(elaHeight))
+	if err != nil {
+		log.Error("GetArbiters failed", "error", err)
+		return false, err
+	}
+	if IsOnlyCRConsensus {
+		normalArbitrs = make([][]byte, 0)
+	}
+
+	for _, arbiter := range crcArbiters {
+		if bytes.Equal(superNodePublicKey, arbiter) {
+			return true, nil
+		}
+	}
+	for _, arbiter := range normalArbitrs {
+		if bytes.Equal(superNodePublicKey, arbiter) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func UpdateSuperNodePublickey(newSuperNode string) error {
+	if PbftEngine == nil {
+		return errors.New("PbftEngine is not init")
+	}
+	nodePubkey := common.Hex2Bytes(newSuperNode)
+	if bytes.Equal(superNodePublicKey, nodePubkey) {
+		return errors.New("is same node public key")
+	}
+	currentHeader := PbftEngine.CurrentBlock()
+	oldSuperSignerIsArbiter, err := oldSuperNodeIsArbiter(currentHeader.Nonce())
+	if err != nil {
+		return err
+	}
+
+	var oldSuperNode []byte
+	oldSuperNode = nil
+	if !oldSuperSignerIsArbiter {
+		oldSuperNode = make([]byte, len(superNodePublicKey))
+		copy(oldSuperNode, superNodePublicKey)
+	}
+
+	superNodePublicKey = nodePubkey
+	if nextTurnDposInfo != nil {
+		nextTurnDposInfo.SuperNodePublicKey = superNodePublicKey
+	}
+	arbiters := PbftEngine.GetCurrentProducers()
+	peers := make([]peer.PID, 0)
+	for _, arbiter := range arbiters {
+		if oldSuperNode != nil && bytes.Equal(oldSuperNode, arbiter) {
+			continue
+		}
+		var pid peer.PID
+		copy(pid[:], arbiter)
+		peers = append(peers, pid)
+	}
+
+	if PbftEngine.Layer2SuperNodeUpdate(oldSuperNode, nodePubkey, currentHeader.Nonce()) {
+		go func() {
+			events.Notify(events.ETDirectPeersChanged, peers)
+			InitNextTurnDposInfo()
+		}()
+	}
+	return nil
 }

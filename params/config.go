@@ -427,7 +427,7 @@ type ChainConfig struct {
 	BridgeContractAddr    string
 
 	Layer2Height *big.Int
-	Layer2SuperPubKey string //Participation consensus
+	Layer2SuperNodePubKey string //Participation consensus
 	Layer2EFVoter string //Participation layer2 bridge vote and sign
 }
 

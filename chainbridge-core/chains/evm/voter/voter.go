@@ -230,6 +230,30 @@ func (w *EVMVoter) GetSuperSigner(bridgeAddress string) (common.Address, error) 
 	return out0, err
 }
 
+func (w *EVMVoter) SuperSignerNodePublickey(bridgeAddress string) (string, error) {
+	a, err := chainbridge_abi.GetSuperSignerNodePublickey()
+	if err != nil {
+		return "", err
+	}
+	input, err := a.Pack("getSuperSignerNodePublickey")
+	if err != nil {
+		return"", err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
+	out, err:= w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	log.Info("getSuperSignerNodePublickey", "error", err, "out", out)
+	//record.NodePublickey = make([]byte, 33)
+	//err = c.changeSuperSignerABI.Unpack(record,  "ChangeSuperSigner", l.Data)
+
+	out0 := make([]byte, 33)
+	err = a.Unpack(&out0, "getSuperSignerNodePublickey", out)
+	if err != nil {
+		return "", err
+	}
+	return common.Bytes2Hex(out0[:]), err
+}
+
 func (w *EVMVoter) IsDeployedBridgeContract(bridgeAddress string) bool {
 	return w.client.IsContractAddress(bridgeAddress)
 }
