@@ -215,7 +215,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		chainConfig.DynamicArbiterHeight = config.DynamicArbiterHeight
 	}
 	chainConfig.Layer2Height = config.Layer2Height
-	chainConfig.Layer2SuperPubKey = config.Layer2SuperPubKey
+	chainConfig.Layer2SuperNodePubKey = config.Layer2SuperNodePubKey
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{

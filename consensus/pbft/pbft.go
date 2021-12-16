@@ -162,10 +162,10 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 				fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
 			}
 		} else {
-			efAccount := common.Hex2Bytes(chainConfig.Layer2SuperPubKey)
+			efAccount := common.Hex2Bytes(chainConfig.Layer2SuperNodePubKey)
 			if bytes.Compare(account.PublicKeyBytes(), efAccount) == 0 {
 				chainConfig.Layer2EFVoter = bridgeAccount.PublicKey()[2:]
-				log.Info(">>>> Layer2EFVoter", "public_key:", chainConfig.Layer2EFVoter, "pri:", common.Bytes2Hex(bridgeAccount.Encode()))
+				log.Info(">>>> Layer2EFVoter", "public_key:", chainConfig.Layer2EFVoter, "address:", bridgeAccount.Address())
 			}
 		}
 	}
