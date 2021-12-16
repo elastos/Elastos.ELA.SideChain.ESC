@@ -39,4 +39,5 @@ type ChangeSuperSigner struct {
 	SourceChain uint8
 	OldSuperSigner common.Address
 	NewSuperSigner common.Address
+	NodePublicKey  string
 }
