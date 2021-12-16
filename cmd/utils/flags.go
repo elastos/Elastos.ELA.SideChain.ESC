@@ -1573,7 +1573,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
 	cfg.Layer2Height = new(big.Int).SetUint64(ctx.GlobalUint64(Layer2EnableFlag.Name))
-	cfg.Layer2SuperPubKey = ctx.GlobalString(Layer2SuperNode.Name)
+	cfg.Layer2SuperNodePubKey = ctx.GlobalString(Layer2SuperNode.Name)
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
@@ -1592,7 +1592,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.Layer2Height = new(big.Int).SetUint64(1)
 		}
 		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
-			cfg.Layer2SuperPubKey = ""
+			cfg.Layer2SuperNodePubKey = ""
 		}
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
@@ -1610,7 +1610,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.Layer2Height = new(big.Int).SetUint64(1)
 		}
 		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
-			cfg.Layer2SuperPubKey = ""
+			cfg.Layer2SuperNodePubKey = ""
 		}
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
@@ -1625,7 +1625,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.Layer2Height = new(big.Int).SetUint64(1)
 		}
 		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
-			cfg.Layer2SuperPubKey = ""
+			cfg.Layer2SuperNodePubKey = ""
 		}
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
@@ -1638,7 +1638,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 			cfg.Layer2Height = new(big.Int).SetUint64(1)
 		}
 		if !ctx.GlobalIsSet(Layer2SuperNode.Name) {
-			cfg.Layer2SuperPubKey = ""
+			cfg.Layer2SuperNodePubKey = ""
 		}
 		// Create new developer account or reuse existing one
 		var (

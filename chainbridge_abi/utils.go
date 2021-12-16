@@ -42,7 +42,7 @@ func GetDepositRecordABI() (abi.ABI, error)  {
 }
 
 func GetChangeSuperSignerABI() (abi.ABI, error)  {
-	definition := "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"_oldSuperSigner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"_newSuperSigner\",\"type\":\"address\"}],\"name\":\"ChangeSuperSigner\",\"type\":\"event\"}]"
+	definition := "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"_oldSuperSigner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"_newSuperSigner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"_nodePublickey\",\"type\":\"bytes\"}],\"name\":\"ChangeSuperSigner\",\"type\":\"event\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
@@ -55,6 +55,12 @@ func GetExecuteBatchNoSigABI() (abi.ABI, error) {
 
 func GetCurrentSuperSignerABI() (abi.ABI, error) {
 	definition := "[{\"inputs\":[],\"name\":\"getCurrentSuperSigner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}
+
+func GetSuperSignerNodePublickey() (abi.ABI, error) {
+	definition := "[{\"inputs\":[],\"name\":\"getSuperSignerNodePublickey\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
