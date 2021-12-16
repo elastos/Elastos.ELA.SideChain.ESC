@@ -20,6 +20,7 @@ type RelayedChain interface {
 	GetArbiters() []common.Address
 	GetBridgeContract() string
 	GetCurrentSuperSigner() common.Address
+	GetSuperSignerNodePublickey() string
 }
 
 func NewRelayer(chains []RelayedChain) *Relayer {
@@ -120,4 +121,13 @@ func (r *Relayer) GetCurrentSuperSigner(chainID uint8) common.Address {
 		return common.Address{}
 	}
 	return c.GetCurrentSuperSigner()
+}
+
+func (r *Relayer) GetSuperSignerNodePublickey(chainID uint8) string {
+	c := r.registry[chainID]
+	if c == nil {
+		log.Error("not register chainID", "chainID", chainID)
+		return ""
+	}
+	return c.GetSuperSignerNodePublickey()
 }
