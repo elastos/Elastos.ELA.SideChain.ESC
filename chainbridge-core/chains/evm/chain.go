@@ -235,7 +235,7 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	if isSuperVoter {
 		superVoterSignature = c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
 	}
-	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > maxsign && len(superVoterSignature) > 0 {
+	if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) >= maxsign && len(superVoterSignature) > 0 {
 		err := c.ExecuteProposalBatch(c.currentProposal)
 		if err != nil {
 			log.Error("ExecuteProposalBatch error", "error", err)
@@ -331,7 +331,7 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 				superVoterSignature = c.msgPool.GetSuperVoterSigner(phash)
 			}
 			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(phash), "getMaxArbitersSign", maxsign, "superVoterSignature", len(superVoterSignature))
-			if c.msgPool.GetVerifiedCount(phash) > maxsign  &&
+			if c.msgPool.GetVerifiedCount(phash) >= maxsign  &&
 				len(superVoterSignature) > 0 {
 				c.msgPool.PutExecuteProposal(proposal)
 			}
