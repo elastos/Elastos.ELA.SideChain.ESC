@@ -22,6 +22,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
@@ -30,6 +31,7 @@ import (
 
 type ChainClient interface {
 	LatestBlock() (*big.Int, error)
+	CurrentBlock() (*types.Block, error)
 	SignAndSendTransaction(ctx context.Context, tx evmclient.CommonTransaction) (common.Hash, error)
 	CallContract(ctx context.Context, callArgs map[string]interface{}, blockNumber *big.Int) ([]byte, error)
 	GetNonce() (*big.Int, error)
