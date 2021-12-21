@@ -53,3 +53,13 @@ func (a *API) GetArbiters(chainID uint8) []common.Address {
 	}
 	return address
 }
+
+func (a *API) GetSuperSigner(chainID uint8) common.Address {
+	address := MsgReleayer.GetCurrentSuperSigner(chainID)
+	return address
+}
+
+func (a *API) GetSuperNodePublickey(chainID uint8) string {
+	nodePbk := MsgReleayer.GetSuperSignerNodePublickey(chainID)
+	return nodePbk
+}
