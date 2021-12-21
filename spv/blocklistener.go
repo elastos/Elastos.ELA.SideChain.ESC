@@ -355,7 +355,7 @@ func oldSuperNodeIsArbiter(elaHeight uint64) (bool, error) {
 	return false, nil
 }
 
-func UpdateSuperNodePublickey(newSuperNode string) error {
+func UpdateSuperNodePublickey(newSuperNode string, signerIsUpdate bool) error {
 	if PbftEngine == nil {
 		return errors.New("PbftEngine is not init")
 	}
@@ -391,7 +391,7 @@ func UpdateSuperNodePublickey(newSuperNode string) error {
 		peers = append(peers, pid)
 	}
 	if PbftEngine.Layer2SuperNodeUpdate(oldSuperNode, nodePubkey, currentHeader.Nonce()) ||
-		isUpdate {
+		isUpdate || signerIsUpdate {
 		go func() {
 			events.Notify(events.ETDirectPeersChanged, peers)
 			InitNextTurnDposInfo()

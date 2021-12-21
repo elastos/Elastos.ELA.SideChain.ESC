@@ -53,6 +53,18 @@ web3._extend({
 			call: 'bridge_getArbiters',
 			params: 1,
 		    inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'getSuperSigner',
+			call: 'bridge_getSuperSigner',
+			params: 1,
+		    inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'getSuperNodePublickey',
+			call: 'bridge_getSuperNodePublickey',
+			params: 1,
+		    inputFormatter: [null]
 		})
 	]
 });
