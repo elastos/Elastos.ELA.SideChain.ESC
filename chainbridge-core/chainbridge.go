@@ -116,7 +116,9 @@ func Start() bool {
 			}
 			isProducer := pbftEngine.IsProducer()
 			self := pbftEngine.GetProducer()
-			currentSuperSigner = MsgReleayer.GetCurrentSuperSigner(chainID)
+			singer := MsgReleayer.GetCurrentSuperSigner(chainID)
+			signerIsUpdate := singer != currentSuperSigner
+			currentSuperSigner = singer
 			keypair := pbftEngine.GetBridgeArbiters()
 			selfArbiterAddr = keypair.Address()
 			var emptyAddr common.Address
@@ -124,7 +126,7 @@ func Start() bool {
 				nodepublickey := MsgReleayer.GetSuperSignerNodePublickey(chainID)
 				pbftEngine.GetBlockChain().Config().Layer2SuperNodePubKey = nodepublickey
 				selfIsSuperVoter = selfArbiterAddr == currentSuperSigner.String()
-				err := spv.UpdateSuperNodePublickey(nodepublickey)
+				err := spv.UpdateSuperNodePublickey(nodepublickey, signerIsUpdate)
 				if err != nil {
 					log.Warn("UpdateSuperNodePublickey", "error", err)
 				}
@@ -218,6 +220,10 @@ func onReceivedChangSuperMsg(engine *pbft.Pbft, e *events.Event) {
 		bridgelog.Error("onReceivedChangSuperMsg event data is not ChangeSuperSigner", "data", e.Data)
 		return
 	}
+	if uint64(m.SourceChain ) != engine.GetBlockChain().Config().ChainID.Uint64() {
+		bridgelog.Info("onReceivedChangSuperMsg is not current chain")
+		return
+	}
 	superVoter := MsgReleayer.GetCurrentSuperSigner(m.SourceChain)
 	if superVoter != m.NewSuperSigner {
 		bridgelog.Info("onReceivedChangSuperMsg is not current superSigner")
@@ -227,10 +233,11 @@ func onReceivedChangSuperMsg(engine *pbft.Pbft, e *events.Event) {
 	bridgelog.Info("onReceivedChangSuperMsg", "m", m.NewSuperSigner.String())
 
 	engine.GetBlockChain().Config().Layer2SuperNodePubKey = m.NodePublicKey
-	err := spv.UpdateSuperNodePublickey(m.NodePublicKey)
+	err := spv.UpdateSuperNodePublickey(m.NodePublicKey, currentSuperSigner != superVoter)
 	if err != nil {
 		log.Error("UpdateSuperNodePublickey failed", "error", err)
 	}
+	currentSuperSigner = superVoter
 }
 
 func currentArbitersHasself() bool {
