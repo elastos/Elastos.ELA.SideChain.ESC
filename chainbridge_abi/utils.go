@@ -65,6 +65,18 @@ func GetSuperSignerNodePublickey() (abi.ABI, error) {
 	return a, err
 }
 
+func ProposalEventABI() (abi.ABI, error) {
+	definition := "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint8\",\"name\":\"originChainID\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"enum Bridge.ProposalStatus\",\"name\":\"status\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"resourceID\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"name\":\"ProposalEvent\",\"type\":\"event\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}
+
+func ProposalBatchEventABI() (abi.ABI, error) {
+	definition := "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint8\",\"name\":\"originChainID\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"indexed\":true,\"internalType\":\"enum Bridge.ProposalStatus[]\",\"name\":\"status\",\"type\":\"uint8[]\"},{\"indexed\":false,\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"},{\"indexed\":false,\"internalType\":\"bytes32[]\",\"name\":\"dataHash\",\"type\":\"bytes32[]\"}],\"name\":\"ProposalEventBatch\",\"type\":\"event\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}
+
 func GetTestExecuteProposalAbi() (abi.ABI, error) {
 	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"internalType\":\"bytes[]\",\"name\":\"data\",\"type\":\"bytes[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"}],\"name\":\"test\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
