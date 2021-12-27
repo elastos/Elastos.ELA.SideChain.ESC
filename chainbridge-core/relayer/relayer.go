@@ -14,6 +14,7 @@ import (
 
 type RelayedChain interface {
 	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message, changeSuperChan chan *ChangeSuperSigner)
+	PollStatusEvent(stop <-chan struct{}, sysErr chan<- error)
 	Write(message *Message) error
 	ChainID() uint8
 	WriteArbiters(aribters []common.Address, signatures [][]byte, totalCount int) error
@@ -45,6 +46,7 @@ func (r *Relayer) Start(stop <-chan struct{}, sysErr chan error) {
 	for _, c := range r.relayedChains {
 		log.Info("Starting chain", "chainid", c.ChainID())
 		go c.PollEvents(stop, sysErr, messagesChannel, changeSuperCh)
+		go c.PollStatusEvent(stop, sysErr)
 	}
 	for {
 		select {
