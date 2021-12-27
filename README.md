@@ -13,14 +13,14 @@ Building `geth` requires both a Go (version 1.6.5 or later) and a C compiler. Yo
 them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
-export GO111MODULE=false
+export GO111MODULE=off
 make geth
 ```
 
 or, to build the full suite of utilities:
 
 ```shell
-export GO111MODULE=false
+export GO111MODULE=off
 make all
 ```
 
