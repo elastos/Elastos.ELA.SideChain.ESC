@@ -18,6 +18,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/keystore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
@@ -37,6 +38,8 @@ type EVMClient struct {
 	engine   engine.ESCEngine
 	depositRecordABI abi.ABI
 	changeSuperSignerABI abi.ABI
+	proposalEventABI abi.ABI
+	proposalBatchABI abi.ABI
 }
 
 type CommonTransaction interface {
@@ -55,7 +58,17 @@ func NewEVMClient(engine engine.ESCEngine) *EVMClient {
 	if err != nil {
 		return nil
 	}
+	proposalEvt, err := chainbridge_abi.ProposalEventABI()
+	if err != nil {
+		return nil
+	}
+	batchEvt, err := chainbridge_abi.ProposalBatchEventABI()
+	if err != nil {
+		return nil
+	}
 	client := &EVMClient{engine: engine, depositRecordABI: abi, changeSuperSignerABI: changeSuperSignerABI}
+	client.proposalEventABI = proposalEvt
+	client.proposalBatchABI = batchEvt
 	return client
 }
 
@@ -146,6 +159,8 @@ const (
 	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
 	DepositRecord string = "DepositRecord(address,uint8,bytes32,uint64,address,uint256,uint256)"
 	ChangeSuperSigner string = "ChangeSuperSigner(address,address,bytes)"
+	ProposalEvent string = "ProposalEvent(uint8,uint64,uint8,bytes32,bytes32)"
+	ProposalEventBatch string = "ProposalEventBatch(uint8,uint64[],uint8[],bytes32[],bytes32[])"
 )
 
 func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositRecord, error) {
@@ -183,6 +198,36 @@ func (c *EVMClient) FetchChangeSuperSigner(ctx context.Context, contractAddress 
 	return changeLogs, nil
 }
 
+func (c *EVMClient) FetchProposalEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalEvent, error) {
+	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, ProposalEvent, startBlock, endBlock))
+	if err != nil {
+		return nil, err
+	}
+	plogs := make([]*relayer.ProposalEvent, 0)
+	for _, l := range logs {
+		record := new (relayer.ProposalEvent)
+		record.SourceChain = uint8(l.Topics[1].Big().Uint64())
+		record.DepositNonce = l.Topics[2].Big().Uint64()
+		record.Status = relayer.ProposalStatus(l.Topics[3].Big().Uint64())
+		plogs = append(plogs, record)
+	}
+	return plogs, nil
+}
+
+func (c *EVMClient) FetchProposalBatchEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalBatchEvent, error) {
+	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, ProposalEventBatch, startBlock, endBlock))
+	if err != nil {
+		return nil, err
+	}
+	plogs := make([]*relayer.ProposalBatchEvent, 0)
+	for _, l := range logs {
+		record := new (relayer.ProposalBatchEvent)
+		record.SourceChain = uint8(l.Topics[1].Big().Uint64())
+		//todo complete this
+		plogs = append(plogs, record)
+	}
+	return plogs, nil
+}
 
 // SendRawTransaction accepts rlp-encode of signed transaction and sends it via RPC call
 func (c *EVMClient) SendRawTransaction(ctx context.Context, tx []byte) error {

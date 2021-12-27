@@ -36,8 +36,24 @@ type Message struct {
 }
 
 type ChangeSuperSigner struct {
-	SourceChain uint8
+	SourceChain    uint8
 	OldSuperSigner common.Address
 	NewSuperSigner common.Address
 	NodePublicKey  string
+}
+
+type ProposalEvent struct {
+	SourceChain  uint8
+	DepositNonce uint64
+	Status       ProposalStatus
+	ResourceId   [32]byte
+	DataHash     [32]byte
+}
+
+type ProposalBatchEvent struct {
+	SourceChain  uint8
+	DepositNonce []uint64
+	Status       []ProposalStatus
+	ResourceId   [][32]byte
+	DataHash     [][32]byte
 }

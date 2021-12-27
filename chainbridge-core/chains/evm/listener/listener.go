@@ -39,6 +39,8 @@ type ChainClient interface {
 	LatestBlock() (*big.Int, error)
 	FetchDepositLogs(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*DepositRecord, error)
 	FetchChangeSuperSigner(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*ChangeSuperSigner, error)
+	FetchProposalEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalEvent, error)
+	FetchProposalBatchEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalBatchEvent, error)
 	CallContract(ctx context.Context, callArgs map[string]interface{}, blockNumber *big.Int) ([]byte, error)
 }
 
@@ -106,6 +108,43 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
 	return ch, changeSuperCh
 }
 
+func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.ProposalEvent, <-chan *relayer.ProposalBatchEvent) {
+	prch := make(chan *relayer.ProposalEvent)
+	batchCh := make(chan *relayer.ProposalBatchEvent)
+	go func() {
+		for {
+			select {
+			case <-stopChn:
+				return
+			default:
+				head, err := l.chainReader.LatestBlock()
+				if err != nil {
+					time.Sleep(BlockRetryInterval)
+					continue
+				}
+				// Sleep if the difference is less than BlockDelay; (latest - current) < BlockDelay
+				if big.NewInt(0).Sub(head, startBlock).Cmp(BlockDelay) == -1 {
+					time.Sleep(BlockRetryInterval)
+					continue
+				}
+				err = l.fetchProposalEvent(startBlock, chainID, prch)
+				if err != nil {
+					errChn <- err
+					return
+				}
+
+				err = l.fetchProposalBatchEvent(startBlock,chainID, batchCh)
+				if err != nil {
+					errChn <- err
+					return
+				}
+				startBlock.Add(startBlock, big.NewInt(1))
+			}
+		}
+	}()
+	return prch, batchCh
+}
+
 func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint8, msg chan *relayer.Message) error {
 	log.Info("FetchDepositLogs", "startBlock", startBlock.Uint64(), "chainID", chainID)
 	logs, err := l.chainReader.FetchDepositLogs(context.Background(), l.bridgeAddress, startBlock, startBlock)
@@ -157,6 +196,38 @@ func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8,
 		}
 		msg <- m
 		log.Info(fmt.Sprintf("Resolved change super msg %+v in block %s", m.NewSuperSigner.String(), startBlock.String()))
+	}
+	return nil
+}
+
+func (l *EVMListener) fetchProposalEvent(startBlock *big.Int, chainID uint8, msg chan *relayer.ProposalEvent) error {
+	fmt.Println("fetchProposalEvent", "startBlock", startBlock.Uint64())
+	logs, err := l.chainReader.FetchProposalEvent(context.Background(), l.bridgeAddress, startBlock, startBlock)
+	if err != nil {
+		// Filtering logs error really can appear only on wrong configuration or temporary network problem
+		// so i do no see any reason to break execution
+		log.Error("fetchProposalEvent errors", "ChainID", chainID, "error", err)
+		return nil
+	}
+	fmt.Println("fetchProposalEvent", "logs", len(logs))
+	for _, eventLog := range logs {
+		msg <- eventLog
+		log.Info(fmt.Sprintf("Resolved ProposalEvent msg %+v in block %s", eventLog.DepositNonce, startBlock.String()))
+	}
+	return nil
+}
+
+func (l *EVMListener) fetchProposalBatchEvent(startBlock *big.Int, chainID uint8, msg chan *relayer.ProposalBatchEvent) error {
+	logs, err := l.chainReader.FetchProposalBatchEvent(context.Background(), l.bridgeAddress, startBlock, startBlock)
+	if err != nil {
+		// Filtering logs error really can appear only on wrong configuration or temporary network problem
+		// so i do no see any reason to break execution
+		log.Error("FetchProposalBatchEvent errors", "ChainID", chainID, "error", err)
+		return nil
+	}
+	for _, eventLog := range logs {
+		msg <- eventLog
+		log.Info(fmt.Sprintf("Resolved FetchProposalBatchEvent msg %+v in block %s", eventLog.DepositNonce, startBlock.String()))
 	}
 	return nil
 }
