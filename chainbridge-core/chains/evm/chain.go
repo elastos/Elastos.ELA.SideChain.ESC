@@ -33,6 +33,7 @@ const MaxBatchCount = 100
 
 type EventListener interface {
 	ListenToEvents(startBlock *big.Int, chainID uint8, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner)
+	ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.ProposalEvent, <-chan *relayer.ProposalBatchEvent)
 }
 
 type ProposalVoter interface {
@@ -419,6 +420,39 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 			continue
 		case change := <-changeSuperCh:
 			changeSuperChan <- change
+			continue
+		}
+	}
+}
+
+func (c *EVMChain) PollStatusEvent(stop <-chan struct{}, sysErr chan<- error) {
+	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(c.config.Opts.StartBlock))
+	if err != nil {
+		sysErr <- fmt.Errorf("error %w on getting last stored block", err)
+		return
+	}
+	pch, batch := c.listener.ListenStatusEvents(block, c.chainID, stop, sysErr)
+	for {
+		select {
+		case <-stop:
+			return
+		case p := <-pch:
+			proposal := c.msgPool.GetQueueProposal(p.DepositNonce)
+			if proposal != nil {
+				if p.Status == relayer.ProposalStatusExecuted {
+					proposal.ProposalIsComplete(c.writer.GetClient())
+				}
+			}
+			continue
+		case bch := <-batch:
+			for i, p := range bch.DepositNonce {
+				proposal := c.msgPool.GetQueueProposal(p)
+				if proposal != nil {
+					if bch.Status[i] == relayer.ProposalStatusExecuted {
+						proposal.ProposalIsComplete(c.writer.GetClient())
+					}
+				}
+			}
 			continue
 		}
 	}
