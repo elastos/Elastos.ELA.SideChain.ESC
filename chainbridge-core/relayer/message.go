@@ -49,11 +49,3 @@ type ProposalEvent struct {
 	ResourceId   [32]byte
 	DataHash     [32]byte
 }
-
-type ProposalBatchEvent struct {
-	SourceChain  uint8
-	DepositNonce []uint64
-	Status       []ProposalStatus
-	ResourceId   [][32]byte
-	DataHash     [][32]byte
-}

@@ -40,7 +40,6 @@ type ChainClient interface {
 	FetchDepositLogs(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*DepositRecord, error)
 	FetchChangeSuperSigner(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*ChangeSuperSigner, error)
 	FetchProposalEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalEvent, error)
-	FetchProposalBatchEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalBatchEvent, error)
 	CallContract(ctx context.Context, callArgs map[string]interface{}, blockNumber *big.Int) ([]byte, error)
 }
 
@@ -108,9 +107,8 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
 	return ch, changeSuperCh
 }
 
-func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.ProposalEvent, <-chan *relayer.ProposalBatchEvent) {
+func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent {
 	prch := make(chan *relayer.ProposalEvent)
-	batchCh := make(chan *relayer.ProposalBatchEvent)
 	go func() {
 		for {
 			select {
@@ -132,17 +130,11 @@ func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint8, sto
 					errChn <- err
 					return
 				}
-
-				err = l.fetchProposalBatchEvent(startBlock,chainID, batchCh)
-				if err != nil {
-					errChn <- err
-					return
-				}
 				startBlock.Add(startBlock, big.NewInt(1))
 			}
 		}
 	}()
-	return prch, batchCh
+	return prch
 }
 
 func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint8, msg chan *relayer.Message) error {
@@ -201,7 +193,6 @@ func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8,
 }
 
 func (l *EVMListener) fetchProposalEvent(startBlock *big.Int, chainID uint8, msg chan *relayer.ProposalEvent) error {
-	fmt.Println("fetchProposalEvent", "startBlock", startBlock.Uint64())
 	logs, err := l.chainReader.FetchProposalEvent(context.Background(), l.bridgeAddress, startBlock, startBlock)
 	if err != nil {
 		// Filtering logs error really can appear only on wrong configuration or temporary network problem
@@ -209,25 +200,9 @@ func (l *EVMListener) fetchProposalEvent(startBlock *big.Int, chainID uint8, msg
 		log.Error("fetchProposalEvent errors", "ChainID", chainID, "error", err)
 		return nil
 	}
-	fmt.Println("fetchProposalEvent", "logs", len(logs))
 	for _, eventLog := range logs {
 		msg <- eventLog
 		log.Info(fmt.Sprintf("Resolved ProposalEvent msg %+v in block %s", eventLog.DepositNonce, startBlock.String()))
-	}
-	return nil
-}
-
-func (l *EVMListener) fetchProposalBatchEvent(startBlock *big.Int, chainID uint8, msg chan *relayer.ProposalBatchEvent) error {
-	logs, err := l.chainReader.FetchProposalBatchEvent(context.Background(), l.bridgeAddress, startBlock, startBlock)
-	if err != nil {
-		// Filtering logs error really can appear only on wrong configuration or temporary network problem
-		// so i do no see any reason to break execution
-		log.Error("FetchProposalBatchEvent errors", "ChainID", chainID, "error", err)
-		return nil
-	}
-	for _, eventLog := range logs {
-		msg <- eventLog
-		log.Info(fmt.Sprintf("Resolved FetchProposalBatchEvent msg %+v in block %s", eventLog.DepositNonce, startBlock.String()))
 	}
 	return nil
 }
