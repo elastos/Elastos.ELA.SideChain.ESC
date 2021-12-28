@@ -214,21 +214,6 @@ func (c *EVMClient) FetchProposalEvent(ctx context.Context, contractAddress comm
 	return plogs, nil
 }
 
-func (c *EVMClient) FetchProposalBatchEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalBatchEvent, error) {
-	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, ProposalEventBatch, startBlock, endBlock))
-	if err != nil {
-		return nil, err
-	}
-	plogs := make([]*relayer.ProposalBatchEvent, 0)
-	for _, l := range logs {
-		record := new (relayer.ProposalBatchEvent)
-		record.SourceChain = uint8(l.Topics[1].Big().Uint64())
-		//todo complete this
-		plogs = append(plogs, record)
-	}
-	return plogs, nil
-}
-
 // SendRawTransaction accepts rlp-encode of signed transaction and sends it via RPC call
 func (c *EVMClient) SendRawTransaction(ctx context.Context, tx []byte) error {
 	return c.rpClient.CallContext(ctx, nil, "eth_sendRawTransaction", hexutil.Encode(tx))
