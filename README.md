@@ -9,7 +9,7 @@ For prerequisites and detailed build instructions please read the
 [Installation Instructions](https://github.com/elastos/Elastos.ELA.SideChain.ESC/wiki/Building-Ethereum)
 on the wiki.
 
-Building `geth` requires both a Go (version 1.6.5 or later) and a C compiler. You can install
+Building `geth` requires both a Go (version 1.16.5 or later) and a C compiler. You can install
 them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
