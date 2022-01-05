@@ -35,11 +35,12 @@ type EVMClient struct {
 	config    *EVMConfig
 	nonce     *big.Int
 
-	engine   engine.ESCEngine
-	depositRecordABI abi.ABI
+	engine               engine.ESCEngine
+	depositRecordABI     abi.ABI
+	depositRecordNFTABI  abi.ABI
 	changeSuperSignerABI abi.ABI
-	proposalEventABI abi.ABI
-	proposalBatchABI abi.ABI
+	proposalEventABI     abi.ABI
+	proposalBatchABI     abi.ABI
 }
 
 type CommonTransaction interface {
@@ -66,9 +67,14 @@ func NewEVMClient(engine engine.ESCEngine) *EVMClient {
 	if err != nil {
 		return nil
 	}
+	nftRecord, err := chainbridge_abi.GetDepositNFTRecordABI()
+	if err != nil {
+		return nil
+	}
 	client := &EVMClient{engine: engine, depositRecordABI: abi, changeSuperSignerABI: changeSuperSignerABI}
 	client.proposalEventABI = proposalEvt
 	client.proposalBatchABI = batchEvt
+	client.depositRecordNFTABI = nftRecord
 	return client
 }
 
@@ -83,7 +89,7 @@ func (c *EVMClient) Configurate(path string, accountPath, password string) error
 	}
 	c.config = cfg
 	generalConfig := cfg.SharedEVMConfig
-	if len(generalConfig.KeystorePath) > 0  {
+	if len(generalConfig.KeystorePath) > 0 {
 		accountPath = generalConfig.KeystorePath
 	}
 	kp, err := keystore.KeypairFromAddress(keystore.EthChain, accountPath, []byte(password), generalConfig.Insecure)
@@ -157,9 +163,10 @@ func (c *EVMClient) GetClientAddress() common.Address {
 
 const (
 	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
-	DepositRecord string = "DepositRecord(address,uint8,bytes32,uint64,address,uint256,uint256)"
-	ChangeSuperSigner string = "ChangeSuperSigner(address,address,bytes)"
-	ProposalEvent string = "ProposalEvent(uint8,uint64,uint8,bytes32,bytes32)"
+	DepositRecord      string = "DepositRecordERC20OrWETH(address,uint8,bytes32,uint64,address,uint256,uint256)"
+	DepositNFTRecord   string = "DepositRecordERC721(address,uint8,bytes32,uint64,address,uint256,bytes,uint256)"
+	ChangeSuperSigner  string = "ChangeSuperSigner(address,address,bytes)"
+	ProposalEvent      string = "ProposalEvent(uint8,uint64,uint8,bytes32,bytes32)"
 	ProposalEventBatch string = "ProposalEventBatch(uint8,uint64[],uint8[],bytes32[],bytes32[])"
 )
 
@@ -170,10 +177,27 @@ func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common
 	}
 	depositLogs := make([]*listener.DepositRecord, 0)
 	for _, l := range logs {
-		record := new (listener.DepositRecord)
-		err = c.depositRecordABI.Unpack(record,  "DepositRecord", l.Data)
+		record := new(listener.DepositRecord)
+		err = c.depositRecordABI.Unpack(record, "DepositRecord", l.Data)
 		if err != nil {
 			return nil, errors.New("deposit record resolved error:" + err.Error())
+		}
+		depositLogs = append(depositLogs, record)
+	}
+	return depositLogs, nil
+}
+
+func (c *EVMClient) FetchDepositNFTLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.BridgeDepositRecordERC721, error) {
+	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, DepositNFTRecord, startBlock, endBlock))
+	if err != nil {
+		return nil, err
+	}
+	depositLogs := make([]*listener.BridgeDepositRecordERC721, 0)
+	for _, l := range logs {
+		record := new(listener.BridgeDepositRecordERC721)
+		err = c.depositRecordNFTABI.Unpack(record, "DepositRecordERC721", l.Data)
+		if err != nil {
+			return nil, errors.New("deposit nft record resolved error:" + err.Error())
 		}
 		depositLogs = append(depositLogs, record)
 	}
@@ -187,9 +211,9 @@ func (c *EVMClient) FetchChangeSuperSigner(ctx context.Context, contractAddress 
 	}
 	changeLogs := make([]*listener.ChangeSuperSigner, 0)
 	for _, l := range logs {
-		record := new (listener.ChangeSuperSigner)
+		record := new(listener.ChangeSuperSigner)
 		record.NodePublickey = make([]byte, 33)
-		err = c.changeSuperSignerABI.Unpack(record,  "ChangeSuperSigner", l.Data)
+		err = c.changeSuperSignerABI.Unpack(record, "ChangeSuperSigner", l.Data)
 		if err != nil {
 			return nil, errors.New("change super signer resolved error:" + err.Error())
 		}
@@ -205,7 +229,7 @@ func (c *EVMClient) FetchProposalEvent(ctx context.Context, contractAddress comm
 	}
 	plogs := make([]*relayer.ProposalEvent, 0)
 	for _, l := range logs {
-		record := new (relayer.ProposalEvent)
+		record := new(relayer.ProposalEvent)
 		record.SourceChain = uint8(l.Topics[1].Big().Uint64())
 		record.DepositNonce = l.Topics[2].Big().Uint64()
 		record.Status = relayer.ProposalStatus(l.Topics[3].Big().Uint64())
