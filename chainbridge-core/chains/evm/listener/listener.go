@@ -20,13 +20,24 @@ var BlockDelay = big.NewInt(6) //TODO: move to config
 var BatchMsgInterval = time.Second * 30
 
 type DepositRecord struct {
-	TokenAddress                   common.Address
-	DestinationChainID             uint8
-	ResourceID                     [32]byte
-	DepositNonce                   uint64
-	Depositer                      common.Address
-	Amount                         *big.Int
-	Fee 						   *big.Int
+	TokenAddress       common.Address
+	DestinationChainID uint8
+	ResourceID         [32]byte
+	DepositNonce       uint64
+	Depositer          common.Address
+	Amount             *big.Int
+	Fee                *big.Int
+}
+
+type BridgeDepositRecordERC721 struct {
+	TokenAddress       common.Address
+	DestinationChainID uint8
+	ResourceID         [32]byte
+	DepositNonce       uint64
+	Depositer          common.Address
+	TokenId            *big.Int
+	MetaData           []byte
+	Fee                *big.Int
 }
 
 type ChangeSuperSigner struct {
@@ -38,6 +49,7 @@ type ChangeSuperSigner struct {
 type ChainClient interface {
 	LatestBlock() (*big.Int, error)
 	FetchDepositLogs(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*DepositRecord, error)
+	FetchDepositNFTLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*BridgeDepositRecordERC721, error)
 	FetchChangeSuperSigner(ctx context.Context, address common.Address, startBlock *big.Int, endBlock *big.Int) ([]*ChangeSuperSigner, error)
 	FetchProposalEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalEvent, error)
 	CallContract(ctx context.Context, callArgs map[string]interface{}, blockNumber *big.Int) ([]byte, error)
@@ -58,10 +70,11 @@ func NewEVMListener(chainReader ChainClient, handler EventHandler, bridgeAddress
 }
 
 func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
-	                                 kvrw blockstore.KeyValueWriter,
-	                                 stopChn <-chan struct{},
-	                                 errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner) {
+	kvrw blockstore.KeyValueWriter,
+	stopChn <-chan struct{},
+	errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner, <-chan *relayer.Message) {
 	ch := make(chan *relayer.Message)
+	nftch := make(chan *relayer.Message)
 	changeSuperCh := make(chan *relayer.ChangeSuperSigner)
 	go func() {
 		for {
@@ -85,7 +98,12 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
 					return
 				}
 
-				err = l.fetchChangeSuperSigner(startBlock,chainID, changeSuperCh)
+				err = l.fetchDepositNFTMsg(startBlock, chainID, nftch)
+				if err != nil {
+					errChn <- err
+					return
+				}
+				err = l.fetchChangeSuperSigner(startBlock, chainID, changeSuperCh)
 				if err != nil {
 					errChn <- err
 					return
@@ -104,7 +122,7 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
 			}
 		}
 	}()
-	return ch, changeSuperCh
+	return ch, changeSuperCh, nftch
 }
 
 func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent {
@@ -154,10 +172,10 @@ func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint8, msg ch
 		}
 
 		m := &relayer.Message{
-			Source: chainID,
-			Destination: eventLog.DestinationChainID,
+			Source:       chainID,
+			Destination:  eventLog.DestinationChainID,
 			DepositNonce: eventLog.DepositNonce,
-			ResourceId: eventLog.ResourceID,
+			ResourceId:   eventLog.ResourceID,
 			Payload: []interface{}{
 				eventLog.Amount.Bytes(),
 				eventLog.Depositer,
@@ -170,7 +188,6 @@ func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint8, msg ch
 	return nil
 }
 
-
 func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8, msg chan *relayer.ChangeSuperSigner) error {
 	logs, err := l.chainReader.FetchChangeSuperSigner(context.Background(), l.bridgeAddress, startBlock, startBlock)
 	if err != nil {
@@ -181,10 +198,10 @@ func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8,
 	}
 	for _, eventLog := range logs {
 		m := &relayer.ChangeSuperSigner{
-			SourceChain: chainID,
+			SourceChain:    chainID,
 			OldSuperSigner: eventLog.OldSuperSigner,
 			NewSuperSigner: eventLog.NewSuperSigner,
-			NodePublicKey: common.Bytes2Hex(eventLog.NodePublickey[:]),
+			NodePublicKey:  common.Bytes2Hex(eventLog.NodePublickey[:]),
 		}
 		msg <- m
 		log.Info(fmt.Sprintf("Resolved change super msg %+v in block %s", m.NewSuperSigner.String(), startBlock.String()))
@@ -203,6 +220,37 @@ func (l *EVMListener) fetchProposalEvent(startBlock *big.Int, chainID uint8, msg
 	for _, eventLog := range logs {
 		msg <- eventLog
 		log.Info(fmt.Sprintf("Resolved ProposalEvent msg %+v in block %s", eventLog.DepositNonce, startBlock.String()))
+	}
+	return nil
+}
+
+func (l *EVMListener) fetchDepositNFTMsg(startBlock *big.Int, chainID uint8, msg chan *relayer.Message) error {
+	logs, err := l.chainReader.FetchDepositNFTLogs(context.Background(), l.bridgeAddress, startBlock, startBlock)
+	if err != nil {
+		log.Error("FetchDepositNFTLogs errors", "ChainID", chainID, "err", err)
+		return nil
+	}
+	for _, eventLog := range logs {
+		err = l.eventHandler.HandleEvent(chainID, eventLog.DestinationChainID, eventLog.DepositNonce, eventLog.ResourceID)
+		if err != nil {
+			log.Error("HandleEvent error", "error", err)
+			return err
+		}
+
+		m := &relayer.Message{
+			Source:       chainID,
+			Destination:  eventLog.DestinationChainID,
+			DepositNonce: eventLog.DepositNonce,
+			ResourceId:   eventLog.ResourceID,
+			Payload: []interface{}{
+				eventLog.TokenId.Bytes(),
+				eventLog.Depositer,
+				eventLog.MetaData,
+				eventLog.Fee.Bytes(),
+			},
+		}
+		msg <- m
+		log.Info(fmt.Sprintf("Resolved message nft %+v in block %s fee %d", m, startBlock.String(), eventLog.Fee.Uint64()))
 	}
 	return nil
 }
