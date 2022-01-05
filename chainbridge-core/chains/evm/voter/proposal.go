@@ -131,7 +131,7 @@ func (p *Proposal) Status(evmCaller ChainClient) (relayer.ProposalStatus, error)
 
 // proposalIsComplete returns true if the proposal state is either Passed, Transferred or Cancelled
 func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
-	propStates, err :=  p.Status(client)
+	propStates, err := p.Status(client)
 	if err != nil {
 		log.Error("Failed to check proposal existence", "err", err)
 		return false
@@ -171,9 +171,9 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	msg := ethereum.CallMsg{From: client.GetClientAddress(), To: &p.BridgeAddress, Data: input}
 	gasLimit, err = client.EstimateGasLimit(context.TODO(), msg)
 	if err != nil {
-		b, msg := client.CurrentBlock()
+		b, errMsg := client.CurrentBlock()
 		var addr common.Address
-		if msg == nil && b.Coinbase() == addr {
+		if errMsg == nil && b.Coinbase() == addr {
 			gasLimit = 300000
 		} else {
 			return err
@@ -182,7 +182,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
 	}
-	gasLimit = gasLimit + gasLimit * 10 / 100
+	gasLimit = gasLimit + gasLimit*10/100
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
@@ -190,7 +190,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 		return err
 	}
 
-	log.Info("Executed proposal","hash", hash.String(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "dest", p.Destination)
+	log.Info("Executed proposal", "hash", hash.String(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64(), "dest", p.Destination)
 	return nil
 }
 
@@ -235,7 +235,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, supe
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
 	}
-	gasLimit = gasLimit + gasLimit * 10 / 100
+	gasLimit = gasLimit + gasLimit*10/100
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
@@ -243,7 +243,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, supe
 		return err
 	}
 
-	log.Info("Executed proposal batch ","hash", hash.String(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64())
+	log.Info("Executed proposal batch ", "hash", hash.String(), "nonce", nonce, "gasLimit", gasLimit, "blockNumber", nowBlock.Uint64())
 
 	return nil
 }
