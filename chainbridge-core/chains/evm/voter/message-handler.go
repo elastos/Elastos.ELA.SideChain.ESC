@@ -114,7 +114,7 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 	}
 	var data []byte
 	data = append(data, common.LeftPadBytes(amount, 32)...) // amount (uint256)
-	data = append(data, common.LeftPadBytes(fee, 32)...)          // fee ([]byte)
+	data = append(data, common.LeftPadBytes(fee, 32)...)    // fee ([]byte)
 
 	recipientLen := big.NewInt(int64(len(recipient))).Bytes()
 	data = append(data, common.LeftPadBytes(recipientLen, 32)...) // length of recipient (uint256)
@@ -132,38 +132,46 @@ func ERC20MessageHandler(m *relayer.Message, handlerAddr, bridgeAddress common.A
 	}, nil
 }
 
-func ERC721MessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress common.Address) (*Proposal, error) {
-	if len(msg.Payload) != 3 {
+func ERC721MessageHandler(msg *relayer.Message, handlerAddr, bridgeAddress common.Address) (Proposer, error) {
+	if len(msg.Payload) != 4 {
 		return nil, errors.New("malformed payload. Len  of payload should be 3")
 	}
 	tokenID, ok := msg.Payload[0].([]byte)
 	if !ok {
 		return nil, errors.New("wrong payloads tokenID format")
 	}
-	recipient, ok := msg.Payload[1].([]byte)
+
+	recipient, ok := msg.Payload[1].(common.Address)
 	if !ok {
 		return nil, errors.New("wrong payloads recipient format")
 	}
+
 	metadata, ok := msg.Payload[2].([]byte)
 	if !ok {
 		return nil, errors.New("wrong payloads metadata format")
 	}
+	fee, ok := msg.Payload[3].([]byte)
+	if !ok {
+		return nil, errors.New("wrong payloads fee format")
+	}
 
-	data := bytes.Buffer{}
-	data.Write(common.LeftPadBytes(tokenID, 32))
+	var data []byte
+	data = append(data, common.LeftPadBytes(tokenID, 32)...)
+	data = append(data, common.LeftPadBytes(fee, 32)...)
 
 	recipientLen := big.NewInt(int64(len(recipient))).Bytes()
-	data.Write(common.LeftPadBytes(recipientLen, 32))
-	data.Write(recipient)
+	data = append(data, common.LeftPadBytes(recipientLen, 32)...)
+	data = append(data, recipient.Bytes()...)
 
 	metadataLen := big.NewInt(int64(len(metadata))).Bytes()
-	data.Write(common.LeftPadBytes(metadataLen, 32))
-	data.Write(metadata)
+	data = append(data, common.LeftPadBytes(metadataLen, 32)...)
+	data = append(data, metadata...)
 	return &Proposal{
 		Source:         msg.Source,
+		Destination:    msg.Destination,
 		DepositNonce:   msg.DepositNonce,
 		ResourceId:     msg.ResourceId,
-		Data:           data.Bytes(),
+		Data:           data,
 		BridgeAddress:  bridgeAddress,
 		HandlerAddress: handlerAddr,
 	}, nil
