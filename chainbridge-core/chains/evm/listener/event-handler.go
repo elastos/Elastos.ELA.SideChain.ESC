@@ -72,6 +72,10 @@ func (e *ETHEventHandler) matchResourceIDToHandlerAddress(rID [32]byte) (common.
 func (e *ETHEventHandler) matchAddressWithHandlerFunc(addr common.Address) (EventHandlerFunc, error) {
 	hf, ok := e.eventHandlers[addr]
 	if !ok {
+		log.Info("matchAddressWithHandlerFunc", "addr", addr.String())
+		for a, _ := range e.eventHandlers {
+			log.Info("eventHandlers address", "address", a.String())
+		}
 		return nil, errors.New("no corresponding event handler for this address exists")
 	}
 	return hf, nil
@@ -104,7 +108,7 @@ func toCallArg(msg ethereum.CallMsg) map[string]interface{} {
 	return arg
 }
 
-func Erc20EventHandler(sourceID, destId uint8, nonce uint64, handlerContractAddress common.Address, client ChainClient) error {
+func OnEventHandler(sourceID, destId uint8, nonce uint64, handlerContractAddress common.Address, client ChainClient) error {
 	definition := "[{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"uint8\",\"name\":\"destId\",\"type\":\"uint8\"}],\"name\":\"getDepositRecord\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	input, err := a.Pack("getDepositRecord", nonce, destId)

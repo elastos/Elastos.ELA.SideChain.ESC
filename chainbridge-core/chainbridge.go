@@ -33,31 +33,33 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
 )
+
 const (
 	MAX_RETRYCOUNT = 60
 )
+
 var (
-	MsgReleayer *relayer.Relayer
-	errChn chan error
-	stopChn chan struct{}
-	relayStarted bool
-	canStart int32
-	nextTurnArbiters [][]byte
+	MsgReleayer          *relayer.Relayer
+	errChn               chan error
+	stopChn              chan struct{}
+	relayStarted         bool
+	canStart             int32
+	nextTurnArbiters     [][]byte
 	requireArbitersCount int
-	arbiterManager *aribiters.ArbiterManager
+	arbiterManager       *aribiters.ArbiterManager
 
 	IsFirstUpdateArbiter bool
-	api *API
-	pbftEngine *pbft.Pbft
-	isStarted bool
-	wasArbiter bool
-	selfIsSuperVoter bool
-	retryCount int
+	api                  *API
+	pbftEngine           *pbft.Pbft
+	isStarted            bool
+	wasArbiter           bool
+	selfIsSuperVoter     bool
+	retryCount           int
 
 	currentArbitersOnContract []common.Address
-	currentSuperSigner common.Address
-	selfArbiterAddr string
-	isNewStart bool
+	currentSuperSigner        common.Address
+	selfArbiterAddr           string
+	isNewStart                bool
 )
 
 func init() {
@@ -174,7 +176,7 @@ func Start() bool {
 			if IsFirstUpdateArbiter || nexturnHasSelf(self) || selfIsSuperVoter || len(nextTurnArbiters) == 0 {
 				var pid peer.PID
 				copy(pid[:], self)
-				arbiterManager.AddArbiter(pid, pbftEngine.GetBridgeArbiters().PublicKeyBytes())//add self
+				arbiterManager.AddArbiter(pid, pbftEngine.GetBridgeArbiters().PublicKeyBytes()) //add self
 			} else {
 				bridgelog.Info("nexturn self is not a producer")
 			}
@@ -220,7 +222,7 @@ func onReceivedChangSuperMsg(engine *pbft.Pbft, e *events.Event) {
 		bridgelog.Error("onReceivedChangSuperMsg event data is not ChangeSuperSigner", "data", e.Data)
 		return
 	}
-	if uint64(m.SourceChain ) != engine.GetBlockChain().Config().ChainID.Uint64() {
+	if uint64(m.SourceChain) != engine.GetBlockChain().Config().ChainID.Uint64() {
 		bridgelog.Info("onReceivedChangSuperMsg is not current chain")
 		return
 	}
@@ -341,7 +343,7 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 		engine.SendMsgToPeer(msg, m.PID)
 		if !arbiterManager.HasSignature(selfProducer) {
 			bridgelog.Info("add self signature")
-			go events.Notify(dpos_msg.ETFeedBackArbiterSig, msg)//add self signature
+			go events.Notify(dpos_msg.ETFeedBackArbiterSig, msg) //add self signature
 		}
 	} else {
 		bridgelog.Error("receivedReqArbiterSignature current aribter list not contain self")
@@ -379,7 +381,7 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 	}()
 }
 
-func receivedRequireArbiter(engine *pbft.Pbft, e *events.Event)  {
+func receivedRequireArbiter(engine *pbft.Pbft, e *events.Event) {
 	m, ok := e.Data.(*dpos_msg.RequireArbiter)
 	if !ok {
 		return
@@ -444,12 +446,12 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 		return false, nil
 	}
 
-	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey), " m.PID[:]",  common.Bytes2Hex(m.PID[:]), "superNodePubkey", engine.GetBlockChain().Config().Layer2SuperNodePubKey)
+	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey), " m.PID[:]", common.Bytes2Hex(m.PID[:]), "superNodePubkey", engine.GetBlockChain().Config().Layer2SuperNodePubKey)
 	return true, nil
 }
 
 func onSelfIsArbiter() {
-	for{
+	for {
 		select {
 		case <-time.After(time.Second * 2):
 			list := arbiterManager.GetArbiterList()
@@ -482,7 +484,7 @@ func onSelfIsArbiter() {
 func requireArbiters(engine *pbft.Pbft) bool {
 	var peers [][]byte
 	if IsFirstUpdateArbiter || len(nextTurnArbiters) == 0 ||
-		uint64(spv.GetWorkingHeight()) - spv.GetSpvHeight() > pbftEngine.GetBlockChain().Config().PreConnectOffset {
+		uint64(spv.GetWorkingHeight())-spv.GetSpvHeight() > pbftEngine.GetBlockChain().Config().PreConnectOffset {
 		peers = engine.GetCurrentProducers()
 	} else {
 		peers = nextTurnArbiters
@@ -536,8 +538,8 @@ func SendAriberToPeer(engine *pbft.Pbft, pid peer.PID) {
 	producersData := GetProducersData()
 	cipher, err := elaCrypto.Encrypt(publicKey, signer)
 	msg := &dpos_msg.DArbiter{
-		Timestamp: time.Now(),
-		Cipher: cipher,
+		Timestamp:         time.Now(),
+		Cipher:            cipher,
 		ArbitersSignature: engine.SignData(producersData),
 	}
 	copy(msg.PID[:], selfProducer[:])
@@ -570,7 +572,7 @@ func getActivePeerCount(engine *pbft.Pbft, arbiters [][]byte) int {
 		for _, peer := range peers {
 			if bytes.Equal(arb, peer.PID[:]) {
 				if peer.State == p2p.CS2WayConnection {
-					count ++
+					count++
 				}
 				if peer.State == p2p.CSNoneConnection {
 					log.Info("none connect", "pid:", peer.PID.String(), "IP", peer.Addr)
@@ -625,7 +627,7 @@ func relayerStart() error {
 	return nil
 }
 
-func Stop()  {
+func Stop() {
 	if relayStarted {
 		relayStarted = false
 		errChn <- fmt.Errorf("chain bridge is shut down")
@@ -645,13 +647,16 @@ func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.P
 	}
 	ethCfg := ethClient.GetConfig()
 	eventHandler := listener.NewETHEventHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge), ethClient)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Bridge, listener.Erc20EventHandler)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Erc20Handler, listener.Erc20EventHandler)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.WEthHandler, listener.Erc20EventHandler)
+	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Bridge, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Erc20Handler, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.WEthHandler, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Erc721Handler, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.GenericHandler, listener.OnEventHandler)
 	evmListener := listener.NewEVMListener(ethClient, eventHandler, common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge))
 	messageHandler := voter.NewEVMMessageHandler(ethClient, common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge))
 	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Erc20Handler), voter.ERC20MessageHandler)
 	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.WEthHandler), voter.ERC20MessageHandler)
+	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Erc721Handler), voter.ERC721MessageHandler)
 	var evmVoter *voter.EVMVoter
 	if engine.GetBridgeArbiters() != nil {
 		kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)

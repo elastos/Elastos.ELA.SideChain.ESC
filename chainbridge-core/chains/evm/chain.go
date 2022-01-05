@@ -32,8 +32,8 @@ var Layer2ChainID uint8
 const MaxBatchCount = 100
 
 type EventListener interface {
-	ListenToEvents(startBlock *big.Int, chainID uint8, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner)
-	ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.ProposalEvent)
+	ListenToEvents(startBlock *big.Int, chainID uint8, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner, <-chan *relayer.Message)
+	ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent
 }
 
 type ProposalVoter interface {
@@ -91,7 +91,7 @@ func (c *EVMChain) subscribeEvent() {
 				c.selfOnDuty(e)
 			}()
 		case dpos_msg.ETUpdateLayer2SuperVoter:
-			c.superVoter =  e.Data.([]byte)
+			c.superVoter = e.Data.([]byte)
 			c.msgPool.UpdateSuperVoter(c.superVoter)
 			bridgelog.Info("update super voter", "publickey:", common.Bytes2Hex(c.superVoter))
 		}
@@ -296,7 +296,7 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 	proposal := c.msgPool.GetQueueProposal(msg.Item.DepositNonce)
 	if proposal == nil {
 		c.msgPool.PutBeforeProposal(msg)
-		return errors.New(fmt.Sprintf("not have this proposal, nonce:%d, proposor:%s", msg.Item.DepositNonce, common.Bytes2Hex(msg.Proposer)) )
+		return errors.New(fmt.Sprintf("not have this proposal, nonce:%d, proposor:%s", msg.Item.DepositNonce, common.Bytes2Hex(msg.Proposer)))
 	}
 	if proposal.Destination != c.chainID {
 		return errors.New(fmt.Sprintf("proposal destination is not correct, chainID:%d, propsal destination:%d", c.chainID, proposal.Destination))
@@ -332,7 +332,7 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 				superVoterSignature = c.msgPool.GetSuperVoterSigner(phash)
 			}
 			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(phash), "getMaxArbitersSign", maxsign, "superVoterSignature", len(superVoterSignature))
-			if c.msgPool.GetVerifiedCount(phash) >= maxsign  &&
+			if c.msgPool.GetVerifiedCount(phash) >= maxsign &&
 				len(superVoterSignature) > 0 {
 				c.msgPool.PutExecuteProposal(proposal)
 			}
@@ -364,7 +364,7 @@ func compareMsg(msg1 *dpos_msg.DepositItem, msg2 *voter.Proposal) bool {
 
 func (c *EVMChain) getMaxArbitersSign() int {
 	total := c.writer.GetClient().Engine().GetTotalArbitersCount()
-	return total * 2 / 3 + 1
+	return total*2/3 + 1
 }
 
 func (c *EVMChain) onProposal(msg *dpos_msg.DepositProposalMsg, proposalHash []byte) error {
@@ -409,7 +409,7 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 		sysErr <- fmt.Errorf("error %w on getting last stored block", err)
 		return
 	}
-	ech, changeSuperCh := c.listener.ListenToEvents(block, c.chainID, c.kvdb, stop, sysErr)
+	ech, changeSuperCh, nftCh := c.listener.ListenToEvents(block, c.chainID, c.kvdb, stop, sysErr)
 	for {
 		select {
 		case <-stop:
@@ -420,6 +420,9 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 			continue
 		case change := <-changeSuperCh:
 			changeSuperChan <- change
+			continue
+		case evt := <-nftCh:
+			eventsChan <- evt
 			continue
 		}
 	}
