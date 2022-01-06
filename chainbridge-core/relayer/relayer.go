@@ -5,6 +5,8 @@ package relayer
 
 import (
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
@@ -40,18 +42,22 @@ type Relayer struct {
 // Starts the relayer. Relayer routine is starting all the chains
 // and passing them with a channel that accepts unified cross chain message format
 func (r *Relayer) Start(stop <-chan struct{}, sysErr chan error) {
-	log.Info("Starting relayer")
+	bridgelog.Info("Starting relayer")
 	messagesChannel := make(chan *Message)
 	changeSuperCh := make(chan *ChangeSuperSigner)
 	for _, c := range r.relayedChains {
-		log.Info("Starting chain", "chainid", c.ChainID())
+		bridgelog.Info("Starting chain", "chainid", c.ChainID())
 		go c.PollEvents(stop, sysErr, messagesChannel, changeSuperCh)
 		go c.PollStatusEvent(stop, sysErr)
 	}
 	for {
 		select {
 		case m := <-messagesChannel:
-			go r.route(m)
+			if blocksigner.SelfIsProducer {
+				go r.route(m)
+			} else {
+				bridgelog.Info("poll a message self is not a producer, don't to route")
+			}
 			continue
 		case m := <-changeSuperCh:
 			go events.Notify(dpos.ETChangeSuperSigner, m)
@@ -69,7 +75,7 @@ func (r *Relayer) route(m *Message) {
 		return
 	}
 	if err := w.Write(m); err != nil {
-		log.Error("rout error", "error", err, "msg", fmt.Sprint(m))
+		bridgelog.Error("rout error", "error", err, "msg", fmt.Sprint(m))
 		return
 	}
 }
@@ -95,7 +101,7 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
 	}
 
 	for _, c := range r.relayedChains {
-		if c.ChainID() != chainID && chainID  != 0 {
+		if c.ChainID() != chainID && chainID != 0 {
 			continue
 		}
 		err := c.WriteArbiters(address, signatures, totalCount)
@@ -110,7 +116,7 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
 func (r *Relayer) GetArbiters(chainID uint8) []common.Address {
 	c := r.registry[chainID]
 	if c == nil {
-		log.Error("not register chainID", "chainID", chainID)
+		bridgelog.Error("not register chainID", "chainID", chainID)
 		return []common.Address{}
 	}
 	return c.GetArbiters()
@@ -119,7 +125,7 @@ func (r *Relayer) GetArbiters(chainID uint8) []common.Address {
 func (r *Relayer) GetCurrentSuperSigner(chainID uint8) common.Address {
 	c := r.registry[chainID]
 	if c == nil {
-		log.Error("not register chainID", "chainID", chainID)
+		bridgelog.Error("not register chainID", "chainID", chainID)
 		return common.Address{}
 	}
 	return c.GetCurrentSuperSigner()
@@ -128,7 +134,7 @@ func (r *Relayer) GetCurrentSuperSigner(chainID uint8) common.Address {
 func (r *Relayer) GetSuperSignerNodePublickey(chainID uint8) string {
 	c := r.registry[chainID]
 	if c == nil {
-		log.Error("not register chainID", "chainID", chainID)
+		bridgelog.Error("not register chainID", "chainID", chainID)
 		return ""
 	}
 	return c.GetSuperSignerNodePublickey()
