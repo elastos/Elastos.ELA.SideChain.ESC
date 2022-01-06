@@ -241,7 +241,7 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription,
 	}
 }
 
-func accessFailedRechargeTx()  {
+func accessFailedRechargeTx() {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 	for height, txs := range failedTxList {
@@ -346,7 +346,7 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	}
 	fee, addr, output := FindOutputFeeAndaddressByTxHash(tx.Hash().String())
 	var blackAddr ethCommon.Address
-	if fee.Cmp(new(big.Int)) <= 0  && output.Cmp(new(big.Int)) <= 0 && addr == blackAddr {
+	if fee.Cmp(new(big.Int)) <= 0 && output.Cmp(new(big.Int)) <= 0 && addr == blackAddr {
 		savePayloadInfo(tx, l)
 	} else {
 		log.Info("all ready received this cross transaction")
@@ -1148,7 +1148,7 @@ func IsSmallCrossTxByData(data []byte) (string, string, []string, uint64) {
 }
 
 func VerifySmallCrossTx(rawTxID, rawTx string, signatures []string,
-					    blockHeight uint64) (bool, error) {
+	blockHeight uint64) (bool, error) {
 	if PbftEngine == nil {
 		return false, errors.New("PbftEngine is nil")
 	}
@@ -1227,6 +1227,5 @@ func Close() {
 	if spvdb != nil {
 		spvdb.Close()
 		close(stopChn)
-		SpvService.Stop()
 	}
 }
