@@ -10,23 +10,23 @@ import (
 
 func GenerateProposal(nonce uint64) *voter.Proposal {
 	p := &voter.Proposal{
-		Source: 1,
-		Destination: 2,
+		Source:       1,
+		Destination:  2,
 		DepositNonce: nonce,
 	}
 	return p
 }
 
-func TestNonceProposal(t *testing.T)  {
+func TestNonceProposal(t *testing.T) {
 	var count = 10
-	pool := NewMsgPool()
+	pool := NewMsgPool([]byte{})
 	for i := 0; i < count; i++ {
 		pool.PutProposal(GenerateProposal(uint64(count - i - 1)))
 	}
 
 	list := pool.GetQueueList()
 	assert.Equal(t, len(list), count)
-	for i := 0; i< count; i++ {
+	for i := 0; i < count; i++ {
 		assert.Equal(t, list[i].DepositNonce, uint64(i))
 		pool.OnProposalExecuted(uint64(i))
 	}
