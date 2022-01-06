@@ -164,8 +164,9 @@ func Start() bool {
 				if wasArbiter {
 					api.UpdateArbiters(0)
 				}
-				bridgelog.Info("self is not a producer, chain bridge is stop")
-				Stop()
+				bridgelog.Info("self is not a producer, chain bridge is stop and only relay")
+				//Stop()
+				selfIsNotArbiterRelay()
 				return
 			}
 			arbiterManager.Clear()
@@ -184,12 +185,12 @@ func Start() bool {
 			go onSelfIsArbiter()
 		case dpos.ETUpdateProducers:
 			api.UpdateArbiters(0)
-			isProducer := pbftEngine.IsProducer()
-			if !isProducer {
-				bridgelog.Info("ETUpdateProducers self is not a producer, chain bridge is stop")
-				Stop()
-				return
-			}
+			//isProducer := pbftEngine.IsProducer()
+			//if !isProducer {
+			//	bridgelog.Info("ETUpdateProducers self is not a producer, chain bridge is stop")
+			//	Stop()
+			//	return
+			//}
 		case dpos_msg.ETOnArbiter:
 			res, _ := hanleDArbiter(pbftEngine, e)
 			if res {
@@ -448,6 +449,19 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 
 	log.Info("hanleDArbiter", "signerPublicKey:", common.Bytes2Hex(signerPublicKey), " m.PID[:]", common.Bytes2Hex(m.PID[:]), "superNodePubkey", engine.GetBlockChain().Config().Layer2SuperNodePubKey)
 	return true, nil
+}
+
+func selfIsNotArbiterRelay() {
+	atomic.StoreInt32(&canStart, 1)
+	if !relayStarted {
+		relayStarted = true
+		go func() {
+			err := relayerStart()
+			log.Error("selfIsNotArbiterRelay bridge relay error", "error", err)
+		}()
+	} else {
+		log.Info("selfIsNotArbiterRelay bridge is starting relay")
+	}
 }
 
 func onSelfIsArbiter() {
