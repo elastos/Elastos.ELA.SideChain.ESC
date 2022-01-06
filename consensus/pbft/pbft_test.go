@@ -41,14 +41,14 @@ func TestReimportMirroredState(t *testing.T) {
 		db     = rawdb.NewMemoryDatabase()
 		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr   = crypto.PubkeyToAddress(key.PublicKey)
-		engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "", PbftProtocolChanges.PBFTBlock.Uint64())
+		engine = New(PbftProtocolChanges, "")
 		signer = new(types.HomesteadSigner)
 	)
 	engine.IsCurrent = func() bool {
 		return true
 	}
 	genspec := &core.Genesis{
-		ExtraData: make([]byte, extraVanity + common.AddressLength + extraSeal),
+		ExtraData: make([]byte, extraVanity+common.AddressLength+extraSeal),
 		Alloc: map[common.Address]core.GenesisAccount{
 			addr: {Balance: big.NewInt(1)},
 		},
@@ -84,7 +84,7 @@ func TestReimportMirroredState(t *testing.T) {
 		header.Extra = make([]byte, sealBuf.Len())
 		copy(header.Extra[:], sealBuf.Bytes()[:])
 
-		blocks[i] =block.WithSeal(header)
+		blocks[i] = block.WithSeal(header)
 	}
 	// Insert the first two blocks and make sure the chain is valid
 	db = rawdb.NewMemoryDatabase()
@@ -103,7 +103,7 @@ func TestReimportMirroredState(t *testing.T) {
 	// Simulate a crash by creating a new chain on top of the database, without
 	// flushing the dirty states out. Insert the last block, trigerring a sidechain
 	// reimport.
-	engine = New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "", PbftProtocolChanges.PBFTBlock.Uint64())
+	engine = New(PbftProtocolChanges, "")
 	chain, _ = core.NewBlockChain(db, nil, PbftProtocolChanges, engine, engine, vm.Config{}, nil)
 	defer chain.Stop()
 
@@ -114,7 +114,6 @@ func TestReimportMirroredState(t *testing.T) {
 		t.Fatalf("chain head mismatch: have %d, want %d", head, 3)
 	}
 }
-
 
 func createConfirm(block *types.Block, ac account.Account) *payload.Confirm {
 	hash := SealHash(block.Header())
@@ -133,7 +132,7 @@ func createConfirm(block *types.Block, ac account.Account) *payload.Confirm {
 	return confirm
 }
 
-func TestBeforeChangEngine(t *testing.T)  {
+func TestBeforeChangEngine(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		TestChangeEngine(t)
 		time.Sleep(10)
@@ -149,15 +148,15 @@ func TestChangeEngine(t *testing.T) {
 	cliqueCfg := &params.CliqueConfig{Period: 0, Epoch: 30000}
 	var (
 		PbftProtocolChanges = &params.ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: nil, EWASMBlock: nil, PBFTBlock: big.NewInt(10), Ethash: nil, Clique: cliqueCfg, Pbft: cfg, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 1, PbftKeyStore: "test/keystore.dat", PbftKeyStorePassWord: "123"}
-		db     = rawdb.NewMemoryDatabase()
-		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-		addr   = crypto.PubkeyToAddress(key.PublicKey)
-		engine = clique.New(PbftProtocolChanges.Clique, db)
-		diffInTurn = big.NewInt(2)
+		db                  = rawdb.NewMemoryDatabase()
+		key, _              = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		addr                = crypto.PubkeyToAddress(key.PublicKey)
+		engine              = clique.New(PbftProtocolChanges.Clique, db)
+		diffInTurn          = big.NewInt(2)
 	)
 	engine.SetFakeDiff(true)
 	genspec := &core.Genesis{
-		ExtraData: make([]byte, extraVanity + common.AddressLength + extraSeal),
+		ExtraData: make([]byte, extraVanity+common.AddressLength+extraSeal),
 		Alloc: map[common.Address]core.GenesisAccount{
 			addr: {Balance: big.NewInt(1)},
 		},
@@ -165,8 +164,7 @@ func TestChangeEngine(t *testing.T) {
 	copy(genspec.ExtraData[extraVanity:], addr[:])
 	genesis := genspec.MustCommit(db)
 
-
-	blocks, _ := core.GenerateChain(PbftProtocolChanges, genesis, engine, db, int(PbftProtocolChanges.PBFTBlock.Uint64() - 2), func(i int, block *core.BlockGen) {
+	blocks, _ := core.GenerateChain(PbftProtocolChanges, genesis, engine, db, int(PbftProtocolChanges.PBFTBlock.Uint64()-2), func(i int, block *core.BlockGen) {
 		block.SetDifficulty(diffInTurn)
 	})
 	for i, block := range blocks {
@@ -174,7 +172,7 @@ func TestChangeEngine(t *testing.T) {
 		if i > 0 {
 			header.ParentHash = blocks[i-1].Hash()
 		}
-		header.Extra = make([]byte, extraVanity + extraSeal)
+		header.Extra = make([]byte, extraVanity+extraSeal)
 		header.Difficulty = big.NewInt(int64(rand.Intn(2) + 1))
 
 		sig, _ := crypto.Sign(clique.SealHash(header).Bytes(), key)
@@ -192,7 +190,7 @@ func TestChangeEngine(t *testing.T) {
 	if _, err := chain.InsertChain(blocks[:]); err != nil {
 		t.Fatalf("failed to insert initial blocks: %v", err)
 	}
-	blocks2, _ := core.GenerateChain(PbftProtocolChanges, genesis, engine, db, int(PbftProtocolChanges.PBFTBlock.Uint64() - 1), func(i int, block *core.BlockGen) {
+	blocks2, _ := core.GenerateChain(PbftProtocolChanges, genesis, engine, db, int(PbftProtocolChanges.PBFTBlock.Uint64()-1), func(i int, block *core.BlockGen) {
 		block.SetDifficulty(diffInTurn)
 	})
 	for i, block := range blocks2 {
@@ -200,11 +198,11 @@ func TestChangeEngine(t *testing.T) {
 		if i > 0 {
 			header.ParentHash = blocks2[i-1].Hash()
 		}
-		header.Extra = make([]byte, extraVanity + extraSeal)
-		if i < len(blocks) - 2 {
+		header.Extra = make([]byte, extraVanity+extraSeal)
+		if i < len(blocks)-2 {
 			header.Difficulty = blocks[i].Difficulty()
-		} else if i >= len(blocks) - 2 &&  i < len(blocks2) - 1 {
-			if header.Difficulty ==  diffInTurn {
+		} else if i >= len(blocks)-2 && i < len(blocks2)-1 {
+			if header.Difficulty == diffInTurn {
 				header.Difficulty = big.NewInt(1)
 			} else {
 				header.Difficulty = diffInTurn
@@ -220,7 +218,7 @@ func TestChangeEngine(t *testing.T) {
 	if _, err := chain.InsertChain(blocks2[:]); err != nil {
 		t.Fatalf("failed to insert initial blocks: %v", err)
 	}
-	assert.Equal(t, chain.CurrentHeader().Hash(), blocks2[len(blocks2) - 1].Hash())
+	assert.Equal(t, chain.CurrentHeader().Hash(), blocks2[len(blocks2)-1].Hash())
 	assert.Equal(t, chain.CurrentHeader().Difficulty, diffInTurn)
 	assert.Equal(t, chain.CurrentHeader().Number.Uint64(), uint64(len(blocks2)))
 }
