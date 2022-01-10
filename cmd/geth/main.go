@@ -622,9 +622,9 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Failed to start mining: %v", err)
 			}
 		}
-	}
-	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
-		go startLayer2(ctx, stack, ethereum.BlockChain())
+		if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
+			go startLayer2(ctx, stack, ethereum.BlockChain())
+		}
 	}
 }
 
