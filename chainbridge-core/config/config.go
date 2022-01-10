@@ -4,14 +4,17 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 )
 
-const DefaultKeystorePath = "./keys"
-const DefaultBlockStore = "./blockStore"
-
 var (
-	DefaultConfigDir      = "./chainbridge/config/"
+	DefaultConfigDir    = "./chainbridge/config/chain_bridge.json"
 	KeystoreFlagName    = "./data/keystore/"
 	BlockstoreFlagName  = "./chainbridge/blockstore"
 	FreshStartFlagName  = "fresh"
@@ -19,16 +22,17 @@ var (
 )
 
 type GeneralChainConfig struct {
-	Name           string `json:"name"` // Human-readable chain name
-	Id             uint8 `json:"id"`   //ChainID
-	Endpoint       string `json:"endpoint"`// url for rpc endpoint
-	From           string `json:"from"`  // address of key to use
+	Name           string `json:"name"`     // Human-readable chain name
+	Id             uint8  `json:"id"`       //ChainID
+	Endpoint       string `json:"endpoint"` // url for rpc endpoint
+	From           string `json:"from"`     // address of key to use
 	KeystorePath   string // Location of key files
-	Insecure       bool // Indicated whether the test keyring should be used
+	Insecure       bool   // Indicated whether the test keyring should be used
 	BlockstorePath string // Location of blockstore
-	FreshStart     bool  // If true, blockstore is ignored at start.
-	LatestBlock    bool // If true, overrides blockstore or latest block in config and starts from current block
-	Opts          OpsConfig
+	FreshStart     bool   // If true, blockstore is ignored at start.
+	LatestBlock    bool   // If true, overrides blockstore or latest block in config and starts from current block
+	Opts           OpsConfig
+	Kp             *secp256k1.Keypair
 }
 
 func (c *GeneralChainConfig) Validate() error {
@@ -47,12 +51,62 @@ func (c *GeneralChainConfig) Validate() error {
 	return nil
 }
 
-func (c *GeneralChainConfig) ParseConfig() {
-	//c.KeystorePath = DefaultKeystorePath
-	//c.Insecure = false
-	//c.BlockstorePath = DefaultBlockStore
-	//c.FreshStart = true
-	//c.LatestBlock = true
+type BridgeConfig struct {
+	Chains []GeneralChainConfig `json:"chains"`
 }
 
+func NewConfig() *BridgeConfig {
+	return &BridgeConfig{
+		Chains: []GeneralChainConfig{},
+	}
+}
 
+func (c *BridgeConfig) validate() error {
+	for _, chain := range c.Chains {
+		err := chain.Validate()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func GetConfig(path string) (*BridgeConfig, error) {
+	var fig = NewConfig()
+	if path == "" {
+		path = DefaultConfigDir
+	}
+
+	err := loadConfig(path, fig)
+	if err != nil {
+		bridgelog.Warn("err loading json file", "err", err.Error())
+		return fig, err
+	}
+
+	err = fig.validate()
+	if err != nil {
+		return nil, err
+	}
+	return fig, nil
+}
+
+func loadConfig(file string, config *BridgeConfig) error {
+	ext := filepath.Ext(file)
+	fp, err := filepath.Abs(file)
+	if err != nil {
+		return err
+	}
+	f, err := os.Open(filepath.Clean(fp))
+	if err != nil {
+		return err
+	}
+
+	if ext == ".json" {
+		if err = json.NewDecoder(f).Decode(&config); err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("unrecognized extention: %s", ext)
+	}
+	return nil
+}
