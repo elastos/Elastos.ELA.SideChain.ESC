@@ -402,7 +402,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		SpvDataDir = filepath.Join(node.DefaultDataDir(), "testnet")
 	case ctx.GlobalBool(utils.RinkebyFlag.Name):
 		SpvDataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
-	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+	case ctx.GlobalBool(utils.GoerliFlag.Name):
 		SpvDataDir = filepath.Join(node.DefaultDataDir(), "goerli")
 	default:
 		SpvDataDir = node.DefaultDataDir()
@@ -464,7 +464,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		}
 	}
 
-	spv.GetDefaultSingerAddr = func() (common.Address) {
+	spv.GetDefaultSingerAddr = func() common.Address {
 		var addr common.Address
 		if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
 			if accounts := wallets[0].Accounts(); len(accounts) > 0 {
@@ -479,7 +479,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 	if err != nil {
 		log.Error("Attach client: ", "err", err)
 	}
-	if spvService, err := spv.NewService(spvCfg,client, stack.EventMux(), dynamicArbiterHeight); err != nil {
+	if spvService, err := spv.NewService(spvCfg, client, stack.EventMux(), dynamicArbiterHeight); err != nil {
 		utils.Fatalf("SPV service init error: %v", err)
 	} else {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})
@@ -623,9 +623,9 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Failed to start mining: %v", err)
 			}
 		}
-	}
-	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
-		go startLayer2(ctx, stack, ethereum.BlockChain())
+		if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
+			go startLayer2(ctx, stack, ethereum.BlockChain())
+		}
 	}
 }
 
@@ -685,7 +685,7 @@ func startSmallCrossTx(ctx *cli.Context, stack *node.Node) {
 		datadir = filepath.Join(node.DefaultDataDir(), "testnet")
 	case ctx.GlobalBool(utils.RinkebyFlag.Name):
 		datadir = filepath.Join(node.DefaultDataDir(), "rinkeby")
-	case  ctx.GlobalBool(utils.GoerliFlag.Name):
+	case ctx.GlobalBool(utils.GoerliFlag.Name):
 		datadir = filepath.Join(node.DefaultDataDir(), "goerli")
 	default:
 		datadir = node.DefaultDataDir()
