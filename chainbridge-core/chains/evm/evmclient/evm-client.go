@@ -15,6 +15,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/listener"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/keystore"
@@ -32,7 +33,7 @@ type EVMClient struct {
 	*ethclient.Client
 	rpClient  *rpc.Client
 	nonceLock sync.Mutex
-	config    *EVMConfig
+	config    *config.GeneralChainConfig
 	nonce     *big.Int
 
 	engine               engine.ESCEngine
@@ -78,24 +79,18 @@ func NewEVMClient(engine engine.ESCEngine) *EVMClient {
 	return client
 }
 
-func (c *EVMClient) Configurate(path string, accountPath, password string) error {
-	rawCfg, err := GetConfig(path)
-	if err != nil {
-		return err
+func (c *EVMClient) Configurate(generalConfig *config.GeneralChainConfig, accountPath, password string) error {
+	if generalConfig == nil {
+		return errors.New("chain config is nil")
 	}
-	cfg, err := ParseConfig(rawCfg)
-	if err != nil {
-		return err
-	}
-	c.config = cfg
-	generalConfig := cfg.SharedEVMConfig
+	c.config = generalConfig
 	if len(generalConfig.KeystorePath) > 0 {
 		accountPath = generalConfig.KeystorePath
 	}
 	kp, err := keystore.KeypairFromAddress(keystore.EthChain, accountPath, []byte(password), generalConfig.Insecure)
 	if err == nil {
 		krp := kp.(*secp256k1.Keypair)
-		c.config.kp = krp
+		c.config.Kp = krp
 	}
 	rpcClient, err := rpc.DialContext(context.TODO(), generalConfig.Endpoint)
 	if err != nil {
@@ -109,9 +104,8 @@ func (c *EVMClient) Configurate(path string, accountPath, password string) error
 		if err != nil {
 			return err
 		}
-		cfg.SharedEVMConfig.Opts.StartBlock = curr.Int64()
+		generalConfig.Opts.StartBlock = curr.Int64()
 	}
-
 	return nil
 }
 
@@ -158,16 +152,15 @@ func (c *EVMClient) Engine() engine.ESCEngine {
 }
 
 func (c *EVMClient) GetClientAddress() common.Address {
-	return common.HexToAddress(c.config.kp.Address())
+	return common.HexToAddress(c.config.Kp.Address())
 }
 
 const (
 	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
-	DepositRecord      string = "DepositRecordERC20OrWETH(address,uint8,bytes32,uint64,address,uint256,uint256)"
-	DepositNFTRecord   string = "DepositRecordERC721(address,uint8,bytes32,uint64,address,uint256,bytes,uint256)"
-	ChangeSuperSigner  string = "ChangeSuperSigner(address,address,bytes)"
-	ProposalEvent      string = "ProposalEvent(uint8,uint64,uint8,bytes32,bytes32)"
-	ProposalEventBatch string = "ProposalEventBatch(uint8,uint64[],uint8[],bytes32[],bytes32[])"
+	DepositRecord     string = "DepositRecordERC20OrWETH(address,uint8,bytes32,uint64,address,uint256,uint256)"
+	DepositNFTRecord  string = "DepositRecordERC721(address,uint8,bytes32,uint64,address,uint256,bytes,uint256)"
+	ChangeSuperSigner string = "ChangeSuperSigner(address,address,bytes)"
+	ProposalEvent     string = "ProposalEvent(uint8,uint64,uint8,bytes32,bytes32)"
 )
 
 func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositRecord, error) {
@@ -266,7 +259,7 @@ func (c *EVMClient) SignAndSendTransaction(ctx context.Context, tx CommonTransac
 	if err != nil {
 		panic(err)
 	}
-	rawTX, err := tx.RawWithSignature(c.config.kp.PrivateKey(), id)
+	rawTX, err := tx.RawWithSignature(c.config.Kp.PrivateKey(), id)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -289,7 +282,7 @@ func (c *EVMClient) UnlockNonce() {
 func (c *EVMClient) GetNonce() (*big.Int, error) {
 	var err error
 	for i := 0; i <= 10; i++ {
-		nonce, err := c.PendingNonceAt(context.Background(), c.config.kp.CommonAddress())
+		nonce, err := c.PendingNonceAt(context.Background(), c.config.Kp.CommonAddress())
 		if err != nil {
 			time.Sleep(1)
 			continue
@@ -314,12 +307,12 @@ func (c *EVMClient) SafeEstimateGas(ctx context.Context) (*big.Int, error) {
 		return nil, err
 	}
 
-	gasPrice := multiplyGasPrice(suggestedGasPrice, big.NewFloat(c.config.SharedEVMConfig.Opts.GasMultiplier))
+	gasPrice := multiplyGasPrice(suggestedGasPrice, big.NewFloat(c.config.Opts.GasMultiplier))
 
 	// Check we aren't exceeding our limit
 
-	if gasPrice.Cmp(big.NewInt(c.config.SharedEVMConfig.Opts.MaxGasPrice)) == 1 {
-		return big.NewInt(c.config.SharedEVMConfig.Opts.MaxGasPrice), nil
+	if gasPrice.Cmp(big.NewInt(c.config.Opts.MaxGasPrice)) == 1 {
+		return big.NewInt(c.config.Opts.MaxGasPrice), nil
 	} else {
 		return gasPrice, nil
 	}
@@ -362,7 +355,7 @@ func buildQuery(contract common.Address, sig string, startBlock *big.Int, endBlo
 	return query
 }
 
-func (c *EVMClient) GetConfig() *EVMConfig {
+func (c *EVMClient) GetConfig() *config.GeneralChainConfig {
 	return c.config
 }
 
