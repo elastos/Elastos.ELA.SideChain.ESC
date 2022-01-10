@@ -610,14 +610,17 @@ func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
 		return err
 	}
 
-	path := config.DefaultConfigDir + "layer1_config.json"
-	layer1, err := createChain(path, db, engine, accountPath, accountPassword)
+	cfg, err := config.GetConfig(config.DefaultConfigDir)
+	if err != nil {
+		return err
+	}
+
+	layer1, err := createChain(&cfg.Chains[0], db, engine, accountPath, accountPassword)
 	if err != nil {
 		return errors.New(fmt.Sprintf("layer1 is create error:%s", err.Error()))
 	}
 	evm.Layer1ChainID = layer1.ChainID()
-	path = config.DefaultConfigDir + "layer2_config.json"
-	layer2, err := createChain(path, db, engine, accountPath, accountPassword)
+	layer2, err := createChain(&cfg.Chains[1], db, engine, accountPath, accountPassword)
 	if layer1 == nil {
 		return errors.New(fmt.Sprintf("layer2 is create error:%s", err.Error()))
 	}
@@ -650,27 +653,26 @@ func Stop() {
 	wasArbiter = false
 }
 
-func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
+func createChain(generalConfig *config.GeneralChainConfig, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
 	ethClient := evmclient.NewEVMClient(engine)
 	if ethClient == nil {
 		return nil, errors.New("create evm client error")
 	}
-	err := ethClient.Configurate(path, accountPath, accountPassword)
+	err := ethClient.Configurate(generalConfig, accountPath, accountPassword)
 	if err != nil {
 		return nil, err
 	}
-	ethCfg := ethClient.GetConfig()
-	eventHandler := listener.NewETHEventHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge), ethClient)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Bridge, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Erc20Handler, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.WEthHandler, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.Erc721Handler, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(ethCfg.SharedEVMConfig.Opts.GenericHandler, listener.OnEventHandler)
-	evmListener := listener.NewEVMListener(ethClient, eventHandler, common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge))
-	messageHandler := voter.NewEVMMessageHandler(ethClient, common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Bridge))
-	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Erc20Handler), voter.ERC20MessageHandler)
-	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.WEthHandler), voter.ERC20MessageHandler)
-	messageHandler.RegisterMessageHandler(common.HexToAddress(ethCfg.SharedEVMConfig.Opts.Erc721Handler), voter.ERC721MessageHandler)
+	eventHandler := listener.NewETHEventHandler(common.HexToAddress(generalConfig.Opts.Bridge), ethClient)
+	eventHandler.RegisterEventHandler(generalConfig.Opts.Bridge, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(generalConfig.Opts.Erc20Handler, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(generalConfig.Opts.WEthHandler, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(generalConfig.Opts.Erc721Handler, listener.OnEventHandler)
+	eventHandler.RegisterEventHandler(generalConfig.Opts.GenericHandler, listener.OnEventHandler)
+	evmListener := listener.NewEVMListener(ethClient, eventHandler, common.HexToAddress(generalConfig.Opts.Bridge))
+	messageHandler := voter.NewEVMMessageHandler(ethClient, common.HexToAddress(generalConfig.Opts.Bridge))
+	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.Erc20Handler), voter.ERC20MessageHandler)
+	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.WEthHandler), voter.ERC20MessageHandler)
+	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.Erc721Handler), voter.ERC721MessageHandler)
 	var evmVoter *voter.EVMVoter
 	if engine.GetBridgeArbiters() != nil {
 		kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
@@ -678,7 +680,7 @@ func createChain(path string, db blockstore.KeyValueReaderWriter, engine *pbft.P
 			evmVoter = voter.NewVoter(messageHandler, ethClient, kp)
 		}
 	}
-	chain := evm.NewEVMChain(evmListener, evmVoter, db, ethCfg.SharedEVMConfig.Id,
-		&ethCfg.SharedEVMConfig, arbiterManager, engine.GetBlockChain().Config().Layer2EFVoter)
+	chain := evm.NewEVMChain(evmListener, evmVoter, db, generalConfig.Id,
+		generalConfig, arbiterManager, engine.GetBlockChain().Config().Layer2EFVoter)
 	return chain, nil
 }
