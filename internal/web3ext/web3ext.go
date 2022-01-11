@@ -37,7 +37,6 @@ var Modules = map[string]string{
 	"bridge":     BridgeJs,
 }
 
-
 const BridgeJs = `
 web3._extend({
 	property: 'bridge',
@@ -65,6 +64,10 @@ web3._extend({
 			call: 'bridge_getSuperNodePublickey',
 			params: 1,
 		    inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'getCollectedArbiterList',
+			call: 'bridge_getCollectedArbiterList',
 		})
 	]
 });
