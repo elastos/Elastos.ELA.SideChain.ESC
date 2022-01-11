@@ -3,6 +3,7 @@ package chainbridge_core
 import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
@@ -12,7 +13,7 @@ type API struct {
 	engine *pbft.Pbft
 }
 
-func (a *API) HasProducerMajorityCount(count, total int) bool  {
+func (a *API) HasProducerMajorityCount(count, total int) bool {
 	minSignCount := int(float64(total) * 2 / 3)
 	return count > minSignCount
 }
@@ -27,7 +28,7 @@ func (a *API) UpdateArbiters(chainID uint8) uint64 {
 		count = 1
 	}
 
-	log.Info("UpdateArbiters ","len", len(list), "total", total,
+	log.Info("UpdateArbiters ", "len", len(list), "total", total,
 		"producers", a.engine.GetTotalArbitersCount(), "sigCount", count)
 	if a.HasProducerMajorityCount(count, total) || IsFirstUpdateArbiter && a.HasProducerMajorityCount(len(list), total) {
 		sigs := make([][]byte, 0)
@@ -50,6 +51,21 @@ func (a *API) GetArbiters(chainID uint8) []common.Address {
 	address := MsgReleayer.GetArbiters(chainID)
 	for _, addr := range address {
 		log.Info("GetArbiters", "address", addr.String())
+	}
+	return address
+}
+
+func (a *API) GetCollectedArbiterList() []common.Address {
+	arbiters := arbiterManager.GetArbiterList()
+
+	address := make([]common.Address, 0)
+	for _, arbiter := range arbiters {
+		escssaPUb, err := crypto.DecompressPubkey(arbiter)
+		if err != nil {
+			return address
+		}
+		addr := crypto.PubkeyToAddress(*escssaPUb)
+		address = append(address, addr)
 	}
 	return address
 }
