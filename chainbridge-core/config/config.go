@@ -61,12 +61,17 @@ func NewConfig() *BridgeConfig {
 	}
 }
 
-func (c *BridgeConfig) validate() error {
+func (c *BridgeConfig) validateAndParse() error {
 	for _, chain := range c.Chains {
 		err := chain.Validate()
 		if err != nil {
 			return err
 		}
+		ops, err := chain.Opts.ParseConfig()
+		if err != nil {
+			return err
+		}
+		chain.Opts = *ops
 	}
 	return nil
 }
@@ -83,7 +88,7 @@ func GetConfig(path string) (*BridgeConfig, error) {
 		return fig, err
 	}
 
-	err = fig.validate()
+	err = fig.validateAndParse()
 	if err != nil {
 		return nil, err
 	}

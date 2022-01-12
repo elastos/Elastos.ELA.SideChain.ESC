@@ -113,6 +113,21 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
 	return nil
 }
 
+func (r *Relayer) SetArbiterList(arbiters []common.Address, total int, chainID uint8) error {
+	fmt.Println("SetArbiterList", arbiters, "total", total, "chainid", chainID)
+	for _, c := range r.relayedChains {
+		if c.ChainID() != chainID && chainID != 0 {
+			continue
+		}
+		err := c.WriteArbiters(arbiters, [][]byte{}, total)
+		if err != nil {
+			log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Relayer) GetArbiters(chainID uint8) []common.Address {
 	c := r.registry[chainID]
 	if c == nil {
