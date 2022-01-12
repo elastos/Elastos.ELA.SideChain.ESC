@@ -7,15 +7,14 @@ import (
 	"fmt"
 )
 
-const DefaultGasLimit = 6721975
+const DefaultGasLimit = 7000000
 const DefaultGasPrice = 20000000000
-const DefaultGasMultiplier = 1
+const DefaultGasMultiplier = 1.1
 const DefaultBlockConfirmations = 10
-
 
 type OpsConfig struct {
 	Bridge             string  `mapstructure:"bridge"`
-	WEthHandler       string   `mapstructure:"wethHandler"`
+	WEthHandler        string  `mapstructure:"wethHandler"`
 	Erc20Handler       string  `mapstructure:"erc20Handler"`
 	Erc721Handler      string  `mapstructure:"erc721Handler"`
 	GenericHandler     string  `mapstructure:"genericHandler"`
@@ -35,9 +34,10 @@ func (c *OpsConfig) Validate() error {
 
 func (c *OpsConfig) ParseConfig() (*OpsConfig, error) {
 	config := &OpsConfig{
-		Erc20Handler:       c.Erc20Handler,
-		Erc721Handler:      c.Erc721Handler,
-		GenericHandler:     c.GenericHandler,
+		Erc20Handler:   c.Erc20Handler,
+		Erc721Handler:  c.Erc721Handler,
+		GenericHandler: c.GenericHandler,
+		WEthHandler:    c.WEthHandler,
 	}
 
 	if c.Bridge != "" {
