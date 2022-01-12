@@ -55,19 +55,35 @@ func (a *API) GetArbiters(chainID uint8) []common.Address {
 	return address
 }
 
-func (a *API) GetCollectedArbiterList() []common.Address {
-	arbiters := arbiterManager.GetArbiterList()
+type Message struct {
+	List  []common.Address
+	Total int
+}
 
+func (a *API) GetCollectedArbiterList() *Message {
+	arbiters := arbiterManager.GetArbiterList()
+	total := arbiterManager.GetTotalCount()
+	msg := new(Message)
 	address := make([]common.Address, 0)
 	for _, arbiter := range arbiters {
 		escssaPUb, err := crypto.DecompressPubkey(arbiter)
 		if err != nil {
-			return address
+			return msg
 		}
 		addr := crypto.PubkeyToAddress(*escssaPUb)
 		address = append(address, addr)
 	}
-	return address
+	msg.List = address
+	msg.Total = total
+	return msg
+}
+
+func (a *API) InitArbiterList(arbiters []common.Address, total int, chainID uint8) uint8 {
+	err := MsgReleayer.SetArbiterList(arbiters, total, chainID)
+	if err != nil {
+		return 0
+	}
+	return 1
 }
 
 func (a *API) GetSuperSigner(chainID uint8) common.Address {

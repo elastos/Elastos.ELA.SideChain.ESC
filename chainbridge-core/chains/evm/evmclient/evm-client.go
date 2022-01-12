@@ -294,14 +294,14 @@ func (c *EVMClient) GetNonce() (*big.Int, error) {
 }
 
 func (c *EVMClient) GasPrice() (*big.Int, error) {
-	gasPrice, err := c.SafeEstimateGas(context.TODO())
+	gasPrice, err := c.SafeEstimateGasPrice(context.TODO())
 	if err != nil {
 		return nil, err
 	}
 	return gasPrice, nil
 }
 
-func (c *EVMClient) SafeEstimateGas(ctx context.Context) (*big.Int, error) {
+func (c *EVMClient) SafeEstimateGasPrice(ctx context.Context) (*big.Int, error) {
 	suggestedGasPrice, err := c.SuggestGasPrice(context.TODO())
 	if err != nil {
 		return nil, err
@@ -319,7 +319,15 @@ func (c *EVMClient) SafeEstimateGas(ctx context.Context) (*big.Int, error) {
 }
 
 func (c *EVMClient) EstimateGasLimit(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
-	return c.EstimateGas(ctx, msg)
+	gasLimit, err := c.EstimateGas(ctx, msg)
+	if err != nil {
+		return 0, err
+	}
+	gas := multiplyGasPrice(big.NewInt(0).SetUint64(gasLimit), big.NewFloat(c.config.Opts.GasMultiplier))
+	if gas.Cmp(big.NewInt(c.config.Opts.GasLimit)) == 1 {
+		return big.NewInt(c.config.Opts.GasLimit).Uint64(), nil
+	}
+	return gas.Uint64(), nil
 }
 
 func multiplyGasPrice(gasEstimate *big.Int, gasMultiplier *big.Float) *big.Int {
