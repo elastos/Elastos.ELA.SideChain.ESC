@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
 var BlockRetryInterval = time.Second * 5
-var BlockDelay = big.NewInt(6) //TODO: move to config
-var BatchMsgInterval = time.Second * 30
+var BlockDelay = big.NewInt(6)
 
 type DepositRecord struct {
 	TokenAddress       common.Address
@@ -63,10 +63,17 @@ type EVMListener struct {
 	chainReader   ChainClient
 	eventHandler  EventHandler
 	bridgeAddress common.Address
+	opsConfig     *config.OpsConfig
 }
 
-func NewEVMListener(chainReader ChainClient, handler EventHandler, bridgeAddress common.Address) *EVMListener {
-	return &EVMListener{chainReader: chainReader, eventHandler: handler, bridgeAddress: bridgeAddress}
+func NewEVMListener(chainReader ChainClient, handler EventHandler, opsConfig *config.OpsConfig) *EVMListener {
+	listener := &EVMListener{chainReader: chainReader, eventHandler: handler, opsConfig: opsConfig}
+	listener.bridgeAddress = common.HexToAddress(opsConfig.Bridge)
+	if opsConfig.BlockConfirmations > 0 {
+		BlockDelay = big.NewInt(opsConfig.BlockConfirmations)
+	}
+
+	return listener
 }
 
 func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
