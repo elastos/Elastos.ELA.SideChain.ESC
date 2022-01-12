@@ -68,6 +68,12 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'getCollectedArbiterList',
 			call: 'bridge_getCollectedArbiterList',
+		}),
+		new web3._extend.Method({
+			name: 'initArbiterList',
+			call: 'bridge_initArbiterList',
+			params: 3,
+		    inputFormatter: [null, null, null]
 		})
 	]
 });

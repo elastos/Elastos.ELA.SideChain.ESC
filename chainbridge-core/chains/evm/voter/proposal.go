@@ -174,7 +174,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 		b, errMsg := client.CurrentBlock()
 		var addr common.Address
 		if errMsg == nil && b.Coinbase() == addr {
-			gasLimit = 300000
+			gasLimit = 500000
 		} else {
 			return err
 		}
@@ -182,7 +182,6 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
 	}
-	gasLimit = gasLimit + gasLimit*10/100
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
@@ -235,7 +234,6 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, supe
 	if gasLimit == 0 {
 		return errors.New("EstimateGasLimit is 0")
 	}
-	gasLimit = gasLimit + gasLimit*10/100
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)

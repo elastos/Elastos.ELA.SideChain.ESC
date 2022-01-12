@@ -504,9 +504,10 @@ func requireArbiters(engine *pbft.Pbft) bool {
 		peers = nextTurnArbiters
 	}
 	count := getActivePeerCount(engine, peers)
+	nowArbiterCount := len(arbiterManager.GetArbiterList())
 	log.Info("getActivePeerCount", "count", count, "total", len(peers), "IsFirstUpdateArbiter", IsFirstUpdateArbiter, "retryCount", retryCount)
 	if api.HasProducerMajorityCount(count, len(peers)) {
-		if count < len(peers) && retryCount < MAX_RETRYCOUNT {
+		if count < len(peers) && retryCount < MAX_RETRYCOUNT && nowArbiterCount > 1 {
 			retryCount++
 			return false
 		}
@@ -668,7 +669,7 @@ func createChain(generalConfig *config.GeneralChainConfig, db blockstore.KeyValu
 	eventHandler.RegisterEventHandler(generalConfig.Opts.WEthHandler, listener.OnEventHandler)
 	eventHandler.RegisterEventHandler(generalConfig.Opts.Erc721Handler, listener.OnEventHandler)
 	eventHandler.RegisterEventHandler(generalConfig.Opts.GenericHandler, listener.OnEventHandler)
-	evmListener := listener.NewEVMListener(ethClient, eventHandler, common.HexToAddress(generalConfig.Opts.Bridge))
+	evmListener := listener.NewEVMListener(ethClient, eventHandler, &generalConfig.Opts)
 	messageHandler := voter.NewEVMMessageHandler(ethClient, common.HexToAddress(generalConfig.Opts.Bridge))
 	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.Erc20Handler), voter.ERC20MessageHandler)
 	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.WEthHandler), voter.ERC20MessageHandler)
