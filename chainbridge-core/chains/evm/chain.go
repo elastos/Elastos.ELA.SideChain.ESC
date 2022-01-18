@@ -26,14 +26,14 @@ import (
 	"github.com/elastos/Elastos.ELA/events"
 )
 
-var Layer1ChainID uint8
-var Layer2ChainID uint8
+var Layer1ChainID uint64
+var Layer2ChainID uint64
 
 const MaxBatchCount = 100
 
 type EventListener interface {
-	ListenToEvents(startBlock *big.Int, chainID uint8, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner, <-chan *relayer.Message)
-	ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent
+	ListenToEvents(startBlock *big.Int, chainID uint64, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner, <-chan *relayer.Message)
+	ListenStatusEvents(startBlock *big.Int, chainID uint64, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent
 }
 
 type ProposalVoter interface {
@@ -55,7 +55,7 @@ type ProposalVoter interface {
 type EVMChain struct {
 	listener              EventListener // Rename
 	writer                ProposalVoter
-	chainID               uint8
+	chainID               uint64
 	kvdb                  blockstore.KeyValueReaderWriter
 	bridgeContractAddress string
 	config                *config.GeneralChainConfig
@@ -66,7 +66,7 @@ type EVMChain struct {
 }
 
 func NewEVMChain(dr EventListener, writer ProposalVoter,
-	kvdb blockstore.KeyValueReaderWriter, chainID uint8,
+	kvdb blockstore.KeyValueReaderWriter, chainID uint64,
 	config *config.GeneralChainConfig, arbiterManager *aribiters.ArbiterManager,
 	supervoter string) *EVMChain {
 	chain := &EVMChain{listener: dr, writer: writer, kvdb: kvdb, chainID: chainID, config: config}
@@ -538,6 +538,6 @@ func (c *EVMChain) generateBatchProposal() {
 	}
 }
 
-func (c *EVMChain) ChainID() uint8 {
+func (c *EVMChain) ChainID() uint64 {
 	return c.chainID
 }
