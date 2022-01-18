@@ -22,8 +22,8 @@ import (
 )
 
 type Proposal struct {
-	Source         uint8  // Source where message was initiated
-	Destination    uint8  // Destination chain of message
+	Source         uint64 // Source where message was initiated
+	Destination    uint64 // Destination chain of message
 	DepositNonce   uint64 // Nonce for the deposit
 	ResourceId     [32]byte
 	Data           []byte
@@ -57,7 +57,7 @@ func (p *Proposal) Deserialize(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	p.Source = uint8(big.NewInt(0).SetBytes(source).Uint64())
+	p.Source = big.NewInt(0).SetBytes(source).Uint64()
 
 	nonce, err := elaCom.ReadBytes(r, 32)
 	if err != nil {

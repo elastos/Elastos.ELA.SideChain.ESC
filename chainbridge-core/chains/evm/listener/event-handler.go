@@ -17,7 +17,7 @@ import (
 )
 
 type EventHandlers map[common.Address]EventHandlerFunc
-type EventHandlerFunc func(sourceID, destId uint8, nonce uint64, handlerContractAddress common.Address, caller ChainClient) error
+type EventHandlerFunc func(sourceID, destId uint64, nonce uint64, handlerContractAddress common.Address, caller ChainClient) error
 
 type ETHEventHandler struct {
 	bridgeAddress common.Address
@@ -32,7 +32,7 @@ func NewETHEventHandler(address common.Address, client ChainClient) *ETHEventHan
 	}
 }
 
-func (e *ETHEventHandler) HandleEvent(sourceID, destID uint8, depositNonce uint64, rID [32]byte) error {
+func (e *ETHEventHandler) HandleEvent(sourceID, destID uint64, depositNonce uint64, rID [32]byte) error {
 	addr, err := e.matchResourceIDToHandlerAddress(rID)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func toCallArg(msg ethereum.CallMsg) map[string]interface{} {
 	return arg
 }
 
-func OnEventHandler(sourceID, destId uint8, nonce uint64, handlerContractAddress common.Address, client ChainClient) error {
+func OnEventHandler(sourceID, destId uint64, nonce uint64, handlerContractAddress common.Address, client ChainClient) error {
 	definition := "[{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"uint8\",\"name\":\"destId\",\"type\":\"uint8\"}],\"name\":\"getDepositRecord\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	input, err := a.Pack("getDepositRecord", nonce, destId)

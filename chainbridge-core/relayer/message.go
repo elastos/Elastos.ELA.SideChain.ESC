@@ -28,22 +28,22 @@ var (
 )
 
 type Message struct {
-	Source       uint8  // Source where message was initiated
-	Destination  uint8  // Destination chain of message
+	Source       uint64 // Source where message was initiated
+	Destination  uint64 // Destination chain of message
 	DepositNonce uint64 // Nonce for the deposit
 	ResourceId   [32]byte
 	Payload      []interface{} // data associated with event sequence
 }
 
 type ChangeSuperSigner struct {
-	SourceChain    uint8
+	SourceChain    uint64
 	OldSuperSigner common.Address
 	NewSuperSigner common.Address
 	NodePublicKey  string
 }
 
 type ProposalEvent struct {
-	SourceChain  uint8
+	SourceChain  uint64
 	DepositNonce uint64
 	Status       ProposalStatus
 	ResourceId   [32]byte

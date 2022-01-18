@@ -18,7 +18,7 @@ type RelayedChain interface {
 	PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *Message, changeSuperChan chan *ChangeSuperSigner)
 	PollStatusEvent(stop <-chan struct{}, sysErr chan<- error)
 	Write(message *Message) error
-	ChainID() uint8
+	ChainID() uint64
 	WriteArbiters(aribters []common.Address, signatures [][]byte, totalCount int) error
 	GetArbiters() []common.Address
 	GetBridgeContract() string
@@ -36,7 +36,7 @@ func NewRelayer(chains []RelayedChain) *Relayer {
 
 type Relayer struct {
 	relayedChains []RelayedChain
-	registry      map[uint8]RelayedChain
+	registry      map[uint64]RelayedChain
 }
 
 // Starts the relayer. Relayer routine is starting all the chains
@@ -82,14 +82,14 @@ func (r *Relayer) route(m *Message) {
 
 func (r *Relayer) addRelayedChain(c RelayedChain) {
 	if r.registry == nil {
-		r.registry = make(map[uint8]RelayedChain)
+		r.registry = make(map[uint64]RelayedChain)
 	}
 	chainID := c.ChainID()
 	r.registry[chainID] = c
 }
 
 func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
-	signatures [][]byte, chainID uint8) error {
+	signatures [][]byte, chainID uint64) error {
 	address := make([]common.Address, 0)
 	for _, arbiter := range arbiters {
 		escssaPUb, err := crypto.DecompressPubkey(arbiter)
@@ -113,7 +113,7 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
 	return nil
 }
 
-func (r *Relayer) SetArbiterList(arbiters []common.Address, total int, chainID uint8) error {
+func (r *Relayer) SetArbiterList(arbiters []common.Address, total int, chainID uint64) error {
 	fmt.Println("SetArbiterList", arbiters, "total", total, "chainid", chainID)
 	for _, c := range r.relayedChains {
 		if c.ChainID() != chainID && chainID != 0 {
@@ -128,7 +128,7 @@ func (r *Relayer) SetArbiterList(arbiters []common.Address, total int, chainID u
 	return nil
 }
 
-func (r *Relayer) GetArbiters(chainID uint8) []common.Address {
+func (r *Relayer) GetArbiters(chainID uint64) []common.Address {
 	c := r.registry[chainID]
 	if c == nil {
 		bridgelog.Error("not register chainID", "chainID", chainID)
@@ -137,7 +137,7 @@ func (r *Relayer) GetArbiters(chainID uint8) []common.Address {
 	return c.GetArbiters()
 }
 
-func (r *Relayer) GetCurrentSuperSigner(chainID uint8) common.Address {
+func (r *Relayer) GetCurrentSuperSigner(chainID uint64) common.Address {
 	c := r.registry[chainID]
 	if c == nil {
 		bridgelog.Error("not register chainID", "chainID", chainID)
@@ -146,7 +146,7 @@ func (r *Relayer) GetCurrentSuperSigner(chainID uint8) common.Address {
 	return c.GetCurrentSuperSigner()
 }
 
-func (r *Relayer) GetSuperSignerNodePublickey(chainID uint8) string {
+func (r *Relayer) GetSuperSignerNodePublickey(chainID uint64) string {
 	c := r.registry[chainID]
 	if c == nil {
 		bridgelog.Error("not register chainID", "chainID", chainID)
