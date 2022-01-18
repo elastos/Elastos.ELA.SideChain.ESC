@@ -23,7 +23,7 @@ var (
 
 type GeneralChainConfig struct {
 	Name           string `json:"name"`     // Human-readable chain name
-	Id             uint8  `json:"id"`       //ChainID
+	Id             uint64 `json:"id"`       //ChainID
 	Endpoint       string `json:"endpoint"` // url for rpc endpoint
 	From           string `json:"from"`     // address of key to use
 	KeystorePath   string // Location of key files
