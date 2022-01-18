@@ -13,7 +13,6 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-
 // Ensure BlockMsg implement p2p.Message interface.
 var _ p2p.Message = (*DepositProposalMsg)(nil)
 
@@ -33,10 +32,10 @@ func (m *DepositProposalMsg) MaxLength() uint32 {
 }
 
 func (m *DepositProposalMsg) SerializeUnsigned(w io.Writer) error {
-	if err := elaCom.WriteUint8(w, m.Item.SourceChainID); err != nil {
+	if err := elaCom.WriteUint64(w, m.Item.SourceChainID); err != nil {
 		return err
 	}
-	if err := elaCom.WriteUint8(w, m.Item.DestChainID); err != nil {
+	if err := elaCom.WriteUint64(w, m.Item.DestChainID); err != nil {
 		return err
 	}
 	if err := elaCom.WriteUint64(w, m.Item.DepositNonce); err != nil {
@@ -66,13 +65,13 @@ func (m *DepositProposalMsg) Serialize(w io.Writer) error {
 }
 
 func (m *DepositProposalMsg) Deserialize(r io.Reader) error {
-	source, err := elaCom.ReadUint8(r)
+	source, err := elaCom.ReadUint64(r)
 	if err != nil {
 		return err
 	}
 	m.Item.SourceChainID = source
 
-	dest, err := elaCom.ReadUint8(r)
+	dest, err := elaCom.ReadUint64(r)
 	if err != nil {
 		log.Error("DepositProposalMsg Deserialize DestChainID error", "error", err)
 		return err

@@ -18,7 +18,7 @@ func (a *API) HasProducerMajorityCount(count, total int) bool {
 	return count > minSignCount
 }
 
-func (a *API) UpdateArbiters(chainID uint8) uint64 {
+func (a *API) UpdateArbiters(chainID uint64) uint64 {
 	list := arbiterManager.GetArbiterList()
 	total := arbiterManager.GetTotalCount()
 	signatures := arbiterManager.GetSignatures()
@@ -47,7 +47,7 @@ func (a *API) UpdateArbiters(chainID uint8) uint64 {
 	return 0
 }
 
-func (a *API) GetArbiters(chainID uint8) []common.Address {
+func (a *API) GetArbiters(chainID uint64) []common.Address {
 	address := MsgReleayer.GetArbiters(chainID)
 	for _, addr := range address {
 		log.Info("GetArbiters", "address", addr.String())
@@ -78,7 +78,7 @@ func (a *API) GetCollectedArbiterList() *Message {
 	return msg
 }
 
-func (a *API) InitArbiterList(arbiters []common.Address, total int, chainID uint8) uint8 {
+func (a *API) InitArbiterList(arbiters []common.Address, total int, chainID uint64) uint8 {
 	err := MsgReleayer.SetArbiterList(arbiters, total, chainID)
 	if err != nil {
 		return 0
@@ -86,12 +86,12 @@ func (a *API) InitArbiterList(arbiters []common.Address, total int, chainID uint
 	return 1
 }
 
-func (a *API) GetSuperSigner(chainID uint8) common.Address {
+func (a *API) GetSuperSigner(chainID uint64) common.Address {
 	address := MsgReleayer.GetCurrentSuperSigner(chainID)
 	return address
 }
 
-func (a *API) GetSuperNodePublickey(chainID uint8) string {
+func (a *API) GetSuperNodePublickey(chainID uint64) string {
 	nodePbk := MsgReleayer.GetSuperSignerNodePublickey(chainID)
 	return nodePbk
 }
