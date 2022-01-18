@@ -21,7 +21,7 @@ var BlockDelay = big.NewInt(6)
 
 type DepositRecord struct {
 	TokenAddress       common.Address
-	DestinationChainID uint8
+	DestinationChainID uint64
 	ResourceID         [32]byte
 	DepositNonce       uint64
 	Depositer          common.Address
@@ -31,7 +31,7 @@ type DepositRecord struct {
 
 type BridgeDepositRecordERC721 struct {
 	TokenAddress       common.Address
-	DestinationChainID uint8
+	DestinationChainID uint64
 	ResourceID         [32]byte
 	DepositNonce       uint64
 	Depositer          common.Address
@@ -56,7 +56,7 @@ type ChainClient interface {
 }
 
 type EventHandler interface {
-	HandleEvent(sourceID, destID uint8, nonce uint64, rID [32]byte) error
+	HandleEvent(sourceID, destID uint64, nonce uint64, rID [32]byte) error
 }
 
 type EVMListener struct {
@@ -76,7 +76,7 @@ func NewEVMListener(chainReader ChainClient, handler EventHandler, opsConfig *co
 	return listener
 }
 
-func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
+func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint64,
 	kvrw blockstore.KeyValueWriter,
 	stopChn <-chan struct{},
 	errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner, <-chan *relayer.Message) {
@@ -132,7 +132,7 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint8,
 	return ch, changeSuperCh, nftch
 }
 
-func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint8, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent {
+func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint64, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent {
 	prch := make(chan *relayer.ProposalEvent)
 	go func() {
 		for {
@@ -162,7 +162,7 @@ func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint8, sto
 	return prch
 }
 
-func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint8, msg chan *relayer.Message) error {
+func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint64, msg chan *relayer.Message) error {
 	log.Info("FetchDepositLogs", "startBlock", startBlock.Uint64(), "chainID", chainID)
 	logs, err := l.chainReader.FetchDepositLogs(context.Background(), l.bridgeAddress, startBlock, startBlock)
 	if err != nil {
@@ -195,7 +195,7 @@ func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint8, msg ch
 	return nil
 }
 
-func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8, msg chan *relayer.ChangeSuperSigner) error {
+func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint64, msg chan *relayer.ChangeSuperSigner) error {
 	logs, err := l.chainReader.FetchChangeSuperSigner(context.Background(), l.bridgeAddress, startBlock, startBlock)
 	if err != nil {
 		// Filtering logs error really can appear only on wrong configuration or temporary network problem
@@ -216,7 +216,7 @@ func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint8,
 	return nil
 }
 
-func (l *EVMListener) fetchProposalEvent(startBlock *big.Int, chainID uint8, msg chan *relayer.ProposalEvent) error {
+func (l *EVMListener) fetchProposalEvent(startBlock *big.Int, chainID uint64, msg chan *relayer.ProposalEvent) error {
 	logs, err := l.chainReader.FetchProposalEvent(context.Background(), l.bridgeAddress, startBlock, startBlock)
 	if err != nil {
 		// Filtering logs error really can appear only on wrong configuration or temporary network problem
@@ -231,7 +231,7 @@ func (l *EVMListener) fetchProposalEvent(startBlock *big.Int, chainID uint8, msg
 	return nil
 }
 
-func (l *EVMListener) fetchDepositNFTMsg(startBlock *big.Int, chainID uint8, msg chan *relayer.Message) error {
+func (l *EVMListener) fetchDepositNFTMsg(startBlock *big.Int, chainID uint64, msg chan *relayer.Message) error {
 	logs, err := l.chainReader.FetchDepositNFTLogs(context.Background(), l.bridgeAddress, startBlock, startBlock)
 	if err != nil {
 		log.Error("FetchDepositNFTLogs errors", "ChainID", chainID, "err", err)

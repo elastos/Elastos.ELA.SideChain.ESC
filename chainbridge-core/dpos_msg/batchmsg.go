@@ -14,7 +14,6 @@ import (
 	"github.com/elastos/Elastos.ELA/p2p"
 )
 
-
 // Ensure BatchMsg implement p2p.Message interface.
 var _ p2p.Message = (*BatchMsg)(nil)
 
@@ -40,10 +39,10 @@ func (m *BatchMsg) SerializeUnsigned(w io.Writer) error {
 	elaCom.WriteUint8(w, uint8(count))
 	for i := 0; i < count; i++ {
 		item := m.Items[i]
-		if err := elaCom.WriteUint8(w, item.SourceChainID); err != nil {
+		if err := elaCom.WriteUint64(w, item.SourceChainID); err != nil {
 			return err
 		}
-		if err := elaCom.WriteUint8(w, item.DestChainID); err != nil {
+		if err := elaCom.WriteUint64(w, item.DestChainID); err != nil {
 			return err
 		}
 		if err := elaCom.WriteUint64(w, item.DepositNonce); err != nil {
@@ -81,13 +80,13 @@ func (m *BatchMsg) Deserialize(r io.Reader) error {
 	}
 	m.Items = make([]DepositItem, count, count)
 	for i := 0; i < int(count); i++ {
-		source, err := elaCom.ReadUint8(r)
+		source, err := elaCom.ReadUint64(r)
 		if err != nil {
 			return err
 		}
 		m.Items[i].SourceChainID = source
 
-		dest, err := elaCom.ReadUint8(r)
+		dest, err := elaCom.ReadUint64(r)
 		if err != nil {
 			log.Error("DepositProposalMsg Deserialize DestChainID error", "error", err)
 			return err
@@ -164,4 +163,3 @@ func (m *BatchMsg) GetHash() (hash common.Hash) {
 	log.Info("BatchMsg hash", "hash", hash.String())
 	return hash
 }
-
