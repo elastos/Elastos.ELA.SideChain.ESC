@@ -107,7 +107,7 @@ func Start() bool {
 	}
 	bridgelog.Info("chain bridge start")
 	isStarted = true
-	chainID := uint8(pbftEngine.GetBlockChain().Config().ChainID.Uint64())
+	chainID := pbftEngine.GetBlockChain().Config().ChainID.Uint64()
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:

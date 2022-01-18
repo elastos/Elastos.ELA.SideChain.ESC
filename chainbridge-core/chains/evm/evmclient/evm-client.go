@@ -223,7 +223,7 @@ func (c *EVMClient) FetchProposalEvent(ctx context.Context, contractAddress comm
 	plogs := make([]*relayer.ProposalEvent, 0)
 	for _, l := range logs {
 		record := new(relayer.ProposalEvent)
-		record.SourceChain = uint8(l.Topics[1].Big().Uint64())
+		record.SourceChain = l.Topics[1].Big().Uint64()
 		record.DepositNonce = l.Topics[2].Big().Uint64()
 		record.Status = relayer.ProposalStatus(l.Topics[3].Big().Uint64())
 		plogs = append(plogs, record)
