@@ -168,7 +168,7 @@ func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint64, msg c
 	if err != nil {
 		// Filtering logs error really can appear only on wrong configuration or temporary network problem
 		// so i do no see any reason to break execution
-		log.Error("FetchDepositLogs errors", "ChainID", chainID)
+		log.Error("FetchDepositLogs errors", "ChainID", chainID, "error", err)
 		return nil
 	}
 	for _, eventLog := range logs {
