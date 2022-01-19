@@ -18,10 +18,10 @@ type OpsConfig struct {
 	Erc20Handler       string  `mapstructure:"erc20Handler"`
 	Erc721Handler      string  `mapstructure:"erc721Handler"`
 	GenericHandler     string  `mapstructure:"genericHandler"`
-	MaxGasPrice        int64   `mapstructure:"maxGasPrice"`
+	MaxGasPrice        uint64  `mapstructure:"maxGasPrice"`
 	GasMultiplier      float64 `mapstructure:"gasMultiplier"`
-	GasLimit           int64   `mapstructure:"gasLimit"`
-	StartBlock         int64   `mapstructure:"startBlock"`
+	GasLimit           uint64  `mapstructure:"gasLimit"`
+	StartBlock         uint64  `mapstructure:"startBlock"`
 	BlockConfirmations int64   `mapstructure:"blockConfirmations"`
 }
 
