@@ -7,13 +7,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
 type EventHandlers map[common.Address]EventHandlerFunc
@@ -108,9 +109,11 @@ func toCallArg(msg ethereum.CallMsg) map[string]interface{} {
 	return arg
 }
 
-func OnEventHandler(sourceID, destId uint64, nonce uint64, handlerContractAddress common.Address, client ChainClient) error {
-	definition := "[{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"depositNonce\",\"type\":\"uint64\"},{\"internalType\":\"uint8\",\"name\":\"destId\",\"type\":\"uint8\"}],\"name\":\"getDepositRecord\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
-	a, err := abi.JSON(strings.NewReader(definition))
+func OnEventHandler(sourceID, destId, nonce uint64, handlerContractAddress common.Address, client ChainClient) error {
+	a, err := chainbridge_abi.GetDepositRecordMethodABI()
+	if err != nil {
+		return err
+	}
 	input, err := a.Pack("getDepositRecord", nonce, destId)
 	if err != nil {
 		return err
