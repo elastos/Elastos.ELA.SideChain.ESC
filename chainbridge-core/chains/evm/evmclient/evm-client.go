@@ -104,7 +104,7 @@ func (c *EVMClient) Configurate(generalConfig *config.GeneralChainConfig, accoun
 		if err != nil {
 			return err
 		}
-		generalConfig.Opts.StartBlock = curr.Int64()
+		generalConfig.Opts.StartBlock = curr.Uint64()
 	}
 	return nil
 }
@@ -311,8 +311,8 @@ func (c *EVMClient) SafeEstimateGasPrice(ctx context.Context) (*big.Int, error) 
 
 	// Check we aren't exceeding our limit
 
-	if gasPrice.Cmp(big.NewInt(c.config.Opts.MaxGasPrice)) == 1 {
-		return big.NewInt(c.config.Opts.MaxGasPrice), nil
+	if gasPrice.Cmp(big.NewInt(0).SetUint64(c.config.Opts.MaxGasPrice)) == 1 {
+		return big.NewInt(0).SetUint64(c.config.Opts.MaxGasPrice), nil
 	} else {
 		return gasPrice, nil
 	}
@@ -324,8 +324,8 @@ func (c *EVMClient) EstimateGasLimit(ctx context.Context, msg ethereum.CallMsg) 
 		return 0, err
 	}
 	gas := multiplyGasPrice(big.NewInt(0).SetUint64(gasLimit), big.NewFloat(c.config.Opts.GasMultiplier))
-	if gas.Cmp(big.NewInt(c.config.Opts.GasLimit)) == 1 {
-		return big.NewInt(c.config.Opts.GasLimit).Uint64(), nil
+	if gas.Cmp(big.NewInt(0).SetUint64(c.config.Opts.GasLimit)) == 1 {
+		return big.NewInt(0).SetUint64(c.config.Opts.GasLimit).Uint64(), nil
 	}
 	return gas.Uint64(), nil
 }
