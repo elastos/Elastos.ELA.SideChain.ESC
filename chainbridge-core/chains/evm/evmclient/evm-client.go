@@ -41,7 +41,6 @@ type EVMClient struct {
 	depositRecordNFTABI  abi.ABI
 	changeSuperSignerABI abi.ABI
 	proposalEventABI     abi.ABI
-	proposalBatchABI     abi.ABI
 }
 
 type CommonTransaction interface {
@@ -64,17 +63,12 @@ func NewEVMClient(engine engine.ESCEngine) *EVMClient {
 	if err != nil {
 		return nil
 	}
-	batchEvt, err := chainbridge_abi.ProposalBatchEventABI()
-	if err != nil {
-		return nil
-	}
 	nftRecord, err := chainbridge_abi.GetDepositNFTRecordABI()
 	if err != nil {
 		return nil
 	}
 	client := &EVMClient{engine: engine, depositRecordABI: abi, changeSuperSignerABI: changeSuperSignerABI}
 	client.proposalEventABI = proposalEvt
-	client.proposalBatchABI = batchEvt
 	client.depositRecordNFTABI = nftRecord
 	return client
 }
@@ -157,10 +151,10 @@ func (c *EVMClient) GetClientAddress() common.Address {
 
 const (
 	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
-	DepositRecord     string = "DepositRecordERC20OrWETH(address,uint8,bytes32,uint64,address,uint256,uint256)"
-	DepositNFTRecord  string = "DepositRecordERC721(address,uint8,bytes32,uint64,address,uint256,bytes,uint256)"
+	DepositRecord     string = "DepositRecordERC20OrWETH(address,uint64,bytes32,uint64,address,uint256,uint256)"
+	DepositNFTRecord  string = "DepositRecordERC721(address,uint64,bytes32,uint64,address,uint256,bytes,uint256)"
 	ChangeSuperSigner string = "ChangeSuperSigner(address,address,bytes)"
-	ProposalEvent     string = "ProposalEvent(uint8,uint64,uint8,bytes32,bytes32)"
+	ProposalEvent     string = "ProposalEvent(uint64,uint64,uint8,bytes32,bytes32)"
 )
 
 func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositRecord, error) {
@@ -171,7 +165,7 @@ func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common
 	depositLogs := make([]*listener.DepositRecord, 0)
 	for _, l := range logs {
 		record := new(listener.DepositRecord)
-		err = c.depositRecordABI.Unpack(record, "DepositRecord", l.Data)
+		err = c.depositRecordABI.Unpack(record, "DepositRecordERC20OrWETH", l.Data)
 		if err != nil {
 			return nil, errors.New("deposit record resolved error:" + err.Error())
 		}
