@@ -404,7 +404,7 @@ func (c *EVMChain) onBatchProposal(msg *dpos_msg.BatchMsg, proposalHash []byte) 
 func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *relayer.Message, changeSuperChan chan *relayer.ChangeSuperSigner) {
 	log.Info("Polling Blocks...")
 	// Handler chain specific configs and flags
-	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(c.config.Opts.StartBlock))
+	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(0).SetUint64(c.config.Opts.StartBlock))
 	if err != nil {
 		sysErr <- fmt.Errorf("error %w on getting last stored block", err)
 		return
@@ -429,7 +429,7 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 }
 
 func (c *EVMChain) PollStatusEvent(stop <-chan struct{}, sysErr chan<- error) {
-	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(c.config.Opts.StartBlock))
+	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(0).SetUint64(c.config.Opts.StartBlock))
 	if err != nil {
 		sysErr <- fmt.Errorf("error %w on getting last stored block", err)
 		return
