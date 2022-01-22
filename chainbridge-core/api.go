@@ -56,15 +56,23 @@ func (a *API) GetArbiters(chainID uint64) []common.Address {
 }
 
 type Message struct {
-	List  []common.Address
-	Total int
+	List       []common.Address
+	Signatures []string
+	Total      int
 }
 
 func (a *API) GetCollectedArbiterList() *Message {
 	arbiters := arbiterManager.GetArbiterList()
 	total := arbiterManager.GetTotalCount()
+	signatures := arbiterManager.GetSignatures()
 	msg := new(Message)
 	address := make([]common.Address, 0)
+
+	sigs := make([]string, 0)
+	for _, sig := range signatures {
+		sigs = append(sigs, common.Bytes2Hex(sig))
+	}
+
 	for _, arbiter := range arbiters {
 		escssaPUb, err := crypto.DecompressPubkey(arbiter)
 		if err != nil {
@@ -75,6 +83,7 @@ func (a *API) GetCollectedArbiterList() *Message {
 	}
 	msg.List = address
 	msg.Total = total
+	msg.Signatures = sigs
 	return msg
 }
 
