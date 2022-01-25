@@ -402,7 +402,7 @@ func (c *EVMChain) onBatchProposal(msg *dpos_msg.BatchMsg, proposalHash []byte) 
 
 // PollEvents is the goroutine that polling blocks and searching Deposit Events in them. Event then sent to eventsChan
 func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *relayer.Message, changeSuperChan chan *relayer.ChangeSuperSigner) {
-	log.Info("Polling Blocks...")
+	log.Info("Polling Blocks...", "startBlock", c.config.Opts.StartBlock)
 	// Handler chain specific configs and flags
 	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(0).SetUint64(c.config.Opts.StartBlock))
 	if err != nil {
