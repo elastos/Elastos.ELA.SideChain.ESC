@@ -25,6 +25,7 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
@@ -875,6 +876,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
+	_, isPbft := w.engine.(*pbft.Pbft)
+	if !blocksigner.SelfIsProducer && isPbft {
+		log.Info("self is not a producer, not commit new work")
+		return
+	}
+
 	tstart := time.Now()
 	parent := w.chain.CurrentBlock()
 
@@ -968,7 +975,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
-	_, isPbft := w.engine.(*pbft.Pbft)
 	if (!noempty && !isPbft) || (isPbft && len(pending) == 0) {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
