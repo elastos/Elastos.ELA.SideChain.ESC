@@ -416,9 +416,9 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 		}
 
 		log.Info("verify seal chain fork", "oldViewOffset", oldConfirm.Proposal.ViewOffset, "newViewOffset", confirm.Proposal.ViewOffset, "height", number)
-		if confirm.Proposal.ViewOffset < oldConfirm.Proposal.ViewOffset {
-			return errChainForkBlock
-		}
+		//if confirm.Proposal.ViewOffset < oldConfirm.Proposal.ViewOffset {
+		//	return errChainForkBlock
+		//}
 		if confirm.Proposal.ViewOffset == oldConfirm.Proposal.ViewOffset && oldHeader.Hash() != header.Hash() {
 			return errDoubleSignBlock
 		}
@@ -850,4 +850,8 @@ func (p *Pbft) IsBadBlock(height uint64) bool {
 		}
 	}
 	return false
+}
+
+func (p *Pbft) GetDposAccount() daccount.Account  {
+	return p.account
 }
