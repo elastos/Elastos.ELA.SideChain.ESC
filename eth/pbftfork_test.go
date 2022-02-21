@@ -21,6 +21,7 @@ import (
 )
 
 func TestBlockfork(t *testing.T) {
+	t.Skip("TestBlockfork skip")
 	cfg := &params.PbftConfig{
 		Producers: []string{
 			"03bfd8bd2b10e887ec785360f9b329c2ae567975c784daca2f223cb19840b51914",
