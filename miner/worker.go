@@ -25,7 +25,6 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
@@ -876,8 +875,8 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	_, isPbft := w.engine.(*pbft.Pbft)
-	if !blocksigner.SelfIsProducer && isPbft {
+	engine, isPbft := w.engine.(*pbft.Pbft)
+	if isPbft && !engine.IsProducer() {
 		log.Info("self is not a producer, not commit new work")
 		return
 	}
