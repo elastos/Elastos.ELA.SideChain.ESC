@@ -152,6 +152,10 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	if err != nil {
 		return err // Not sure what status to use here
 	}
+	log.Info("executeProposal", "source", p.Source, "nonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "resouceID", p.ResourceId, "superSig", common.Bytes2Hex(superSig))
+	for _, sig := range signature {
+		log.Info("signature", common.Bytes2Hex(sig))
+	}
 	input, err := a.Pack("executeProposal", p.Source, p.DepositNonce, p.Data, p.ResourceId, signature, superSig)
 	if err != nil {
 		return err
