@@ -1968,7 +1968,7 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 		// memory here.
 		if len(blocks) >= 2048 || memory > 64*1024*1024 {
 			log.Info("Importing heavy sidechain segment", "blocks", len(blocks), "start", blocks[0].NumberU64(), "end", block.NumberU64())
-			if _, _, _, err := bc.insertChain(blocks, false); err != nil {
+			if _, _, _, err := bc.insertChain(blocks, true); err != nil {
 				return 0, nil, nil, err
 			}
 			blocks, memory = blocks[:0], 0
@@ -1982,7 +1982,7 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 	}
 	if len(blocks) > 0 {
 		log.Info("Importing sidechain segment", "start", blocks[0].NumberU64(), "end", blocks[len(blocks)-1].NumberU64())
-		return bc.insertChain(blocks, false)
+		return bc.insertChain(blocks, true)
 	}
 	return 0, nil, nil, nil
 }
