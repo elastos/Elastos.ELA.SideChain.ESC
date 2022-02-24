@@ -146,13 +146,12 @@ func (p *Proposal) ProposalIsComplete(client ChainClient) bool {
 
 func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []byte) error {
 	nowBlock, _ := client.LatestBlock()
-	log.Info("Executing proposal", "source", p.Source, "rid", common.Bytes2Hex(p.ResourceId[:]), "depositNonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "nowBlock", nowBlock.Uint64(), "signature len", len(signature), "superSig", len(superSig))
 
 	a, err := chainbridge_abi.GetExecuteProposalAbi()
 	if err != nil {
 		return err // Not sure what status to use here
 	}
-	log.Info("executeProposal", "source", p.Source, "nonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "resouceID", p.ResourceId, "superSig", common.Bytes2Hex(superSig))
+	log.Info("executeProposal", "source", p.Source, "nonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "resouceID", common.Bytes2Hex(p.ResourceId[:]), "superSig", common.Bytes2Hex(superSig))
 	for _, sig := range signature {
 		log.Info("signature", "",common.Bytes2Hex(sig))
 	}
