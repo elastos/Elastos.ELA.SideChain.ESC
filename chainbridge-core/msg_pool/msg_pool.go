@@ -113,6 +113,14 @@ func (m *MsgPool) UpdateSuperVoter(voter []byte) {
 	m.superVoter = voter
 }
 
+func (m *MsgPool) GetSuperVoter() []byte {
+	m.arbiterLock.Lock()
+	defer m.arbiterLock.Unlock()
+	voter := make([]byte, len(m.superVoter))
+	copy(voter, m.superVoter)
+	return voter
+}
+
 func (m *MsgPool) GetQueueProposal(nonce uint64) *voter.Proposal {
 	m.queueLock.RLock()
 	defer m.queueLock.RUnlock()
@@ -145,7 +153,7 @@ func (m *MsgPool) PutProposal(msg *voter.Proposal) error {
 	return nil
 }
 
-func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte) bool {
+func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte, containSuperSigner bool) bool {
 	m.arbiterLock.Lock()
 	defer m.arbiterLock.Unlock()
 	log.Info("OnProposalVerified", "supervoter", common.Bytes2Hex(m.superVoter), "arbiter", common.Bytes2Hex(arbiter))
@@ -155,6 +163,9 @@ func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signatur
 		m.supernodeProposalSignature[proposalHash] = signature
 		m.supernodeProposalVerifed[proposalHash] = arbiter
 		isSuperVoter = true
+		if !containSuperSigner {
+			return isSuperVoter
+		}
 	}
 
 	arbiterList := m.verifiedProposalArbiter[proposalHash]
