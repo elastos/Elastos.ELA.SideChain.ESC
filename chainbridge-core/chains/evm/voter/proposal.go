@@ -154,7 +154,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	}
 	log.Info("executeProposal", "source", p.Source, "nonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "resouceID", p.ResourceId, "superSig", common.Bytes2Hex(superSig))
 	for _, sig := range signature {
-		log.Info("signature", common.Bytes2Hex(sig))
+		log.Info("signature", "",common.Bytes2Hex(sig))
 	}
 	input, err := a.Pack("executeProposal", p.Source, p.DepositNonce, p.Data, p.ResourceId, signature, superSig)
 	if err != nil {
@@ -180,11 +180,12 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 		if errMsg == nil && b.Coinbase() == addr {
 			gasLimit = 500000
 		} else {
-			return err
+			gasLimit = 500000
+			//return err
 		}
 	}
 	if gasLimit == 0 {
-		return errors.New("EstimateGasLimit is 0")
+		//return errors.New("EstimateGasLimit is 0")
 	}
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, p.BridgeAddress, big.NewInt(0), gasLimit, gp, input)
