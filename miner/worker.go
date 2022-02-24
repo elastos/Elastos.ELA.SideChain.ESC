@@ -876,10 +876,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	defer w.mu.RUnlock()
 
 	engine, isPbft := w.engine.(*pbft.Pbft)
-	if isPbft && !engine.IsProducer() {
-		log.Info("self is not a producer, not commit new work")
-		return
-	}
+
 
 	tstart := time.Now()
 	parent := w.chain.CurrentBlock()
@@ -987,6 +984,10 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Short circuit if there is no available pending transactions
 	if len(pending) == 0 {
 		w.updateSnapshot()
+		return
+	}
+	if isPbft && !engine.IsProducer() {
+		log.Info("self is not a producer, not commit new work")
 		return
 	}
 	// Split the pending transactions into locals and remotes
