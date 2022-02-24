@@ -230,9 +230,9 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	if err := c.verifySignature(msg); err != nil {
 		return err
 	}
-
-	isSuperVoter := c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature)
-	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash), "superVoterSignature", len(superVoterSignature), "isSuperVoter", isSuperVoter)
+	containSuperSigner := c.currentSignerHasSuperSigner()
+	isSuperVoter := c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature, containSuperSigner)
+	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash), "superVoterSignature", len(superVoterSignature), "isSuperVoter", isSuperVoter, "containSuperSigner", containSuperSigner)
 	if isSuperVoter {
 		superVoterSignature = c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
 	}
@@ -327,11 +327,12 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		if err != nil {
 			return errors.New(fmt.Sprintf("OnProposal error: %s", err.Error()))
 		} else {
-			issuperVoter := c.msgPool.OnProposalVerified(phash, msg.Proposer, msg.Signature)
+			containSuperSigner := c.currentSignerHasSuperSigner()
+			issuperVoter := c.msgPool.OnProposalVerified(phash, msg.Proposer, msg.Signature, containSuperSigner)
 			if issuperVoter {
 				superVoterSignature = c.msgPool.GetSuperVoterSigner(phash)
 			}
-			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(phash), "getMaxArbitersSign", maxsign, "superVoterSignature", len(superVoterSignature))
+			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(phash), "getMaxArbitersSign", maxsign, "superVoterSignature", len(superVoterSignature), "containSuperSigner", containSuperSigner)
 			if c.msgPool.GetVerifiedCount(phash) >= maxsign &&
 				len(superVoterSignature) > 0 {
 				c.msgPool.PutExecuteProposal(proposal)
@@ -341,6 +342,17 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		return errors.New("received error deposit proposal")
 	}
 	return nil
+}
+
+func (c *EVMChain) currentSignerHasSuperSigner() bool {
+	signers := c.GetArbiters()
+	superSigner := c.GetCurrentSuperSigner()
+	for _, arbiter := range signers {
+		if bytes.Equal(arbiter.Bytes(), superSigner.Bytes()) {
+		   return true
+		}
+	}
+	return false
 }
 
 func compareMsg(msg1 *dpos_msg.DepositItem, msg2 *voter.Proposal) bool {
