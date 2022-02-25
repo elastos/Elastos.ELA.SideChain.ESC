@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 
@@ -151,7 +152,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	if err != nil {
 		return err // Not sure what status to use here
 	}
-	log.Info("executeProposal", "source", p.Source, "nonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "resouceID", common.Bytes2Hex(p.ResourceId[:]), "superSig", common.Bytes2Hex(superSig))
+	log.Info("executeProposal", "source", p.Source, "nonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "resouceID", common.Bytes2Hex(p.ResourceId[:]), "superSig", common.Bytes2Hex(superSig), "from", client.GetClientAddress())
 	for _, sig := range signature {
 		log.Info("signature", "",common.Bytes2Hex(sig))
 	}
@@ -242,6 +243,7 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, supe
 	tx := evmtransaction.NewTransaction(nonce, BridgeAddress, big.NewInt(0), gasLimit, gp, input)
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
 	if err != nil {
+		fmt.Println("msg. from>>>>>", "from ", msg.From.String())
 		return err
 	}
 
