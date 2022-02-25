@@ -8,6 +8,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -260,6 +261,7 @@ func (c *EVMClient) SignAndSendTransaction(ctx context.Context, tx CommonTransac
 
 	err = c.SendRawTransaction(ctx, rawTX)
 	if err != nil {
+		fmt.Println("send account", "account", c.config.Kp.Address())
 		return common.Hash{}, err
 	}
 	return tx.Hash(), nil
