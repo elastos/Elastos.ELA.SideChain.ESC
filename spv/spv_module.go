@@ -1223,9 +1223,12 @@ func GetClient() *ethclient.Client {
 }
 
 func Close() {
+	fmt.Println("spv close 111111")
 	spvdb := SpvService.GetDatabase()
 	if spvdb != nil {
+		fmt.Println("spv close 2222222")
 		spvdb.Close()
 		close(stopChn)
 	}
+	fmt.Println("spv close 33333333")
 }
