@@ -64,8 +64,8 @@ import (
 
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elapeer "github.com/elastos/Elastos.ELA/dpos/p2p/peer"
-	"github.com/elastos/Elastos.ELA/p2p/msg"
 	eevents "github.com/elastos/Elastos.ELA/events"
+	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
 type LesServer interface {
@@ -83,7 +83,7 @@ type Ethereum struct {
 
 	// Channel for shutting down the service
 	shutdownChan chan bool
-	stopChan chan bool
+	stopChan     chan bool
 
 	// Handlers
 	txPool          *core.TxPool
@@ -193,7 +193,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 
 	if len(chainConfig.PbftKeyStorePassWord) > 0 {
-	 	config.PbftKeyStorePassWord = chainConfig.PbftKeyStorePassWord
+		config.PbftKeyStorePassWord = chainConfig.PbftKeyStorePassWord
 	} else {
 		chainConfig.PbftKeyStorePassWord = config.PbftKeyStorePassWord
 	}
@@ -305,7 +305,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	engine.IsCurrent = func() bool {
 		progress := eth.Downloader().Progress()
 		curHeight := eth.blockchain.CurrentHeader().Number.Uint64()
-		if engine.IsBadBlock(progress.HighestBlock) && curHeight + 1 == progress.HighestBlock {
+		if engine.IsBadBlock(progress.HighestBlock) && curHeight+1 == progress.HighestBlock {
 			log.Warn(
 				"Highest block is bad block, no sync", "currentBlock", progress.CurrentBlock, "highestBlock", progress.HighestBlock)
 			return true
@@ -333,31 +333,31 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			atomic.StoreInt32(&issync, 1)
 			eth.protocolManager.BroadcastBlock(block, true)
 			initTime := time.Now()
-			 go func() {
-				 defer atomic.StoreInt32(&issync, 0)
-				 for {
-					 nowBlock := eth.blockchain.CurrentBlock()
-					 if newHeight <= nowBlock.NumberU64() || time.Now().Sub(initTime) > 50 * time.Second {
-					 	break
-					 }
-					 peer := eth.protocolManager.peers.BestPeer()
-					 if peer == nil {
-						 return
-					 }
-					 localTd := eth.blockchain.GetTd(nowBlock.Hash(), nowBlock.NumberU64())
-					 if localTd.Cmp(peer.td) >= 0 {
-					 	log.Info("remove not best peer")
-						 eth.protocolManager.removePeer(peer.id)
-						 peer = eth.protocolManager.peers.BestPeer()
-					 }
+			go func() {
+				defer atomic.StoreInt32(&issync, 0)
+				for {
+					nowBlock := eth.blockchain.CurrentBlock()
+					if newHeight <= nowBlock.NumberU64() || time.Now().Sub(initTime) > 50*time.Second {
+						break
+					}
+					peer := eth.protocolManager.peers.BestPeer()
+					if peer == nil {
+						return
+					}
+					localTd := eth.blockchain.GetTd(nowBlock.Hash(), nowBlock.NumberU64())
+					if localTd.Cmp(peer.td) >= 0 {
+						log.Info("remove not best peer")
+						eth.protocolManager.removePeer(peer.id)
+						peer = eth.protocolManager.peers.BestPeer()
+					}
 
-					 if peer != nil  && localTd.Cmp(peer.td) < 0 {
-						 go eth.protocolManager.synchronise(peer)
-						 log.Info("synchronise from ", "peer", peer.id, "td", peer.td.Uint64(), "localTd", localTd.Uint64())
-					 }
-					 time.Sleep(5 * time.Second)
-				 }
-			 }()
+					if peer != nil && localTd.Cmp(peer.td) < 0 {
+						go eth.protocolManager.synchronise(peer)
+						log.Info("synchronise from ", "peer", peer.id, "td", peer.td.Uint64(), "localTd", localTd.Uint64())
+					}
+					time.Sleep(5 * time.Second)
+				}
+			}()
 
 		}
 	}
@@ -370,10 +370,10 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 	if chainConfig.Pbft != nil {
 		routeCfg := dpos.Config{
-			PID:  dposAccount.PublicKeyBytes(),
-			Addr: fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
+			PID:        dposAccount.PublicKeyBytes(),
+			Addr:       fmt.Sprintf("%s:%d", chainConfig.Pbft.IPAddress, chainConfig.Pbft.DPoSPort),
 			TimeSource: engine.GetTimeSource(),
-			Sign: dposAccount.Sign,
+			Sign:       dposAccount.Sign,
 			IsCurrent: func() bool {
 				return engine.IsCurrent()
 			},
@@ -423,12 +423,11 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	}
 	mode := spv.GetCurrentConsensusMode()
 	spvHeight := currentBlock.Nonce()
-	if spvHeight <= 0 && mode == _interface.DPOS && len(engine.GetCurrentProducers()) > 0  {
-		res := engine.OnInsertBlock(currentBlock)
-		if res {
-			blocksigner.SelfIsProducer = engine.IsProducer()
-			eevents.Notify(dpos.ETUpdateProducers, nil)
-		}
+	if spvHeight <= 0 && mode == _interface.DPOS && len(engine.GetCurrentProducers()) > 0 {
+		engine.OnInsertBlock(currentBlock)
+		blocksigner.SelfIsProducer = engine.IsProducer()
+		log.Info("blocksigner.SelfIsProducer", "", blocksigner.SelfIsProducer)
+		eevents.Notify(dpos.ETUpdateProducers, nil)
 		return
 	}
 
@@ -464,7 +463,7 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 		engineSub := eth.blockchain.SubscribeChangeEnginesEvent(engineChan)
 		go func() {
 			defer engineSub.Unsubscribe()
-			for  {
+			for {
 				select {
 				case <-engineChan:
 					eth.SetEngine(engine)
@@ -483,7 +482,7 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 			chainSub.Unsubscribe()
 			initProducersSub.Unsubscribe()
 		}()
-		for  {
+		for {
 			select {
 			case b := <-blockEvent:
 				if eth.blockchain.Config().IsPBFTFork(b.Block.Number()) {
