@@ -28,9 +28,9 @@ func (param *auxParam) clean() {
 }
 
 type BlockListener struct {
-	blockNumber uint32
-	param       auxParam
-	handle      func(block interface{}) error
+	blockNumber          uint32
+	param                auxParam
+	handle               func(block interface{}) error
 	dynamicArbiterHeight uint64
 }
 
@@ -41,7 +41,7 @@ func (l *BlockListener) NotifyBlock(block *util.Block) {
 	}
 	l.blockNumber = block.Height
 	l.StoreAuxBlock(block)
-	log.Info("BlockListener handle block ", "height", l.blockNumber, "l.dynamicArbiterHeight ", l.dynamicArbiterHeight )
+	log.Info("BlockListener handle block ", "height", l.blockNumber, "l.dynamicArbiterHeight ", l.dynamicArbiterHeight)
 
 	if uint64(l.blockNumber) < l.dynamicArbiterHeight {
 		return
@@ -118,12 +118,12 @@ func IsNexturnBlock(block interface{}) bool {
 		}
 	}
 
-	if  tx.TxType != types.NextTurnDPOSInfo {
+	if tx.TxType != types.NextTurnDPOSInfo {
 		log.Info("received not next turn block", "height", b.Height)
 		return false
 	}
 
-	payloadData := tx.Payload.(* payload.NextTurnDPOSInfo)
+	payloadData := tx.Payload.(*payload.NextTurnDPOSInfo)
 
 	if IsOnlyCRConsensus {
 		payloadData.DPOSPublicKeys = make([][]byte, 0)
@@ -186,14 +186,13 @@ func InitNextTurnDposInfo() {
 	superPubkey := GetLayer2SuperNodePublickey()
 	nextTurnDposInfo = &NextTurnDPOSInfo{
 		&payload.NextTurnDPOSInfo{
-			WorkingHeight: workingHeight,
-			CRPublicKeys: crcArbiters,
+			WorkingHeight:  workingHeight,
+			CRPublicKeys:   crcArbiters,
 			DPOSPublicKeys: normalArbiters,
 		},
 		superPubkey,
 		false,
 	}
-
 
 	nextTurnDposInfo.SuperNodeIsArbiter = false
 	for _, arbiter := range crcArbiters {
@@ -246,7 +245,7 @@ func GetCurrentConsensusMode() spv.ConsensusAlgorithm {
 		return spv.DPOS
 	}
 	spvHeight := uint32(GetSpvHeight())
-	mode , err := SpvService.GetConsensusAlgorithm(spvHeight)
+	mode, err := SpvService.GetConsensusAlgorithm(spvHeight)
 	log.Info("GetCurrentConsensusMode", "error", err, "spvHeight", spvHeight, "Mode", mode)
 	if err != nil {
 		return spv.DPOS
@@ -280,11 +279,13 @@ func DumpNextDposInfo() []peer.PID {
 	}
 
 	log.Info("-------------------Super Node Publickey---------------")
-	log.Info(common.Bytes2Hex(nextTurnDposInfo.SuperNodePublicKey) + "\n")
+	log.Info(common.Bytes2Hex(nextTurnDposInfo.SuperNodePublicKey)+"\n", "nextTurnDposInfo.SuperNodeIsArbiter ", nextTurnDposInfo.SuperNodeIsArbiter)
 	if !nextTurnDposInfo.SuperNodeIsArbiter {
-		var pid peer.PID
-		copy(pid[:], nextTurnDposInfo.SuperNodePublicKey)
-		peers = append(peers, pid)
+		if len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
+			var pid peer.PID
+			copy(pid[:], nextTurnDposInfo.SuperNodePublicKey)
+			peers = append(peers, pid)
+		}
 	}
 	log.Info("work height", "height", nextTurnDposInfo.WorkingHeight, "activeCount", len(peers), "count", GetTotalProducersCount())
 	return peers
@@ -375,7 +376,7 @@ func UpdateSuperNodePublickey(newSuperNode string, signerIsUpdate bool) error {
 		oldSuperNode = make([]byte, len(superNodePublicKey))
 		copy(oldSuperNode, superNodePublicKey)
 	}
- 	isUpdate := bytes.Compare(superNodePublicKey, nodePubkey) != 0
+	isUpdate := bytes.Compare(superNodePublicKey, nodePubkey) != 0
 	superNodePublicKey = nodePubkey
 	if nextTurnDposInfo != nil {
 		nextTurnDposInfo.SuperNodePublicKey = superNodePublicKey
@@ -390,6 +391,10 @@ func UpdateSuperNodePublickey(newSuperNode string, signerIsUpdate bool) error {
 		copy(pid[:], arbiter)
 		peers = append(peers, pid)
 	}
+
+	var pid peer.PID
+	copy(pid[:], nodePubkey)
+	peers = append(peers, pid)
 	if PbftEngine.Layer2SuperNodeUpdate(oldSuperNode, nodePubkey, currentHeader.Nonce()) ||
 		isUpdate || signerIsUpdate {
 		go func() {
