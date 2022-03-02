@@ -4,6 +4,7 @@
 package relayer
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
@@ -104,10 +105,22 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
 		if c.ChainID() != chainID && chainID != 0 {
 			continue
 		}
-		err := c.WriteArbiters(address, signatures, totalCount)
-		if err != nil {
-			log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
-			return err
+		isSame := false
+		nowList := c.GetArbiters()
+		if len(address) == len(nowList) {
+			isSame = true
+			for i, arbiter := range nowList {
+				if !bytes.Equal(arbiter.Bytes(), address[i].Bytes()) {
+					isSame = false
+					break
+				}
+			}
+		}
+		if !isSame {
+			err := c.WriteArbiters(address, signatures, totalCount)
+			if err != nil {
+				log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
+			}
 		}
 	}
 	return nil

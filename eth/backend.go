@@ -426,7 +426,8 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		res := engine.OnInsertBlock(currentBlock)
 		if res {
 			blocksigner.SelfIsProducer = engine.IsProducer()
-			eevents.Notify(dpos.ETUpdateProducers, nil)
+			blocksigner.SelfIsProducer = engine.IsProducer()
+			log.Info("blocksigner.SelfIsProducer", "", blocksigner.SelfIsProducer)
 		}
 		return
 	}
