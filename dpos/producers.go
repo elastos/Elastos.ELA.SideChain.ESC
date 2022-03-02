@@ -7,10 +7,10 @@ package dpos
 
 import (
 	"bytes"
+	"fmt"
 	"sort"
 	"sync"
 
-	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
@@ -30,7 +30,7 @@ type Producers struct {
 
 func NewProducers(producers [][]byte, startHeight uint64) *Producers {
 	producer := &Producers{
-		dutyIndex:   0,
+		dutyIndex:     0,
 		workingHeight: startHeight,
 	}
 	defaultCRCSignerNumber = len(producers)
@@ -72,7 +72,7 @@ func (p *Producers) UpdateNextProducers(producers []peer.PID, totalCount int) er
 	sort.Slice(producers, func(i, j int) bool {
 		return bytes.Compare(producers[i][:], producers[j][:]) < 0
 	})
-
+	p.nextProducers = []peer.PID{}
 	p.nextProducers = make([]peer.PID, len(producers))
 	copy(p.nextProducers[:], producers[:])
 	p.nextTotalProducers = totalCount
@@ -82,26 +82,22 @@ func (p *Producers) UpdateNextProducers(producers []peer.PID, totalCount int) er
 func (p *Producers) GetNeedConnectArbiters() []peer.PID {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
-	pids := make(map[string]peer.PID)
+	pids := make([]peer.PID, 0)
+	fmt.Println("now producers")
 	for _, producer := range p.producers {
-		key := common.BytesToHexString(producer)
 		var pid peer.PID
 		copy(pid[:], producer)
-		pids[key] = pid
+		pids = append(pids, pid)
+		fmt.Println("now producers", pid.String())
 	}
 
 	for _, producer := range p.nextProducers {
-		key := common.BytesToHexString(producer[:])
 		var pid peer.PID
 		copy(pid[:], producer[:])
-		pids[key] = pid
+		pids = append(pids, pid)
+		fmt.Println(" nextProducers", pid.String())
 	}
-
-	peers := make([]peer.PID, 0, len(pids))
-	for _, pid := range pids {
-		peers = append(peers, pid)
-	}
-	return peers
+	return pids
 }
 
 func (p *Producers) UpdateDutyIndex(height uint64) uint32 {
