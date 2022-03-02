@@ -424,10 +424,12 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	mode := spv.GetCurrentConsensusMode()
 	spvHeight := currentBlock.Nonce()
 	if spvHeight <= 0 && mode == _interface.DPOS && len(engine.GetCurrentProducers()) > 0 {
-		engine.OnInsertBlock(currentBlock)
+		res := engine.OnInsertBlock(currentBlock)
 		blocksigner.SelfIsProducer = engine.IsProducer()
 		log.Info("blocksigner.SelfIsProducer", "", blocksigner.SelfIsProducer)
-		eevents.Notify(dpos.ETUpdateProducers, nil)
+		if res {
+			eevents.Notify(dpos.ETUpdateProducers, nil)
+		}
 		return
 	}
 

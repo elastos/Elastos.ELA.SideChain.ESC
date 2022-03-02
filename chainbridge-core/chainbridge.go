@@ -255,6 +255,18 @@ func currentArbitersHasself() bool {
 	return false
 }
 
+func CurrentArbitersContainSuperSigner() bool {
+	if currentArbitersOnContract == nil || len(currentArbitersOnContract) == 0 {
+		return false
+	}
+	for _, arbiter := range currentArbitersOnContract {
+		if arbiter.String() == currentSuperSigner.String() {
+			return true
+		}
+	}
+	return false
+}
+
 func isSameNexturnArbiter(producers []peer.PID) bool {
 	if len(producers) <= 0 || len(nextTurnArbiters) <= 0 {
 		return false
@@ -286,17 +298,23 @@ func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
 	}
 	producer := m.Producer
 	if !engine.IsProducerByAccount(producer) {
-		log.Error("handleFeedBackArbitersSig failed , is not producer", common.Bytes2Hex(producer))
+		bridgelog.Warn("handleFeedBackArbitersSig failed , is not producer", common.Bytes2Hex(producer))
+		return
+	}
+
+	pbk := engine.GetBlockChain().Config().Layer2SuperNodePubKey
+	if !CurrentArbitersContainSuperSigner() && bytes.Equal(producer, common.Hex2Bytes(pbk)) {
+		bridgelog.Warn("handleFeedBackArbitersSig, current arbiter list not contain super signer")
 		return
 	}
 	hash, err := arbiterManager.HashArbiterList()
 	if err != nil {
-		log.Error("HashArbiterList failed", "error", err)
+		bridgelog.Warn("HashArbiterList failed", "error", err)
 		return
 	}
 	_, err = crypto.SigToPub(accounts.TextHash(hash.Bytes()), m.Signature)
 	if err != nil {
-		log.Error("[handleFeedBackArbitersSig] Ecrecover error", "error", err)
+		bridgelog.Warn("[handleFeedBackArbitersSig] Ecrecover error", "error", err)
 		return
 	}
 	var pid peer.PID
@@ -321,7 +339,7 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 		return
 	}
 	if int(m.ArbiterCount) != len(arbiterManager.GetArbiterList()) {
-		bridgelog.Warn("[receivedReqArbiterSignature] ArbiterCount is not same", "m.arbiterCount", m.ArbiterCount, "arbiterList", len(arbiterManager.GetArbiterList()))
+		bridgelog.Warn("[receivedReqArbiterSignature] ArbiterCount is not same", "m.arbiterCount", m.ArbiterCount, "arbiterList", len(arbiterManager.GetArbiterList()), "from node", common.Bytes2Hex(m.PID[:]))
 		return
 	}
 	selfProducer := engine.GetProducer()
