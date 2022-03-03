@@ -44,7 +44,7 @@ type Dispatcher struct {
 }
 
 func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal) (err error, isSendReject bool, handled bool) {
-	Info("[ProcessProposal] start ", proposal.Hash().String() , "peerID", id.String(), "Sponsor", common.BytesToHexString(proposal.Sponsor))
+	Info("[ProcessProposal] start ", proposal.Hash().String(), "peerID", id.String(), "Sponsor", common.BytesToHexString(proposal.Sponsor))
 	defer Info("[ProcessProposal] end", proposal.Hash().String())
 	self := bytes.Equal(id[:], proposal.Sponsor)
 	Info("is self", self)
@@ -356,6 +356,9 @@ func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHe
 }
 
 func (d *Dispatcher) RecoverAbnormal(status *dmsg.ConsensusStatus, medianTime int64) {
+	if status == nil {
+		return
+	}
 	status.ViewStartTime = dtime.Int64ToTime(medianTime)
 	if medianTime != 0 {
 		offset, offsetTime := d.consensusView.calculateOffsetTime(status.ViewStartTime, d.timeSource.AdjustedTime())
