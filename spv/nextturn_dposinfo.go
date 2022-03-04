@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
@@ -22,6 +23,7 @@ var (
 	nextTurnDposInfo *NextTurnDPOSInfo
 
 	superNodePublicKey []byte
+	zero               = common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000")
 )
 
 func GetTotalProducersCount() int {
@@ -69,7 +71,7 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 
 	superNodeIsNotArbiter := true
 	for _, arbiter := range crcArbiters {
-		if len(arbiter) > 0 {
+		if len(arbiter) > 0 && bytes.Compare(zero, arbiter) != 0 {
 			producers = append(producers, arbiter)
 			if superNodeIsNotArbiter && bytes.Equal(arbiter, superNodePublicKey) {
 				superNodeIsNotArbiter = false
@@ -77,7 +79,7 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 		}
 	}
 	for _, arbiter := range normalArbitrs {
-		if len(arbiter) > 0 {
+		if len(arbiter) > 0 && bytes.Compare(zero, arbiter) != 0 {
 			producers = append(producers, arbiter)
 			if superNodeIsNotArbiter && bytes.Equal(arbiter, superNodePublicKey) {
 				superNodeIsNotArbiter = false
@@ -89,13 +91,15 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	isLayer2Started := false
 	if engine, ok := PbftEngine.(engine.ESCEngine); ok {
 		isLayer2Started = engine.Layer2Started()
-		if isLayer2Started && superNodeIsNotArbiter {
+		if isLayer2Started && superNodeIsNotArbiter && bytes.Compare(superNodePublicKey, zero) != 0 && len(superNodePublicKey) > 0 {
 			producers = append(producers, superNodePublicKey)
+		} else {
+			superNodeIsNotArbiter = false
 		}
 	}
 
 	if isLayer2Started && err == nil && superNodeIsNotArbiter {
-		totalCount, err =  SafeAdd(totalCount, 1)
+		totalCount, err = SafeAdd(totalCount, 1)
 	}
 	if err != nil {
 		return nil, totalCount, err
@@ -103,7 +107,7 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 	return producers, totalCount, nil
 }
 
-func GetSpvHeight() uint64  {
+func GetSpvHeight() uint64 {
 	if SpvService != nil && SpvService.GetBlockListener() != nil {
 		header, err := SpvService.HeaderStore().GetBest()
 		if err != nil {
@@ -115,13 +119,13 @@ func GetSpvHeight() uint64  {
 	return 0
 }
 
-func GetWorkingHeight() uint32  {
+func GetWorkingHeight() uint32 {
 	if nextTurnDposInfo != nil {
 		return nextTurnDposInfo.WorkingHeight
 	}
 	return 0
 }
 
-func GetSpvService() *Service  {
+func GetSpvService() *Service {
 	return SpvService
 }
