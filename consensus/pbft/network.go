@@ -66,7 +66,7 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 }
 
 func (p *Pbft) BroadMessage(msg elap2p.Message) {
-	peers :=  p.network.DumpPeersInfo()
+	peers := p.network.DumpPeersInfo()
 
 	for _, peer := range peers {
 		pid := peer.PID[:]
@@ -98,7 +98,7 @@ func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
 		return nil
 	}
 
-	peers :=  p.network.DumpPeersInfo()
+	peers := p.network.DumpPeersInfo()
 
 	result := make([]peerInfo, 0)
 	for _, peer := range peers {
@@ -109,14 +109,14 @@ func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
 		}
 		result = append(result, peerInfo{
 			NodePublicKey: common.Bytes2Hex(pid),
-			IP:       peer.Addr,
-			ConnState: peer.State.String(),
+			IP:            peer.Addr,
+			ConnState:     peer.State.String(),
 		})
 	}
 	return result
 }
 
-func (p *Pbft) GetAllArbiterPeersInfo()[]*p2p.PeerInfo{
+func (p *Pbft) GetAllArbiterPeersInfo() []*p2p.PeerInfo {
 	if p.account == nil {
 		return nil
 	}
@@ -214,7 +214,7 @@ func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
 	if b.NumberU64() <= p.chain.CurrentHeader().Number.Uint64() ||
 		b.NumberU64() <= p.dispatcher.GetFinishedHeight() {
 		p.blockPool.AddBadBlock(b)
-		log.Warn("old height block coming  blockchain.Height", "chain height",p.chain.CurrentHeader().Number.Uint64(), "b.Height", b.NumberU64(), "finishedHeight", p.dispatcher.GetFinishedHeight())
+		log.Warn("old height block coming  blockchain.Height", "chain height", p.chain.CurrentHeader().Number.Uint64(), "b.Height", b.NumberU64(), "finishedHeight", p.dispatcher.GetFinishedHeight())
 		return
 	}
 	sealHash := p.SealHash(b.Header())
@@ -256,10 +256,11 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 		curProducers := p.dispatcher.GetConsensusView().GetProducers()
 		isSame := p.dispatcher.GetConsensusView().IsSameProducers(curProducers)
 		if !isSame {
-			p.dispatcher.GetConsensusView().ChangeCurrentProducers(block.NumberU64() + 1, spv.GetSpvHeight())
+			p.dispatcher.GetConsensusView().ChangeCurrentProducers(block.NumberU64()+1, spv.GetSpvHeight())
 			go p.AnnounceDAddr()
 			go p.Recover()
 			p.dispatcher.GetConsensusView().DumpInfo()
+			events.Notify(dpos.ETUpdateProducers, nil)
 		} else {
 			log.Info("For the same batch of producers, no need to change current producers")
 		}
@@ -275,7 +276,7 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce()
 		isCurrent := p.IsCurrentProducers(producers)
 		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword, "isCurrent", isCurrent)
-		if  isBackword && !isCurrent {
+		if isBackword && !isCurrent {
 			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
 			go p.AnnounceDAddr()
 			go p.Recover()
@@ -629,8 +630,8 @@ func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
 	log.Info("wait seal time", "delay", delay)
 	time.Sleep(delay)
 
-	parent := p.chain.GetBlock(block.ParentHash(), block.NumberU64() - 1)
-	if parent == nil {//ErrUnknownAncestor
+	parent := p.chain.GetBlock(block.ParentHash(), block.NumberU64()-1)
+	if parent == nil { //ErrUnknownAncestor
 		count := len(p.network.GetActivePeers())
 		log.Warn("verify block error", "error", consensus.ErrUnknownAncestor, "activePeers", count)
 		if !p.dispatcher.GetConsensusView().HasProducerMajorityCount(count) {
@@ -642,7 +643,7 @@ func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
 	blocks := types.Blocks{}
 	blocks = append(blocks, block)
 	log.Info("InsertChain", "height", block.GetHeight())
-	if block.NumberU64() - p.chain.CurrentBlock().NumberU64() > 1 {
+	if block.NumberU64()-p.chain.CurrentBlock().NumberU64() > 1 {
 		log.Info("is bigger than local number")
 		return
 	}
@@ -654,37 +655,37 @@ func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
 }
 
 func (p *Pbft) OnConfirmReceived(pid peer.PID, c *payload.Confirm, height uint64) {
-	log.Info("OnConfirmReceived",  "confirm", c.Proposal.Hash(), "height", height)
+	log.Info("OnConfirmReceived", "confirm", c.Proposal.Hash(), "height", height)
 	defer log.Info("OnConfirmReceived end")
-	
+
 	if p.IsOnduty() {
 		p.isSealOver = true
 		go p.Recover()
 		return
 	}
-	
-	if height >  p.chain.CurrentHeader().Number.Uint64() + 1 {
+
+	if height > p.chain.CurrentHeader().Number.Uint64()+1 {
 		log.Info("is future confirm")
 		return
 	}
-	
+
 	if height <= p.dispatcher.GetFinishedHeight() {
 		log.Info("already confirmed block")
 		return
 	}
-	
+
 	if _, hasConfirm := p.blockPool.GetConfirmByHeight(height); hasConfirm {
 		log.Info("has confirmed block", "height", height)
 		return
 	}
-	
+
 	if _, ok := p.blockPool.GetBlock(c.Proposal.BlockHash); !ok {
 		log.Info("not have preBlock, request it", "hash:", c.Proposal.BlockHash.String())
 		p.OnInv(pid, c.Proposal.BlockHash)
 		return
 	}
 
-	if _, ok :=  p.blockPool.GetConfirm(c.Proposal.BlockHash); !ok {
+	if _, ok := p.blockPool.GetConfirm(c.Proposal.BlockHash); !ok {
 		p.dispatcher.ResetAcceptVotes()
 		for _, vote := range c.Votes {
 			p.dispatcher.ProcessVote(&vote)
@@ -718,7 +719,7 @@ func (p *Pbft) OnSmallCroTxReceived(id peer.PID, msg *dmsg.SmallCroTx) {
 	smallcrosstx.OnReceivedSmallCroTxFromDirectNet(list, total, msg.GetSignature(), msg.GetRawTx(), height)
 }
 
-func (p* Pbft) OnFailedWithdrawTxReceived(id peer.PID, msg *dmsg.FailedWithdrawTx) {
+func (p *Pbft) OnFailedWithdrawTxReceived(id peer.PID, msg *dmsg.FailedWithdrawTx) {
 	err := withdrawfailedtx.ReceivedFailedWithdrawTx(msg.GetHash(), msg.GetSignature())
 	if err != nil {
 		log.Error("ReceivedFailedWithdrawTx", "error", err)
