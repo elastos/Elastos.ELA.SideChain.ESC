@@ -36,6 +36,7 @@ import (
 
 const (
 	MAX_RETRYCOUNT = 60
+	SHUTDONWMSG    = "chain bridge is shut down"
 )
 
 var (
@@ -382,8 +383,10 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 				signCount = len(arbiterManager.GetSignatures())
 				log.Info("requireArbitersSignature", "signCount", signCount, "total", arbiterManager.GetTotalCount(), "total2", engine.GetTotalArbitersCount())
 				if api.HasProducerMajorityCount(signCount, arbiterManager.GetTotalCount()) {
-					log.Info("collect over signatures")
-					api.UpdateArbiters(0)
+					log.Info("collect over signatures", "spv.SpvIsWorkingHeight()", spv.SpvIsWorkingHeight())
+					if spv.SpvIsWorkingHeight() {
+						api.UpdateArbiters(0)
+					}
 					return
 				}
 				arbiterCount := len(arbiterManager.GetArbiterList())
@@ -508,6 +511,7 @@ func onSelfIsArbiter() {
 			if stopChn != nil {
 				close(stopChn)
 			}
+			relayStarted = false
 			return
 		}
 	}
@@ -658,6 +662,15 @@ func relayerStart() error {
 	case err := <-errChn:
 		log.Error("failed to listen and serve", "error", err)
 		close(stopChn)
+		relayStarted = false
+		if err.Error() != SHUTDONWMSG {
+			go func() {
+				time.Sleep(2 * time.Second)
+				if relayStarted == false {
+					relayerStart()
+				}
+			}()
+		}
 		return err
 	}
 	return nil
@@ -666,7 +679,7 @@ func relayerStart() error {
 func Stop() {
 	if relayStarted {
 		relayStarted = false
-		errChn <- fmt.Errorf("chain bridge is shut down")
+		errChn <- fmt.Errorf(SHUTDONWMSG)
 	}
 	atomic.StoreInt32(&canStart, 1)
 	wasArbiter = false

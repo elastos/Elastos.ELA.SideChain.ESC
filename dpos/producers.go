@@ -12,9 +12,12 @@ import (
 	"sync"
 
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 )
 
 var defaultCRCSignerNumber = 12
+var zero = common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000")
 
 type Producers struct {
 	totalProducers int
@@ -52,13 +55,18 @@ func (p *Producers) ChangeCurrentProducers(changeHeight uint64, spvHeight uint64
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.producers = make([][]byte, len(p.nextProducers))
+
 	for i, signer := range p.nextProducers {
+		if bytes.Equal(signer[:], zero) {
+			continue
+		}
 		p.producers[i] = make([]byte, len(signer))
 		copy(p.producers[i][:], signer[:])
 	}
 	p.SetWorkingHeight(changeHeight)
 	p.totalProducers = p.nextTotalProducers
 	p.spvHeight = spvHeight
+
 }
 
 func (p *Producers) SetWorkingHeight(changeHeight uint64) {

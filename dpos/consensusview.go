@@ -100,11 +100,11 @@ func (v *ConsensusView) GetNeedConnectArbiters() []peer.PID {
 	return v.producers.GetNeedConnectArbiters()
 }
 
-func (v *ConsensusView) UpdateNextProducers(producers []peer.PID, totalCount int){
+func (v *ConsensusView) UpdateNextProducers(producers []peer.PID, totalCount int) {
 	v.producers.UpdateNextProducers(producers, totalCount)
 }
 
-func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
+func (v *ConsensusView) IsSameProducers(curProducers [][]byte) bool {
 	nextProducers := v.producers.nextProducers
 	if len(curProducers) != len(nextProducers) {
 		return false
@@ -125,7 +125,7 @@ func (v *ConsensusView) IsSameProducers(curProducers[][]byte) bool {
 	return true
 }
 
-func (v *ConsensusView) IsCurrentProducers(curProducers[][]byte) bool {
+func (v *ConsensusView) IsCurrentProducers(curProducers [][]byte) bool {
 	producers := v.producers.producers
 	if len(producers) <= 0 {
 		return false
