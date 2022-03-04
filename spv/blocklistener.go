@@ -134,20 +134,23 @@ func IsNexturnBlock(block interface{}) bool {
 	nextTurnDposInfo.DPOSPublicKeys = payloadData.DPOSPublicKeys
 	nextTurnDposInfo.SuperNodePublicKey = GetLayer2SuperNodePublickey()
 	nextTurnDposInfo.SuperNodeIsArbiter = false
-	for _, arbiter := range payloadData.CRPublicKeys {
-		if bytes.Equal(arbiter, nextTurnDposInfo.SuperNodePublicKey) {
-			nextTurnDposInfo.SuperNodeIsArbiter = true
-			break
-		}
-	}
-	if !nextTurnDposInfo.SuperNodeIsArbiter {
+	if bytes.Compare(zero, nextTurnDposInfo.SuperNodePublicKey) != 0 && len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
 		for _, arbiter := range payloadData.CRPublicKeys {
 			if bytes.Equal(arbiter, nextTurnDposInfo.SuperNodePublicKey) {
 				nextTurnDposInfo.SuperNodeIsArbiter = true
 				break
 			}
 		}
+		if !nextTurnDposInfo.SuperNodeIsArbiter {
+			for _, arbiter := range payloadData.CRPublicKeys {
+				if bytes.Equal(arbiter, nextTurnDposInfo.SuperNodePublicKey) {
+					nextTurnDposInfo.SuperNodeIsArbiter = true
+					break
+				}
+			}
+		}
 	}
+
 	return true
 }
 
@@ -195,20 +198,23 @@ func InitNextTurnDposInfo() {
 	}
 
 	nextTurnDposInfo.SuperNodeIsArbiter = false
-	for _, arbiter := range crcArbiters {
-		if bytes.Equal(arbiter, superPubkey) {
-			nextTurnDposInfo.SuperNodeIsArbiter = true
-			break
-		}
-	}
-	if !nextTurnDposInfo.SuperNodeIsArbiter {
-		for _, arbiter := range normalArbiters {
+	if bytes.Compare(superPubkey, zero) != 0 && len(superPubkey) > 0 {
+		for _, arbiter := range crcArbiters {
 			if bytes.Equal(arbiter, superPubkey) {
 				nextTurnDposInfo.SuperNodeIsArbiter = true
 				break
 			}
 		}
+		if !nextTurnDposInfo.SuperNodeIsArbiter {
+			for _, arbiter := range normalArbiters {
+				if bytes.Equal(arbiter, superPubkey) {
+					nextTurnDposInfo.SuperNodeIsArbiter = true
+					break
+				}
+			}
+		}
 	}
+
 	peers := DumpNextDposInfo()
 	events.Notify(dpos.ETNextProducers, peers)
 }

@@ -478,6 +478,7 @@ func (n *Node) Stop() error {
 	}
 	log.Info("node start stop>>>>> 6 end")
 	chainbridge_core.Stop()
+	log.Info("node start stop>>>>> 7 end")
 	return nil
 }
 
