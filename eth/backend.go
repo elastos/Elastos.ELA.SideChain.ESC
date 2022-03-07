@@ -444,6 +444,16 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	}
 	if mode == _interface.POW {
 		spvHeight = spv.GetSpvHeight()
+	} else {
+		bestProducers, total, err := spv.GetProducers(spv.GetSpvHeight())
+		if err != nil {
+			log.Info("Get best producers error", "error", err)
+			return
+		}
+		if engine.IsCurrentProducers(bestProducers) {
+			log.Info("is current producers, do not need update", "total", total)
+			return
+		}
 	}
 	blocksigner.SelfIsProducer = false
 	engine.UpdateCurrentProducers(producers, totalProducers, spvHeight)

@@ -30,20 +30,25 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 
 	log.Info("UpdateArbiters ", "len", len(list), "total", total,
 		"producers", a.engine.GetTotalArbitersCount(), "sigCount", count)
-	if a.HasProducerMajorityCount(count, total) || IsFirstUpdateArbiter && a.HasProducerMajorityCount(len(list), total) {
-		sigs := make([][]byte, 0)
-		for ar, sig := range signatures {
-			log.Info("signature arbiter", "arbiter", ar)
-			sigs = append(sigs, sig)
+	if a.HasProducerMajorityCount(len(list), total) {
+		if a.HasProducerMajorityCount(count, total) || IsFirstUpdateArbiter {
+			sigs := make([][]byte, 0)
+			for ar, sig := range signatures {
+				log.Info("signature arbiter", "arbiter", ar)
+				sigs = append(sigs, sig)
+			}
+			log.Info("MsgReleayer.UpdateArbiters")
+			err := MsgReleayer.UpdateArbiters(list, a.engine.GetTotalArbitersCount(), sigs, chainID)
+			if err != nil {
+				log.Error("UpdateArbiters error", "error", err)
+				return 0
+			}
+			return 1
 		}
-		log.Info("MsgReleayer.UpdateArbiters")
-		err := MsgReleayer.UpdateArbiters(list, a.engine.GetTotalArbitersCount(), sigs, chainID)
-		if err != nil {
-			log.Error("UpdateArbiters error", "error", err)
-			return 0
-		}
-		return 1
+	} else {
+		log.Info("The arbiter list is not bigger than 2 / 3")
 	}
+
 	return 0
 }
 
