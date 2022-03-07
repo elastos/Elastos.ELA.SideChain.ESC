@@ -507,11 +507,12 @@ func onSelfIsArbiter() {
 				}
 			}
 		case err := <-errChn:
-			log.Error("failed to listen and serve", "error", err)
+			log.Error("failed to listen and serve 2 ", "error", err)
+			relayStarted = false
 			if stopChn != nil {
 				close(stopChn)
+				stopChn = nil
 			}
-			relayStarted = false
 			return
 		}
 	}
@@ -661,16 +662,8 @@ func relayerStart() error {
 	select {
 	case err := <-errChn:
 		log.Error("failed to listen and serve", "error", err)
-		close(stopChn)
 		relayStarted = false
-		if err.Error() != SHUTDONWMSG {
-			go func() {
-				time.Sleep(2 * time.Second)
-				if relayStarted == false {
-					relayerStart()
-				}
-			}()
-		}
+		close(stopChn)
 		return err
 	}
 	return nil
