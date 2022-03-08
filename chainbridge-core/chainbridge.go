@@ -37,6 +37,7 @@ import (
 const (
 	MAX_RETRYCOUNT = 60
 	SHUTDONWMSG    = "chain bridge is shut down"
+	STOPPREARBITER = "stop require pre arbiter list"
 )
 
 var (
@@ -44,6 +45,7 @@ var (
 	errChn               chan error
 	stopChn              chan struct{}
 	relayStarted         bool
+	isRequireArbiter     bool
 	canStart             int32
 	nextTurnArbiters     [][]byte
 	requireArbitersCount int
@@ -71,6 +73,7 @@ func init() {
 	atomic.StoreInt32(&canStart, 1)
 	isStarted = false
 	isNewStart = true
+	isRequireArbiter = false
 }
 
 func APIs(engine *pbft.Pbft) []rpc.API {
@@ -140,12 +143,13 @@ func Start() bool {
 			} else {
 				selfIsSuperVoter = bytes.Equal(self, common.Hex2Bytes(pbftEngine.GetBlockChain().Config().Layer2SuperNodePubKey))
 			}
-			bridgelog.Info("GetCurrentSuperSigner", currentSuperSigner.String(), "selfArbiterAddr ", selfArbiterAddr, "selfIsSuperVoter", selfIsSuperVoter, "nodePublickey", pbftEngine.GetBlockChain().Config().Layer2SuperNodePubKey)
+			isValidator := currentArbitersHasself()
+			bridgelog.Info("GetCurrentSuperSigner", currentSuperSigner.String(), "selfArbiterAddr ", selfArbiterAddr, "selfIsSuperVoter", selfIsSuperVoter, "isValidator", isValidator, "nodePublickey", pbftEngine.GetBlockChain().Config().Layer2SuperNodePubKey)
 			currentArbitersOnContract = MsgReleayer.GetArbiters(chainID)
 			IsFirstUpdateArbiter = len(currentArbitersOnContract) == 0
 			producers := spv.GetNextTurnPeers()
 			if !IsFirstUpdateArbiter && isSameNexturnArbiter(producers) && wasArbiter == isProducer &&
-				arbiterManager.GetTotalCount() == pbftEngine.GetTotalArbitersCount() {
+				arbiterManager.GetTotalCount() == pbftEngine.GetTotalArbitersCount() && isValidator == isProducer {
 				bridgelog.Info("ETDirectPeersChanged is same current producers")
 				return
 			}
@@ -165,15 +169,16 @@ func Start() bool {
 				if wasArbiter {
 					api.UpdateArbiters(0)
 				}
-				bridgelog.Info("self is not a producer, chain bridge is stop and only relay")
-				//Stop()
-				selfIsNotArbiterRelay()
-				return
+				if !isValidator {
+					bridgelog.Info("self is not a producer, chain bridge is stop and only relay")
+					selfIsNotArbiterRelay()
+					return
+				}
 			}
 			arbiterManager.Clear()
 			arbiterManager.SetTotalCount(pbftEngine.GetTotalArbitersCount())
 			wasArbiter = true
-			bridgelog.Info("became a producer, collet arbiter")
+			bridgelog.Info("became a producer, collect arbiter")
 
 			if IsFirstUpdateArbiter || nexturnHasSelf(self) || selfIsSuperVoter || len(nextTurnArbiters) == 0 {
 				var pid peer.PID
@@ -183,7 +188,9 @@ func Start() bool {
 				bridgelog.Info("nexturn self is not a producer")
 			}
 			retryCount = 0
-			go onSelfIsArbiter()
+			if !isRequireArbiter {
+				go onSelfIsArbiter()
+			}
 		case dpos.ETUpdateProducers:
 			api.UpdateArbiters(0)
 			//isProducer := pbftEngine.IsProducer()
@@ -245,12 +252,11 @@ func onReceivedChangSuperMsg(engine *pbft.Pbft, e *events.Event) {
 }
 
 func currentArbitersHasself() bool {
-	if currentArbitersOnContract == nil || len(currentArbitersOnContract) == 0 {
-		return true
-	}
-	for _, arbiter := range currentArbitersOnContract {
-		if arbiter.String() == selfArbiterAddr {
-			return true
+	if currentArbitersOnContract != nil && len(currentArbitersOnContract) > 0 {
+		for _, arbiter := range currentArbitersOnContract {
+			if arbiter.String() == selfArbiterAddr {
+				return true
+			}
 		}
 	}
 	return false
@@ -486,12 +492,18 @@ func selfIsNotArbiterRelay() {
 }
 
 func onSelfIsArbiter() {
+	isRequireArbiter = true
+	defer func() {
+		bridgelog.Info("onSelfIsArbiter is quit")
+		isRequireArbiter = false
+		relayStarted = false
+	}()
 	for {
 		select {
 		case <-time.After(time.Second * 2):
 			list := arbiterManager.GetArbiterList()
-			log.Info("arbiterManager GetArbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
-			if len(list) == requireArbitersCount && requireArbitersCount > 0 {
+			bridgelog.Info("arbiterManager GetArbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
+			if len(list) >= requireArbitersCount && requireArbitersCount > 0 {
 				return
 			}
 			if requireArbiters(pbftEngine) {
@@ -500,14 +512,14 @@ func onSelfIsArbiter() {
 					relayStarted = true
 					go func() {
 						err := relayerStart()
-						log.Error("bridge relay error", "error", err)
+						bridgelog.Error("bridge relay error", "error", err)
 					}()
 				} else {
-					log.Info("bridge is starting relay")
+					bridgelog.Info("bridge is starting relay")
 				}
 			}
 		case err := <-errChn:
-			log.Error("failed to listen and serve 2 ", "error", err)
+			bridgelog.Error("failed to listen and serve 2 ", "error", err)
 			relayStarted = false
 			if stopChn != nil {
 				close(stopChn)
