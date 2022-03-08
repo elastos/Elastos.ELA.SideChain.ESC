@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
 	"sort"
 	"sync"
 
@@ -32,28 +33,74 @@ import (
 
 const MAX_BATCH_SIZE = 100
 
-// Transactions is a Transaction slice type for basic sorting.
-type NonceProposal []*voter.Proposal
+//type NonceProposal []*voter.Proposal
+//
+//// Len returns the length of s.
+//func (s NonceProposal) Len() int { return len(s) }
+//
+//// Swap swaps the i'th and the j'th element in s.
+//func (s NonceProposal) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+//
+//// GetRlp implements Rlpable and returns the i'th element of s in rlp.
+//func (s NonceProposal) GetRlp(i int) []byte {
+//	enc, _ := rlp.EncodeToBytes(s[i])
+//	return enc
+//}
+//
+//func (s NonceProposal) Less(i, j int) bool { return s[i].DepositNonce < s[j].DepositNonce }
+//
+//func (s *NonceProposal) Push(x interface{}) {
+//	*s = append(*s, x.(*voter.Proposal))
+//}
+//
+//func (s *NonceProposal) Pop() interface{} {
+//	old := *s
+//	n := len(old)
+//	x := old[n-1]
+//	*s = old[0 : n-1]
+//	return x
+//}
+//
+//func (s *NonceProposal) Delete(index int) {
+//	if index < 0 || index >= s.Len() {
+//		return
+//	}
+//	if index == s.Len()-1 {
+//		s.Pop()
+//		return
+//	}
+//
+//	list := *s
+//	*s = append(list[:index], list[index+1:]...)
+//}
+
+type PriceProposal []*voter.Proposal
 
 // Len returns the length of s.
-func (s NonceProposal) Len() int { return len(s) }
+func (s PriceProposal) Len() int { return len(s) }
 
 // Swap swaps the i'th and the j'th element in s.
-func (s NonceProposal) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s PriceProposal) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // GetRlp implements Rlpable and returns the i'th element of s in rlp.
-func (s NonceProposal) GetRlp(i int) []byte {
+func (s PriceProposal) GetRlp(i int) []byte {
 	enc, _ := rlp.EncodeToBytes(s[i])
 	return enc
 }
 
-func (s NonceProposal) Less(i, j int) bool { return s[i].DepositNonce < s[j].DepositNonce }
+func (s PriceProposal) Less(i, j int) bool {
+	fee := s[i].Data[32:64]
+	fee1 := big.NewInt(0).SetBytes(fee)
+	fee = s[j].Data[32:64]
+	fee2 := big.NewInt(0).SetBytes(fee)
+	return fee1.Cmp(fee2) < 0
+}
 
-func (s *NonceProposal) Push(x interface{}) {
+func (s *PriceProposal) Push(x interface{}) {
 	*s = append(*s, x.(*voter.Proposal))
 }
 
-func (s *NonceProposal) Pop() interface{} {
+func (s *PriceProposal) Pop() interface{} {
 	old := *s
 	n := len(old)
 	x := old[n-1]
@@ -61,11 +108,11 @@ func (s *NonceProposal) Pop() interface{} {
 	return x
 }
 
-func (s *NonceProposal) Delete(index int) {
+func (s *PriceProposal) Delete(index int) {
 	if index < 0 || index >= s.Len() {
 		return
 	}
-	if index == s.Len() - 1 {
+	if index == s.Len()-1 {
 		s.Pop()
 		return
 	}
@@ -79,12 +126,12 @@ type MsgPool struct {
 	queueLock sync.RWMutex
 
 	verifiedProposalSignatures map[common.Hash][][]byte
-	verifiedProposalArbiter map[common.Hash][][]byte
+	verifiedProposalArbiter    map[common.Hash][][]byte
 	supernodeProposalSignature map[common.Hash][]byte
-	supernodeProposalVerifed map[common.Hash][]byte
-	arbiterLock sync.RWMutex
+	supernodeProposalVerifed   map[common.Hash][]byte
+	arbiterLock                sync.RWMutex
 
-	pendingList NonceProposal
+	pendingList PriceProposal
 
 	superVoter []byte
 
@@ -96,14 +143,14 @@ type MsgPool struct {
 
 func NewMsgPool(supervoter []byte) *MsgPool {
 	return &MsgPool{
-		queueList: make(map[uint64]*voter.Proposal),
+		queueList:                  make(map[uint64]*voter.Proposal),
 		verifiedProposalSignatures: make(map[common.Hash][][]byte),
-		verifiedProposalArbiter: make(map[common.Hash][][]byte),
+		verifiedProposalArbiter:    make(map[common.Hash][][]byte),
 		supernodeProposalSignature: make(map[common.Hash][]byte),
-		supernodeProposalVerifed: make(map[common.Hash][]byte),
-		pendingList: make(NonceProposal, 0),
-		beforeList: make(map[uint64][]*dpos_msg.DepositProposalMsg, 0),
-		superVoter: supervoter,
+		supernodeProposalVerifed:   make(map[common.Hash][]byte),
+		pendingList:                make(PriceProposal, 0),
+		beforeList:                 make(map[uint64][]*dpos_msg.DepositProposalMsg, 0),
+		superVoter:                 supervoter,
 	}
 }
 
@@ -127,7 +174,7 @@ func (m *MsgPool) GetQueueProposal(nonce uint64) *voter.Proposal {
 	return m.queueList[nonce]
 }
 
-func (m *MsgPool) GetQueueList() []*voter.Proposal  {
+func (m *MsgPool) GetQueueList() []*voter.Proposal {
 	m.queueLock.RLock()
 	defer m.queueLock.RUnlock()
 	count := len(m.queueList)
@@ -138,7 +185,8 @@ func (m *MsgPool) GetQueueList() []*voter.Proposal  {
 	for _, msg := range m.queueList {
 		list = append(list, msg)
 	}
-	sort.Sort(NonceProposal(list))
+
+	sort.Sort(PriceProposal(list))
 	return list
 }
 
@@ -239,7 +287,7 @@ func (m *MsgPool) GetPendingList() []*voter.Proposal {
 	for i := 0; i < len(m.pendingList); i++ {
 		list = append(list, m.pendingList[i])
 	}
-	sort.Sort(NonceProposal(list))
+	sort.Sort(PriceProposal(list))
 	return list
 }
 
@@ -274,16 +322,16 @@ func (m *MsgPool) GetBeforeProposal(proposal *voter.Proposal) []*dpos_msg.Deposi
 }
 
 func (m *MsgPool) OnProposalExecuted(nonce uint64) {
-    proposal := m.GetQueueProposal(nonce)
-    if proposal == nil {
+	proposal := m.GetQueueProposal(nonce)
+	if proposal == nil {
 		return
 	}
 	m.arbiterLock.Lock()
-    hash := proposal.Hash()
-    delete(m.verifiedProposalArbiter, hash)
+	hash := proposal.Hash()
+	delete(m.verifiedProposalArbiter, hash)
 	delete(m.verifiedProposalSignatures, hash)
-    delete(m.supernodeProposalSignature, hash)
-    delete(m.verifiedProposalArbiter, hash)
+	delete(m.supernodeProposalSignature, hash)
+	delete(m.verifiedProposalArbiter, hash)
 	m.arbiterLock.Unlock()
 
 	m.pendingLock.Lock()
