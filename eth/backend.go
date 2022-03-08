@@ -419,6 +419,7 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		return
 	}
 	if !config.IsPBFTFork(currentBlock.Number()) {
+		fmt.Println(" >>> is not pbft engine")
 		return
 	}
 	mode := spv.GetCurrentConsensusMode()
@@ -432,28 +433,19 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		}
 		return
 	}
-
+	bestSpvHeight := spv.GetSpvHeight()
+	fmt.Println(" >>> bestSpvHeight ", bestSpvHeight)
+	if bestSpvHeight > spvHeight {
+		spvHeight = bestSpvHeight
+	}
 	producers, totalProducers, err := spv.GetProducers(spvHeight)
 	if err != nil {
-		log.Info("GetProducers error", "error", err)
+		log.Info("GetProducers error", "error", err, "spvHeight", spvHeight)
 		return
 	}
 	if engine.IsCurrentProducers(producers) {
 		log.Info("is current producers, do not need update", "totalProducers", totalProducers)
 		return
-	}
-	if mode == _interface.POW {
-		spvHeight = spv.GetSpvHeight()
-	} else {
-		bestProducers, total, err := spv.GetProducers(spv.GetSpvHeight())
-		if err != nil {
-			log.Info("Get best producers error", "error", err)
-			return
-		}
-		if engine.IsCurrentProducers(bestProducers) {
-			log.Info("is current producers, do not need update", "total", total)
-			return
-		}
 	}
 	blocksigner.SelfIsProducer = false
 	engine.UpdateCurrentProducers(producers, totalProducers, spvHeight)

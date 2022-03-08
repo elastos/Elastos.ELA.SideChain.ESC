@@ -1,6 +1,8 @@
 package msg_pool
 
 import (
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,10 +11,14 @@ import (
 )
 
 func GenerateProposal(nonce uint64) *voter.Proposal {
+	data := common.LeftPadBytes(big.NewInt(int64(nonce)).Bytes(), 32)
+	data2 := common.LeftPadBytes(big.NewInt(int64(nonce)).Bytes(), 32)
+	data = append(data, data2...)
 	p := &voter.Proposal{
 		Source:       1,
 		Destination:  2,
 		DepositNonce: nonce,
+		Data:         data,
 	}
 	return p
 }
