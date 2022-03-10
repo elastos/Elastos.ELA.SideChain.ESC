@@ -808,6 +808,11 @@ var (
 		Usage: "config the frozen account list",
 		Value: &cli.StringSlice{},
 	}
+
+	Layer2DisableCheckFee = cli.BoolFlag{
+		Name:  "layer2.disable.checkFee",
+		Usage: "Check whether the user pay is enough to submit the transaction",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

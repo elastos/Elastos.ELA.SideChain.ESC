@@ -447,6 +447,7 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		return
 	}
 	blocksigner.SelfIsProducer = false
+	log.Info("InitCurrentProducers ", "producer length", len(producers), "spvHeight", spvHeight)
 	engine.UpdateCurrentProducers(producers, totalProducers, spvHeight)
 	go func() {
 		if engine.AnnounceDAddr() {

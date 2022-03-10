@@ -65,7 +65,7 @@ func (p *Pbft) IsSyncFinished() bool {
 	return p.IsCurrent()
 }
 
-func (p *Pbft) Layer2Started() bool{
+func (p *Pbft) Layer2Started() bool {
 	return p.chain.Config().IsLayer2Fork(p.chain.CurrentHeader().Number)
 }
 

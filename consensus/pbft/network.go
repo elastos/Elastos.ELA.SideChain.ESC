@@ -260,7 +260,6 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			go p.AnnounceDAddr()
 			go p.Recover()
 			p.dispatcher.GetConsensusView().DumpInfo()
-			events.Notify(dpos.ETUpdateProducers, nil)
 		} else {
 			log.Info("For the same batch of producers, no need to change current producers")
 		}
@@ -268,16 +267,20 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 		return !isSame
 	} else if block.Nonce() > 0 {
 		//used to sync completed to consensus
-		producers, totalCount, err := spv.GetProducers(block.Nonce())
+		spvHeight := spv.GetSpvHeight()
+		if spvHeight < block.Nonce() {
+			spvHeight = block.Nonce()
+		}
+		producers, totalCount, err := spv.GetProducers(spvHeight)
 		if err != nil {
-			log.Error("OnInsertBlock error", "GetProducers", err)
+			log.Error("OnInsertBlock error", "GetProducers", err, "spvHeight", spvHeight)
 			return false
 		}
 		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce()
 		isCurrent := p.IsCurrentProducers(producers)
 		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword, "isCurrent", isCurrent)
 		if isBackword && !isCurrent {
-			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, block.Nonce())
+			p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, spvHeight)
 			go p.AnnounceDAddr()
 			go p.Recover()
 			return true
