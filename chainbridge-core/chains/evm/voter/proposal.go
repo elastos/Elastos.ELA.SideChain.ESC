@@ -154,7 +154,7 @@ func (p *Proposal) Execute(client ChainClient, signature [][]byte, superSig []by
 	}
 	log.Info("executeProposal", "source", p.Source, "nonce", p.DepositNonce, "data", common.Bytes2Hex(p.Data), "resouceID", common.Bytes2Hex(p.ResourceId[:]), "superSig", common.Bytes2Hex(superSig), "from", client.GetClientAddress())
 	for _, sig := range signature {
-		log.Info("signature", "",common.Bytes2Hex(sig))
+		log.Info("signature", "", common.Bytes2Hex(sig))
 	}
 	input, err := a.Pack("executeProposal", p.Source, p.DepositNonce, p.Data, p.ResourceId, signature, superSig)
 	if err != nil {
@@ -210,10 +210,16 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, supe
 	nonceList := make([]uint64, 0)
 	dataList := make([][]byte, 0)
 	resourceID := make([][32]byte, 0)
+	totalFee := big.NewInt(0)
 	for _, p := range list {
 		nonceList = append(nonceList, p.DepositNonce)
 		dataList = append(dataList, p.Data)
 		resourceID = append(resourceID, p.ResourceId)
+		fee, errmsg := chainbridge_abi.GetFeeByData(p.Data)
+		if errmsg != nil {
+			return errors.New(fmt.Sprintf("proposal data is not correct: %d", p.DepositNonce))
+		}
+		totalFee.Add(totalFee, fee)
 	}
 	input, err := a.Pack("executeProposalBatch", source, nonceList, dataList, resourceID, signature, superSig)
 	if err != nil {
@@ -241,9 +247,16 @@ func ExecuteBatch(client ChainClient, list []*Proposal, signature [][]byte, supe
 	}
 	nonce := n.Uint64()
 	tx := evmtransaction.NewTransaction(nonce, BridgeAddress, big.NewInt(0), gasLimit, gp, input)
+	if chainbridge_abi.CheckFeeToSubmit {
+		needFeed := new(big.Int).Mul(big.NewInt(0).SetUint64(gasLimit), gp)
+		log.Info("", ">>>>>>>> needFee ", needFeed, "totaalFee ", totalFee.Uint64(), "totalFee", totalFee.String(), "gasPrice", gp.Uint64())
+		if needFeed.Cmp(totalFee) > 0 {
+			return errors.New("user set fee is too low")
+		}
+	}
 	hash, err := client.SignAndSendTransaction(context.TODO(), tx)
 	if err != nil {
-		fmt.Println("msg. from>>>>>", "from ", msg.From.String())
+		log.Info("msg. from>>>>>", "from ", msg.From.String())
 		return err
 	}
 

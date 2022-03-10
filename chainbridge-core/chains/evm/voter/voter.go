@@ -199,7 +199,7 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 	}
 	bridge := common.HexToAddress(bridgeAddress)
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
-	out, err:= w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
 	log.Info("GetArbiterList", "error", err, "out", out)
 
 	out0 := make([]common.Address, 0)
@@ -221,7 +221,7 @@ func (w *EVMVoter) GetSuperSigner(bridgeAddress string) (common.Address, error) 
 	}
 	bridge := common.HexToAddress(bridgeAddress)
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
-	out, err:= w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
 	log.Info("GetSuperSigner", "error", err, "out", out)
 
 	var out0 common.Address
@@ -239,11 +239,11 @@ func (w *EVMVoter) SuperSignerNodePublickey(bridgeAddress string) (string, error
 	}
 	input, err := a.Pack("getSuperSignerNodePublickey")
 	if err != nil {
-		return"", err
+		return "", err
 	}
 	bridge := common.HexToAddress(bridgeAddress)
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
-	out, err:= w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
 	log.Info("getSuperSignerNodePublickey", "error", err, "out", out)
 	//record.NodePublickey = make([]byte, 33)
 	//err = c.changeSuperSignerABI.Unpack(record,  "ChangeSuperSigner", l.Data)
