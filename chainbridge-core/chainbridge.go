@@ -496,7 +496,6 @@ func onSelfIsArbiter() {
 	defer func() {
 		bridgelog.Info("onSelfIsArbiter is quit")
 		isRequireArbiter = false
-		relayStarted = false
 	}()
 	for {
 		select {

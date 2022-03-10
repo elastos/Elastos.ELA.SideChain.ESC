@@ -15,10 +15,10 @@ import (
 
 func TestProposal_Serialize(t *testing.T) {
 	p := Proposal{
-		Source: 1,
+		Source:       1,
 		DepositNonce: rand.Uint64(),
-		ResourceId: common.Hash([]byte{1,2,3}),
-		Data: []byte{1,2,3,4,5},
+		ResourceId:   common.Hash([]byte{1, 2, 3}),
+		Data:         []byte{1, 2, 3, 4, 5},
 	}
 
 	w := bytes.NewBuffer([]byte{})
