@@ -33,13 +33,13 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/fdlimit"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -789,12 +789,12 @@ var (
 		Value: "",
 	}
 	PbftIPAddress = cli.StringFlag{
-		Name: "pbft.net.address",
+		Name:  "pbft.net.address",
 		Usage: "connect dpos direct net ip",
 		Value: "127.0.0.1",
 	}
 	PbftDposPort = cli.StringFlag{
-		Name: "pbft.net.port",
+		Name:  "pbft.net.port",
 		Usage: "connect dpos direct net port",
 		Value: "20639",
 	}
@@ -815,6 +815,11 @@ var (
 		Name:  "layer2.supernode.publickey",
 		Usage: "layer2 of supernode publickey,one vote veto, curve is secp256k1.S256()",
 		Value: "",
+	}
+
+	Layer2DisableCheckFee = cli.BoolFlag{
+		Name:  "layer2.disable.checkFee",
+		Usage: "Check whether the user pay is enough to submit the transaction",
 	}
 )
 

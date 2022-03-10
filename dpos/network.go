@@ -23,9 +23,9 @@ import (
 )
 
 type NetworkConfig struct {
-	IPAddress   string
-	Magic       uint32
-	DefaultPort uint16
+	IPAddress      string
+	Magic          uint32
+	DefaultPort    uint16
 	MaxNodePerHost uint32
 
 	Account    account.Account
@@ -84,7 +84,7 @@ type NetworkEventListener interface {
 	OnSmallCroTxReceived(id dpeer.PID, c *dmsg.SmallCroTx)
 	OnFailedWithdrawTxReceived(id dpeer.PID, c *dmsg.FailedWithdrawTx)
 
-	OnLayer2Msg(id dpeer.PID,  c elap2p.Message)
+	OnLayer2Msg(id dpeer.PID, c elap2p.Message)
 }
 
 type messageItem struct {
@@ -93,17 +93,17 @@ type messageItem struct {
 }
 
 type Network struct {
-	listener           NetworkEventListener
-	publicKey          []byte
-	announceAddr       func()
+	listener     NetworkEventListener
+	publicKey    []byte
+	announceAddr func()
 
 	p2pServer    p2p.Server
 	messageQueue chan *messageItem
 	quit         chan bool
 
-	badNetworkChan     chan bool
-	changeViewChan     chan bool
-	recoverChan        chan bool
+	badNetworkChan chan bool
+	changeViewChan chan bool
+	recoverChan    chan bool
 
 	GetCurrentHeight func(pid peer.PID) uint64
 }
@@ -207,7 +207,7 @@ func (n *Network) processMessage(msgItem *messageItem) {
 	case msg.CmdResponseBlocks:
 		//msgResponseBlocks, processed := m.(*dmsg.BlockMsg)
 		//if processed {
-			//n.listener.OnResponseBlocks(msgItem.ID, msgResponseBlocks)
+		//n.listener.OnResponseBlocks(msgItem.ID, msgResponseBlocks)
 		//}
 	case msg.CmdRequestConsensus:
 		msgRequestConsensus, processed := m.(*dmsg.RequestConsensus)
@@ -341,15 +341,15 @@ func (n *Network) DumpPeersInfo() []*p2p.PeerInfo {
 
 func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 	network := &Network{
-		listener:           cfg.Listener,
-		publicKey:          cfg.PublicKey,
-		announceAddr:       cfg.AnnounceAddr,
+		listener:     cfg.Listener,
+		publicKey:    cfg.PublicKey,
+		announceAddr: cfg.AnnounceAddr,
 
-		messageQueue:       make(chan *messageItem, 10000),
-		quit:               make(chan bool),
-		badNetworkChan:     make(chan bool),
-		changeViewChan:     make(chan bool),
-		recoverChan:        make(chan bool),
+		messageQueue:   make(chan *messageItem, 10000),
+		quit:           make(chan bool),
+		badNetworkChan: make(chan bool),
+		changeViewChan: make(chan bool),
+		recoverChan:    make(chan bool),
 	}
 
 	notifier := p2p.NewNotifier(p2p.NFNetStabled|p2p.NFBadNetwork, network.notifyFlag)
@@ -437,4 +437,3 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 	}
 	return message, nil
 }
-
