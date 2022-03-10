@@ -157,6 +157,9 @@ func (c *EVMChain) ExecuteProposalBatch(msg *dpos_msg.BatchMsg) error {
 	items := make([]*voter.Proposal, 0)
 	for _, it := range msg.Items {
 		p := c.msgPool.GetQueueProposal(it.DepositNonce)
+		if p == nil {
+			continue
+		}
 		if p.ProposalIsComplete(c.writer.GetClient()) {
 			log.Info("Proposal is completed", "proposal", p.Hash().String(), "dest", p.Destination, "chainid", c.chainID)
 			c.msgPool.OnProposalExecuted(p.DepositNonce)
@@ -219,9 +222,9 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	if c.msgPool.ArbiterIsVerified(msg.BatchMsgHash, msg.Signer) {
 		return errors.New(fmt.Sprintf("is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
 	}
-
+	containSuperSigner := c.currentSignerHasSuperSigner()
 	superVoterSignature := c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
-	maxsign := c.getMaxArbitersSign()
+	maxsign := c.getMaxArbitersSign(containSuperSigner)
 
 	//if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > maxsign && len(superVoterSignature) > 0 {
 	//	return errors.New("is collect enough feedback")
@@ -230,7 +233,6 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	if err := c.verifySignature(msg); err != nil {
 		return err
 	}
-	containSuperSigner := c.currentSignerHasSuperSigner()
 	isSuperVoter := c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature, containSuperSigner)
 	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash), "superVoterSignature", len(superVoterSignature), "isSuperVoter", isSuperVoter, "containSuperSigner", containSuperSigner)
 	if isSuperVoter {
@@ -314,9 +316,9 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 	if c.msgPool.ArbiterIsVerified(phash, msg.Proposer) {
 		return errors.New(fmt.Sprintf("onDepositMsg is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
 	}
-
+	containSuperSigner := c.currentSignerHasSuperSigner()
 	superVoterSignature := c.msgPool.GetSuperVoterSigner(phash)
-	maxsign := c.getMaxArbitersSign()
+	maxsign := c.getMaxArbitersSign(containSuperSigner)
 	//if c.msgPool.GetVerifiedCount(proposal.Hash()) > maxsign &&
 	//	len(superVoterSignature) > 0 {
 	//	return errors.New("is collect enough signature")
@@ -327,7 +329,6 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		if err != nil {
 			return errors.New(fmt.Sprintf("OnProposal error: %s", err.Error()))
 		} else {
-			containSuperSigner := c.currentSignerHasSuperSigner()
 			issuperVoter := c.msgPool.OnProposalVerified(phash, msg.Proposer, msg.Signature, containSuperSigner)
 			if issuperVoter {
 				superVoterSignature = c.msgPool.GetSuperVoterSigner(phash)
@@ -349,7 +350,7 @@ func (c *EVMChain) currentSignerHasSuperSigner() bool {
 	superSigner := c.GetCurrentSuperSigner()
 	for _, arbiter := range signers {
 		if bytes.Equal(arbiter.Bytes(), superSigner.Bytes()) {
-		   return true
+			return true
 		}
 	}
 	return false
@@ -374,8 +375,11 @@ func compareMsg(msg1 *dpos_msg.DepositItem, msg2 *voter.Proposal) bool {
 	return true
 }
 
-func (c *EVMChain) getMaxArbitersSign() int {
+func (c *EVMChain) getMaxArbitersSign(containSuperSigner bool) int {
 	total := c.writer.GetClient().Engine().GetTotalArbitersCount()
+	if containSuperSigner == false {
+		total -= 1
+	}
 	return total*2/3 + 1
 }
 

@@ -1,8 +1,16 @@
 package chainbridge_abi
 
 import (
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
+	"errors"
+	"fmt"
+	"math/big"
 	"strings"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
+)
+
+var (
+	CheckFeeToSubmit = true
 )
 
 func GetExecuteProposalAbi() (abi.ABI, error) {
@@ -87,4 +95,13 @@ func GetTestExecuteProposalAbi() (abi.ABI, error) {
 	definition := "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"chainID\",\"type\":\"uint8\"},{\"internalType\":\"uint64[]\",\"name\":\"depositNonce\",\"type\":\"uint64[]\"},{\"internalType\":\"bytes[]\",\"name\":\"data\",\"type\":\"bytes[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"resourceID\",\"type\":\"bytes32[]\"}],\"name\":\"test\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
+}
+
+func GetFeeByData(data []byte) (*big.Int, error) {
+	fee := big.NewInt(0)
+	if len(data) != 116 {
+		return fee, errors.New(fmt.Sprintf("fee data is error, data length %d", len(data)))
+	}
+	fee.SetBytes(data[32:64])
+	return fee, nil
 }
