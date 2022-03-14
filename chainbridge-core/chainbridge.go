@@ -57,7 +57,6 @@ var (
 
 	currentArbitersOnContract []common.Address
 	selfArbiterAddr           string
-	isNewStart                bool
 )
 
 func init() {
@@ -66,7 +65,6 @@ func init() {
 	nextTurnArbiters = make([][]byte, 0)
 	atomic.StoreInt32(&canStart, 1)
 	isStarted = false
-	isNewStart = true
 	isRequireArbiter = false
 }
 
@@ -330,7 +328,7 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 	go func() {
 		for {
 			select {
-			case <-time.NewTimer(time.Second).C:
+			case <-time.NewTimer(2 * time.Second).C:
 				signCount = len(arbiterManager.GetSignatures())
 				log.Info("requireArbitersSignature", "signCount", signCount, "total", arbiterManager.GetTotalCount(), "total2", engine.GetTotalArbitersCount())
 				if api.HasProducerMajorityCount(signCount, arbiterManager.GetTotalCount()) {
@@ -452,11 +450,6 @@ func requireArbiters(engine *pbft.Pbft) bool {
 		}
 
 		list := arbiterManager.FilterArbiters(peers)
-		if isNewStart {
-			SendSelfToArbiters(engine, list)
-		}
-		isNewStart = false
-
 		requireArbitersCount = len(peers)
 		selfProducer := engine.GetProducer()
 		msg := &dpos_msg.RequireArbiter{}
