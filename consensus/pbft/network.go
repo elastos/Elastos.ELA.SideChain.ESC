@@ -286,42 +286,6 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			return true
 		}
 	}
-	if p.chain.Config().IsLayer2Fork(block.Number()) && len(p.chain.Config().Layer2SuperNodePubKey) > 0 {
-		superPbk := common.Hex2Bytes(p.chain.Config().Layer2SuperNodePubKey)
-		return p.Layer2SuperNodeUpdate(nil, superPbk, block.Nonce())
-	}
-	return false
-}
-
-func (p *Pbft) Layer2SuperNodeUpdate(oldNodePeer, newNodePeer []byte, blockNonce uint64) bool {
-	isChange := false
-	producers := p.dispatcher.GetConsensusView().GetProducers()
-	if oldNodePeer != nil {
-		for i, pbk := range producers {
-			if bytes.Equal(pbk, oldNodePeer) {
-				producers = append(producers[:i], producers[i+1:]...)
-				isChange = true
-				break
-			}
-		}
-	}
-
-	hashSuperPbk := false
-	for _, pbk := range producers {
-		if bytes.Equal(pbk, newNodePeer) {
-			hashSuperPbk = true
-			break
-		}
-	}
-	if !hashSuperPbk || isChange {
-		if !hashSuperPbk {
-			producers = append(producers, newNodePeer)
-		}
-		p.dispatcher.GetConsensusView().UpdateProducers(producers, len(producers), blockNonce)
-		go p.AnnounceDAddr()
-		go p.Recover()
-		return true
-	}
 	return false
 }
 

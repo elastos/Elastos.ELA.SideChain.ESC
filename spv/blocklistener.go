@@ -2,10 +2,8 @@ package spv
 
 import (
 	"bytes"
-	"errors"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	eevent "github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
@@ -132,37 +130,8 @@ func IsNexturnBlock(block interface{}) bool {
 	nextTurnDposInfo.WorkingHeight = payloadData.WorkingHeight
 	nextTurnDposInfo.CRPublicKeys = payloadData.CRPublicKeys
 	nextTurnDposInfo.DPOSPublicKeys = payloadData.DPOSPublicKeys
-	nextTurnDposInfo.SuperNodePublicKey = GetLayer2SuperNodePublickey()
-	nextTurnDposInfo.SuperNodeIsArbiter = false
-	if bytes.Compare(zero, nextTurnDposInfo.SuperNodePublicKey) != 0 && len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
-		for _, arbiter := range payloadData.CRPublicKeys {
-			if bytes.Equal(arbiter, nextTurnDposInfo.SuperNodePublicKey) {
-				nextTurnDposInfo.SuperNodeIsArbiter = true
-				break
-			}
-		}
-		if !nextTurnDposInfo.SuperNodeIsArbiter {
-			for _, arbiter := range payloadData.CRPublicKeys {
-				if bytes.Equal(arbiter, nextTurnDposInfo.SuperNodePublicKey) {
-					nextTurnDposInfo.SuperNodeIsArbiter = true
-					break
-				}
-			}
-		}
-	}
 
 	return true
-}
-
-func GetLayer2SuperNodePublickey() []byte {
-	var superPubkey []byte
-	if engine, ok := PbftEngine.(engine.ESCEngine); ok {
-		if engine.Layer2Started() {
-			superPubkey = make([]byte, len(superNodePublicKey))
-			copy(superPubkey, superNodePublicKey)
-		}
-	}
-	return superPubkey
 }
 
 func InitNextTurnDposInfo() {
@@ -186,33 +155,12 @@ func InitNextTurnDposInfo() {
 	if isSameNexturnArbiters(workingHeight, crcArbiters, normalArbiters) {
 		return
 	}
-	superPubkey := GetLayer2SuperNodePublickey()
 	nextTurnDposInfo = &NextTurnDPOSInfo{
 		&payload.NextTurnDPOSInfo{
 			WorkingHeight:  workingHeight,
 			CRPublicKeys:   crcArbiters,
 			DPOSPublicKeys: normalArbiters,
 		},
-		superPubkey,
-		false,
-	}
-
-	nextTurnDposInfo.SuperNodeIsArbiter = false
-	if bytes.Compare(superPubkey, zero) != 0 && len(superPubkey) > 0 {
-		for _, arbiter := range crcArbiters {
-			if bytes.Equal(arbiter, superPubkey) {
-				nextTurnDposInfo.SuperNodeIsArbiter = true
-				break
-			}
-		}
-		if !nextTurnDposInfo.SuperNodeIsArbiter {
-			for _, arbiter := range normalArbiters {
-				if bytes.Equal(arbiter, superPubkey) {
-					nextTurnDposInfo.SuperNodeIsArbiter = true
-					break
-				}
-			}
-		}
 	}
 
 	peers := DumpNextDposInfo()
@@ -284,15 +232,6 @@ func DumpNextDposInfo() []peer.PID {
 		log.Info(common.Bytes2Hex(arbiter) + "\n")
 	}
 
-	log.Info("-------------------Super Node Publickey---------------")
-	log.Info(common.Bytes2Hex(nextTurnDposInfo.SuperNodePublicKey)+"\n", "nextTurnDposInfo.SuperNodeIsArbiter ", nextTurnDposInfo.SuperNodeIsArbiter)
-	if !nextTurnDposInfo.SuperNodeIsArbiter {
-		if len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
-			var pid peer.PID
-			copy(pid[:], nextTurnDposInfo.SuperNodePublicKey)
-			peers = append(peers, pid)
-		}
-	}
 	log.Info("work height", "height", nextTurnDposInfo.WorkingHeight, "activeCount", len(peers), "count", GetTotalProducersCount())
 	return peers
 }
@@ -317,96 +256,5 @@ func GetNextTurnPeers() []peer.PID {
 		}
 	}
 
-	if !nextTurnDposInfo.SuperNodeIsArbiter && len(nextTurnDposInfo.SuperNodePublicKey) > 0 {
-		var pid peer.PID
-		copy(pid[:], nextTurnDposInfo.SuperNodePublicKey)
-		peers = append(peers, pid)
-	}
 	return peers
-}
-
-func oldSuperNodeIsArbiter(elaHeight uint64) (bool, error) {
-	if SpvService == nil || PbftEngine == nil {
-		return false, errors.New("spv is not start")
-	}
-	if elaHeight == 0 {
-		producers := PbftEngine.GetPbftConfig().Producers
-		for _, p := range producers {
-			producer := common.Hex2Bytes(p)
-			if bytes.Equal(superNodePublicKey, producer) {
-				return true, nil
-			}
-		}
-		return false, nil
-	}
-
-	crcArbiters, normalArbitrs, err := SpvService.GetArbiters(uint32(elaHeight))
-	if err != nil {
-		log.Error("GetArbiters failed", "error", err)
-		return false, err
-	}
-	if IsOnlyCRConsensus {
-		normalArbitrs = make([][]byte, 0)
-	}
-
-	for _, arbiter := range crcArbiters {
-		if bytes.Equal(superNodePublicKey, arbiter) {
-			return true, nil
-		}
-	}
-	for _, arbiter := range normalArbitrs {
-		if bytes.Equal(superNodePublicKey, arbiter) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func UpdateSuperNodePublickey(newSuperNode string, signerIsUpdate bool) error {
-	if PbftEngine == nil {
-		return errors.New("PbftEngine is not init")
-	}
-	nodePubkey := common.Hex2Bytes(newSuperNode)
-	if bytes.Equal(superNodePublicKey, nodePubkey) {
-		return errors.New("is same node public key")
-	}
-	currentHeader := PbftEngine.CurrentBlock()
-	oldSuperSignerIsArbiter, err := oldSuperNodeIsArbiter(currentHeader.Nonce())
-	if err != nil {
-		return err
-	}
-
-	var oldSuperNode []byte
-	oldSuperNode = nil
-	if !oldSuperSignerIsArbiter {
-		oldSuperNode = make([]byte, len(superNodePublicKey))
-		copy(oldSuperNode, superNodePublicKey)
-	}
-	isUpdate := bytes.Compare(superNodePublicKey, nodePubkey) != 0
-	superNodePublicKey = nodePubkey
-	if nextTurnDposInfo != nil {
-		nextTurnDposInfo.SuperNodePublicKey = superNodePublicKey
-	}
-	arbiters := PbftEngine.GetCurrentProducers()
-	peers := make([]peer.PID, 0)
-	for _, arbiter := range arbiters {
-		if oldSuperNode != nil && bytes.Equal(oldSuperNode, arbiter) {
-			continue
-		}
-		var pid peer.PID
-		copy(pid[:], arbiter)
-		peers = append(peers, pid)
-	}
-
-	var pid peer.PID
-	copy(pid[:], nodePubkey)
-	peers = append(peers, pid)
-	if PbftEngine.Layer2SuperNodeUpdate(oldSuperNode, nodePubkey, currentHeader.Nonce()) ||
-		isUpdate || signerIsUpdate {
-		go func() {
-			events.Notify(events.ETDirectPeersChanged, peers)
-			InitNextTurnDposInfo()
-		}()
-	}
-	return nil
 }
