@@ -161,12 +161,6 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 			} else {
 				fmt.Println("create GetArbiterAccount error:", err.Error(), "pbftKeystore:", pbftKeystore, "password", string(password))
 			}
-		} else {
-			efAccount := common.Hex2Bytes(chainConfig.Layer2SuperNodePubKey)
-			if bytes.Compare(account.PublicKeyBytes(), efAccount) == 0 {
-				chainConfig.Layer2EFVoter = bridgeAccount.PublicKey()[2:]
-				log.Info(">>>> Layer2EFVoter", "public_key:", chainConfig.Layer2EFVoter, "address:", bridgeAccount.Address())
-			}
 		}
 	}
 	medianTimeSouce := dtime.NewMedianTime()
@@ -878,6 +872,6 @@ func (p *Pbft) IsBadBlock(height uint64) bool {
 	return false
 }
 
-func (p *Pbft) GetDposAccount() daccount.Account  {
+func (p *Pbft) GetDposAccount() daccount.Account {
 	return p.account
 }

@@ -123,7 +123,7 @@ type Engine interface {
 
 	IsInBlockPool(hash common.Hash) bool
 
-    GetCurrentProducers() [][]byte
+	GetCurrentProducers() [][]byte
 }
 
 // PoW is a consensus engine based on proof-of-work.
@@ -137,7 +137,6 @@ type PoW interface {
 type IPbftEngine interface {
 	Engine
 	GetPbftConfig() params.PbftConfig
-	CurrentBlock () *types.Block
+	CurrentBlock() *types.Block
 	GetBlockByHeight(height uint64) *types.Block
-	Layer2SuperNodeUpdate(oldNodePeer, newNodePeer []byte, blockNonce uint64) bool
 }

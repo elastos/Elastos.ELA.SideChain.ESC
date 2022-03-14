@@ -3,7 +3,6 @@ package spv
 import (
 	"bytes"
 	"errors"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
@@ -14,16 +13,11 @@ import (
 
 type NextTurnDPOSInfo struct {
 	*payload.NextTurnDPOSInfo
-
-	SuperNodePublicKey []byte
-	SuperNodeIsArbiter bool
 }
 
 var (
 	nextTurnDposInfo *NextTurnDPOSInfo
-
-	superNodePublicKey []byte
-	zero               = common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000")
+	zero             = common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000000000")
 )
 
 func GetTotalProducersCount() int {
@@ -31,9 +25,6 @@ func GetTotalProducersCount() int {
 		return 0
 	}
 	count, err := SafeAdd(len(nextTurnDposInfo.CRPublicKeys), len(nextTurnDposInfo.DPOSPublicKeys))
-	if !nextTurnDposInfo.SuperNodeIsArbiter && len(nextTurnDposInfo.SuperNodePublicKey) > 0 && err == nil {
-		count, err = SafeAdd(count, 1)
-	}
 	if err != nil {
 		log.Error("SafeAdd error", "error", err)
 		return 0
@@ -69,38 +60,12 @@ func GetProducers(elaHeight uint64) ([][]byte, int, error) {
 		normalArbitrs = make([][]byte, 0)
 	}
 
-	superNodeIsNotArbiter := true
 	for _, arbiter := range crcArbiters {
 		if len(arbiter) > 0 && bytes.Compare(zero, arbiter) != 0 {
 			producers = append(producers, arbiter)
-			if superNodeIsNotArbiter && bytes.Equal(arbiter, superNodePublicKey) {
-				superNodeIsNotArbiter = false
-			}
-		}
-	}
-	for _, arbiter := range normalArbitrs {
-		if len(arbiter) > 0 && bytes.Compare(zero, arbiter) != 0 {
-			producers = append(producers, arbiter)
-			if superNodeIsNotArbiter && bytes.Equal(arbiter, superNodePublicKey) {
-				superNodeIsNotArbiter = false
-			}
 		}
 	}
 	totalCount, err = SafeAdd(len(crcArbiters), len(normalArbitrs))
-
-	isLayer2Started := false
-	if engine, ok := PbftEngine.(engine.ESCEngine); ok {
-		isLayer2Started = engine.Layer2Started()
-		if isLayer2Started && superNodeIsNotArbiter && bytes.Compare(superNodePublicKey, zero) != 0 && len(superNodePublicKey) > 0 {
-			producers = append(producers, superNodePublicKey)
-		} else {
-			superNodeIsNotArbiter = false
-		}
-	}
-
-	if isLayer2Started && err == nil && superNodeIsNotArbiter {
-		totalCount, err = SafeAdd(totalCount, 1)
-	}
 	if err != nil {
 		return nil, totalCount, err
 	}

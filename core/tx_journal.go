@@ -163,7 +163,7 @@ func (journal *txJournal) rotate(all map[common.Address]types.Transactions) erro
 		return err
 	}
 	journal.writer = sink
-	log.Info("Regenerated local transaction journal", "transactions", journaled, "accounts", len(all))
+	log.Info("FRegenerated local transaction journal", "transactions", journaled, "accounts", len(all))
 
 	return nil
 }
