@@ -12,7 +12,6 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
@@ -32,7 +31,7 @@ var Layer2ChainID uint64
 const MaxBatchCount = 100
 
 type EventListener interface {
-	ListenToEvents(startBlock *big.Int, chainID uint64, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner, <-chan *relayer.Message)
+	ListenToEvents(startBlock *big.Int, chainID uint64, kvrw blockstore.KeyValueWriter, stopChn <-chan struct{}, errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.Message)
 	ListenStatusEvents(startBlock *big.Int, chainID uint64, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent
 }
 
@@ -62,17 +61,14 @@ type EVMChain struct {
 	msgPool               *msg_pool.MsgPool
 	currentProposal       *dpos_msg.BatchMsg
 	arbiterManager        *aribiters.ArbiterManager
-	superVoter            []byte
 }
 
 func NewEVMChain(dr EventListener, writer ProposalVoter,
 	kvdb blockstore.KeyValueReaderWriter, chainID uint64,
-	config *config.GeneralChainConfig, arbiterManager *aribiters.ArbiterManager,
-	supervoter string) *EVMChain {
+	config *config.GeneralChainConfig, arbiterManager *aribiters.ArbiterManager) *EVMChain {
 	chain := &EVMChain{listener: dr, writer: writer, kvdb: kvdb, chainID: chainID, config: config}
 	chain.bridgeContractAddress = config.Opts.Bridge
-	chain.superVoter = common.Hex2Bytes(supervoter)
-	chain.msgPool = msg_pool.NewMsgPool(chain.superVoter)
+	chain.msgPool = msg_pool.NewMsgPool()
 	chain.arbiterManager = arbiterManager
 	if writer != nil {
 		go chain.subscribeEvent()
@@ -91,9 +87,8 @@ func (c *EVMChain) subscribeEvent() {
 				c.selfOnDuty(e)
 			}()
 		case dpos_msg.ETUpdateLayer2SuperVoter:
-			c.superVoter = e.Data.([]byte)
-			c.msgPool.UpdateSuperVoter(c.superVoter)
-			bridgelog.Info("update super voter", "publickey:", common.Bytes2Hex(c.superVoter))
+			//c.superVoter = e.Data.([]byte)
+			c.msgPool.UpdateSuperVoter(e.Data.([]byte))
 		}
 	})
 }
@@ -222,9 +217,8 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	if c.msgPool.ArbiterIsVerified(msg.BatchMsgHash, msg.Signer) {
 		return errors.New(fmt.Sprintf("is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
 	}
-	containSuperSigner := c.currentSignerHasSuperSigner()
 	superVoterSignature := c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
-	maxsign := c.getMaxArbitersSign(containSuperSigner)
+	maxsign := c.getMaxArbitersSign()
 
 	//if c.msgPool.GetVerifiedCount(msg.BatchMsgHash) > maxsign && len(superVoterSignature) > 0 {
 	//	return errors.New("is collect enough feedback")
@@ -233,8 +227,8 @@ func (c *EVMChain) onFeedbackBatchMsg(msg *dpos_msg.FeedbackBatchMsg) error {
 	if err := c.verifySignature(msg); err != nil {
 		return err
 	}
-	isSuperVoter := c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature, containSuperSigner)
-	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash), "superVoterSignature", len(superVoterSignature), "isSuperVoter", isSuperVoter, "containSuperSigner", containSuperSigner)
+	isSuperVoter := c.msgPool.OnProposalVerified(msg.BatchMsgHash, msg.Signer, msg.Signature)
+	log.Info("onFeedbackBatchMsg", "verified count", c.msgPool.GetVerifiedCount(msg.BatchMsgHash), "superVoterSignature", len(superVoterSignature), "isSuperVoter", isSuperVoter)
 	if isSuperVoter {
 		superVoterSignature = c.msgPool.GetSuperVoterSigner(msg.BatchMsgHash)
 	}
@@ -256,7 +250,7 @@ func (c *EVMChain) verifySignature(msg *dpos_msg.FeedbackBatchMsg) error {
 	if bytes.Compare(msg.Signer, pub) != 0 {
 		return errors.New(fmt.Sprintf("verified signature error, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
 	}
-	if !c.arbiterManager.HasArbiter(pub) && bytes.Compare(c.superVoter, pub) != 0 {
+	if !c.arbiterManager.HasArbiter(pub) {
 		return errors.New(fmt.Sprintf("verified signature is not in arbiterList, signer:%s, publicKey:%s", common.Bytes2Hex(msg.Signer), common.Bytes2Hex(pub)))
 	}
 	return nil
@@ -316,9 +310,8 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 	if c.msgPool.ArbiterIsVerified(phash, msg.Proposer) {
 		return errors.New(fmt.Sprintf("onDepositMsg is verified arbiter:%s", common.Bytes2Hex(msg.Proposer)))
 	}
-	containSuperSigner := c.currentSignerHasSuperSigner()
 	superVoterSignature := c.msgPool.GetSuperVoterSigner(phash)
-	maxsign := c.getMaxArbitersSign(containSuperSigner)
+	maxsign := c.getMaxArbitersSign()
 	//if c.msgPool.GetVerifiedCount(proposal.Hash()) > maxsign &&
 	//	len(superVoterSignature) > 0 {
 	//	return errors.New("is collect enough signature")
@@ -329,11 +322,11 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		if err != nil {
 			return errors.New(fmt.Sprintf("OnProposal error: %s", err.Error()))
 		} else {
-			issuperVoter := c.msgPool.OnProposalVerified(phash, msg.Proposer, msg.Signature, containSuperSigner)
+			issuperVoter := c.msgPool.OnProposalVerified(phash, msg.Proposer, msg.Signature)
 			if issuperVoter {
 				superVoterSignature = c.msgPool.GetSuperVoterSigner(phash)
 			}
-			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(phash), "getMaxArbitersSign", maxsign, "superVoterSignature", len(superVoterSignature), "containSuperSigner", containSuperSigner)
+			log.Info("proposal verify suc", "verified count", c.msgPool.GetVerifiedCount(phash), "getMaxArbitersSign", maxsign, "superVoterSignature", len(superVoterSignature))
 			if c.msgPool.GetVerifiedCount(phash) >= maxsign &&
 				len(superVoterSignature) > 0 {
 				c.msgPool.PutExecuteProposal(proposal)
@@ -343,17 +336,6 @@ func (c *EVMChain) onDepositMsg(msg *dpos_msg.DepositProposalMsg) error {
 		return errors.New("received error deposit proposal")
 	}
 	return nil
-}
-
-func (c *EVMChain) currentSignerHasSuperSigner() bool {
-	signers := c.GetArbiters()
-	superSigner := c.GetCurrentSuperSigner()
-	for _, arbiter := range signers {
-		if bytes.Equal(arbiter.Bytes(), superSigner.Bytes()) {
-			return true
-		}
-	}
-	return false
 }
 
 func compareMsg(msg1 *dpos_msg.DepositItem, msg2 *voter.Proposal) bool {
@@ -375,11 +357,8 @@ func compareMsg(msg1 *dpos_msg.DepositItem, msg2 *voter.Proposal) bool {
 	return true
 }
 
-func (c *EVMChain) getMaxArbitersSign(containSuperSigner bool) int {
+func (c *EVMChain) getMaxArbitersSign() int {
 	total := c.writer.GetClient().Engine().GetTotalArbitersCount()
-	if containSuperSigner == false {
-		total -= 1
-	}
 	return total*2/3 + 1
 }
 
@@ -417,7 +396,7 @@ func (c *EVMChain) onBatchProposal(msg *dpos_msg.BatchMsg, proposalHash []byte) 
 }
 
 // PollEvents is the goroutine that polling blocks and searching Deposit Events in them. Event then sent to eventsChan
-func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *relayer.Message, changeSuperChan chan *relayer.ChangeSuperSigner) {
+func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsChan chan *relayer.Message) {
 	log.Info("Polling Blocks...", "startBlock", c.config.Opts.StartBlock)
 	// Handler chain specific configs and flags
 	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(0).SetUint64(c.config.Opts.StartBlock))
@@ -425,7 +404,7 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 		sysErr <- fmt.Errorf("error %w on getting last stored block", err)
 		return
 	}
-	ech, changeSuperCh, nftCh := c.listener.ListenToEvents(block, c.chainID, c.kvdb, stop, sysErr)
+	ech, nftCh := c.listener.ListenToEvents(block, c.chainID, c.kvdb, stop, sysErr)
 	for {
 		select {
 		case <-stop:
@@ -433,9 +412,6 @@ func (c *EVMChain) PollEvents(stop <-chan struct{}, sysErr chan<- error, eventsC
 		case newEvent := <-ech:
 			// Here we can place middlewares for custom logic?
 			eventsChan <- newEvent
-			continue
-		case change := <-changeSuperCh:
-			changeSuperChan <- change
 			continue
 		case evt := <-nftCh:
 			eventsChan <- evt
@@ -487,24 +463,6 @@ func (c *EVMChain) GetArbiters() []common.Address {
 		return []common.Address{}
 	}
 	return list
-}
-
-func (c *EVMChain) GetCurrentSuperSigner() common.Address {
-	addr, err := c.writer.GetSuperSigner(c.bridgeContractAddress)
-	if err != nil {
-		log.Error("GetArbiterList error", "error", err)
-		return common.Address{}
-	}
-	return addr
-}
-
-func (c *EVMChain) GetSuperSignerNodePublickey() string {
-	nodePublickey, err := c.writer.SuperSignerNodePublickey(c.bridgeContractAddress)
-	if err != nil {
-		log.Error("GetSuperSignerNodePublickey error", "error", err)
-		return ""
-	}
-	return nodePublickey
 }
 
 func (c *EVMChain) GetBridgeContract() string {

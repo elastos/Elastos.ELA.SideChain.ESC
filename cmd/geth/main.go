@@ -639,11 +639,8 @@ func startLayer2(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain
 	chainbridge_core.Init(engine, accPath, passwords[0])
 	if engine.GetProducer() != nil {
 		if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-			height := blockChain.CurrentHeader().Number
-			if blockChain.Config().IsLayer2Fork(height) {
-				if chainbridge_core.Start() {
-					engine.AnnounceDAddr()
-				}
+			if chainbridge_core.Start() {
+				engine.AnnounceDAddr()
 			}
 		}
 	}

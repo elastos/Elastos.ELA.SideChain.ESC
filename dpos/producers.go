@@ -91,7 +91,7 @@ func (p *Producers) GetNeedConnectArbiters() []peer.PID {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	pids := make([]peer.PID, 0)
-	fmt.Println("now producers")
+	fmt.Println("GetNeedConnectArbiters", "total", p.totalProducers)
 	for _, producer := range p.producers {
 		var pid peer.PID
 		copy(pid[:], producer)

@@ -54,18 +54,6 @@ web3._extend({
 		    inputFormatter: [null]
 		}),
 		new web3._extend.Method({
-			name: 'getSuperSigner',
-			call: 'bridge_getSuperSigner',
-			params: 1,
-		    inputFormatter: [null]
-		}),
-		new web3._extend.Method({
-			name: 'getSuperNodePublickey',
-			call: 'bridge_getSuperNodePublickey',
-			params: 1,
-		    inputFormatter: [null]
-		}),
-		new web3._extend.Method({
 			name: 'getCollectedArbiterList',
 			call: 'bridge_getCollectedArbiterList',
 		}),
@@ -74,6 +62,10 @@ web3._extend({
 			call: 'bridge_initArbiterList',
 			params: 3,
 		    inputFormatter: [null, null, null]
+		}),
+		new web3._extend.Method({
+			name: 'getSignerAddress',
+			call: 'bridge_getSignerAddress',
 		})
 	]
 });

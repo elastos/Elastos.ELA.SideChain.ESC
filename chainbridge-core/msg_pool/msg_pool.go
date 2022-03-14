@@ -141,7 +141,7 @@ type MsgPool struct {
 	beforeList map[uint64][]*dpos_msg.DepositProposalMsg
 }
 
-func NewMsgPool(supervoter []byte) *MsgPool {
+func NewMsgPool() *MsgPool {
 	return &MsgPool{
 		queueList:                  make(map[uint64]*voter.Proposal),
 		verifiedProposalSignatures: make(map[common.Hash][][]byte),
@@ -150,7 +150,7 @@ func NewMsgPool(supervoter []byte) *MsgPool {
 		supernodeProposalVerifed:   make(map[common.Hash][]byte),
 		pendingList:                make(PriceProposal, 0),
 		beforeList:                 make(map[uint64][]*dpos_msg.DepositProposalMsg, 0),
-		superVoter:                 supervoter,
+		superVoter:                 make([]byte, 0),
 	}
 }
 
@@ -158,14 +158,6 @@ func (m *MsgPool) UpdateSuperVoter(voter []byte) {
 	m.arbiterLock.Lock()
 	defer m.arbiterLock.Unlock()
 	m.superVoter = voter
-}
-
-func (m *MsgPool) GetSuperVoter() []byte {
-	m.arbiterLock.Lock()
-	defer m.arbiterLock.Unlock()
-	voter := make([]byte, len(m.superVoter))
-	copy(voter, m.superVoter)
-	return voter
 }
 
 func (m *MsgPool) GetQueueProposal(nonce uint64) *voter.Proposal {
@@ -201,19 +193,16 @@ func (m *MsgPool) PutProposal(msg *voter.Proposal) error {
 	return nil
 }
 
-func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte, containSuperSigner bool) bool {
+func (m *MsgPool) OnProposalVerified(proposalHash common.Hash, arbiter, signature []byte) bool {
 	m.arbiterLock.Lock()
 	defer m.arbiterLock.Unlock()
-	log.Info("OnProposalVerified", "supervoter", common.Bytes2Hex(m.superVoter), "arbiter", common.Bytes2Hex(arbiter))
+	log.Info("OnProposalVerified", "arbiter", common.Bytes2Hex(arbiter))
 	isSuperVoter := false
 	if bytes.Equal(arbiter, m.superVoter) {
 		log.Info("received super voter signature", "arbiter", common.Bytes2Hex(arbiter))
 		m.supernodeProposalSignature[proposalHash] = signature
 		m.supernodeProposalVerifed[proposalHash] = arbiter
 		isSuperVoter = true
-		if !containSuperSigner {
-			return isSuperVoter
-		}
 	}
 
 	arbiterList := m.verifiedProposalArbiter[proposalHash]
