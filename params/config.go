@@ -72,7 +72,7 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(2426880),
+		PBFTBlock:        big.NewInt(2426880),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -89,12 +89,12 @@ var (
 				"02b95b000f087a97e988c24331bf6769b4a75e4b7d5d2a38105092a3aa841be33b",
 				"02a0aa9eac0e168f3474c2a0d04e50130833905740a5270e8a44d6c6e85cf6d98c",
 			},
-			PrintLevel: 0,
-			MaxLogsSize: 0,
-			MaxPerLogSize: 0,
-			Magic: 202000,
-			IPAddress: "",
-			DPoSPort: 0,
+			PrintLevel:     0,
+			MaxLogsSize:    0,
+			MaxPerLogSize:  0,
+			Magic:          202000,
+			IPAddress:      "",
+			DPoSPort:       0,
 			MaxNodePerHost: 100,
 		},
 	}
@@ -132,7 +132,7 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:       big.NewInt(2556480),
+		ChainIDBlock:        big.NewInt(2556480),
 		ConstantinopleBlock: big.NewInt(2333460),
 		PetersburgBlock:     big.NewInt(2333460),
 		IstanbulBlock:       big.NewInt(2333460),
@@ -140,7 +140,7 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(2333460),
+		PBFTBlock:        big.NewInt(2333460),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -157,12 +157,12 @@ var (
 				"02bf9e37b3db0cbe86acf76a76578c6b17b4146df101ec934a00045f7d201f06dd",
 				"03111f1247c66755d369a8c8b3a736dfd5cf464ca6735b659533cbe1268cd102a9",
 			},
-			PrintLevel: 0,
-			MaxLogsSize: 0,
-			MaxPerLogSize: 0,
-			Magic: 202000,
-			IPAddress: "",
-			DPoSPort: 0,
+			PrintLevel:     0,
+			MaxLogsSize:    0,
+			MaxPerLogSize:  0,
+			Magic:          202000,
+			IPAddress:      "",
+			DPoSPort:       0,
 			MaxNodePerHost: 100,
 		},
 	}
@@ -208,7 +208,7 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(2208900),
+		PBFTBlock:        big.NewInt(2208900),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -225,12 +225,12 @@ var (
 				"03c559769d5f7bb64c28f11760cb36a2933596ca8a966bc36a09d50c24c48cc3e8",
 				"03b5d90257ad24caf22fa8a11ce270ea57f3c2597e52322b453d4919ebec4e6300",
 			},
-			PrintLevel: 0,
-			MaxLogsSize: 0,
-			MaxPerLogSize: 0,
-			Magic: 202000,
-			IPAddress: "",
-			DPoSPort: 0,
+			PrintLevel:     0,
+			MaxLogsSize:    0,
+			MaxPerLogSize:  0,
+			Magic:          202000,
+			IPAddress:      "",
+			DPoSPort:       0,
 			MaxNodePerHost: 100,
 		},
 	}
@@ -274,7 +274,7 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock: big.NewInt(20),
+		PBFTBlock:        big.NewInt(20),
 		PreConnectOffset: 5,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -291,12 +291,12 @@ var (
 				"02c011c38486eab9195f39beea18003584d65b3f28e7ec9c9d1d7e9b9ceef4c665",
 				"0312d2d9a26d52abba81c3475ebf7df74a111d454e7dcccfb5526cd69b49803fba",
 			},
-			PrintLevel: 0,
-			MaxLogsSize: 0,
-			MaxPerLogSize: 0,
-			Magic: 202000,
-			IPAddress: "",
-			DPoSPort: 0,
+			PrintLevel:     0,
+			MaxLogsSize:    0,
+			MaxPerLogSize:  0,
+			Magic:          202000,
+			IPAddress:      "",
+			DPoSPort:       0,
 			MaxNodePerHost: 100,
 		},
 	}
@@ -327,14 +327,14 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{OldChainID: big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0),ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
+	AllEthashProtocolChanges = &ChainConfig{OldChainID: big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{OldChainID:big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "",PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
+	AllCliqueProtocolChanges = &ChainConfig{OldChainID: big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 
 	TestChainConfig = &ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
@@ -389,7 +389,7 @@ type CheckpointOracleConfig struct {
 // set of configuration options.
 type ChainConfig struct {
 	OldChainID *big.Int
-	ChainID *big.Int `json:"chainId"` // chainId identifies the current chain and is used for replay protection
+	ChainID    *big.Int `json:"chainId"` // chainId identifies the current chain and is used for replay protection
 
 	HomesteadBlock *big.Int `json:"homesteadBlock,omitempty"` // Homestead switch block (nil = no fork, 0 = already homestead)
 
@@ -424,10 +424,6 @@ type ChainConfig struct {
 	PbftKeyStorePassWord  string
 	DynamicArbiterHeight  uint64 `json:"dynamicArbiterHeight,omitempty"`
 	BridgeContractAddr    string
-
-	Layer2Height *big.Int
-	Layer2SuperNodePubKey string //Participation consensus
-	Layer2EFVoter string //Participation layer2 bridge vote and sign
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -450,14 +446,14 @@ func (c *CliqueConfig) String() string {
 }
 
 type PbftConfig struct {
-	Producers     []string `json:"producers"` // list of producers participating the pbft consensus.
-	Magic 	      uint32 `json:"magic"`// Magic defines the magic number used in the DPoS network.
-	IPAddress     string `json:"ip"`// IPAddress defines the IP address for the DPoS network.
-	DPoSPort      uint16 `json:"dposport"`// DPoSPort defines the default port for the DPoS network.
-	PrintLevel    uint8  `json:"printlevel"`
-	MaxLogsSize   int64  `json:"maxlogssize"`
-	MaxPerLogSize int64  `json:"maxperlogsize"`
-	MaxNodePerHost uint32 `json:"maxnodeperhost"`//MaxNodePerHost defines max nodes that one host can establish.
+	Producers      []string `json:"producers"` // list of producers participating the pbft consensus.
+	Magic          uint32   `json:"magic"`     // Magic defines the magic number used in the DPoS network.
+	IPAddress      string   `json:"ip"`        // IPAddress defines the IP address for the DPoS network.
+	DPoSPort       uint16   `json:"dposport"`  // DPoSPort defines the default port for the DPoS network.
+	PrintLevel     uint8    `json:"printlevel"`
+	MaxLogsSize    int64    `json:"maxlogssize"`
+	MaxPerLogSize  int64    `json:"maxperlogsize"`
+	MaxNodePerHost uint32   `json:"maxnodeperhost"` //MaxNodePerHost defines max nodes that one host can establish.
 }
 
 func (p *PbftConfig) String() string {
@@ -556,10 +552,6 @@ func (c *ChainConfig) IsChainIDFork(num *big.Int) bool {
 
 func (c *ChainConfig) IsPBFTFork(num *big.Int) bool {
 	return isForked(c.PBFTBlock, num)
-}
-
-func (c *ChainConfig) IsLayer2Fork(num *big.Int) bool {
-	return isForked(c.Layer2Height, num)
 }
 
 func (c *ChainConfig) GetPbftBlock() uint64 {
@@ -742,9 +734,9 @@ func (err *ConfigCompatError) Error() string {
 // Rules is a one time interface meaning that it shouldn't be used in between transition
 // phases.
 type Rules struct {
-	ChainID                                                 *big.Int
-	OldChainID                                              *big.Int
-	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
+	ChainID                                                                *big.Int
+	OldChainID                                                             *big.Int
+	IsHomestead, IsEIP150, IsEIP155, IsEIP158                              bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul, IsChainIDFork bool
 }
 

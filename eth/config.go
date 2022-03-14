@@ -163,16 +163,13 @@ type Config struct {
 	PassBalance uint64
 
 	// evil signer events jouranl local path
-	EvilSignersJournalDir  string
+	EvilSignersJournalDir string
 
-	PreConnectOffset uint64
-	PbftKeyStore string
+	PreConnectOffset     uint64
+	PbftKeyStore         string
 	PbftKeyStorePassWord string
-	PbftIPAddress string
-	PbftDPosPort uint16
+	PbftIPAddress        string
+	PbftDPosPort         uint16
 
 	DynamicArbiterHeight uint64
-
-	Layer2Height *big.Int
-	Layer2SuperNodePubKey string
 }
