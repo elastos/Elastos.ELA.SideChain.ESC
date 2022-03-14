@@ -875,3 +875,7 @@ func (p *Pbft) IsBadBlock(height uint64) bool {
 func (p *Pbft) GetDposAccount() daccount.Account {
 	return p.account
 }
+
+func (p *Pbft) IsOnDuty() bool {
+	return p.dispatcher.ProducerIsOnDuty()
+}
