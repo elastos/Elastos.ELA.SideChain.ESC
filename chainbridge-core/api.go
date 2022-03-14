@@ -25,7 +25,7 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 	count := len(signatures)
 
 	if len(a.engine.GetCurrentProducers()) == 1 && count == 0 {
-		count = 1
+		count = 1 //use to single node to consensus
 	}
 
 	log.Info("UpdateArbiters ", "len", len(list), "total", total,
