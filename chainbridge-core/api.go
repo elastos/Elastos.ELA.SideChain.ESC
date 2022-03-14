@@ -100,12 +100,6 @@ func (a *API) InitArbiterList(arbiters []common.Address, total int, chainID uint
 	return 1
 }
 
-func (a *API) GetSuperSigner(chainID uint64) common.Address {
-	address := MsgReleayer.GetCurrentSuperSigner(chainID)
-	return address
-}
-
-func (a *API) GetSuperNodePublickey(chainID uint64) string {
-	nodePbk := MsgReleayer.GetSuperSignerNodePublickey(chainID)
-	return nodePbk
+func (a *API) GetSignerAddress() string {
+	return a.engine.GetBridgeArbiters().Address()
 }

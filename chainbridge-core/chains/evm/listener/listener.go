@@ -79,10 +79,9 @@ func NewEVMListener(chainReader ChainClient, handler EventHandler, opsConfig *co
 func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint64,
 	kvrw blockstore.KeyValueWriter,
 	stopChn <-chan struct{},
-	errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.ChangeSuperSigner, <-chan *relayer.Message) {
+	errChn chan<- error) (<-chan *relayer.Message, <-chan *relayer.Message) {
 	ch := make(chan *relayer.Message)
 	nftch := make(chan *relayer.Message)
-	changeSuperCh := make(chan *relayer.ChangeSuperSigner)
 	go func() {
 		for {
 			select {
@@ -110,11 +109,7 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint64,
 					errChn <- err
 					return
 				}
-				err = l.fetchChangeSuperSigner(startBlock, chainID, changeSuperCh)
-				if err != nil {
-					errChn <- err
-					return
-				}
+
 				if startBlock.Int64()%20 == 0 {
 					// Logging process every 20 bocks to exclude spam
 					log.Debug("Queried block for deposit events", "block", startBlock.String(), "chainId", chainID)
@@ -129,7 +124,7 @@ func (l *EVMListener) ListenToEvents(startBlock *big.Int, chainID uint64,
 			}
 		}
 	}()
-	return ch, changeSuperCh, nftch
+	return ch, nftch
 }
 
 func (l *EVMListener) ListenStatusEvents(startBlock *big.Int, chainID uint64, stopChn <-chan struct{}, errChn chan<- error) <-chan *relayer.ProposalEvent {
@@ -191,27 +186,6 @@ func (l *EVMListener) fetchDepositMsg(startBlock *big.Int, chainID uint64, msg c
 		}
 		msg <- m
 		log.Info(fmt.Sprintf("Resolved message %+v in block %s fee %d", m, startBlock.String(), eventLog.Fee.Uint64()))
-	}
-	return nil
-}
-
-func (l *EVMListener) fetchChangeSuperSigner(startBlock *big.Int, chainID uint64, msg chan *relayer.ChangeSuperSigner) error {
-	logs, err := l.chainReader.FetchChangeSuperSigner(context.Background(), l.bridgeAddress, startBlock, startBlock)
-	if err != nil {
-		// Filtering logs error really can appear only on wrong configuration or temporary network problem
-		// so i do no see any reason to break execution
-		log.Error("FetchChangeSuperSigner errors", "ChainID", chainID, "error", err)
-		return nil
-	}
-	for _, eventLog := range logs {
-		m := &relayer.ChangeSuperSigner{
-			SourceChain:    chainID,
-			OldSuperSigner: eventLog.OldSuperSigner,
-			NewSuperSigner: eventLog.NewSuperSigner,
-			NodePublicKey:  common.Bytes2Hex(eventLog.NodePublickey[:]),
-		}
-		msg <- m
-		log.Info(fmt.Sprintf("Resolved change super msg %+v in block %s", m.NewSuperSigner.String(), startBlock.String()))
 	}
 	return nil
 }
