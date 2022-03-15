@@ -9,17 +9,14 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/listener"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/lvldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
@@ -116,9 +113,9 @@ func Start() bool {
 			self := pbftEngine.GetProducer()
 			keypair := pbftEngine.GetBridgeArbiters()
 			selfArbiterAddr = keypair.Address()
+			currentArbitersOnContract = MsgReleayer.GetArbiters(chainID)
 			isValidator := currentArbitersHasself()
 			bridgelog.Info("selfArbiterAddr ", selfArbiterAddr, "isValidator", isValidator)
-			currentArbitersOnContract = MsgReleayer.GetArbiters(chainID)
 			IsFirstUpdateArbiter = len(currentArbitersOnContract) == 0
 			producers := spv.GetNextTurnPeers()
 			sort.Slice(producers, func(i, j int) bool {
@@ -191,25 +188,9 @@ func Start() bool {
 			receivedReqArbiterSignature(pbftEngine, e)
 		case dpos_msg.ETFeedBackArbiterSig:
 			handleFeedBackArbitersSig(pbftEngine, e)
-		case dpos.ETChangeSuperSigner:
-			onReceivedChangSuperMsg(pbftEngine, e)
 		}
 	})
 	return true
-}
-
-func onReceivedChangSuperMsg(engine *pbft.Pbft, e *events.Event) {
-	m, ok := e.Data.(*relayer.ChangeSuperSigner)
-	if !ok {
-		bridgelog.Error("onReceivedChangSuperMsg event data is not ChangeSuperSigner", "data", e.Data)
-		return
-	}
-	if uint64(m.SourceChain) != engine.GetBlockChain().Config().ChainID.Uint64() {
-		bridgelog.Info("onReceivedChangSuperMsg is not current chain")
-		return
-	}
-
-	bridgelog.Info("onReceivedChangSuperMsg", "m", m.NewSuperSigner.String())
 }
 
 func currentArbitersHasself() bool {
@@ -538,29 +519,24 @@ func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
 	if MsgReleayer != nil {
 		return nil
 	}
-	db, err := lvldb.NewLvlDB(config.BlockstoreFlagName)
-	if err != nil {
-		return err
-	}
-
 	cfg, err := config.GetConfig(config.DefaultConfigDir)
 	if err != nil {
 		return err
 	}
-
-	layer1, err := createChain(&cfg.Chains[0], db, engine, accountPath, accountPassword)
-	if err != nil {
-		return errors.New(fmt.Sprintf("layer1 is create error:%s", err.Error()))
+	escChainID := engine.GetBlockChain().Config().ChainID
+	count := len(cfg.Chains)
+	chains := make([]relayer.RelayedChain, count)
+	for i := 0; i < count; i++ {
+		layer, errMsg := createChain(&cfg.Chains[i], engine, accountPath, accountPassword)
+		if errMsg != nil {
+			return errors.New(fmt.Sprintf("evm chain is create error:%s, chainid:%d", errMsg.Error(), cfg.Chains[i].Id))
+		}
+		chains[i] = layer
+		if escChainID.Uint64() == layer.ChainID() {
+			engine.GetBlockChain().Config().BridgeContractAddr = layer.GetBridgeContract()
+		}
 	}
-	evm.Layer1ChainID = layer1.ChainID()
-	layer2, err := createChain(&cfg.Chains[1], db, engine, accountPath, accountPassword)
-	if layer1 == nil {
-		return errors.New(fmt.Sprintf("layer2 is create error:%s", err.Error()))
-	}
-	evm.Layer2ChainID = layer2.ChainID()
-	engine.GetBlockChain().Config().BridgeContractAddr = layer2.GetBridgeContract()
-
-	MsgReleayer = relayer.NewRelayer([]relayer.RelayedChain{layer1, layer2})
+	MsgReleayer = relayer.NewRelayer(chains)
 	return nil
 }
 
@@ -571,7 +547,7 @@ func Stop(msg string) {
 	atomic.StoreInt32(&canStart, 1)
 	isRequireArbiter = false
 }
-func createChain(generalConfig *config.GeneralChainConfig, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
+func createChain(generalConfig *config.GeneralChainConfig, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
 	ethClient := evmclient.NewEVMClient(engine)
 	if ethClient == nil {
 		return nil, errors.New("create evm client error")
@@ -580,25 +556,15 @@ func createChain(generalConfig *config.GeneralChainConfig, db blockstore.KeyValu
 	if err != nil {
 		return nil, err
 	}
-	eventHandler := listener.NewETHEventHandler(common.HexToAddress(generalConfig.Opts.Bridge), ethClient)
-	eventHandler.RegisterEventHandler(generalConfig.Opts.Bridge, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(generalConfig.Opts.Erc20Handler, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(generalConfig.Opts.WEthHandler, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(generalConfig.Opts.Erc721Handler, listener.OnEventHandler)
-	eventHandler.RegisterEventHandler(generalConfig.Opts.GenericHandler, listener.OnEventHandler)
-	evmListener := listener.NewEVMListener(ethClient, eventHandler, &generalConfig.Opts)
-	messageHandler := voter.NewEVMMessageHandler(ethClient, common.HexToAddress(generalConfig.Opts.Bridge))
-	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.Erc20Handler), voter.ERC20MessageHandler)
-	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.WEthHandler), voter.ERC20MessageHandler)
-	messageHandler.RegisterMessageHandler(common.HexToAddress(generalConfig.Opts.Erc721Handler), voter.ERC721MessageHandler)
+
 	var evmVoter *voter.EVMVoter
 	if engine.GetBridgeArbiters() != nil {
 		kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
 		if kp != nil {
-			evmVoter = voter.NewVoter(messageHandler, ethClient, kp)
+			evmVoter = voter.NewVoter(ethClient, kp)
 		}
 	}
-	chain := evm.NewEVMChain(evmListener, evmVoter, db, generalConfig.Id,
+	chain := evm.NewEVMChain(evmVoter, generalConfig.Id,
 		generalConfig, arbiterManager)
 	return chain, nil
 }

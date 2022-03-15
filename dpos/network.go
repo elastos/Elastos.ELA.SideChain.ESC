@@ -249,21 +249,6 @@ func (n *Network) processMessage(msgItem *messageItem) {
 		if processed {
 			n.listener.OnFailedWithdrawTxReceived(msgItem.ID, withdrawTx)
 		}
-	case dpos_msg.CmdDepositproposal:
-		msg, processed := m.(*dpos_msg.DepositProposalMsg)
-		if processed {
-			n.listener.OnLayer2Msg(msgItem.ID, msg)
-		}
-	case dpos_msg.CmdBatchProposal:
-		msg, processed := m.(*dpos_msg.BatchMsg)
-		if processed {
-			n.listener.OnLayer2Msg(msgItem.ID, msg)
-		}
-	case dpos_msg.CmdFeedbackBatch:
-		msg, processed := m.(*dpos_msg.FeedbackBatchMsg)
-		if processed {
-			n.listener.OnLayer2Msg(msgItem.ID, msg)
-		}
 	case dpos_msg.CmdDArbiter:
 		msg, processed := m.(*dpos_msg.DArbiter)
 		if processed {
@@ -418,12 +403,6 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 		message = &dmsg.SmallCroTx{}
 	case dmsg.CmdFailedWithdrawTx:
 		message = &dmsg.FailedWithdrawTx{}
-	case dpos_msg.CmdDepositproposal:
-		message = &dpos_msg.DepositProposalMsg{}
-	case dpos_msg.CmdBatchProposal:
-		message = &dpos_msg.BatchMsg{}
-	case dpos_msg.CmdFeedbackBatch:
-		message = &dpos_msg.FeedbackBatchMsg{}
 	case dpos_msg.CmdDArbiter:
 		message = &dpos_msg.DArbiter{}
 	case dpos_msg.CmdRequireArbiters:
