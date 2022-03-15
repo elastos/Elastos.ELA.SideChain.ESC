@@ -4,29 +4,22 @@
 package voter
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"math/big"
 	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
-
-	"github.com/elastos/Elastos.ELA/events"
 )
 
 type ChainClient interface {
@@ -45,88 +38,17 @@ type ChainClient interface {
 	IsContractAddress(address string) bool
 }
 
-type Proposer interface {
-	Status(client ChainClient) (relayer.ProposalStatus, error)
-	Execute(client ChainClient, signatures [][]byte, superSig []byte) error
-}
-
-type MessageHandler interface {
-	HandleMessage(m *relayer.Message) (Proposer, error)
-}
-
 type EVMVoter struct {
 	stop    <-chan struct{}
-	mh      MessageHandler
 	client  ChainClient
 	account *secp256k1.Keypair
 }
 
-func NewVoter(mh MessageHandler, client ChainClient, arbiterAccount *secp256k1.Keypair) *EVMVoter {
+func NewVoter(client ChainClient, arbiterAccount *secp256k1.Keypair) *EVMVoter {
 	return &EVMVoter{
-		mh:      mh,
 		client:  client,
 		account: arbiterAccount,
 	}
-}
-func (w *EVMVoter) HandleProposal(m *relayer.Message) (*Proposal, error) {
-	prop, err := w.mh.HandleMessage(m)
-	if err != nil {
-		return nil, err
-	}
-	return prop.(*Proposal), nil
-}
-
-func (w *EVMVoter) SignAndBroadProposal(proposal *Proposal) common.Hash {
-	msg := &dpos_msg.DepositProposalMsg{}
-	msg.Item.SourceChainID = proposal.Source
-	msg.Item.DestChainID = proposal.Destination
-	msg.Item.DepositNonce = proposal.DepositNonce
-	copy(msg.Item.ResourceId[:], proposal.ResourceId[:])
-	msg.Item.Data = proposal.Data
-
-	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
-	msg.Signature = w.SignData(accounts.TextHash(proposal.Hash().Bytes()))
-	w.client.Engine().SendMsgProposal(msg)
-	go events.Notify(dpos_msg.ETOnProposal, msg) //self is a signature
-	return msg.GetHash()
-}
-
-func (w *EVMVoter) SignAndBroadProposalBatch(list []*Proposal) *dpos_msg.BatchMsg {
-	msg := &dpos_msg.BatchMsg{}
-	for _, pro := range list {
-		it := dpos_msg.DepositItem{}
-		it.SourceChainID = pro.Source
-		it.DestChainID = pro.Destination
-		it.DepositNonce = pro.DepositNonce
-		copy(it.ResourceId[:], pro.ResourceId[:])
-		it.Data = pro.Data
-		msg.Items = append(msg.Items, it)
-	}
-	msg.Proposer, _ = hexutil.Decode(w.account.PublicKey())
-	msg.Signature = w.SignData(accounts.TextHash(msg.GetHash().Bytes()))
-	w.client.Engine().SendMsgProposal(msg)
-	return msg
-}
-
-func (w *EVMVoter) FeedbackBatchMsg(msg *dpos_msg.BatchMsg) common.Hash {
-	signer, err := w.GetPublicKey()
-	if err != nil {
-		return common.Hash{}
-	}
-
-	batchHash := msg.GetHash()
-	feedback := &dpos_msg.FeedbackBatchMsg{
-		BatchMsgHash: batchHash,
-		Proposer:     msg.Proposer,
-		Signer:       signer,
-		Signature:    w.SignData(accounts.TextHash(batchHash.Bytes())),
-	}
-	if bytes.Equal(msg.Proposer, signer) {
-		events.Notify(dpos_msg.ETOnProposal, feedback) //self is a signature
-		return batchHash
-	}
-	w.client.Engine().SendMsgToPeer(feedback, msg.PID)
-	return batchHash
 }
 
 func (w *EVMVoter) GetPublicKey() ([]byte, error) {
@@ -210,52 +132,6 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 	return out0, err
 }
 
-func (w *EVMVoter) GetSuperSigner(bridgeAddress string) (common.Address, error) {
-	a, err := chainbridge_abi.GetCurrentSuperSignerABI()
-	if err != nil {
-		return common.Address{}, err
-	}
-	input, err := a.Pack("getCurrentSuperSigner")
-	if err != nil {
-		return common.Address{}, err
-	}
-	bridge := common.HexToAddress(bridgeAddress)
-	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
-	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
-	log.Info("GetSuperSigner", "error", err, "out", out)
-
-	var out0 common.Address
-	err = a.Unpack(&out0, "getCurrentSuperSigner", out)
-	if err != nil {
-		return common.Address{}, err
-	}
-	return out0, err
-}
-
-func (w *EVMVoter) SuperSignerNodePublickey(bridgeAddress string) (string, error) {
-	a, err := chainbridge_abi.GetSuperSignerNodePublickey()
-	if err != nil {
-		return "", err
-	}
-	input, err := a.Pack("getSuperSignerNodePublickey")
-	if err != nil {
-		return "", err
-	}
-	bridge := common.HexToAddress(bridgeAddress)
-	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
-	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
-	log.Info("getSuperSignerNodePublickey", "error", err, "out", out)
-	//record.NodePublickey = make([]byte, 33)
-	//err = c.changeSuperSignerABI.Unpack(record,  "ChangeSuperSigner", l.Data)
-
-	out0 := make([]byte, 33)
-	err = a.Unpack(&out0, "getSuperSignerNodePublickey", out)
-	if err != nil {
-		return "", err
-	}
-	return common.Bytes2Hex(out0[:]), err
-}
-
 func (w *EVMVoter) IsDeployedBridgeContract(bridgeAddress string) bool {
 	return w.client.IsContractAddress(bridgeAddress)
 }
@@ -271,4 +147,24 @@ func (w *EVMVoter) SignData(data []byte) []byte {
 		return nil
 	}
 	return sign
+}
+
+func toCallArg(msg ethereum.CallMsg) map[string]interface{} {
+	arg := map[string]interface{}{
+		"from": msg.From,
+		"to":   msg.To,
+	}
+	if len(msg.Data) > 0 {
+		arg["data"] = hexutil.Bytes(msg.Data)
+	}
+	if msg.Value != nil {
+		arg["value"] = (*hexutil.Big)(msg.Value)
+	}
+	if msg.Gas != 0 {
+		arg["gas"] = hexutil.Uint64(msg.Gas)
+	}
+	if msg.GasPrice != nil {
+		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
+	}
+	return arg
 }

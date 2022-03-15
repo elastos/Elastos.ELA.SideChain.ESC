@@ -433,7 +433,7 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		return
 	}
 	bestSpvHeight := spv.GetSpvHeight()
-	fmt.Println(" >>> bestSpvHeight ", bestSpvHeight)
+	log.Info("", " >>> bestSpvHeight ", bestSpvHeight)
 	if bestSpvHeight > spvHeight {
 		spvHeight = bestSpvHeight
 	}

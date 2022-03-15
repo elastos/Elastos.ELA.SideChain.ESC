@@ -67,22 +67,6 @@ func (p *Pbft) IsSyncFinished() bool {
 
 func (p *Pbft) OnLayer2Msg(id dpeer.PID, c elap2p.Message) {
 	switch c.CMD() {
-	case dpos_msg.CmdDepositproposal:
-		msg, ok := c.(*dpos_msg.DepositProposalMsg)
-		if ok {
-			events.Notify(dpos_msg.ETOnProposal, msg)
-		}
-	case dpos_msg.CmdBatchProposal:
-		msg, ok := c.(*dpos_msg.BatchMsg)
-		if ok {
-			msg.PID = id
-			events.Notify(dpos_msg.ETOnProposal, msg)
-		}
-	case dpos_msg.CmdFeedbackBatch:
-		msg, ok := c.(*dpos_msg.FeedbackBatchMsg)
-		if ok {
-			events.Notify(dpos_msg.ETOnProposal, msg)
-		}
 	case dpos_msg.CmdDArbiter:
 		msg, ok := c.(*dpos_msg.DArbiter)
 		if ok {
