@@ -15,12 +15,10 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/listener"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/keystore"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
@@ -157,74 +155,6 @@ const (
 	ChangeSuperSigner string = "ChangeSuperSigner(address,address,bytes)"
 	ProposalEvent     string = "ProposalEvent(uint64,uint64,uint8,bytes32,bytes32)"
 )
-
-func (c *EVMClient) FetchDepositLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.DepositRecord, error) {
-	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, DepositRecord, startBlock, endBlock))
-	if err != nil {
-		return nil, err
-	}
-	depositLogs := make([]*listener.DepositRecord, 0)
-	for _, l := range logs {
-		record := new(listener.DepositRecord)
-		err = c.depositRecordABI.Unpack(record, "DepositRecordERC20OrWETH", l.Data)
-		if err != nil {
-			return nil, errors.New("deposit record resolved error:" + err.Error())
-		}
-		depositLogs = append(depositLogs, record)
-	}
-	return depositLogs, nil
-}
-
-func (c *EVMClient) FetchDepositNFTLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.BridgeDepositRecordERC721, error) {
-	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, DepositNFTRecord, startBlock, endBlock))
-	if err != nil {
-		return nil, err
-	}
-	depositLogs := make([]*listener.BridgeDepositRecordERC721, 0)
-	for _, l := range logs {
-		record := new(listener.BridgeDepositRecordERC721)
-		err = c.depositRecordNFTABI.Unpack(record, "DepositRecordERC721", l.Data)
-		if err != nil {
-			return nil, errors.New("deposit nft record resolved error:" + err.Error())
-		}
-		depositLogs = append(depositLogs, record)
-	}
-	return depositLogs, nil
-}
-
-func (c *EVMClient) FetchChangeSuperSigner(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*listener.ChangeSuperSigner, error) {
-	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, ChangeSuperSigner, startBlock, endBlock))
-	if err != nil {
-		return nil, err
-	}
-	changeLogs := make([]*listener.ChangeSuperSigner, 0)
-	for _, l := range logs {
-		record := new(listener.ChangeSuperSigner)
-		record.NodePublickey = make([]byte, 33)
-		err = c.changeSuperSignerABI.Unpack(record, "ChangeSuperSigner", l.Data)
-		if err != nil {
-			return nil, errors.New("change super signer resolved error:" + err.Error())
-		}
-		changeLogs = append(changeLogs, record)
-	}
-	return changeLogs, nil
-}
-
-func (c *EVMClient) FetchProposalEvent(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.ProposalEvent, error) {
-	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, ProposalEvent, startBlock, endBlock))
-	if err != nil {
-		return nil, err
-	}
-	plogs := make([]*relayer.ProposalEvent, 0)
-	for _, l := range logs {
-		record := new(relayer.ProposalEvent)
-		record.SourceChain = l.Topics[1].Big().Uint64()
-		record.DepositNonce = l.Topics[2].Big().Uint64()
-		record.Status = relayer.ProposalStatus(l.Topics[3].Big().Uint64())
-		plogs = append(plogs, record)
-	}
-	return plogs, nil
-}
 
 // SendRawTransaction accepts rlp-encode of signed transaction and sends it via RPC call
 func (c *EVMClient) SendRawTransaction(ctx context.Context, tx []byte) error {

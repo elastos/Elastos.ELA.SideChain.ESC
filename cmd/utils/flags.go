@@ -809,11 +809,6 @@ var (
 		Usage: "layer2 of supernode publickey,one vote veto, curve is secp256k1.S256()",
 		Value: "",
 	}
-
-	Layer2DisableCheckFee = cli.BoolFlag{
-		Name:  "layer2.disable.checkFee",
-		Usage: "Check whether the user pay is enough to submit the transaction",
-	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

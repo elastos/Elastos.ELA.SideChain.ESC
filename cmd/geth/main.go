@@ -32,7 +32,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
 	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/cmd/utils"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
@@ -177,7 +176,6 @@ var (
 		utils.PbftDposPort,
 		utils.DynamicArbiter,
 		utils.Layer2SuperNode,
-		utils.Layer2DisableCheckFee,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -644,9 +642,6 @@ func startLayer2(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain
 				engine.AnnounceDAddr()
 			}
 		}
-	}
-	if ctx.GlobalBool(utils.Layer2DisableCheckFee.Name) {
-		chainbridge_abi.CheckFeeToSubmit = false
 	}
 }
 
