@@ -14,10 +14,6 @@ const DefaultBlockConfirmations = 10
 
 type OpsConfig struct {
 	Bridge             string  `mapstructure:"bridge"`
-	WEthHandler        string  `mapstructure:"wethHandler"`
-	Erc20Handler       string  `mapstructure:"erc20Handler"`
-	Erc721Handler      string  `mapstructure:"erc721Handler"`
-	GenericHandler     string  `mapstructure:"genericHandler"`
 	MaxGasPrice        uint64  `mapstructure:"maxGasPrice"`
 	GasMultiplier      float64 `mapstructure:"gasMultiplier"`
 	GasLimit           uint64  `mapstructure:"gasLimit"`
@@ -33,12 +29,7 @@ func (c *OpsConfig) Validate() error {
 }
 
 func (c *OpsConfig) ParseConfig() (*OpsConfig, error) {
-	config := &OpsConfig{
-		Erc20Handler:   c.Erc20Handler,
-		Erc721Handler:  c.Erc721Handler,
-		GenericHandler: c.GenericHandler,
-		WEthHandler:    c.WEthHandler,
-	}
+	config := &OpsConfig{}
 
 	if c.Bridge != "" {
 		config.Bridge = c.Bridge
