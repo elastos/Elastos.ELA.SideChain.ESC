@@ -15,10 +15,12 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/keystore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
@@ -35,11 +37,8 @@ type EVMClient struct {
 	config    *config.GeneralChainConfig
 	nonce     *big.Int
 
-	engine               engine.ESCEngine
-	depositRecordABI     abi.ABI
-	depositRecordNFTABI  abi.ABI
-	changeSuperSignerABI abi.ABI
-	proposalEventABI     abi.ABI
+	engine            engine.ESCEngine
+	updateArbitersABI abi.ABI
 }
 
 type CommonTransaction interface {
@@ -50,25 +49,12 @@ type CommonTransaction interface {
 }
 
 func NewEVMClient(engine engine.ESCEngine) *EVMClient {
-	abi, err := chainbridge_abi.GetDepositRecordABI()
+	abi, err := chainbridge_abi.UpdateArbiterABI()
 	if err != nil {
+		bridgelog.Error("UpdateArbiterABI failed", "error", err)
 		return nil
 	}
-	changeSuperSignerABI, err := chainbridge_abi.GetChangeSuperSignerABI()
-	if err != nil {
-		return nil
-	}
-	proposalEvt, err := chainbridge_abi.ProposalEventABI()
-	if err != nil {
-		return nil
-	}
-	nftRecord, err := chainbridge_abi.GetDepositNFTRecordABI()
-	if err != nil {
-		return nil
-	}
-	client := &EVMClient{engine: engine, depositRecordABI: abi, changeSuperSignerABI: changeSuperSignerABI}
-	client.proposalEventABI = proposalEvt
-	client.depositRecordNFTABI = nftRecord
+	client := &EVMClient{engine: engine, updateArbitersABI: abi}
 	return client
 }
 
@@ -147,14 +133,6 @@ func (c *EVMClient) Engine() engine.ESCEngine {
 func (c *EVMClient) GetClientAddress() common.Address {
 	return common.HexToAddress(c.config.Kp.Address())
 }
-
-const (
-	//DepositSignature string = "Deposit(uint8,bytes32,uint64)"
-	DepositRecord     string = "DepositRecordERC20OrWETH(address,uint64,bytes32,uint64,address,uint256,uint256)"
-	DepositNFTRecord  string = "DepositRecordERC721(address,uint64,bytes32,uint64,address,uint256,bytes,uint256)"
-	ChangeSuperSigner string = "ChangeSuperSigner(address,address,bytes)"
-	ProposalEvent     string = "ProposalEvent(uint64,uint64,uint8,bytes32,bytes32)"
-)
 
 // SendRawTransaction accepts rlp-encode of signed transaction and sends it via RPC call
 func (c *EVMClient) SendRawTransaction(ctx context.Context, tx []byte) error {
@@ -254,6 +232,27 @@ func (c *EVMClient) EstimateGasLimit(ctx context.Context, msg ethereum.CallMsg) 
 		return big.NewInt(0).SetUint64(c.config.Opts.GasLimit).Uint64(), nil
 	}
 	return gas.Uint64(), nil
+}
+
+const (
+	SetAbiterList string = "SetAbiterList(uint256)"
+)
+
+func (c *EVMClient) FetchUpdateArbitersLogs(ctx context.Context, contractAddress common.Address, startBlock *big.Int, endBlock *big.Int) ([]*relayer.SetArbiterListMsg, error) {
+	logs, err := c.FilterLogs(ctx, buildQuery(contractAddress, SetAbiterList, startBlock, endBlock))
+	if err != nil {
+		return nil, err
+	}
+	depositLogs := make([]*relayer.SetArbiterListMsg, 0)
+	for _, l := range logs {
+		record := new(relayer.SetArbiterListMsg)
+		err = c.updateArbitersABI.Unpack(record, "SetAbiterList", l.Data)
+		if err != nil {
+			return depositLogs, errors.New("SetAbiterList record resolved error:" + err.Error())
+		}
+		depositLogs = append(depositLogs, record)
+	}
+	return depositLogs, nil
 }
 
 func multiplyGasPrice(gasEstimate *big.Int, gasMultiplier *big.Float) *big.Int {

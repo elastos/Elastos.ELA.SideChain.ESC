@@ -9,14 +9,17 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/listener"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/lvldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
@@ -39,6 +42,7 @@ const (
 var (
 	MsgReleayer          *relayer.Relayer
 	errChn               chan error
+	stopChn              chan struct{}
 	isRequireArbiter     bool
 	canStart             int32
 	nextTurnArbiters     [][]byte
@@ -54,10 +58,13 @@ var (
 
 	currentArbitersOnContract []common.Address
 	selfArbiterAddr           string
+
+	escChainID uint64
 )
 
 func init() {
 	errChn = make(chan error)
+	stopChn = make(chan struct{})
 	arbiterManager = aribiters.CreateArbiterManager()
 	nextTurnArbiters = make([][]byte, 0)
 	atomic.StoreInt32(&canStart, 1)
@@ -98,9 +105,9 @@ func Start() bool {
 	if isStarted {
 		return false
 	}
+	//StartUpdateNode() //TODO start this by start command
 	bridgelog.Info("chain bridge start")
 	isStarted = true
-	chainID := pbftEngine.GetBlockChain().Config().ChainID.Uint64()
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
@@ -113,7 +120,7 @@ func Start() bool {
 			self := pbftEngine.GetProducer()
 			keypair := pbftEngine.GetBridgeArbiters()
 			selfArbiterAddr = keypair.Address()
-			currentArbitersOnContract = MsgReleayer.GetArbiters(chainID)
+			currentArbitersOnContract = MsgReleayer.GetArbiters(escChainID)
 			isValidator := currentArbitersHasself()
 			bridgelog.Info("selfArbiterAddr ", selfArbiterAddr, "isValidator", isValidator)
 			IsFirstUpdateArbiter = len(currentArbitersOnContract) == 0
@@ -140,7 +147,7 @@ func Start() bool {
 
 			if !isProducer {
 				if wasArbiter {
-					api.UpdateArbiters(0)
+					api.UpdateArbiters(escChainID)
 				}
 				if !isValidator {
 					bridgelog.Info("self is not a producer, chain bridge is stop")
@@ -168,7 +175,7 @@ func Start() bool {
 			atomic.StoreInt32(&canStart, 0)
 			go onSelfIsArbiter()
 		case dpos.ETUpdateProducers:
-			api.UpdateArbiters(0)
+			api.UpdateArbiters(escChainID)
 		case dpos_msg.ETOnArbiter:
 			res, _ := hanleDArbiter(pbftEngine, e)
 			if res {
@@ -176,7 +183,7 @@ func Start() bool {
 				bridgelog.Info("now arbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
 				if len(list) == requireArbitersCount {
 					if IsFirstUpdateArbiter {
-						api.UpdateArbiters(0)
+						api.UpdateArbiters(escChainID)
 					} else {
 						requireArbitersSignature(pbftEngine)
 					}
@@ -315,7 +322,7 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 				if api.HasProducerMajorityCount(signCount, arbiterManager.GetTotalCount()) {
 					log.Info("collect over signatures", "spv.SpvIsWorkingHeight()", spv.SpvIsWorkingHeight())
 					if spv.SpvIsWorkingHeight() {
-						api.UpdateArbiters(0)
+						api.UpdateArbiters(escChainID)
 					}
 					return
 				}
@@ -523,20 +530,24 @@ func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
 	if err != nil {
 		return err
 	}
-	escChainID := engine.GetBlockChain().Config().ChainID
+	db, err := lvldb.NewLvlDB(config.BlockstoreFlagName)
+	if err != nil {
+		return err
+	}
+	escChainID = engine.GetBlockChain().Config().ChainID.Uint64()
 	count := len(cfg.Chains)
 	chains := make([]relayer.RelayedChain, count)
 	for i := 0; i < count; i++ {
-		layer, errMsg := createChain(&cfg.Chains[i], engine, accountPath, accountPassword)
+		layer, errMsg := createChain(&cfg.Chains[i], db, engine, accountPath, accountPassword)
 		if errMsg != nil {
 			return errors.New(fmt.Sprintf("evm chain is create error:%s, chainid:%d", errMsg.Error(), cfg.Chains[i].Id))
 		}
 		chains[i] = layer
-		if escChainID.Uint64() == layer.ChainID() {
+		if escChainID == layer.ChainID() {
 			engine.GetBlockChain().Config().BridgeContractAddr = layer.GetBridgeContract()
 		}
 	}
-	MsgReleayer = relayer.NewRelayer(chains)
+	MsgReleayer = relayer.NewRelayer(chains, escChainID)
 	return nil
 }
 
@@ -547,7 +558,7 @@ func Stop(msg string) {
 	atomic.StoreInt32(&canStart, 1)
 	isRequireArbiter = false
 }
-func createChain(generalConfig *config.GeneralChainConfig, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
+func createChain(generalConfig *config.GeneralChainConfig, db blockstore.KeyValueReaderWriter, engine *pbft.Pbft, accountPath, accountPassword string) (*evm.EVMChain, error) {
 	ethClient := evmclient.NewEVMClient(engine)
 	if ethClient == nil {
 		return nil, errors.New("create evm client error")
@@ -564,7 +575,12 @@ func createChain(generalConfig *config.GeneralChainConfig, engine *pbft.Pbft, ac
 			evmVoter = voter.NewVoter(ethClient, kp)
 		}
 	}
-	chain := evm.NewEVMChain(evmVoter, generalConfig.Id,
+	evmListener := listener.NewEVMListener(ethClient, &generalConfig.Opts)
+	chain := evm.NewEVMChain(evmListener, evmVoter, generalConfig.Id, db,
 		generalConfig, arbiterManager)
 	return chain, nil
+}
+
+func StartUpdateNode() {
+	go MsgReleayer.Start()
 }

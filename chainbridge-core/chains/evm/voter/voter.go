@@ -15,6 +15,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/engine"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
@@ -110,8 +111,7 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, sig
 }
 
 func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error) {
-	definition := "[{\"inputs\":[],\"name\":\"getAbiterList\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
-	a, err := abi.JSON(strings.NewReader(definition))
+	a, err := chainbridge_abi.GetArbitersABI()
 	if err != nil {
 		return []common.Address{}, err
 	}
@@ -130,6 +130,50 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 		return []common.Address{}, err
 	}
 	return out0, err
+}
+
+func (w *EVMVoter) GetSignatures(bridgeAddress string) ([][crypto.SignatureLength]byte, error) {
+	a, err := chainbridge_abi.GetSignaturesABI()
+	if err != nil {
+		return [][crypto.SignatureLength]byte{}, err
+	}
+	input, err := a.Pack("getSignatures")
+	if err != nil {
+		return [][crypto.SignatureLength]byte{}, err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
+	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	log.Info("GetSignatures", "error", err, "out", out)
+
+	out0 := make([][crypto.SignatureLength]byte, 0)
+	err = a.Unpack(&out0, "getSignatures", out)
+	if err != nil {
+		return [][crypto.SignatureLength]byte{}, err
+	}
+	return out0, err
+}
+
+func (w *EVMVoter) GetTotalCount(bridgeAddress string) (uint64, error) {
+	a, err := chainbridge_abi.GetTotalCountABI()
+	if err != nil {
+		return 0, err
+	}
+	input, err := a.Pack("getTotalCount")
+	if err != nil {
+		return 0, err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
+	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	log.Info("getTotalCount", "error", err, "out", out)
+
+	out0 := big.NewInt(0).SetBytes(out)
+	err = a.Unpack(&out0, "getTotalCount", out)
+	if err != nil {
+		return 0, err
+	}
+	return out0.Uint64(), err
 }
 
 func (w *EVMVoter) IsDeployedBridgeContract(bridgeAddress string) bool {
