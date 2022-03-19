@@ -6,12 +6,22 @@ package evm
 import (
 	"errors"
 	"fmt"
+	"math/big"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/blockstore"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/aribiters"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/voter"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/config"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/relayer"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
+
+type EventListener interface {
+	ListenToEvents(startBlock *big.Int, chainID uint64, kvrw blockstore.KeyValueWriter, errChn chan<- error) <-chan *relayer.SetArbiterListMsg
+}
 
 type ProposalVoter interface {
 	GetClient() voter.ChainClient
@@ -19,23 +29,28 @@ type ProposalVoter interface {
 	GetSignerAddress() (common.Address, error)
 	SetArbiterList(arbiters []common.Address, totalCount int, signature [][]byte, bridgeAddress string) error
 	GetArbiterList(bridgeAddress string) ([]common.Address, error)
+	GetSignatures(bridgeAddress string) ([][crypto.SignatureLength]byte, error)
+	GetTotalCount(bridgeAddress string) (uint64, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 }
 
 // EVMChain is struct that aggregates all data required for
 type EVMChain struct {
+	listener              EventListener // Rename
 	writer                ProposalVoter
 	chainID               uint64
+	kvdb                  blockstore.KeyValueReaderWriter
 	bridgeContractAddress string
 	config                *config.GeneralChainConfig
 	arbiterManager        *aribiters.ArbiterManager
 }
 
-func NewEVMChain(writer ProposalVoter, chainID uint64,
+func NewEVMChain(dr EventListener, writer ProposalVoter, chainID uint64, kvdb blockstore.KeyValueReaderWriter,
 	config *config.GeneralChainConfig, arbiterManager *aribiters.ArbiterManager) *EVMChain {
-	chain := &EVMChain{writer: writer, chainID: chainID, config: config}
+	chain := &EVMChain{listener: dr, writer: writer, chainID: chainID, config: config}
 	chain.bridgeContractAddress = config.Opts.Bridge
 	chain.arbiterManager = arbiterManager
+	chain.kvdb = kvdb
 
 	return chain
 }
@@ -62,10 +77,50 @@ func (c *EVMChain) GetArbiters() []common.Address {
 	return list
 }
 
+func (c *EVMChain) GetSignatures() ([][crypto.SignatureLength]byte, error) {
+	sigs, err := c.writer.GetSignatures(c.bridgeContractAddress)
+	if err != nil {
+		log.Error("GetSignatures error", "error", err)
+		return [][crypto.SignatureLength]byte{}, err
+	}
+	return sigs, nil
+}
+func (c *EVMChain) GetTotalCount() (uint64, error) {
+	count, err := c.writer.GetTotalCount(c.bridgeContractAddress)
+	if err != nil {
+		log.Error("GetTotalCount error", "error", err)
+		return 0, err
+	}
+	return count, nil
+}
+
 func (c *EVMChain) GetBridgeContract() string {
 	return c.config.Opts.Bridge
 }
 
 func (c *EVMChain) ChainID() uint64 {
 	return c.chainID
+}
+
+// PollEvents is the goroutine that polling blocks and searching Deposit Events in them. Event then sent to eventsChan
+func (c *EVMChain) PollEvents(sysErr chan<- error, stop <-chan struct{}, eventsChan chan *relayer.SetArbiterListMsg) {
+	log.Info("Polling Blocks...", "startBlock", c.config.Opts.StartBlock)
+	// Handler chain specific configs and flags
+	block, err := blockstore.SetupBlockstore(c.config, c.kvdb, big.NewInt(0).SetUint64(c.config.Opts.StartBlock))
+	if err != nil {
+		sysErr <- fmt.Errorf("error %w on getting last stored block", err)
+		return
+	}
+	ech := c.listener.ListenToEvents(block, c.chainID, c.kvdb, sysErr)
+	for {
+		select {
+		case newEvent := <-ech:
+			// Here we can place middlewares for custom logic?
+			eventsChan <- newEvent
+			continue
+		case <-stop:
+			bridgelog.Info("PollEvents stopped")
+			return
+		}
+	}
 }
