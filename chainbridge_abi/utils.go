@@ -31,13 +31,13 @@ func GetArbitersABI() (abi.ABI, error) {
 }
 
 func GetSignaturesABI() (abi.ABI, error) {
-	definition := "[{\"inputs\": [],\"name\": \"getSignatures\",\"outputs\": [{\"internalType\": \"bytes[]\",\"name\": \"\",\"type\": \"bytes[]\"}],\"stateMutability\": \"view\",\"type\": \"function\"}]"
+	definition := "[{\"inputs\": [],\"name\": \"getAbiterSigs\",\"outputs\": [{\"internalType\": \"bytes[]\",\"name\": \"\",\"type\": \"bytes[]\"}],\"stateMutability\": \"view\",\"type\": \"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
 
 func GetTotalCountABI() (abi.ABI, error) {
-	definition := "[{\"inputs\": [],\"name\": \"getTotalCount\",\"outputs\": [{\"internalType\": \"uint256\",\"name\": \"\",\"type\": \"uint256\"}],\"stateMutability\": \"view\",\"type\": \"function\"}]"
+	definition := "[{\"inputs\": [],\"name\": \"getAbiterCount\",\"outputs\": [{\"internalType\": \"uint256\",\"name\": \"\",\"type\": \"uint256\"}],\"stateMutability\": \"view\",\"type\": \"function\"}]"
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
