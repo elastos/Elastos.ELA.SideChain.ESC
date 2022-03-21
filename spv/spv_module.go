@@ -16,7 +16,6 @@ import (
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
@@ -37,7 +36,6 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
-	elaEvents "github.com/elastos/Elastos.ELA/events"
 )
 
 var (
@@ -227,7 +225,6 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription,
 				atomic.StoreInt32(&candSend, 1)
 				IteratorUnTransaction(GetDefaultSingerAddr())
 			}
-			elaEvents.Notify(dpos_msg.ETSelfOnDuty, nil)
 		case <-ondutySub.Chan():
 			if i >= 2 {
 				i = 0
