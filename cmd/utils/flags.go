@@ -803,12 +803,6 @@ var (
 		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
 		Value: 1034900,
 	}
-
-	Layer2SuperNode = cli.StringFlag{
-		Name:  "layer2.supernode.publickey",
-		Usage: "layer2 of supernode publickey,one vote veto, curve is secp256k1.S256()",
-		Value: "",
-	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

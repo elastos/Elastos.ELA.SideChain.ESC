@@ -175,7 +175,6 @@ var (
 		utils.PbftIPAddress,
 		utils.PbftDposPort,
 		utils.DynamicArbiter,
-		utils.Layer2SuperNode,
 	}
 
 	rpcFlags = []cli.Flag{
