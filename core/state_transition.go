@@ -93,7 +93,7 @@ func IntrinsicGas(data []byte, contractCreation, isEIP155 bool, isEIP2028 bool) 
 	} else {
 		gas = params.TxGas
 	}
-	rawTxid, _, _ , _:= spv.IsSmallCrossTxByData(data)
+	rawTxid, _, _, _ := spv.IsSmallCrossTxByData(data)
 	if rawTxid != "" {
 		return gas, nil
 	}
@@ -232,7 +232,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 						usedGas = 0
 						failed = true
 						if err == nil {
-							log.Error("fee is not enough ：", "nowBalance", nowBalance.String(), "need",usedFee.String(), "vmerr", vmerr)
+							log.Error("fee is not enough ：", "nowBalance", nowBalance.String(), "need", usedFee.String(), "vmerr", vmerr)
 							err = ErrGasLimitReached
 						}
 						evm.StateDB.RevertToSnapshot(snapshot)
@@ -254,7 +254,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			isRefundWithdrawTx = true
 		} else {
 			isSmallRechargeTx := false
-			verified:= false
+			verified := false
 			rawTxID := ""
 			if len(msg.Data()) > 32 {
 				isSmallRechargeTx, verified, rawTxID, err = st.dealSmallCrossTx()
@@ -284,7 +284,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 								usedGas = 0
 								failed = false
 								if err == nil {
-									log.Error("fee is not enough ：", "fee", fee.String(), "need",ethfee.String(), "vmerr", vmerr)
+									log.Error("fee is not enough ：", "fee", fee.String(), "need", ethfee.String(), "vmerr", vmerr)
 									err = ErrGasLimitReached
 								}
 								evm.StateDB.RevertToSnapshot(snapshot)
@@ -314,7 +314,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 				}
 			}
 		}
-	} else if contractCreation {//deploy contract
+	} else if contractCreation { //deploy contract
 		blackcontract = crypto.CreateAddress(sender.Address(), evm.StateDB.GetNonce(sender.Address()))
 		if blackcontract.String() == evm.ChainConfig().BlackContractAddr {
 			st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
@@ -382,35 +382,24 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 
 	if IsBridgeContract {
-		ok, errmsg := st.isExecuteProposalMethod()
+		ok, errmsg := st.isSetArbiterListMethod()
 		if errmsg != nil {
-			log.Error("isExecuteProposalMethod error", "msg", errmsg)
+			log.Error("isSetArbiterListMethod error", "msg", errmsg)
 		}
-		if !ok {
-			ok, errmsg = st.isDepositMethod()
-			if errmsg != nil {
-				log.Error("isDepositMethod error", "msg", errmsg)
-			}
-			if ok {
-				log.Info("is deposit method")
-			}
-		} else {
-			if ok {
-				log.Info("is execute proposal method")
-			}
+		if ok {
+			log.Info("is setAbiterList method")
 		}
 		IsBridgeContract = ok
 	}
-
 	log.Info("evm.ChainConfig().BridgeContractAddr", "addr", evm.ChainConfig().BridgeContractAddr, "IsBridgeContract", IsBridgeContract, "vmerr", vmerr)
-	if IsBridgeContract  && vmerr == nil {
+	if IsBridgeContract && vmerr == nil {
 		st.refundBridgeGas()
 	} else {
 		st.refundGas()
 	}
 
 	if contractCreation && blackcontract.String() == evm.ChainConfig().BlackContractAddr || isRefundWithdrawTx {
-		st.state.AddBalance(st.msg.From(), new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))// Refund the cost
+		st.state.AddBalance(st.msg.From(), new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)) // Refund the cost
 	} else {
 		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 	}
@@ -452,27 +441,14 @@ func (st *StateTransition) dealSmallCrossTx() (isSmallCrossTx, verifyed bool, tx
 	return isSmallCrossTx, verifyed, rawTxid, err
 }
 
-func (st *StateTransition) isExecuteProposalMethod() (bool, error) {
-	eabi, err := chainbridge_abi.GetExecuteProposalAbi()
+func (st *StateTransition) isSetArbiterListMethod() (bool, error) {
+	eabi, err := chainbridge_abi.GetSetArbitersABI()
 	if err != nil {
 		return false, err
 	}
-	method, exist := eabi.Methods["executeProposal"]
+	method, exist := eabi.Methods["setAbiterList"]
 	if !exist {
 		return false, errors.New("executeProposal method not in abi json")
-	}
-
-	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
-}
-
-func (st *StateTransition) isDepositMethod() (bool, error) {
-	eabi, err := chainbridge_abi.GetLayer2DepositAbi()
-	if err != nil {
-		return false,err
-	}
-	method, exist := eabi.Methods["deposit"]
-	if !exist {
-		return false, errors.New("deposit method not in abi json")
 	}
 
 	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
