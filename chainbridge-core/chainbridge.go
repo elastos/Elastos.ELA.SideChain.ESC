@@ -128,11 +128,13 @@ func Start() bool {
 			sort.Slice(producers, func(i, j int) bool {
 				return bytes.Compare(producers[i][:], producers[j][:]) < 0
 			})
+			nextTotalCount := spv.GetTotalProducersCount()
 			if !IsFirstUpdateArbiter && isSameNexturnArbiter(producers) && wasArbiter == isProducer &&
-				arbiterManager.GetTotalCount() == pbftEngine.GetTotalArbitersCount() && isValidator == isProducer {
+				arbiterManager.GetNextTotalCount() == nextTotalCount && isValidator == isProducer {
 				bridgelog.Info("ETDirectPeersChanged is same current producers")
 				return
 			}
+
 			nextTurnArbiters = make([][]byte, 0)
 			if len(producers) > 0 {
 				nextTurnArbiters = make([][]byte, len(producers))
@@ -144,18 +146,18 @@ func Start() bool {
 				}
 			}
 			bridgelog.Info("GetNextTurnPeers", "count ", len(producers), "nextTurnArbiters", len(nextTurnArbiters))
-
+			wasArbiter = isProducer
 			if !isProducer {
-				if wasArbiter {
-					api.UpdateArbiters(escChainID)
-				}
-				if !isValidator {
-					bridgelog.Info("self is not a producer, chain bridge is stop")
-					return
-				}
+				bridgelog.Info("self is not a producer, chain bridge is stop")
+				return
 			}
 			arbiterManager.Clear()
-			arbiterManager.SetTotalCount(pbftEngine.GetTotalArbitersCount())
+			if IsFirstUpdateArbiter {
+				arbiterManager.SetTotalCount(pbftEngine.GetTotalArbitersCount(), pbftEngine.GetTotalArbitersCount())
+			} else {
+				arbiterManager.SetTotalCount(pbftEngine.GetTotalArbitersCount(), nextTotalCount)
+			}
+
 			wasArbiter = true
 			bridgelog.Info("became a producer, collect arbiter")
 
@@ -183,6 +185,7 @@ func Start() bool {
 				bridgelog.Info("now arbiterList", "count", len(list), "requireArbitersCount", requireArbitersCount)
 				if len(list) == requireArbitersCount {
 					if IsFirstUpdateArbiter {
+						arbiterManager.SaveToCollection()
 						api.UpdateArbiters(escChainID)
 					} else {
 						requireArbitersSignature(pbftEngine)
@@ -309,7 +312,9 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 
 func requireArbitersSignature(engine *pbft.Pbft) {
 	signCount := len(arbiterManager.GetSignatures())
-	if api.HasProducerMajorityCount(signCount, arbiterManager.GetTotalCount()) {
+	producersCount := pbftEngine.GetTotalProducerCount()
+	if api.HasProducerMajorityCount(signCount, producersCount) {
+		arbiterManager.SaveToCollection()
 		log.Info("collect over signatures, no nned to require")
 		return
 	}
@@ -318,12 +323,10 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 			select {
 			case <-time.NewTimer(2 * time.Second).C:
 				signCount = len(arbiterManager.GetSignatures())
-				log.Info("requireArbitersSignature", "signCount", signCount, "total", arbiterManager.GetTotalCount(), "total2", engine.GetTotalArbitersCount())
-				if api.HasProducerMajorityCount(signCount, arbiterManager.GetTotalCount()) {
+				log.Info("requireArbitersSignature", "signCount", signCount, "total", arbiterManager.GetCurrentTotalCount())
+				if api.HasProducerMajorityCount(signCount, producersCount) {
 					log.Info("collect over signatures", "spv.SpvIsWorkingHeight()", spv.SpvIsWorkingHeight())
-					if spv.SpvIsWorkingHeight() {
-						api.UpdateArbiters(escChainID)
-					}
+					arbiterManager.SaveToCollection()
 					return
 				}
 				arbiterCount := len(arbiterManager.GetArbiterList())
