@@ -276,7 +276,7 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 			log.Error("OnInsertBlock error", "GetProducers", err, "spvHeight", spvHeight)
 			return false
 		}
-		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() <= block.Nonce()
+		isBackword := p.dispatcher.GetConsensusView().GetSpvHeight() < block.Nonce()
 		isCurrent := p.IsCurrentProducers(producers)
 		log.Info("current producers spvHeight", "height", p.dispatcher.GetConsensusView().GetSpvHeight(), "block.Nonce()", block.Nonce(), "isBackword", isBackword, "isCurrent", isCurrent)
 		if isBackword && !isCurrent {

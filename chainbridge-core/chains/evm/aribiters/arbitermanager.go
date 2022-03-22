@@ -13,27 +13,43 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
+type CollectionInfo struct {
+	NextTotalCount    int
+	List              [][]byte
+	Signatures        map[peer.PID][]byte
+	CurrentTotalCount int
+}
+
 type ArbiterManager struct {
-	totalCount int
-	arbiters map[peer.PID][]byte
-	signatures  map[peer.PID][]byte
-	mtx         sync.RWMutex
+	nextTotalCount    int
+	currentTotalCount int
+	arbiters          map[peer.PID][]byte
+	signatures        map[peer.PID][]byte
+
+	collectionBox *CollectionInfo
+	mtx           sync.RWMutex
 }
 
 func CreateArbiterManager() *ArbiterManager {
 	manager := &ArbiterManager{
-		signatures:  make(map[peer.PID][]byte, 0),
-		arbiters: make(map[peer.PID][]byte, 0),
+		signatures:    make(map[peer.PID][]byte, 0),
+		arbiters:      make(map[peer.PID][]byte, 0),
+		collectionBox: new(CollectionInfo),
 	}
 	return manager
 }
 
-func (a *ArbiterManager) SetTotalCount(count int) {
-	a.totalCount = count
+func (a *ArbiterManager) SetTotalCount(nowTotalCount, nextTotalCount int) {
+	a.currentTotalCount = nowTotalCount
+	a.nextTotalCount = nextTotalCount
 }
 
-func (a *ArbiterManager) GetTotalCount() int {
-	return a.totalCount
+func (a *ArbiterManager) GetCurrentTotalCount() int {
+	return a.currentTotalCount
+}
+
+func (a *ArbiterManager) GetNextTotalCount() int {
+	return a.nextTotalCount
 }
 
 func (a *ArbiterManager) AddArbiter(pid peer.PID, arbiter []byte) error {
@@ -64,7 +80,7 @@ func (a *ArbiterManager) HasArbiter(arbiter []byte) bool {
 	return false
 }
 
-func (a *ArbiterManager) RemoveArbiter(arbiter []byte)  {
+func (a *ArbiterManager) RemoveArbiter(arbiter []byte) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	for index, item := range a.arbiters {
@@ -173,4 +189,29 @@ func (a *ArbiterManager) FilterSignatures(peers [][]byte) [][]byte {
 		i++
 	}
 	return list
+}
+
+func (a *ArbiterManager) SaveToCollection() {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	fmt.Println("SaveToCollection", "listlen", len(a.arbiters))
+	a.collectionBox.List = make([][]byte, 0)
+	a.collectionBox.Signatures = make(map[peer.PID][]byte, 0)
+	a.collectionBox.NextTotalCount = a.nextTotalCount
+	a.collectionBox.CurrentTotalCount = a.currentTotalCount
+
+	for _, item := range a.arbiters {
+		a.collectionBox.List = append(a.collectionBox.List, item)
+	}
+	sort.Slice(a.collectionBox.List, func(i, j int) bool {
+		return bytes.Compare(a.collectionBox.List[i][:], a.collectionBox.List[j][:]) < 0
+	})
+
+	for key, value := range a.signatures {
+		a.collectionBox.Signatures[key] = value
+	}
+}
+
+func (a *ArbiterManager) GetCollection() CollectionInfo {
+	return *a.collectionBox
 }
