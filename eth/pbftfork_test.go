@@ -29,18 +29,18 @@ func TestBlockfork(t *testing.T) {
 	}
 	PbftProtocolChanges := &params.ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: nil, EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: nil, Clique: nil, Pbft: cfg, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 1, PbftKeyStore: "../consensus/pbft/test/keystore.dat", PbftKeyStorePassWord: "123"}
 	var (
-		db     = rawdb.NewMemoryDatabase()
-		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-		addr   = crypto.PubkeyToAddress(key.PublicKey)
+		db          = rawdb.NewMemoryDatabase()
+		key, _      = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		addr        = crypto.PubkeyToAddress(key.PublicKey)
 		extraVanity = 32
-		signer = new(types.HomesteadSigner)
-		engine = pbft.New(cfg, PbftProtocolChanges.PbftKeyStore, []byte(PbftProtocolChanges.PbftKeyStorePassWord), "", PbftProtocolChanges.PBFTBlock.Uint64())
+		signer      = new(types.HomesteadSigner)
+		engine      = pbft.New(PbftProtocolChanges, "")
 	)
 	eth := &Ethereum{
-	  engine: engine,
+		engine: engine,
 	}
 	genspec := &core.Genesis{
-		ExtraData: make([]byte, extraVanity + common.AddressLength + 65),
+		ExtraData: make([]byte, extraVanity+common.AddressLength+65),
 		Alloc: map[common.Address]core.GenesisAccount{
 			addr: {Balance: big.NewInt(1)},
 		},

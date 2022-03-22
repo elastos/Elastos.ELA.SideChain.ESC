@@ -27,8 +27,8 @@ func TestArbiterManager_RemoveArbiter(t *testing.T) {
 	data := manager.FilterArbiters(list)
 	assert.Equal(t, len(data), 1)
 
-	for i := 0; i < count; i ++ {
-		manager.RemoveArbiter(list1[count- i - 1])
+	for i := 0; i < count; i++ {
+		manager.RemoveArbiter(list1[count-i-1])
 	}
 
 	list2 := manager.GetArbiterList()
