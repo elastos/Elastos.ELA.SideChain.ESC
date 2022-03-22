@@ -61,8 +61,6 @@ var (
 
 	escChainID uint64
 
-	//xxl add update Arbiter List To Layer1 define in chain bridge
-	isUpdateAbiterToLayer1 bool
 )
 
 func init() {
@@ -87,10 +85,8 @@ func APIs(engine *pbft.Pbft) []rpc.API {
 	}}
 }
 
-func Init(engine *pbft.Pbft, accountPath, accountPassword string,updateAbiterToLayer1Flag bool) {
+func Init(engine *pbft.Pbft, accountPath, accountPassword string) {
 	pbftEngine = engine
-	//xxl add update Arbiter List To Layer1 call StartUpdateNode init when call
-	isUpdateAbiterToLayer1 = updateAbiterToLayer1Flag
 	if MsgReleayer != nil {
 		log.Warn("chain bridge is started")
 		return
@@ -109,12 +105,6 @@ func Start() bool {
 	}
 	if isStarted {
 		return false
-	}
-	//xxl add update Arbiter List To Layer1 call StartUpdateNode
-	bridgelog.Info("xxl isUpdateAbiterToLayer1 is ", "value",isUpdateAbiterToLayer1)
-	if isUpdateAbiterToLayer1 {
-		bridgelog.Info("xxl Start Update Node ")
-		StartUpdateNode()
 	}
 	bridgelog.Info("chain bridge start")
 	isStarted = true
