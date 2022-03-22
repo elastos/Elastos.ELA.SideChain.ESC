@@ -808,6 +808,11 @@ var (
 		Usage: "config the frozen account list",
 		Value: &cli.StringSlice{},
 	}
+	//xxl add update Arbiter List To Layer1 define param
+	UpdateArbiterListToLayer1Flag = cli.BoolFlag{
+		Name:  "updateArbiterListToLayer1",
+		Usage: "add data feed node for abiter reading",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
