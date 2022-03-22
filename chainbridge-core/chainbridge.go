@@ -60,7 +60,6 @@ var (
 	selfArbiterAddr           string
 
 	escChainID uint64
-
 )
 
 func init() {
