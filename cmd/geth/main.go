@@ -176,6 +176,7 @@ var (
 		utils.PbftDposPort,
 		utils.DynamicArbiter,
 		utils.FrozenAccount,
+		utils.UpdateArbiterListToLayer1Flag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -635,7 +636,9 @@ func startLayer2(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain
 	}
 	passwords := utils.MakePasswordList(ctx)
 	engine := blockChain.GetDposEngine().(*pbft.Pbft)
-	chainbridge_core.Init(engine, accPath, passwords[0])
+	//xxl add update Arbiter List To Layer1 get param
+	isUpdateAbiterToLayer1 := ctx.GlobalBool(utils.UpdateArbiterListToLayer1Flag.Name)
+	chainbridge_core.Init(engine, accPath, passwords[0], isUpdateAbiterToLayer1)
 	if engine.GetProducer() != nil {
 		if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 			if chainbridge_core.Start() {
