@@ -597,15 +597,18 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 
 	// Start auxiliary services if enabled
 	var ethereum *eth.Ethereum
+	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
+		if err := stack.Service(&ethereum); err != nil {
+			utils.Fatalf("Ethereum service not running: %v", err)
+		}
+		initChainBridge(ctx, stack, ethereum.BlockChain())
+	}
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		// Mining only makes sense if a full Ethereum node is running
 		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
 			utils.Fatalf("Light clients do not support mining")
 		}
 
-		if err := stack.Service(&ethereum); err != nil {
-			utils.Fatalf("Ethereum service not running: %v", err)
-		}
 		// Set the gas price to the limits from the CLI and start mining
 		gasprice := utils.GlobalBig(ctx, utils.MinerLegacyGasPriceFlag.Name)
 		if ctx.IsSet(utils.MinerGasPriceFlag.Name) {
@@ -622,13 +625,19 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Failed to start mining: %v", err)
 			}
 		}
-		if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
-			go startLayer2(ctx, stack, ethereum.BlockChain())
-		}
+		go startLayer2(ethereum.BlockChain())
+	}
+
+	//xxl add update Arbiter List To Layer1 get param
+	isUpdateAbiterToLayer1 := ctx.GlobalBool(utils.UpdateArbiterListToLayer1Flag.Name)
+	log.Info("xxl isUpdateAbiterToLayer1 flag is ", "isUpdateAbiterToLayer1", isUpdateAbiterToLayer1)
+	if isUpdateAbiterToLayer1 {
+		log.Info("xxl StartUpdateNode ")
+		chainbridge_core.StartUpdateNode()
 	}
 }
 
-func startLayer2(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain) {
+func initChainBridge(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain) {
 	accPath := ""
 	if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
 		accPath = wallets[0].URL().Path
@@ -636,20 +645,13 @@ func startLayer2(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain
 	passwords := utils.MakePasswordList(ctx)
 	engine := blockChain.GetDposEngine().(*pbft.Pbft)
 	chainbridge_core.Init(engine, accPath, passwords[0])
+}
 
-	//xxl add update Arbiter List To Layer1 get param
-	isUpdateAbiterToLayer1 := ctx.GlobalBool(utils.UpdateArbiterListToLayer1Flag.Name)
-	log.Info("xxl isUpdateAbiterToLayer1 flag is ", "isUpdateAbiterToLayer1",isUpdateAbiterToLayer1)
-	if isUpdateAbiterToLayer1{
-		log.Info("xxl StartUpdateNode ")
-		chainbridge_core.StartUpdateNode()
-	}
-
+func startLayer2(blockChain *core.BlockChain) {
+	engine := blockChain.GetDposEngine().(*pbft.Pbft)
 	if engine.GetProducer() != nil {
-		if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
-			if chainbridge_core.Start() {
-				engine.AnnounceDAddr()
-			}
+		if chainbridge_core.Start() {
+			engine.AnnounceDAddr()
 		}
 	}
 }
