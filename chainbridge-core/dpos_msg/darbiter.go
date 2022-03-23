@@ -31,10 +31,11 @@ type DArbiter struct {
 	// The encrypted network address using the encode peer ID.
 	Cipher []byte
 
-	ArbitersSignature []byte
-
 	// Signature of the encode peer ID and cipher to proof the sender itself.
 	Signature []byte
+
+	// is current consensus producers
+	IsCurrent bool
 }
 
 func (m *DArbiter) CMD() string {
@@ -42,7 +43,7 @@ func (m *DArbiter) CMD() string {
 }
 
 func (m *DArbiter) MaxLength() uint32 {
-	return 387 // 33+33+256+65
+	return 388 // 33+33+256+65 + 1
 }
 
 func (m *DArbiter) Serialize(w io.Writer) error {
@@ -56,11 +57,16 @@ func (m *DArbiter) Serialize(w io.Writer) error {
 		return err
 	}
 
-	if err := common.WriteVarBytes(w, m.ArbitersSignature); err != nil {
+	err = common.WriteVarBytes(w, m.Signature)
+	if err != nil {
 		return err
 	}
-
-	return common.WriteVarBytes(w, m.Signature)
+	if m.IsCurrent == true {
+		err = common.WriteUint8(w, 1)
+	} else {
+		err = common.WriteUint8(w, 0)
+	}
+	return err
 }
 
 func (m *DArbiter) Deserialize(r io.Reader) error {
@@ -76,10 +82,18 @@ func (m *DArbiter) Deserialize(r io.Reader) error {
 		return err
 	}
 
-	m.ArbitersSignature, err = common.ReadVarBytes(r, crypto.SignatureLength,
-		"DArbiter.ArbitersSignature")
 	m.Signature, err = common.ReadVarBytes(r, crypto.SignatureLength,
 		"DArbiter.Signature")
+
+	res, err := common.ReadUint8(r)
+	if err != nil {
+		return err
+	}
+	if res == 1 {
+		m.IsCurrent = true
+	} else {
+		m.IsCurrent = false
+	}
 	return err
 }
 
@@ -88,10 +102,10 @@ func (m *DArbiter) Data() []byte {
 	var timestamp = m.Timestamp.Unix()
 	common.WriteElements(b, timestamp, m.Encode)
 	common.WriteVarBytes(b, m.Cipher)
-	common.WriteVarBytes(b, m.ArbitersSignature)
+	if m.IsCurrent == true {
+		common.WriteUint8(b, 1)
+	} else {
+		common.WriteUint8(b, 0)
+	}
 	return b.Bytes()
-}
-
-func (m *DArbiter) Hash() common.Uint256 {
-	return common.Sha256D(m.Data())
 }
