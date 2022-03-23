@@ -152,7 +152,7 @@ func (r *Relayer) Start() {
 }
 
 func (r *Relayer) route(m *SetArbiterListMsg) {
-	bridgelog.Info("route msg >>>>>>>", "addressCount", m.AddressCount)
+	bridgelog.Info("route msg >>>>>>>", "addressCount", m.AddressCount, "escchainid", r.escChainID)
 	signatures, err := r.GetSignatures(r.escChainID)
 	if err != nil {
 		bridgelog.Error("route msg getSignature failed", "error", err)
