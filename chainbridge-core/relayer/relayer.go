@@ -176,9 +176,12 @@ func (r *Relayer) route(m *SetArbiterListMsg) {
 		sigs = append(sigs, sig[:])
 	}
 	for _, c := range r.relayedChains {
-		bridgelog.Info("Starting chain", "chainid", c.ChainID())
 		if c.ChainID() != r.escChainID {
-			c.WriteArbiters(list, sigs, int(totalCount))
+			bridgelog.Info("WriteArbiters chain", "chainid", c.ChainID())
+			err = c.WriteArbiters(list, sigs, int(totalCount))
+			if err != nil {
+				bridgelog.Error("write Aribters error", "msg", err)
+			}
 		}
 	}
 }
