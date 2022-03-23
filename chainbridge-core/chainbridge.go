@@ -574,9 +574,9 @@ func createChain(generalConfig *config.GeneralChainConfig, db blockstore.KeyValu
 	var evmVoter *voter.EVMVoter
 	if engine.GetBridgeArbiters() != nil {
 		kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
-		if kp != nil {
-			evmVoter = voter.NewVoter(ethClient, kp)
-		}
+		evmVoter = voter.NewVoter(ethClient, kp)
+	} else {
+		evmVoter = voter.NewVoter(ethClient, nil)
 	}
 	evmListener := listener.NewEVMListener(ethClient, &generalConfig.Opts)
 	chain := evm.NewEVMChain(evmListener, evmVoter, generalConfig.Id, db,
