@@ -64,10 +64,11 @@ func (a *API) GetArbiters(chainID uint64) []common.Address {
 }
 
 type Message struct {
-	List       []common.Address
-	Signatures []string
-	Total      int
-	NowTotal   int
+	UpdateList     []common.Address
+	Signatures     []string
+	Total          int
+	ConsensusTotal int
+	ConsensusList  []common.Address
 }
 
 func (a *API) GetCollectedArbiterList() *Message {
@@ -91,10 +92,23 @@ func (a *API) GetCollectedArbiterList() *Message {
 		addr := crypto.PubkeyToAddress(*escssaPUb)
 		address = append(address, addr)
 	}
-	msg.List = address
+	msg.UpdateList = address
 	msg.Total = total
-	msg.NowTotal = collection.CurrentTotalCount
+	msg.ConsensusTotal = collection.CurrentTotalCount
 	msg.Signatures = sigs
+
+	consensusArbiters := arbiterManager.GetConsensusArbiters()
+	consensuAddress := make([]common.Address, 0)
+	for _, arbiter := range consensusArbiters.List {
+		escssaPUb, err := crypto.DecompressPubkey(arbiter)
+		if err != nil {
+			return msg
+		}
+		addr := crypto.PubkeyToAddress(*escssaPUb)
+		consensuAddress = append(consensuAddress, addr)
+	}
+	msg.ConsensusList = consensuAddress
+
 	return msg
 }
 

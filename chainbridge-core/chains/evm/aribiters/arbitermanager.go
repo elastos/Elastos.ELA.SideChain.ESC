@@ -26,16 +26,19 @@ type ArbiterManager struct {
 	arbiters          map[peer.PID][]byte
 	signatures        map[peer.PID][]byte
 
-	collectionBox *CollectionInfo
-	mtx           sync.RWMutex
+	collectionBox     *CollectionInfo
+	consensusArbiters *CollectionInfo
+	mtx               sync.RWMutex
 }
 
 func CreateArbiterManager() *ArbiterManager {
 	manager := &ArbiterManager{
-		signatures:    make(map[peer.PID][]byte, 0),
-		arbiters:      make(map[peer.PID][]byte, 0),
-		collectionBox: new(CollectionInfo),
+		signatures:        make(map[peer.PID][]byte, 0),
+		arbiters:          make(map[peer.PID][]byte, 0),
+		collectionBox:     new(CollectionInfo),
+		consensusArbiters: new(CollectionInfo),
 	}
+	manager.consensusArbiters.List = make([][]byte, 0)
 	return manager
 }
 
@@ -54,12 +57,33 @@ func (a *ArbiterManager) GetNextTotalCount() int {
 
 func (a *ArbiterManager) AddArbiter(pid peer.PID, arbiter []byte) error {
 	if a.HasArbiterByPID(pid) {
-		return errors.New("has added this arbiter")
+		return errors.New(fmt.Sprintf("AddArbiter failed, has added this arbiter:%s", common.Bytes2Hex(arbiter)))
 	}
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.arbiters[pid] = arbiter
 	return nil
+}
+
+func (a *ArbiterManager) AddCurrentArbiter(arbiter []byte) error {
+	if a.HasCurrentArbiter(arbiter) {
+		return errors.New(fmt.Sprintf("AddCurrentArbiter failed, has added this current arbiter:%s", common.Bytes2Hex(arbiter)))
+	}
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	a.consensusArbiters.List = append(a.consensusArbiters.List, arbiter)
+	return nil
+}
+
+func (a *ArbiterManager) HasCurrentArbiter(signer []byte) bool {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	for _, arbiter := range a.consensusArbiters.List {
+		if bytes.Equal(signer, arbiter) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *ArbiterManager) HasArbiterByPID(pid peer.PID) bool {
@@ -109,6 +133,7 @@ func (a *ArbiterManager) Clear() {
 	defer a.mtx.Unlock()
 	a.arbiters = make(map[peer.PID][]byte, 0)
 	a.signatures = make(map[peer.PID][]byte, 0)
+	a.consensusArbiters.List = make([][]byte, 0)
 }
 
 func (a *ArbiterManager) HashArbiterList() (common.Hash, error) {
@@ -214,4 +239,8 @@ func (a *ArbiterManager) SaveToCollection() {
 
 func (a *ArbiterManager) GetCollection() CollectionInfo {
 	return *a.collectionBox
+}
+
+func (a *ArbiterManager) GetConsensusArbiters() CollectionInfo {
+	return *a.consensusArbiters
 }
