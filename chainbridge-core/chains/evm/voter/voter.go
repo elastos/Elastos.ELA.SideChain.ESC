@@ -7,10 +7,8 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"strings"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
@@ -68,13 +66,10 @@ func (w *EVMVoter) GetSignerAddress() (common.Address, error) {
 }
 
 func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, signature [][]byte, bridgeAddress string) error {
-	definition := "[{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addressList\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_addressCount\",\"type\":\"uint256\"},{\"internalType\":\"bytes[]\",\"name\":\"sig\",\"type\":\"bytes[]\"}],\"name\":\"setAbiterList\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
-	a, err := abi.JSON(strings.NewReader(definition))
+	a, err := chainbridge_abi.GetSetArbitersABI()
 	if err != nil {
 		return err
 	}
-	log.Info("SetArbiterList", "arbiters", len(arbiters), "selfAccount", w.account.PublicKey())
-
 	gasPrice, err := w.client.GasPrice()
 	if err != nil {
 		return err
