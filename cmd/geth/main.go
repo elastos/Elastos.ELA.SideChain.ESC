@@ -643,6 +643,10 @@ func initChainBridge(ctx *cli.Context, stack *node.Node, blockChain *core.BlockC
 	if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
 		accPath = wallets[0].URL().Path
 	}
+	if accPath == "" {
+		log.Info("is common sync node, don't need init chainbridge")
+		return
+	}
 	passwords := utils.MakePasswordList(ctx)
 	engine := blockChain.GetDposEngine().(*pbft.Pbft)
 	chainbridge_core.Init(engine, accPath, passwords[0])
