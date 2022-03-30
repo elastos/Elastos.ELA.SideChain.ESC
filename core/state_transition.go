@@ -446,7 +446,7 @@ func (st *StateTransition) isSetArbiterListMethod() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	method, exist := eabi.Methods["setAbiterList"]
+	method, exist := eabi.Methods["setArbiterList"]
 	if !exist {
 		return false, errors.New("executeProposal method not in abi json")
 	}
