@@ -75,7 +75,7 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, sig
 		return err
 	}
 	count := big.NewInt(int64(totalCount))
-	input, err := a.Pack("setAbiterList", arbiters, &count, signature)
+	input, err := a.Pack("setArbiterList", arbiters, &count, signature)
 	if err != nil {
 		return err
 	}
@@ -110,17 +110,17 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 	if err != nil {
 		return []common.Address{}, err
 	}
-	input, err := a.Pack("getAbiterList")
+	input, err := a.Pack("getArbiterList")
 	if err != nil {
 		return []common.Address{}, err
 	}
 	bridge := common.HexToAddress(bridgeAddress)
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
 	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
-	log.Info("GetArbiterList", "error", err, "out", out)
+	log.Info("getArbiterList", "error", err, "out", out)
 
 	out0 := make([]common.Address, 0)
-	err = a.Unpack(&out0, "getAbiterList", out)
+	err = a.Unpack(&out0, "getArbiterList", out)
 	if err != nil {
 		return []common.Address{}, err
 	}
@@ -132,17 +132,17 @@ func (w *EVMVoter) GetSignatures(bridgeAddress string) ([][crypto.SignatureLengt
 	if err != nil {
 		return [][crypto.SignatureLength]byte{}, err
 	}
-	input, err := a.Pack("getAbiterSigs")
+	input, err := a.Pack("getArbiterSigs")
 	if err != nil {
 		return [][crypto.SignatureLength]byte{}, err
 	}
 	bridge := common.HexToAddress(bridgeAddress)
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
 	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
-	log.Info("getAbiterSigs", "error", err, "out", out)
+	log.Info("getArbiterSigs", "error", err, "out", out)
 
 	out0 := make([][crypto.SignatureLength]byte, 0)
-	err = a.Unpack(&out0, "getAbiterSigs", out)
+	err = a.Unpack(&out0, "getArbiterSigs", out)
 	if err != nil {
 		return [][crypto.SignatureLength]byte{}, err
 	}
@@ -154,17 +154,17 @@ func (w *EVMVoter) GetTotalCount(bridgeAddress string) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	input, err := a.Pack("getAbiterCount")
+	input, err := a.Pack("getArbiterCount")
 	if err != nil {
 		return 0, err
 	}
 	bridge := common.HexToAddress(bridgeAddress)
 	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
 	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
-	log.Info("getAbiterCount", "error", err, "out", out)
+	log.Info("getArbiterCount", "error", err, "out", out)
 
 	out0 := big.NewInt(0).SetBytes(out)
-	err = a.Unpack(&out0, "getAbiterCount", out)
+	err = a.Unpack(&out0, "getArbiterCount", out)
 	if err != nil {
 		return 0, err
 	}
