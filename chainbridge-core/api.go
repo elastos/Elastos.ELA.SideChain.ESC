@@ -41,7 +41,7 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 				sigs = append(sigs, sig)
 			}
 			log.Info("MsgReleayer.UpdateArbiters")
-			err := MsgReleayer.UpdateArbiters(list, producersCount, sigs, chainID)
+			err := MsgReleayer.UpdateArbiters(list, total, sigs, chainID)
 			if err != nil {
 				log.Error("UpdateArbiters error", "error", err)
 				return 0
@@ -55,12 +55,24 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 	return 0
 }
 
-func (a *API) GetArbiters(chainID uint64) []common.Address {
+type Arbiters struct {
+	List  []common.Address
+	Total uint64
+}
+
+func (a *API) GetArbiters(chainID uint64) *Arbiters {
 	address := MsgReleayer.GetArbiters(chainID)
 	for _, addr := range address {
 		log.Info("GetArbiters", "address", addr.String())
 	}
-	return address
+
+	msg := new(Arbiters)
+	msg.List = address
+
+	count, _ := MsgReleayer.GetTotalCount(chainID)
+	msg.Total = count
+
+	return msg
 }
 
 type Message struct {
