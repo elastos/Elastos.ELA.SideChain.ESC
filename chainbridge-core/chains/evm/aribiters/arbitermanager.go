@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
 	"sort"
 	"sync"
 
@@ -150,6 +151,9 @@ func (a *ArbiterManager) HashArbiterList() (common.Hash, error) {
 		addr := crypto.PubkeyToAddress(*escssaPUb)
 		data = append(data, addr.Bytes()...)
 	}
+	total := new(big.Int).SetUint64(uint64(a.nextTotalCount))
+	totalBytes := common.LeftPadBytes(total.Bytes(), 32)
+	data = append(data, totalBytes...)
 	return crypto.Keccak256Hash(data), nil
 }
 
@@ -222,7 +226,7 @@ func (a *ArbiterManager) FilterSignatures(peers [][]byte) [][]byte {
 func (a *ArbiterManager) SaveToCollection() {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
-	fmt.Println("SaveToCollection", "listlen", len(a.arbiters))
+
 	a.collectionBox.List = make([][]byte, 0)
 	a.collectionBox.Signatures = make(map[peer.PID][]byte, 0)
 	a.collectionBox.NextTotalCount = a.nextTotalCount
