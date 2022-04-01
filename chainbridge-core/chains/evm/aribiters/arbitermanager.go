@@ -72,6 +72,9 @@ func (a *ArbiterManager) AddCurrentArbiter(arbiter []byte) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	a.consensusArbiters.List = append(a.consensusArbiters.List, arbiter)
+	sort.Slice(a.consensusArbiters.List, func(i, j int) bool {
+		return bytes.Compare(a.consensusArbiters.List[i][:], a.consensusArbiters.List[j][:]) < 0
+	})
 	return nil
 }
 
