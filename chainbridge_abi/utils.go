@@ -35,3 +35,9 @@ func UpdateArbiterABI() (abi.ABI, error) {
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
+
+func GetESCStateABI() (abi.ABI, error) {
+	definition := "[{\"inputs\": [],\"name\": \"getESCChainState\",\"outputs\": [{\"internalType\": \"uint8\",\"name\": \"\",\"type\": \"uint8\"}],\"stateMutability\": \"view\",\"type\": \"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}
