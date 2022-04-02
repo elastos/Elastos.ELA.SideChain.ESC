@@ -98,6 +98,12 @@ const (
 	IsOnlyCRConsensus = true
 )
 
+const (
+	ChainState_DPOS = iota
+	ChainState_POW
+	ChainState_Error
+)
+
 //type MinedBlockEvent struct{}
 
 type Config struct {

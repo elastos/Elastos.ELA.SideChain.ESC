@@ -4,6 +4,7 @@ import (
 	"bytes"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	eevent "github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
@@ -90,10 +91,12 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 		log.Info("----------turn to Dpos mode------------")
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 		InitNextTurnDposInfo()
+		events.Notify(dpos_msg.ETESCStateChanged, ChainState_DPOS)
 	} else if consensusMode == spv.DPOS && nowConsensus == spv.POW {
 		log.Info("----------turn to POW mode------------")
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 		InitNextTurnDposInfo()
+		events.Notify(dpos_msg.ETESCStateChanged, ChainState_POW)
 	}
 	if SpvIsWorkingHeight() && nowConsensus != spv.POW {
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
