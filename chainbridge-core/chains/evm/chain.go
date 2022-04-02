@@ -33,6 +33,7 @@ type ProposalVoter interface {
 	GetTotalCount(bridgeAddress string) (uint64, error)
 	GetESCState(bridgeAddress string) (uint8, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
+	SetESCState(bridgeAddress string, state uint8) error
 }
 
 // EVMChain is struct that aggregates all data required for
@@ -102,6 +103,15 @@ func (c *EVMChain) GetESCState() (uint8, error) {
 		return 0, err
 	}
 	return state, nil
+}
+
+func (c *EVMChain) SetESCState(state uint8) error {
+	err := c.writer.SetESCState(c.bridgeContractAddress, state)
+	if err != nil {
+		log.Error("SetESCState error", "error", err)
+		return err
+	}
+	return nil
 }
 
 func (c *EVMChain) GetBridgeContract() string {
