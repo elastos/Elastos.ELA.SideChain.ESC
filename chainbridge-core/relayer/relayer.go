@@ -20,6 +20,7 @@ type RelayedChain interface {
 	GetArbiters() []common.Address
 	GetSignatures() ([][crypto.SignatureLength]byte, error)
 	GetTotalCount() (uint64, error)
+	GetESCState() (uint8, error)
 	GetBridgeContract() string
 	PollEvents(sysErr chan<- error, stop <-chan struct{}, eventsChan chan *SetArbiterListMsg)
 }
@@ -127,6 +128,15 @@ func (r *Relayer) GetTotalCount(chainID uint64) (uint64, error) {
 		return 0, errors.New(fmt.Sprintf("GetTotalCount not register this chainid :%d", chainID))
 	}
 	return c.GetTotalCount()
+}
+
+func (r *Relayer) GetESCState(chainID uint64) (uint8, error) {
+	c := r.registry[chainID]
+	if c == nil {
+		bridgelog.Error("GetESCState not register chainID", "chainID", chainID)
+		return 0, errors.New(fmt.Sprintf("GetESCState not register this chainid :%d", chainID))
+	}
+	return c.GetESCState()
 }
 
 func (r *Relayer) Start() {
