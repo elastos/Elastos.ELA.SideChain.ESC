@@ -200,6 +200,8 @@ func Start() bool {
 			receivedReqArbiterSignature(pbftEngine, e)
 		case dpos_msg.ETFeedBackArbiterSig:
 			handleFeedBackArbitersSig(pbftEngine, e)
+		case dpos_msg.ETESCStateChanged:
+			escStateChanged(e)
 		}
 	})
 	return true
@@ -523,6 +525,20 @@ func getActivePeerCount(engine *pbft.Pbft, arbiters [][]byte) int {
 		count += 1 //add self node
 	}
 	return count
+}
+
+func escStateChanged(e *events.Event) {
+	v, ok := e.Data.(int)
+	state := uint8(v)
+	bridgelog.Info("received esc chain state changed", "state", e.Data)
+	if !ok {
+		return
+	}
+	if state < spv.ChainState_POW || state > spv.ChainState_Error {
+		bridgelog.Error("error state value", "state", state)
+		return
+	}
+	MsgReleayer.SetESCState(state)
 }
 
 func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {

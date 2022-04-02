@@ -9,6 +9,7 @@ import (
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
@@ -125,6 +126,49 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 		return []common.Address{}, err
 	}
 	return out0, err
+}
+
+func (w *EVMVoter) SetESCState(bridgeAddress string, state uint8) error {
+	gasPrice, err := w.client.GasPrice()
+	if err != nil {
+		return err
+	}
+	stateValue := big.NewInt(0).SetUint64(uint64(state))
+	packData := common.LeftPadBytes(stateValue.Bytes(), 32)
+	a, err := chainbridge_abi.SetESCStateABI()
+	if err != nil {
+		return err
+	}
+	khash := crypto.Keccak256(packData)
+	signature := w.SignData(accounts.TextHash(khash))
+	input, err := a.Pack("setChainStatus", state, signature)
+	if err != nil {
+		return err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	from := w.client.GetClientAddress()
+	msg := ethereum.CallMsg{From: from, To: &bridge, Data: input, GasPrice: gasPrice}
+	gasLimit, err := w.client.EstimateGasLimit(context.TODO(), msg)
+	if err != nil {
+		return err
+	}
+	if gasLimit == 0 {
+		return errors.New("SetArbiterList EstimateGasLimit is 0")
+	}
+	w.client.LockNonce()
+	defer w.client.UnlockNonce()
+	n, err := w.client.GetNonce()
+	if err != nil {
+		return err
+	}
+
+	tx := evmtransaction.NewTransaction(n.Uint64(), bridge, big.NewInt(0), gasLimit, gasPrice, input)
+	hash, err := w.client.SignAndSendTransaction(context.TODO(), tx)
+	if err != nil {
+		return err
+	}
+	log.Info("SetESCState", "error", err, "hash", hash.String(), "gasLimit", gasLimit, "gasPrice", gasLimit)
+	return err
 }
 
 func (w *EVMVoter) GetSignatures(bridgeAddress string) ([][crypto.SignatureLength]byte, error) {

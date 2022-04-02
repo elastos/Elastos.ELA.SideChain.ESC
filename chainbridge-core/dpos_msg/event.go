@@ -8,4 +8,5 @@ const (
 	ETRequireArbiter     events.EventType = 2002
 	ETReqArbiterSig      events.EventType = 2003
 	ETFeedBackArbiterSig events.EventType = 2004
+	ETESCStateChanged    events.EventType = 2005
 )
