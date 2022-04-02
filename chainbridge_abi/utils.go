@@ -41,3 +41,9 @@ func GetESCStateABI() (abi.ABI, error) {
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
+
+func SetESCStateABI() (abi.ABI, error) {
+	definition := "[{\"inputs\": [{\"internalType\": \"uint8\",\"name\": \"_status\",\"type\": \"uint8\"},{\"internalType\": \"bytes\",\"name\": \"_sig\",\"type\": \"bytes\"}],\"name\": \"setChainStatus\",\"outputs\": [],\"stateMutability\": \"nonpayable\",\"type\": \"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}
