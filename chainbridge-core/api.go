@@ -58,6 +58,7 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 type Arbiters struct {
 	List  []common.Address
 	Total uint64
+	State uint8
 }
 
 func (a *API) GetArbiters(chainID uint64) *Arbiters {
@@ -71,7 +72,7 @@ func (a *API) GetArbiters(chainID uint64) *Arbiters {
 
 	count, _ := MsgReleayer.GetTotalCount(chainID)
 	msg.Total = count
-
+	msg.State, _ = MsgReleayer.GetESCState(chainID)
 	return msg
 }
 

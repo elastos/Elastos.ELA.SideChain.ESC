@@ -171,6 +171,24 @@ func (w *EVMVoter) GetTotalCount(bridgeAddress string) (uint64, error) {
 	return out0.Uint64(), err
 }
 
+func (w *EVMVoter) GetESCState(bridgeAddress string) (uint8, error) {
+	a, err := chainbridge_abi.GetESCStateABI()
+	if err != nil {
+		return 0, err
+	}
+	input, err := a.Pack("getESCChainState")
+	if err != nil {
+		return 0, err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
+	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	log.Info("GetESCState", "error", err, "out", out)
+
+	out0 := big.NewInt(0).SetBytes(out)
+	return uint8(out0.Uint64()), err
+}
+
 func (w *EVMVoter) IsDeployedBridgeContract(bridgeAddress string) bool {
 	return w.client.IsContractAddress(bridgeAddress)
 }
