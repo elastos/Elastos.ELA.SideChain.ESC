@@ -1,11 +1,15 @@
 package chainbridge_core
 
 import (
+	_interface "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	eevents "github.com/elastos/Elastos.ELA/events"
 )
 
 // API is a user facing RPC API to allow controlling the signer and voting
@@ -50,6 +54,9 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 		}
 	} else {
 		bridgelog.Info("The arbiter list is not bigger than 2 / 3")
+		if spv.GetCurrentConsensusMode() != _interface.POW {
+			eevents.Notify(dpos_msg.ETESCStateChanged, spv.ChainState_Error)
+		}
 	}
 
 	return 0
