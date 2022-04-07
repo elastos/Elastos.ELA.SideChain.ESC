@@ -503,7 +503,14 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 
 	// Unlock any account specifically requested
 	unlockAccounts(ctx, stack)
-
+	// Start auxiliary services if enabled
+	var ethereum *eth.Ethereum
+	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
+		if err := stack.Service(&ethereum); err != nil {
+			utils.Fatalf("Ethereum service not running: %v", err)
+		}
+		initChainBridge(ctx, stack, ethereum.BlockChain())
+	}
 	//start the SPV service
 	//log.Info(fmt.Sprintf("Starting SPV service with config: %+v \n", *spvCfg))
 	startSpv(ctx, stack)
@@ -596,14 +603,6 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		}()
 	}
 
-	// Start auxiliary services if enabled
-	var ethereum *eth.Ethereum
-	if ctx.GlobalString(utils.SyncModeFlag.Name) != "light" {
-		if err := stack.Service(&ethereum); err != nil {
-			utils.Fatalf("Ethereum service not running: %v", err)
-		}
-		initChainBridge(ctx, stack, ethereum.BlockChain())
-	}
 	if ctx.GlobalBool(utils.MiningEnabledFlag.Name) || ctx.GlobalBool(utils.DeveloperFlag.Name) {
 		// Mining only makes sense if a full Ethereum node is running
 		if ctx.GlobalString(utils.SyncModeFlag.Name) == "light" {
