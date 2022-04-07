@@ -58,6 +58,7 @@ var (
 
 	currentArbitersOnContract []common.Address
 	selfArbiterAddr           string
+	isNeedRecoveryArbiters    bool
 
 	escChainID uint64
 )
@@ -202,6 +203,8 @@ func Start() bool {
 			handleFeedBackArbitersSig(pbftEngine, e)
 		case dpos_msg.ETESCStateChanged:
 			escStateChanged(e)
+		case dpos.ETOnDutyEvent:
+			recoveryArbiter()
 		}
 	})
 	return true
@@ -332,8 +335,9 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 				signCount = len(arbiterManager.GetSignatures())
 				log.Info("requireArbitersSignature", "signCount", signCount, "total", arbiterManager.GetCurrentTotalCount())
 				if api.HasProducerMajorityCount(signCount, producersCount) {
-					log.Info("collect over signatures", "spv.SpvIsWorkingHeight()", spv.SpvIsWorkingHeight())
+					log.Info("collect over signatures SaveTo collection and judge is recovery state")
 					arbiterManager.SaveToCollection()
+					setRecoveryArbiterList()
 					return
 				}
 				arbiterCount := len(arbiterManager.GetArbiterList())
@@ -348,6 +352,42 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 			}
 		}
 	}()
+}
+
+func setRecoveryArbiterList() {
+	collection := arbiterManager.GetCollection()
+	address := make([]common.Address, 0)
+	for _, arbiter := range collection.List {
+		escssaPUb, err := crypto.DecompressPubkey(arbiter)
+		if err == nil {
+			addr := crypto.PubkeyToAddress(*escssaPUb)
+			address = append(address, addr)
+		}
+	}
+
+	verifyCount := 0
+	for _, arbiter := range currentArbitersOnContract {
+		for _, addr := range address {
+			if arbiter.String() == addr.String() {
+				verifyCount++
+				break
+			}
+		}
+	}
+	bridgelog.Info("recoveryArbiterList", "current list", len(currentArbitersOnContract), "selfIsOnduty", pbftEngine.IsOnduty(), "collection len", len(address))
+	if verifyCount == len(currentArbitersOnContract) && len(address) != verifyCount {
+		isNeedRecoveryArbiters = true
+	} else {
+		isNeedRecoveryArbiters = false
+	}
+}
+
+func recoveryArbiter() {
+	if isNeedRecoveryArbiters == false {
+		return
+	}
+	api.UpdateArbiters(escChainID)
+	isNeedRecoveryArbiters = false
 }
 
 func receivedRequireArbiter(engine *pbft.Pbft, e *events.Event) {
