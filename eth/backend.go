@@ -31,7 +31,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi/bind"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	chainbridge_core "github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
@@ -498,11 +497,6 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 					blocksigner.SelfIsProducer = pbftEngine.IsProducer()
 					if res {
 						eevents.Notify(dpos.ETUpdateProducers, nil)
-						if !pbftEngine.HasProducerMajorityCount(pbftEngine.GetTotalProducerCount()) {
-							if spv.GetCurrentConsensusMode() != _interface.POW {
-								eevents.Notify(dpos_msg.ETESCStateChanged, spv.ChainState_Error)
-							}
-						}
 					}
 				}
 			case <-initProducersSub.Chan():
