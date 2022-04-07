@@ -84,6 +84,8 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
 			if err != nil {
 				log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
 			}
+		} else {
+			bridgelog.Info("arbiter list is same current collection arbiter list")
 		}
 	}
 	return nil
