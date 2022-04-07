@@ -144,7 +144,14 @@ func (r *Relayer) SetESCState(state uint8) error {
 		if c.ChainID() == r.escChainID {
 			continue
 		}
-		err := c.SetESCState(state)
+		nowState, err := c.GetESCState()
+		if err != nil {
+			if nowState == state {
+				continue
+			}
+		}
+
+		err = c.SetESCState(state)
 		if err != nil {
 			log.Error("SetESCState error", "error", err, "chainID", c.ChainID())
 			return err
