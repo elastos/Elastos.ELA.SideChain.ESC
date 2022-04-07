@@ -19,6 +19,7 @@ import (
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb/leveldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
@@ -36,6 +37,7 @@ import (
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
+	eevents "github.com/elastos/Elastos.ELA/events"
 )
 
 var (
@@ -238,6 +240,7 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription,
 				atomic.StoreInt32(&candSend, 0)
 			}
 			accessFailedRechargeTx()
+			go eevents.Notify(dpos.ETOnDutyEvent, nil)
 		case obj := <-smallCrossTxSub.Chan():
 			if evt, ok := obj.Data.(events.CmallCrossTx); ok {
 				NotifySmallCrossTx(*evt.Tx)
