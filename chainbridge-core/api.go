@@ -55,7 +55,7 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 	} else {
 		bridgelog.Info("The arbiter list is not bigger than 2 / 3")
 		if spv.GetCurrentConsensusMode() != _interface.POW {
-			eevents.Notify(dpos_msg.ETESCStateChanged, spv.ChainState_Error)
+			go eevents.Notify(dpos_msg.ETESCStateChanged, spv.ChainState_Error)
 		}
 	}
 
