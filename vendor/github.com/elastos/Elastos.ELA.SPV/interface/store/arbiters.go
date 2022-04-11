@@ -7,6 +7,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"fmt"
 
 	"github.com/elastos/Elastos.ELA/common"
 
@@ -135,9 +136,11 @@ func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]
 	if err != nil {
 		return
 	}
+	fmt.Println("arbiters get", "crcCount", crcCount)
 	for i := uint8(0); i < crcCount; i++ {
 		cr, err := common.ReadVarBytes(r, 33, "public key")
 		if err != nil {
+			fmt.Println("read public key error 1111", "error", err)
 			return nil, nil, err
 		}
 		crcArbiters = append(crcArbiters, cr)
@@ -146,9 +149,11 @@ func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]
 	if err != nil {
 		return
 	}
+	fmt.Println("arbiters get", "normalCount", normalCount)
 	for i := uint8(0); i < normalCount; i++ {
 		producer, err := common.ReadVarBytes(r, 33, "public key")
 		if err != nil {
+			fmt.Println("read public key error 22222 ", "error", err)
 			return nil, nil, err
 		}
 		normalArbiters = append(normalArbiters, producer)
@@ -168,6 +173,7 @@ func (c *arbiters) GetByHeight(height uint32) (crcArbiters [][]byte, normalArbit
 	}
 	slot, err := findSlot(pos, height, c.arbitersCount)
 	if err != nil {
+		fmt.Println("find Slot error", "error", err)
 		return nil, nil, err
 	}
 	if slot == 0 {

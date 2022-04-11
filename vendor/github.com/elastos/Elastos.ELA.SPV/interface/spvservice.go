@@ -208,7 +208,13 @@ func (s *spvservice) GetTransaction(txId *common.Uint256) (*types.Transaction, e
 
 // Get arbiters according to height
 func (s *spvservice) GetArbiters(height uint32) (crcArbiters [][]byte, normalArbiters [][]byte, err error) {
-	return s.db.Arbiters().GetByHeight(height)
+	fmt.Println(">>>>> zxb GetArbiters", "height", height)
+	defer func() {
+		fmt.Println(">>>>>> zxb getArbiters end", "height", height)
+	}()
+	crc, normal, err := s.db.Arbiters().GetByHeight(height)
+	fmt.Println(">>>>>> GetArbiters end", "error", err)
+	return crc, normal, err
 }
 
 // Get next turn arbiters according to height
