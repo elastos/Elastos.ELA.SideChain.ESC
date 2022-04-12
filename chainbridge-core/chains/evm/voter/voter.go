@@ -153,7 +153,7 @@ func (w *EVMVoter) SetESCState(bridgeAddress string, state uint8) error {
 		return err
 	}
 	if gasLimit == 0 {
-		return errors.New("SetArbiterList EstimateGasLimit is 0")
+		return errors.New("SetESCState EstimateGasLimit is 0")
 	}
 	w.client.LockNonce()
 	defer w.client.UnlockNonce()
