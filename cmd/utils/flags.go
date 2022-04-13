@@ -33,13 +33,13 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/keystore"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/fdlimit"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/clique"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/ethash"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -789,12 +789,12 @@ var (
 		Value: "",
 	}
 	PbftIPAddress = cli.StringFlag{
-		Name: "pbft.net.address",
+		Name:  "pbft.net.address",
 		Usage: "connect dpos direct net ip",
 		Value: "127.0.0.1",
 	}
 	PbftDposPort = cli.StringFlag{
-		Name: "pbft.net.port",
+		Name:  "pbft.net.port",
 		Usage: "connect dpos direct net port",
 		Value: "20639",
 	}
@@ -802,6 +802,11 @@ var (
 		Name:  "spv.arbiter.height",
 		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
 		Value: 1034900,
+	}
+	FrozenAccount = cli.StringSliceFlag{
+		Name:  "frozen.account.list",
+		Usage: "config the frozen account list",
+		Value: &cli.StringSlice{},
 	}
 )
 
@@ -1559,6 +1564,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
+	cfg.FrozenAccountList = ctx.StringSlice(FrozenAccount.Name)
+	cfg.FrozenAccountList = make([]string, 0)
+	list := ctx.StringSlice(FrozenAccount.Name)
+	for _, account := range list {
+		acc := common.HexToAddress(account)
+		cfg.FrozenAccountList = append(cfg.FrozenAccountList, acc.String())
+	}
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
