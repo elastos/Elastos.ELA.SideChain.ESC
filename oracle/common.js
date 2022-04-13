@@ -30,6 +30,11 @@ web3.extend({
         name: 'onSmallCrossTxSuccess',
         call: 'eth_onSmallCrossTxSuccess',
         params: 1,
+    },
+    {
+        name: 'getFrozenAccounts',
+        call: 'eth_getFrozenAccounts',
+        params: 0,
     }
     ]
 });

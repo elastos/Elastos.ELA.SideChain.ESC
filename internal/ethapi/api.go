@@ -806,6 +806,11 @@ func (s *PublicBlockChainAPI) SendInvalidWithdrawTransaction(ctx context.Context
 	return err
 }
 
+func (s *PublicBlockChainAPI) GetFrozenAccounts(ctx context.Context) ([]string, error) {
+	list := s.b.ChainConfig().FrozeAccountList
+	return list, nil
+}
+
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
 	From     *common.Address `json:"from"`
