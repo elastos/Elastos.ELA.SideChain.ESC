@@ -27,22 +27,26 @@ module.exports = async function (json_data, res) {
                 if (log.address !== common.contract.options.address) {
                     continue;
                 }
+                let tx = null;
                 if (txhash === null || txhash != log["transactionHash"]) {
                     txhash = log["transactionHash"];
                     txlog = {"txid": txhash.slice(2)};
                     txreceipt = await common.web3.eth.getTransactionReceipt(txhash)
                     console.log(txhash, txreceipt.status);
-                    if (txreceipt.status) {
-                        txlog["crosschainassets"] = new Array();
-                        result.push(txlog);
+
+                    tx = await common.web3.eth.getTransaction(txhash)
+                    let isfrozen = await frozenList.isFrozeAccount(tx.from)
+                    if (isfrozen == true) {
+                        console.log(">>>>>>>>>> is frozen account", "tx", tx.hash);
+                        continue;
+                    } else {
+                        if (txreceipt.status) {
+                            txlog["crosschainassets"] = new Array();
+                            result.push(txlog);
+                        }
                     }
                 }
 
-                let tx = await common.web3.eth.getTransaction(txhash)
-                if (frozenList.isFrozeAccount(tx.from)) {
-                    console.log(">>>>>>>>>> is frozen account", "tx", tx)
-                    return
-                }
 
                 let paramsStr=tx.input
                 let gap = "23232323";//####
