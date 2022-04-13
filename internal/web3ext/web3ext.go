@@ -585,6 +585,11 @@ web3._extend({
 			call: 'eth_sendInvalidWithdrawTransaction',
 			params: 2,
 		}),
+		new web3._extend.Method({
+			name: 'getFrozenAccounts',
+			call: 'eth_getFrozenAccounts',
+			params: 0,
+		})
 	],
 	properties: [
 		new web3._extend.Property({

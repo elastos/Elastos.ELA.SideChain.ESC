@@ -1,6 +1,7 @@
 "use strict";
 
 const common = require("./common");
+const frozenList = require("./frozen_account");
 
 module.exports = async function (json_data, res) {
     try {
@@ -38,6 +39,11 @@ module.exports = async function (json_data, res) {
                 }
 
                 let tx = await common.web3.eth.getTransaction(txhash)
+                if (frozenList.isFrozeAccount(tx.from)) {
+                    console.log(">>>>>>>>>> is frozen account", "tx", tx)
+                    return
+                }
+
                 let paramsStr=tx.input
                 let gap = "23232323";//####
                 var index = paramsStr.indexOf(gap);
