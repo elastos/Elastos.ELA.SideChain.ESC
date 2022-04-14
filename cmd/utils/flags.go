@@ -1564,13 +1564,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
-	cfg.FrozenAccountList = ctx.StringSlice(FrozenAccount.Name)
+
 	cfg.FrozenAccountList = make([]string, 0)
-	list := ctx.StringSlice(FrozenAccount.Name)
-	for _, account := range list {
-		acc := common.HexToAddress(account)
-		cfg.FrozenAccountList = append(cfg.FrozenAccountList, acc.String())
-	}
 	// Override any default configs for hard coded networks.
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
@@ -1584,6 +1579,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		}
 		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
 			cfg.DynamicArbiterHeight = 1
+		}
+		if !ctx.GlobalIsSet(FrozenAccount.Name) {
+			ctx.GlobalSet(FrozenAccount.Name, "0x6527946c8b26cc203f9674a5e1d8178beeed70c1")
 		}
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
@@ -1635,6 +1633,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(MinerGasPriceFlag.Name) && !ctx.GlobalIsSet(MinerLegacyGasPriceFlag.Name) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
+	default: //main net
+		ctx.GlobalSet(FrozenAccount.Name, "0x93c3A8051b8ba814eB5FB22d655681720E6a4d74")
+		ctx.GlobalSet(FrozenAccount.Name, "0x4a9a0cC103199F67730bdC61337d192788858874")
+	}
+	list := ctx.StringSlice(FrozenAccount.Name)
+	for _, account := range list {
+		acc := common.HexToAddress(account)
+		cfg.FrozenAccountList = append(cfg.FrozenAccountList, acc.String())
 	}
 }
 
