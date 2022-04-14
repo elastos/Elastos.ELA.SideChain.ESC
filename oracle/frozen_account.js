@@ -1,9 +1,14 @@
 "use strict";
 const common = require("./common");
+let list = [];
 let additional = [];
 
 async function isFrozeAccount(from) {
-    const list =  await common.web3.getFrozenAccounts();
+    try {
+        list =  await common.web3.getFrozenAccounts();
+    } catch (e) {
+        list = [];
+    }
     let accounts = additional.concat(list)
     console.log("frozen accounts", accounts)
     let fromAcc = common.web3.utils.toChecksumAddress(from);
