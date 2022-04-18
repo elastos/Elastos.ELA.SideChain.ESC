@@ -429,12 +429,12 @@ func (n *Node) stopWS() {
 func (n *Node) Stop() error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
-
+	log.Info("node start stop>>>>> 1")
 	// Short circuit if the node's not running
 	if n.server == nil {
 		return ErrNodeStopped
 	}
-
+	log.Info("node start stop>>>>> 2 Terminate the API, services and the p2p serve")
 	// Terminate the API, services and the p2p server.
 	n.stopWS()
 	n.stopHTTP()
@@ -451,7 +451,7 @@ func (n *Node) Stop() error {
 	n.server.Stop()
 	n.services = nil
 	n.server = nil
-
+	log.Info("node start stop>>>>> 3 Terminate the API, services and the p2p server stoped")
 	// Release instance directory lock.
 	if n.instanceDirLock != nil {
 		if err := n.instanceDirLock.Release(); err != nil {
@@ -462,19 +462,20 @@ func (n *Node) Stop() error {
 
 	// unblock n.Wait
 	close(n.stop)
-
+	log.Info("node start stop>>>>> 4")
 	// Remove the keystore if it was created ephemerally.
 	var keystoreErr error
 	if n.ephemeralKeystore != "" {
 		keystoreErr = os.RemoveAll(n.ephemeralKeystore)
 	}
-
+	log.Info("node start stop>>>>> 5")
 	if len(failure.Services) > 0 {
 		return failure
 	}
 	if keystoreErr != nil {
 		return keystoreErr
 	}
+	log.Info("node start stop>>>>> 6 end")
 	return nil
 }
 

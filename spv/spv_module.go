@@ -25,7 +25,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
-  
+
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"golang.org/x/net/context"
 
@@ -94,7 +94,7 @@ const (
 	ExtraElaHeight = 8
 
 	GASLimtScale = 10
-	blockDiff = 6
+	blockDiff    = 6
 
 	IsOnlyCRConsensus = true
 )
@@ -242,7 +242,7 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription,
 	}
 }
 
-func accessFailedRechargeTx()  {
+func accessFailedRechargeTx() {
 	failedMutex.Lock()
 	defer failedMutex.Unlock()
 	for height, txs := range failedTxList {
@@ -347,7 +347,7 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	}
 	fee, addr, output := FindOutputFeeAndaddressByTxHash(tx.Hash().String())
 	var blackAddr ethCommon.Address
-	if fee.Cmp(new(big.Int)) <= 0  && output.Cmp(new(big.Int)) <= 0 && addr == blackAddr {
+	if fee.Cmp(new(big.Int)) <= 0 && output.Cmp(new(big.Int)) <= 0 && addr == blackAddr {
 		savePayloadInfo(tx, l)
 	} else {
 		log.Info("all ready received this cross transaction")
@@ -1150,7 +1150,7 @@ func IsSmallCrossTxByData(data []byte) (string, string, []string, uint64) {
 }
 
 func VerifySmallCrossTx(rawTxID, rawTx string, signatures []string,
-					    blockHeight uint64) (bool, error) {
+	blockHeight uint64) (bool, error) {
 	if PbftEngine == nil {
 		return false, errors.New("PbftEngine is nil")
 	}
@@ -1225,10 +1225,12 @@ func GetClient() *ethclient.Client {
 }
 
 func Close() {
+	fmt.Println("spv close 111111")
 	spvdb := SpvService.GetDatabase()
 	if spvdb != nil {
+		fmt.Println("spv close 2222222")
 		spvdb.Close()
 		close(stopChn)
-		SpvService.Stop()
 	}
+	fmt.Println("spv close 33333333")
 }

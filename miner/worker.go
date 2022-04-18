@@ -875,6 +875,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
+	engine, isPbft := w.engine.(*pbft.Pbft)
+
+
 	tstart := time.Now()
 	parent := w.chain.CurrentBlock()
 
@@ -968,7 +971,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
 
-	_, isPbft := w.engine.(*pbft.Pbft)
 	if (!noempty && !isPbft) || (isPbft && len(pending) == 0) {
 		// Create an empty block based on temporary copied state for sealing in advance without waiting block
 		// execution finished.
@@ -982,6 +984,10 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Short circuit if there is no available pending transactions
 	if len(pending) == 0 {
 		w.updateSnapshot()
+		return
+	}
+	if isPbft && !engine.IsProducer() {
+		log.Info("self is not a producer, not commit new work")
 		return
 	}
 	// Split the pending transactions into locals and remotes
