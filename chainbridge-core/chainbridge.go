@@ -581,6 +581,29 @@ func escStateChanged(e *events.Event) {
 	MsgReleayer.SetESCState(state)
 }
 
+func onProducersChanged(e *events.Event) {
+	if !currentArbitersHasself() {
+		bridgelog.Info("self is not in contract arbiter list")
+		return
+	}
+	collection := arbiterManager.GetCollection()
+	arbiters := collection.List
+	total := collection.NextTotalCount
+	addresses := make([]common.Address, 0)
+	for _, arbiter := range arbiters {
+		escssaPUb, err := crypto.DecompressPubkey(arbiter)
+		if err != nil {
+			bridgelog.Error("arbiter publick key is error", "arbiter", common.Bytes2Hex(arbiter))
+			continue
+		}
+		addr := crypto.PubkeyToAddress(*escssaPUb)
+		addresses = append(addresses, addr)
+	}
+
+	err := MsgReleayer.SetManualArbiters(addresses, total)
+	bridgelog.Info("SetManualArbiters", "total", total, "error", err, "arbiterCount", len(addresses))
+}
+
 func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
 	if MsgReleayer != nil {
 		return nil
