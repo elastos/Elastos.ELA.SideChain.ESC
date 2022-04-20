@@ -8,6 +8,7 @@ package pbft
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -514,7 +515,8 @@ func (p *Pbft) recoverAbnormalState() bool {
 		p.recoverStarted = true
 		p.RequestAbnormalRecovering()
 		go func() {
-			<-time.NewTicker(time.Second * 2).C
+			delay := time.Duration(rand.Intn(3) + 1)
+			<-time.NewTicker(time.Second * delay).C
 			p.OnRecoverTimeout()
 			p.isRecoved = true
 			if p.chain.Engine() == p {
