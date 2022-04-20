@@ -161,13 +161,62 @@ func (w *EVMVoter) SetESCState(bridgeAddress string, state uint8) error {
 	if err != nil {
 		return err
 	}
-
+	gasLimit = gasLimit * 3
 	tx := evmtransaction.NewTransaction(n.Uint64(), bridge, big.NewInt(0), gasLimit, gasPrice, input)
 	hash, err := w.client.SignAndSendTransaction(context.TODO(), tx)
 	if err != nil {
 		return err
 	}
-	log.Info("SetESCState", "error", err, "hash", hash.String(), "gasLimit", gasLimit, "gasPrice", gasLimit)
+	log.Info("SetESCState", "error", err, "hash", hash.String(), "gasLimit", gasLimit, "gasPrice", gasPrice)
+	return err
+}
+
+func (w *EVMVoter) SetManualArbiter(bridgeAddress string, arbiters []common.Address, totalSigner int) error {
+	gasPrice, err := w.client.GasPrice()
+	if err != nil {
+		return err
+	}
+	a, err := chainbridge_abi.SetManualArbiterABI()
+	if err != nil {
+		return err
+	}
+
+	data := make([]byte, 0)
+	for _, arbiter := range arbiters {
+		data = append(data, arbiter.Bytes()...)
+	}
+	totalCount := big.NewInt(0).SetUint64(uint64(totalSigner))
+	totalBytes := common.LeftPadBytes(totalCount.Bytes(), 32)
+	data = append(data, totalBytes...)
+	khash := crypto.Keccak256(data)
+	signature := w.SignData(accounts.TextHash(khash))
+	input, err := a.Pack("setManualArbiter", arbiters, &totalCount, signature)
+	if err != nil {
+		return err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	from := w.client.GetClientAddress()
+	msg := ethereum.CallMsg{From: from, To: &bridge, Data: input, GasPrice: gasPrice}
+	gasLimit, err := w.client.EstimateGasLimit(context.TODO(), msg)
+	if err != nil {
+		return err
+	}
+	if gasLimit == 0 {
+		return errors.New("setManualArbiter EstimateGasLimit is 0")
+	}
+	w.client.LockNonce()
+	defer w.client.UnlockNonce()
+	n, err := w.client.GetNonce()
+	if err != nil {
+		return err
+	}
+	gasLimit = gasLimit * 4
+	tx := evmtransaction.NewTransaction(n.Uint64(), bridge, big.NewInt(0), gasLimit, gasPrice, input)
+	hash, err := w.client.SignAndSendTransaction(context.TODO(), tx)
+	if err != nil {
+		return err
+	}
+	log.Info("setManualArbiter", "error", err, "hash", hash.String(), "gasLimit", gasLimit, "gasPrice", gasPrice)
 	return err
 }
 

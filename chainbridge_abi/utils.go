@@ -47,3 +47,9 @@ func SetESCStateABI() (abi.ABI, error) {
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
+
+func SetManualArbiterABI() (abi.ABI, error) {
+	definition := "[{\"inputs\": [{\"internalType\": \"address[]\",\"name\": \"_addressList\",\"type\": \"address[]\"},{\"internalType\": \"uint256\",\"name\": \"_addressTotal\",\"type\": \"uint256\"},{\"internalType\": \"bytes\",\"name\": \"_sig\",\"type\": \"bytes\"}],\"name\": \"setManualArbiter\",\"outputs\": [],\"stateMutability\": \"nonpayable\",\"type\": \"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}

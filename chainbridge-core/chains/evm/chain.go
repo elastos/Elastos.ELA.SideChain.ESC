@@ -34,6 +34,7 @@ type ProposalVoter interface {
 	GetESCState(bridgeAddress string) (uint8, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 	SetESCState(bridgeAddress string, state uint8) error
+	SetManualArbiter(bridgeAddress string, arbiter []common.Address, totalSigner int) error
 }
 
 // EVMChain is struct that aggregates all data required for
@@ -109,6 +110,15 @@ func (c *EVMChain) SetESCState(state uint8) error {
 	err := c.writer.SetESCState(c.bridgeContractAddress, state)
 	if err != nil {
 		log.Error("SetESCState error", "error", err)
+		return err
+	}
+	return nil
+}
+
+func (c *EVMChain) SetManualArbiters(arbiters []common.Address, totalSigner int) error {
+	err := c.writer.SetManualArbiter(c.bridgeContractAddress, arbiters, totalSigner)
+	if err != nil {
+		log.Error("SetManualArbiters error", "error", err)
 		return err
 	}
 	return nil

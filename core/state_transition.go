@@ -359,7 +359,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 	if vmerr != nil {
-		log.Info("VM returned with error", "err", vmerr)
+		log.Info("VM returned with error", "err", vmerr, "ret", string(ret))
 		// The only possible consensus-error would be if there wasn't
 		// sufficient balance to make the transfer happen. The first
 		// balance transfer may never fail.
@@ -386,13 +386,16 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		if errmsg != nil {
 			log.Error("isSetArbiterListMethod error", "msg", errmsg)
 		}
-		if ok {
-			log.Info("is setAbiterList method")
+		if !ok {
+			ok, errmsg = st.isSetManualArbiterMethod()
+			if errmsg != nil {
+				log.Error("isSetManualArbiterMethod error", "msg", errmsg)
+			}
 		}
 		IsBridgeContract = ok
 	}
-	log.Info("evm.ChainConfig().BridgeContractAddr", "addr", evm.ChainConfig().BridgeContractAddr, "IsBridgeContract", IsBridgeContract, "vmerr", vmerr)
 	if IsBridgeContract && vmerr == nil {
+		log.Info("evm.ChainConfig().BridgeContractAddr", "addr", evm.ChainConfig().BridgeContractAddr, "IsBridgeContract", IsBridgeContract, "vmerr", vmerr)
 		st.refundBridgeGas()
 	} else {
 		st.refundGas()
@@ -448,7 +451,20 @@ func (st *StateTransition) isSetArbiterListMethod() (bool, error) {
 	}
 	method, exist := eabi.Methods["setArbiterList"]
 	if !exist {
-		return false, errors.New("executeProposal method not in abi json")
+		return false, errors.New("setArbiterList method not in abi json")
+	}
+
+	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
+}
+
+func (st *StateTransition) isSetManualArbiterMethod() (bool, error) {
+	eabi, err := chainbridge_abi.SetManualArbiterABI()
+	if err != nil {
+		return false, err
+	}
+	method, exist := eabi.Methods["setManualArbiter"]
+	if !exist {
+		return false, errors.New("setManualArbiter method not in abi json")
 	}
 
 	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
