@@ -22,6 +22,7 @@ type RelayedChain interface {
 	GetTotalCount() (uint64, error)
 	GetESCState() (uint8, error)
 	SetESCState(state uint8) error
+	SetManualArbiters(arbiter []common.Address, totalSigner int) error
 	GetBridgeContract() string
 	PollEvents(sysErr chan<- error, stop <-chan struct{}, eventsChan chan *SetArbiterListMsg)
 }
@@ -160,6 +161,16 @@ func (r *Relayer) SetESCState(state uint8) error {
 		}
 	}
 	return nil
+}
+
+func (r *Relayer) SetManualArbiters(arbiters []common.Address, totalCount int) error {
+	for _, c := range r.relayedChains {
+		if c.ChainID() != r.escChainID {
+			continue
+		}
+		return c.SetManualArbiters(arbiters, totalCount)
+	}
+	return errors.New(fmt.Sprintf("not found esc chain, chainID:%d", r.escChainID))
 }
 
 func (r *Relayer) Start() {
