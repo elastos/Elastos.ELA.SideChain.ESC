@@ -8,7 +8,6 @@ package pbft
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"sort"
 	"time"
 
@@ -137,6 +136,7 @@ func (p *Pbft) AnnounceDAddr() bool {
 
 func (p *Pbft) UpdateCurrentProducers(producers [][]byte, totalCount int, spvHeight uint64) {
 	p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, spvHeight)
+	p.dispatcher.GetConsensusView().SetWorkingHeight(spvHeight)
 }
 
 func (p *Pbft) GetCurrentProducers() [][]byte {
@@ -347,7 +347,7 @@ func (p *Pbft) OnRequestConsensus(id peer.PID, height uint64) {
 }
 
 func (p *Pbft) OnResponseConsensus(id peer.PID, status *dmsg.ConsensusStatus) {
-	log.Info("---------[OnResponseConsensus]------------")
+	log.Info("---------[OnResponseConsensus]------------", "pid", id.String())
 	if !p.IsProducer() {
 		return
 	}
@@ -515,8 +515,7 @@ func (p *Pbft) recoverAbnormalState() bool {
 		p.recoverStarted = true
 		p.RequestAbnormalRecovering()
 		go func() {
-			delay := time.Duration(rand.Intn(3) + 1)
-			<-time.NewTicker(time.Second * delay).C
+			<-time.NewTicker(time.Second * 2).C
 			p.OnRecoverTimeout()
 			p.isRecoved = true
 			if p.chain.Engine() == p {
