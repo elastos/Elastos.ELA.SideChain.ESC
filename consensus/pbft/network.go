@@ -136,6 +136,7 @@ func (p *Pbft) AnnounceDAddr() bool {
 
 func (p *Pbft) UpdateCurrentProducers(producers [][]byte, totalCount int, spvHeight uint64) {
 	p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, spvHeight)
+	p.dispatcher.GetConsensusView().SetWorkingHeight(spvHeight)
 }
 
 func (p *Pbft) GetCurrentProducers() [][]byte {
@@ -346,7 +347,7 @@ func (p *Pbft) OnRequestConsensus(id peer.PID, height uint64) {
 }
 
 func (p *Pbft) OnResponseConsensus(id peer.PID, status *dmsg.ConsensusStatus) {
-	log.Info("---------[OnResponseConsensus]------------")
+	log.Info("---------[OnResponseConsensus]------------", "pid", id.String())
 	if !p.IsProducer() {
 		return
 	}
