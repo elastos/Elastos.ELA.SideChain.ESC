@@ -173,12 +173,12 @@ func Start() bool {
 			if isRequireArbiter {
 				Stop("Re apply for arbiter list ")
 			}
-
 			atomic.StoreInt32(&canStart, 0)
 			arbiterManager.AddCurrentArbiter(keypair.PublicKeyBytes())
 			go collectToUpdateArbiters()
 		case dpos.ETUpdateProducers:
-			api.UpdateArbiters(escChainID)
+			//api.UpdateArbiters(escChainID)
+			onProducersChanged(e)
 		case dpos_msg.ETOnArbiter:
 			res, _ := hanleDArbiter(pbftEngine, e)
 			if res {
@@ -190,7 +190,7 @@ func Start() bool {
 					if IsFirstUpdateArbiter {
 						api.UpdateArbiters(escChainID)
 					} else {
-						requireArbitersSignature(pbftEngine)
+						//requireArbitersSignature(pbftEngine)
 					}
 					requireArbiters(pbftEngine, true)
 				}
@@ -309,14 +309,14 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 		return
 	}
 	msg.Signature = sign
+	engine.SendMsgToPeer(msg, m.PID)
 	if currentArbitersHasself() {
-		engine.SendMsgToPeer(msg, m.PID)
 		if !arbiterManager.HasSignature(selfProducer) {
 			bridgelog.Info("add self signature")
 			go events.Notify(dpos_msg.ETFeedBackArbiterSig, msg) //add self signature
 		}
 	} else {
-		bridgelog.Error("receivedReqArbiterSignature current aribter list not contain self")
+		bridgelog.Warn("receivedReqArbiterSignature current aribter list not contain self")
 	}
 }
 
@@ -462,7 +462,7 @@ func collectToUpdateArbiters() {
 				if IsFirstUpdateArbiter {
 					api.UpdateArbiters(escChainID)
 				} else {
-					requireArbitersSignature(pbftEngine)
+					//requireArbitersSignature(pbftEngine)
 				}
 				requireArbiters(pbftEngine, true)
 				return
@@ -574,8 +574,12 @@ func escStateChanged(e *events.Event) {
 	if !ok {
 		return
 	}
-	if state < spv.ChainState_POW || state > spv.ChainState_Error {
+	if state < spv.ChainState_DPOS || state > spv.ChainState_Error {
 		bridgelog.Error("error state value", "state", state)
+		return
+	}
+	if !currentArbitersHasself() {
+		bridgelog.Error("self is not in current arbiter list , can't update esc state")
 		return
 	}
 	MsgReleayer.SetESCState(state)
