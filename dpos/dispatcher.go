@@ -359,7 +359,7 @@ func (d *Dispatcher) RecoverAbnormal(status *dmsg.ConsensusStatus, medianTime in
 	if status == nil {
 		return
 	}
-	//status.ViewStartTime = dtime.Int64ToTime(medianTime)
+	status.ViewStartTime = dtime.Int64ToTime(medianTime)
 	if medianTime != 0 {
 		offset, offsetTime := d.consensusView.calculateOffsetTime(status.ViewStartTime, d.timeSource.AdjustedTime())
 		status.ViewOffset += offset
