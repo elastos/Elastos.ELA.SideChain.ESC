@@ -136,7 +136,6 @@ func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]
 	if err != nil {
 		return
 	}
-	fmt.Println("arbiters get", "crcCount", crcCount)
 	for i := uint8(0); i < crcCount; i++ {
 		cr, err := common.ReadVarBytes(r, 33, "public key")
 		if err != nil {
@@ -149,7 +148,6 @@ func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]
 	if err != nil {
 		return
 	}
-	fmt.Println("arbiters get", "normalCount", normalCount)
 	for i := uint8(0); i < normalCount; i++ {
 		producer, err := common.ReadVarBytes(r, 33, "public key")
 		if err != nil {
