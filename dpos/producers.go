@@ -7,7 +7,6 @@ package dpos
 
 import (
 	"bytes"
-	"fmt"
 	"sort"
 	"sync"
 
@@ -91,19 +90,16 @@ func (p *Producers) GetNeedConnectArbiters() []peer.PID {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	pids := make([]peer.PID, 0)
-	fmt.Println("GetNeedConnectArbiters", "total", p.totalProducers)
 	for _, producer := range p.producers {
 		var pid peer.PID
 		copy(pid[:], producer)
 		pids = append(pids, pid)
-		fmt.Println("now producers", pid.String())
 	}
 
 	for _, producer := range p.nextProducers {
 		var pid peer.PID
 		copy(pid[:], producer[:])
 		pids = append(pids, pid)
-		fmt.Println(" nextProducers", pid.String())
 	}
 	return pids
 }
