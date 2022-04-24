@@ -177,8 +177,8 @@ func Start() bool {
 			arbiterManager.AddCurrentArbiter(keypair.PublicKeyBytes())
 			go collectToUpdateArbiters()
 		case dpos.ETUpdateProducers:
-			//api.UpdateArbiters(escChainID)
-			onProducersChanged(e)
+			api.UpdateArbiters(escChainID)
+			//onProducersChanged(e)
 		case dpos_msg.ETOnArbiter:
 			res, _ := hanleDArbiter(pbftEngine, e)
 			if res {
@@ -190,7 +190,7 @@ func Start() bool {
 					if IsFirstUpdateArbiter {
 						api.UpdateArbiters(escChainID)
 					} else {
-						//requireArbitersSignature(pbftEngine)
+						requireArbitersSignature(pbftEngine)
 					}
 					requireArbiters(pbftEngine, true)
 				}
@@ -462,7 +462,7 @@ func collectToUpdateArbiters() {
 				if IsFirstUpdateArbiter {
 					api.UpdateArbiters(escChainID)
 				} else {
-					//requireArbitersSignature(pbftEngine)
+					requireArbitersSignature(pbftEngine)
 				}
 				requireArbiters(pbftEngine, true)
 				return
