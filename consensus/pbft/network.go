@@ -136,7 +136,7 @@ func (p *Pbft) AnnounceDAddr() bool {
 
 func (p *Pbft) UpdateCurrentProducers(producers [][]byte, totalCount int, spvHeight uint64) {
 	p.dispatcher.GetConsensusView().UpdateProducers(producers, totalCount, spvHeight)
-	p.dispatcher.GetConsensusView().SetWorkingHeight(spvHeight)
+	p.dispatcher.GetConsensusView().SetWorkingHeight(p.GetBlockChain().Config().GetPbftBlock())
 }
 
 func (p *Pbft) GetCurrentProducers() [][]byte {
