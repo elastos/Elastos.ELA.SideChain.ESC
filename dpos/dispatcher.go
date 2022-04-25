@@ -320,10 +320,14 @@ func (d *Dispatcher) GetConsensusView() *ConsensusView {
 }
 
 func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHeight uint64) *dmsg.ConsensusStatus {
-	Info("[HelpToRecoverAbnormal] peer id:", common.BytesToHexString(id[:]))
+	Info("[HelpToRecoverAbnormal]  peer id:", common.BytesToHexString(id[:]))
 
 	if height > currentHeight {
 		Warn("Requesting height greater than current processing height")
+		return nil
+	}
+	if len(d.consensusView.GetProducers()) <= 0 {
+		Warn("Requesting chain is pow state")
 		return nil
 	}
 	status := &dmsg.ConsensusStatus{}
@@ -396,7 +400,8 @@ func (d *Dispatcher) RecoverFromConsensusStatus(status *dmsg.ConsensusStatus) er
 	d.consensusView.ResetView(uint64(status.ViewStartTime.Unix()))
 	d.consensusView.isDposOnDuty = d.consensusView.ProducerIsOnDuty(d.consensusView.publicKey)
 	d.consensusView.SetWorkingHeight(status.WorkingHeight)
-	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime(), "WorkingHeight", status.WorkingHeight)
+	d.consensusView.UpdateDutyIndex(d.finishedHeight)
+	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime(), "WorkingHeight", status.WorkingHeight, "dutyIndex", d.GetConsensusView().GetDutyIndex())
 	d.consensusView.DumpInfo()
 	Info("\n\n\n\n \n\n\n\n")
 	return nil
