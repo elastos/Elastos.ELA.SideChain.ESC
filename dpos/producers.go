@@ -134,6 +134,17 @@ func (p *Producers) IsProducers(signer []byte) bool {
 	return false
 }
 
+func (p *Producers) ProducerIndex(signer []byte) int {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	for index, producer := range p.producers {
+		if bytes.Equal(producer, signer) {
+			return index
+		}
+	}
+	return -1
+}
+
 func (p *Producers) GetMajorityCount() int {
 	p.mtx.Lock()
 	minSignCount := int(float64(p.totalProducers) * 2 / 3)

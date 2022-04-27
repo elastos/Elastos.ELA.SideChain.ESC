@@ -33,6 +33,12 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 
 	bridgelog.Info("UpdateArbiters ", "len", len(list), "total", total,
 		"producersCount", producersCount, "sigCount", sigCount)
+
+	if !currentArbitersHasself() && !IsFirstUpdateArbiter {
+		bridgelog.Info("self is not in contract arbiter list")
+		return 0
+	}
+
 	if a.HasProducerMajorityCount(len(list), total) {
 		if a.HasProducerMajorityCount(sigCount, producersCount) || IsFirstUpdateArbiter {
 			sigs := make([][]byte, 0)

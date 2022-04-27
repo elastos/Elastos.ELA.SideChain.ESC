@@ -177,7 +177,15 @@ func Start() bool {
 			arbiterManager.AddCurrentArbiter(keypair.PublicKeyBytes())
 			go collectToUpdateArbiters()
 		case dpos.ETUpdateProducers:
-			api.UpdateArbiters(escChainID)
+			if selfDutyIndex, ok := e.Data.(int); ok {
+				go func() {
+					if selfDutyIndex > 0 {
+						selfDutyIndex = selfDutyIndex + 1
+					}
+					time.Sleep(time.Duration(selfDutyIndex*8) * time.Second)
+					api.UpdateArbiters(escChainID)
+				}()
+			}
 			//onProducersChanged(e)
 		case dpos_msg.ETOnArbiter:
 			res, _ := hanleDArbiter(pbftEngine, e)
