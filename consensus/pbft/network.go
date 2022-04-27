@@ -289,6 +289,13 @@ func (p *Pbft) OnInsertBlock(block *types.Block) bool {
 	return false
 }
 
+func (p *Pbft) GetSelfDutyIndex() int {
+	if p.account == nil {
+		return -1
+	}
+	return p.dispatcher.GetConsensusView().ProducerIndex(p.account.PublicKeyBytes())
+}
+
 func (p *Pbft) OnInv(id peer.PID, blockHash elacom.Uint256) {
 	if !p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
 		return
