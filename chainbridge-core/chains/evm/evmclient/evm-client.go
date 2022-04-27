@@ -27,6 +27,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/ethapi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 )
 
@@ -120,6 +121,14 @@ func (c *EVMClient) LatestBlock() (*big.Int, error) {
 		return nil, err
 	}
 	return head.Number, err
+}
+
+// LatestBlock returns the latest block from the current chain
+func (c *EVMClient) PendingTransaction() ([]ethapi.RPCTransaction, error) {
+	var pendingTx []ethapi.RPCTransaction
+
+	err := c.rpClient.CallContext(context.Background(), &pendingTx, "eth_pendingTransactions")
+	return pendingTx, err
 }
 
 func (c *EVMClient) CurrentBlock() (*types.Block, error) {

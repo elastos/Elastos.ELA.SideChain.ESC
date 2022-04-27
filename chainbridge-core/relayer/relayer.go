@@ -4,7 +4,6 @@
 package relayer
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -64,31 +63,24 @@ func (r *Relayer) UpdateArbiters(arbiters [][]byte, totalCount int,
 		addr := crypto.PubkeyToAddress(*escssaPUb)
 		address = append(address, addr)
 	}
-
+	errorCount := 0
+	var err error
 	for _, c := range r.relayedChains {
 		if c.ChainID() != chainID && chainID != 0 {
 			continue
 		}
-		isSame := false
-		nowList := c.GetArbiters()
-		if len(address) == len(nowList) {
-			isSame = true
-			for i, arbiter := range nowList {
-				if !bytes.Equal(arbiter.Bytes(), address[i].Bytes()) {
-					isSame = false
-					break
-				}
-			}
-		}
-		if !isSame {
-			err := c.WriteArbiters(address, signatures, totalCount)
-			if err != nil {
-				log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
-			}
-		} else {
-			bridgelog.Info("arbiter list is same current collection arbiter list")
+		err = c.WriteArbiters(address, signatures, totalCount)
+		if err != nil {
+			errorCount++
+			log.Error("write arbiter error", "error", err, "chainID", c.ChainID())
 		}
 	}
+	if len(r.relayedChains) > 0 {
+		if errorCount >= len(r.relayedChains)-1 {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -212,9 +204,7 @@ func (r *Relayer) route(m *SetArbiterListMsg) {
 		bridgelog.Error("route msg GetArbiters size is 0")
 		return
 	}
-	bridgelog.Info("route signatures", "", signatures)
 	bridgelog.Info("route totalCount", "", totalCount)
-	bridgelog.Info("route list", "", list)
 	sigs := make([][]byte, len(signatures))
 	for i, sig := range signatures {
 		sigs[i] = make([]byte, crypto.SignatureLength)
