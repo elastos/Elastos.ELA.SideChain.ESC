@@ -423,12 +423,13 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 	}
 	mode := spv.GetCurrentConsensusMode()
 	spvHeight := currentBlock.Nonce()
+	selfDutyIndex := engine.GetSelfDutyIndex()
 	if spvHeight <= 0 && mode == _interface.DPOS && len(engine.GetCurrentProducers()) > 0 {
 		res := engine.OnInsertBlock(currentBlock)
 		blocksigner.SelfIsProducer = engine.IsProducer()
 		log.Info("blocksigner.SelfIsProducer", "", blocksigner.SelfIsProducer)
 		if res {
-			eevents.Notify(dpos.ETUpdateProducers, nil)
+			eevents.Notify(dpos.ETUpdateProducers, selfDutyIndex)
 		}
 		return
 	}
@@ -454,7 +455,7 @@ func InitCurrentProducers(engine *pbft.Pbft, config *params.ChainConfig, current
 		if engine.AnnounceDAddr() {
 			if engine.IsProducer() {
 				blocksigner.SelfIsProducer = true
-				eevents.Notify(dpos.ETUpdateProducers, nil)
+				eevents.Notify(dpos.ETUpdateProducers, selfDutyIndex)
 				engine.Recover()
 			}
 		}
@@ -493,10 +494,11 @@ func SubscriptEvent(eth *Ethereum, engine consensus.Engine) {
 				if eth.blockchain.Config().IsPBFTFork(b.Block.Number()) {
 					pbftEngine := engine.(*pbft.Pbft)
 					pbftEngine.AccessFutureBlock(b.Block)
+					selfDutyIndex := pbftEngine.GetSelfDutyIndex()
 					res := pbftEngine.OnInsertBlock(b.Block)
 					blocksigner.SelfIsProducer = pbftEngine.IsProducer()
 					if res {
-						eevents.Notify(dpos.ETUpdateProducers, nil)
+						eevents.Notify(dpos.ETUpdateProducers, selfDutyIndex)
 					}
 				}
 			case <-initProducersSub.Chan():
