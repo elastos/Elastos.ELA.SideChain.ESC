@@ -73,6 +73,7 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, sig
 	}
 	gasPrice, err := w.client.GasPrice()
 	if err != nil {
+		log.Error("SetArbiterList GasPrice", "error", err)
 		return err
 	}
 	count := big.NewInt(int64(totalCount))
@@ -85,6 +86,7 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, sig
 	msg := ethereum.CallMsg{From: from, To: &bridge, Data: input, GasPrice: gasPrice}
 	gasLimit, err := w.client.EstimateGasLimit(context.TODO(), msg)
 	if err != nil {
+		log.Error("SetArbiterList EstimateGasLimit", "error", err)
 		return err
 	}
 	if gasLimit == 0 {
@@ -94,12 +96,14 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, sig
 	defer w.client.UnlockNonce()
 	n, err := w.client.GetNonce()
 	if err != nil {
+		log.Error("SetArbiterList GetNonce", "error", err)
 		return err
 	}
 
 	tx := evmtransaction.NewTransaction(n.Uint64(), bridge, big.NewInt(0), gasLimit, gasPrice, input)
 	hash, err := w.client.SignAndSendTransaction(context.TODO(), tx)
 	if err != nil {
+		log.Error("SetArbiterList SignAndSendTransaction", "error", err)
 		return err
 	}
 	log.Info("SetArbiterList", "error", err, "hash", hash.String())
