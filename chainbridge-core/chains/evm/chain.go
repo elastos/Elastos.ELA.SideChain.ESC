@@ -4,6 +4,7 @@
 package evm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
@@ -68,7 +69,21 @@ func (c *EVMChain) WriteArbiters(arbiters []common.Address, signatures [][]byte,
 		return errors.New(fmt.Sprintf("%d is not deploy chainbridge contract", c.chainID))
 	}
 
-	return c.writer.SetArbiterList(arbiters, totalCount, signatures, c.bridgeContractAddress)
+	isSame := false
+	nowArbiters := c.GetArbiters()
+	if len(arbiters) == len(nowArbiters) {
+		isSame = true
+		for i, arbiter := range nowArbiters {
+			if !bytes.Equal(arbiter.Bytes(), arbiters[i].Bytes()) {
+				isSame = false
+				break
+			}
+		}
+	}
+	if !isSame {
+		return c.writer.SetArbiterList(arbiters, totalCount, signatures, c.bridgeContractAddress)
+	}
+	return errors.New("is same arbiters on contract")
 }
 
 func (c *EVMChain) GetArbiters() []common.Address {

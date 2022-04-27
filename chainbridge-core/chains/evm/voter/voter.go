@@ -4,12 +4,14 @@
 package voter
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/chains/evm/evmtransaction"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
@@ -19,6 +21,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/ethapi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
@@ -36,6 +39,7 @@ type ChainClient interface {
 	Engine() engine.ESCEngine
 	GetClientAddress() common.Address
 	IsContractAddress(address string) bool
+	PendingTransaction() ([]ethapi.RPCTransaction, error)
 }
 
 type EVMVoter struct {
@@ -81,6 +85,14 @@ func (w *EVMVoter) SetArbiterList(arbiters []common.Address, totalCount int, sig
 	if err != nil {
 		return err
 	}
+	pendingTx, _ := w.client.PendingTransaction()
+	for _, tx := range pendingTx {
+		if tx.To.String() == bridgeAddress && bytes.Compare(tx.Input, input) == 0 {
+			bridgelog.Info("is pending tx")
+			return nil
+		}
+	}
+
 	bridge := common.HexToAddress(bridgeAddress)
 	from := w.client.GetClientAddress()
 	msg := ethereum.CallMsg{From: from, To: &bridge, Data: input, GasPrice: gasPrice}
