@@ -92,6 +92,13 @@ func (v *ConsensusView) ChangeCurrentProducers(changeHeight uint64, spvHeight ui
 	v.producers.ChangeCurrentProducers(changeHeight, spvHeight)
 }
 
+func (v *ConsensusView) ProducerIndex(signer []byte) int {
+	if len(signer) <= 0 {
+		return -1
+	}
+	return v.producers.ProducerIndex(signer)
+}
+
 func (v *ConsensusView) SetWorkingHeight(workingHeight uint64) {
 	v.producers.SetWorkingHeight(workingHeight)
 }
