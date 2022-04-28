@@ -130,7 +130,7 @@ const (
 	Bn256PairingPerPointGasByzantium uint64 = 80000  // Byzantium per-point price for an elliptic curve pairing check
 	Bn256PairingPerPointGasIstanbul  uint64 = 34000  // Per-point price for an elliptic curve pairing check
 
-	ArbitersBaseGas uint64 = 1000 // Gas needed for getting DPos arbiters
+	ArbitersBaseGas   uint64 = 0    // Gas needed for getting DPos arbiters
 	P256VerifyBaseGas uint64 = 1000 // Gas needed for verifying P256 signature
 )
 
