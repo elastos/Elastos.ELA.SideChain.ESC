@@ -53,3 +53,9 @@ func SetManualArbiterABI() (abi.ABI, error) {
 	a, err := abi.JSON(strings.NewReader(definition))
 	return a, err
 }
+
+func GetHashSaltABI() (abi.ABI, error) {
+	definition := "[{\"inputs\": [],\"name\": \"GetHashSalt\",\"outputs\": [{\"internalType\": \"uint256\",\"name\": \"\",\"type\": \"uint256\"}],\"stateMutability\": \"view\",\"type\": \"function\"}]"
+	a, err := abi.JSON(strings.NewReader(definition))
+	return a, err
+}

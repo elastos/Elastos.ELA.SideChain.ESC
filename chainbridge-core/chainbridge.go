@@ -266,7 +266,12 @@ func handleFeedBackArbitersSig(engine *pbft.Pbft, e *events.Event) {
 		bridgelog.Warn("handleFeedBackArbitersSig failed , is not producer", common.Bytes2Hex(producer))
 		return
 	}
-	hash, err := arbiterManager.HashArbiterList()
+	salt, err := MsgReleayer.GetHashSalt(escChainID)
+	if err != nil {
+		bridgelog.Warn("GetHashSalt failed", "error")
+		return
+	}
+	hash, err := arbiterManager.HashArbiterList(salt)
 	if err != nil {
 		bridgelog.Warn("HashArbiterList failed", "error", err)
 		return
@@ -307,7 +312,14 @@ func receivedReqArbiterSignature(engine *pbft.Pbft, e *events.Event) {
 
 	kp := engine.GetBridgeArbiters().(*secp256k1.Keypair)
 	privateKey := kp.PrivateKey()
-	hash, err := arbiterManager.HashArbiterList()
+
+	salt, err := MsgReleayer.GetHashSalt(escChainID)
+	if err != nil {
+		bridgelog.Warn("GetHashSalt failed", "error")
+		return
+	}
+
+	hash, err := arbiterManager.HashArbiterList(salt)
 	if err != nil {
 		bridgelog.Error("receivedReqArbiterSignature HashArbiterList failed", "error", err)
 	}
