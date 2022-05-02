@@ -33,6 +33,7 @@ type ProposalVoter interface {
 	GetSignatures(bridgeAddress string) ([][crypto.SignatureLength]byte, error)
 	GetTotalCount(bridgeAddress string) (uint64, error)
 	GetESCState(bridgeAddress string) (uint8, error)
+	GetHashSalt(bridgeAddress string) (*big.Int, error)
 	IsDeployedBridgeContract(bridgeAddress string) bool
 	SetESCState(bridgeAddress string, state uint8) error
 	SetManualArbiter(bridgeAddress string, arbiter []common.Address, totalSigner int) error
@@ -119,6 +120,10 @@ func (c *EVMChain) GetESCState() (uint8, error) {
 		return 0, err
 	}
 	return state, nil
+}
+
+func (c *EVMChain) GetHashSalt() (*big.Int, error) {
+	return c.writer.GetHashSalt(c.bridgeContractAddress)
 }
 
 func (c *EVMChain) SetESCState(state uint8) error {

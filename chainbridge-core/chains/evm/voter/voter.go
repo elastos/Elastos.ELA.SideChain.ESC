@@ -298,6 +298,24 @@ func (w *EVMVoter) GetESCState(bridgeAddress string) (uint8, error) {
 	return uint8(out0.Uint64()), err
 }
 
+func (w *EVMVoter) GetHashSalt(bridgeAddress string) (*big.Int, error) {
+	a, err := chainbridge_abi.GetHashSaltABI()
+	if err != nil {
+		return big.NewInt(0), err
+	}
+	input, err := a.Pack("GetHashSalt")
+	if err != nil {
+		return big.NewInt(0), err
+	}
+	bridge := common.HexToAddress(bridgeAddress)
+	msg := ethereum.CallMsg{From: common.Address{}, To: &bridge, Data: input}
+	out, err := w.client.CallContract(context.TODO(), toCallArg(msg), nil)
+	log.Info("GetHashSalt", "error", err, "out", out)
+
+	out0 := big.NewInt(0).SetBytes(out)
+	return out0, err
+}
+
 func (w *EVMVoter) IsDeployedBridgeContract(bridgeAddress string) bool {
 	return w.client.IsContractAddress(bridgeAddress)
 }
