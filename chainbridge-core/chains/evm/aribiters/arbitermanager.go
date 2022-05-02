@@ -140,7 +140,7 @@ func (a *ArbiterManager) Clear() {
 	a.consensusArbiters.List = make([][]byte, 0)
 }
 
-func (a *ArbiterManager) HashArbiterList() (common.Hash, error) {
+func (a *ArbiterManager) HashArbiterList(hashSalt *big.Int) (common.Hash, error) {
 	arbiters := a.GetArbiterList()
 	data := make([]byte, 0)
 	for _, arbiter := range arbiters {
@@ -154,6 +154,9 @@ func (a *ArbiterManager) HashArbiterList() (common.Hash, error) {
 	total := new(big.Int).SetUint64(uint64(a.nextTotalCount))
 	totalBytes := common.LeftPadBytes(total.Bytes(), 32)
 	data = append(data, totalBytes...)
+
+	saltBytes := common.LeftPadBytes(hashSalt.Bytes(), 32)
+	data = append(data, saltBytes...)
 	return crypto.Keccak256Hash(data), nil
 }
 

@@ -6,6 +6,7 @@ package relayer
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
@@ -21,6 +22,7 @@ type RelayedChain interface {
 	GetTotalCount() (uint64, error)
 	GetESCState() (uint8, error)
 	SetESCState(state uint8) error
+	GetHashSalt() (*big.Int, error)
 	SetManualArbiters(arbiter []common.Address, totalSigner int) error
 	GetBridgeContract() string
 	PollEvents(sysErr chan<- error, stop <-chan struct{}, eventsChan chan *SetArbiterListMsg)
@@ -153,6 +155,16 @@ func (r *Relayer) SetESCState(state uint8) error {
 		}
 	}
 	return nil
+}
+
+func (r *Relayer) GetHashSalt(chainID uint64) (*big.Int, error) {
+	for _, c := range r.relayedChains {
+		if c.ChainID() != chainID {
+			continue
+		}
+		return c.GetHashSalt()
+	}
+	return big.NewInt(0), errors.New("GetHashSalt error chainId")
 }
 
 func (r *Relayer) SetManualArbiters(arbiters []common.Address, totalCount int) error {
