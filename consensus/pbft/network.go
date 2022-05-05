@@ -616,9 +616,10 @@ func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
 
 	blocks := types.Blocks{}
 	blocks = append(blocks, block)
-	log.Info("InsertChain", "height", block.GetHeight())
-	if block.NumberU64()-p.chain.CurrentBlock().NumberU64() > 1 {
-		log.Info("is bigger than local number")
+	log.Info("InsertChain", "height", block.GetHeight(), "block.NumberU64()-p.chain.CurrentBlock().NumberU64() ", block.Number().Cmp(p.chain.CurrentBlock().Number()), "currentBlock", p.chain.CurrentBlock().NumberU64())
+
+	if block.Number().Cmp(p.chain.CurrentBlock().Number()) >= 0 && block.NumberU64()-p.chain.CurrentBlock().NumberU64() > 1 {
+		log.Warn("is bigger than local number")
 		return
 	}
 	if _, err := p.chain.InsertChain(blocks); err != nil {
