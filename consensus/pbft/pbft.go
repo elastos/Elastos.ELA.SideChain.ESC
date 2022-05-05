@@ -90,6 +90,8 @@ var (
 	errChainForkBlock = errors.New("chain fork block")
 
 	errDoubleSignBlock = errors.New("double sign block")
+
+	errDropBlock = errors.New("is drop block")
 )
 
 // Pbft is a consensus engine based on Byzantine fault-tolerant algorithm
@@ -372,7 +374,7 @@ func (p *Pbft) verifyHeader(chain consensus.ChainReader, header *types.Header, p
 	}
 	log.Info("verify header HasConfirmed", "seal:", seal, "height", header.Number)
 	if !seal && p.dispatcher.GetFinishedHeight() == number {
-		log.Info("verify header already confirm block")
+		log.Warn("verify header already confirm block")
 		return ErrAlreadyConfirmedBlock
 	}
 
@@ -431,10 +433,13 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 			return nil
 		}
 
-		log.Info("verify seal chain fork", "oldViewOffset", oldConfirm.Proposal.ViewOffset, "newViewOffset", confirm.Proposal.ViewOffset, "height", number)
 		//if confirm.Proposal.ViewOffset < oldConfirm.Proposal.ViewOffset {
 		//	return errChainForkBlock
 		//}
+		if number < chain.CurrentHeader().Number.Uint64() {
+			log.Warn("verify seal chain fork", "oldViewOffset", oldConfirm.Proposal.ViewOffset, "newViewOffset", confirm.Proposal.ViewOffset, "height", number)
+			return errDropBlock
+		}
 		if confirm.Proposal.ViewOffset == oldConfirm.Proposal.ViewOffset && oldHeader.Hash() != header.Hash() {
 			return errDoubleSignBlock
 		}
