@@ -647,6 +647,10 @@ func initChainBridge(ctx *cli.Context, stack *node.Node, blockChain *core.BlockC
 		return
 	}
 	passwords := utils.MakePasswordList(ctx)
+	if len(passwords) <= 0 {
+		log.Info("is common sync node, don't need init chainbridge no password")
+		return
+	}
 	engine := blockChain.GetDposEngine().(*pbft.Pbft)
 	chainbridge_core.Init(engine, accPath, passwords[0])
 }
