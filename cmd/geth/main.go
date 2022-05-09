@@ -643,16 +643,17 @@ func initChainBridge(ctx *cli.Context, stack *node.Node, blockChain *core.BlockC
 		accPath = wallets[0].URL().Path
 	}
 	if accPath == "" {
-		log.Info("is common sync node, don't need init chainbridge")
-		return
+		log.Info("is common sync node")
 	}
+	password := ""
 	passwords := utils.MakePasswordList(ctx)
-	if len(passwords) <= 0 {
-		log.Info("is common sync node, don't need init chainbridge no password")
-		return
+	if len(passwords) > 0 {
+		password = passwords[0]
+	} else {
+		log.Info("is common sync node, no password")
 	}
 	engine := blockChain.GetDposEngine().(*pbft.Pbft)
-	chainbridge_core.Init(engine, accPath, passwords[0])
+	chainbridge_core.Init(engine, accPath, password)
 }
 
 func startLayer2(blockChain *core.BlockChain) {
