@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto/secp256k1"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 )
 
 // The Constant "keys". These are the name that the keys are based on. This can be expanded, but
@@ -33,24 +34,28 @@ type TestKeyRingHolder struct {
 
 // Init function to create a keyRing that can be accessed anywhere without having to recreate the data
 func init() {
+	ring, err := makeEthRing()
+	if err != nil {
+		log.Error("make ring error", "error", err)
+	}
 	TestKeyRing = &TestKeyRingHolder{
-		EthereumKeys: makeEthRing(),
+		EthereumKeys: ring,
 	}
 	TestKeyRing.SubstrateKeys = TestKeyRing.EthereumKeys
 }
 
-func makeEthRing() map[string]*secp256k1.Keypair {
+func makeEthRing() (map[string]*secp256k1.Keypair, error) {
 	ring := map[string]*secp256k1.Keypair{}
 	for _, key := range Keys {
 		bz := padWithZeros([]byte(key), secp256k1.PrivateKeyLength)
 		kp, err := secp256k1.NewKeypairFromPrivateKey(bz)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		ring[key] = kp
 	}
 
-	return ring
+	return ring, nil
 }
 
 // padWithZeros adds on extra 0 bytes to make a byte array of a specified length
