@@ -164,7 +164,10 @@ func Start() bool {
 			if IsFirstUpdateArbiter || nexturnHasSelf(self) || len(nextTurnArbiters) == 0 {
 				var pid peer.PID
 				copy(pid[:], self)
-				arbiterManager.AddArbiter(pid, pbftEngine.GetBridgeArbiters().PublicKeyBytes()) //add self
+				err := arbiterManager.AddArbiter(pid, pbftEngine.GetBridgeArbiters().PublicKeyBytes()) //add self
+				if err != nil {
+					bridgelog.Error("add self public key failed", "error", err)
+				}
 			} else {
 				bridgelog.Info("nexturn self is not a producer")
 			}
@@ -174,7 +177,10 @@ func Start() bool {
 				Stop("Re apply for arbiter list ")
 			}
 			atomic.StoreInt32(&canStart, 0)
-			arbiterManager.AddCurrentArbiter(keypair.PublicKeyBytes())
+			err := arbiterManager.AddCurrentArbiter(keypair.PublicKeyBytes())
+			if err != nil {
+				bridgelog.Info("AddCurrentArbiter failed", "error", err)
+			}
 			go collectToUpdateArbiters()
 		case dpos.ETUpdateProducers:
 			if selfDutyIndex, ok := e.Data.(int); ok {
@@ -183,12 +189,15 @@ func Start() bool {
 						selfDutyIndex = selfDutyIndex + 1
 					}
 					time.Sleep(time.Duration(selfDutyIndex*8) * time.Second)
-					api.UpdateArbiters(escChainID)
+					err := api.UpdateArbiters(escChainID)
+					if err != nil {
+						log.Error("ETUpdateProducers failed", "error", err)
+					}
 				}()
 			}
 			//onProducersChanged(e)
 		case dpos_msg.ETOnArbiter:
-			res, _ := hanleDArbiter(pbftEngine, e)
+			res, err := hanleDArbiter(pbftEngine, e)
 			if res {
 				list := arbiterManager.GetArbiterList()
 				consensusArbiterCount := len(arbiterManager.GetConsensusArbiters().List)
@@ -196,12 +205,17 @@ func Start() bool {
 				if len(list) == requireArbitersCount && consensusArbiterCount <= 1 {
 					arbiterManager.SaveToCollection()
 					if IsFirstUpdateArbiter {
-						api.UpdateArbiters(escChainID)
+						err := api.UpdateArbiters(escChainID)
+						if err != nil {
+							bridgelog.Warn("UpdateArbiters failed", "error", err)
+						}
 					} else {
 						requireArbitersSignature(pbftEngine)
 					}
 					requireArbiters(pbftEngine, true)
 				}
+			} else if err != nil {
+				bridgelog.Error("hanleDArbiter error", "msg", err)
 			}
 		case dpos_msg.ETRequireArbiter:
 			receivedRequireArbiter(pbftEngine, e)
@@ -406,7 +420,10 @@ func recoveryArbiter() {
 	if isNeedRecoveryArbiters == false {
 		return
 	}
-	api.UpdateArbiters(escChainID)
+	err := api.UpdateArbiters(escChainID)
+	if err != nil {
+		bridgelog.Error("recoveryArbiter failed", "error", err)
+	}
 	isNeedRecoveryArbiters = false
 }
 
@@ -423,7 +440,6 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 	m, ok := e.Data.(*dpos_msg.DArbiter)
 	if !ok {
 		err := errors.New("hanleDArbiter error data")
-		log.Error(err.Error())
 		return false, err
 	}
 	selfSigner := engine.GetProducer()
@@ -434,7 +450,6 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 	}
 	pubKey, err := elaCrypto.DecodePoint(m.PID[:])
 	if err != nil {
-		log.Error("hanleDArbiter invalid public key")
 		return false, errors.New("hanleDArbiter invalid public key")
 	}
 	if !engine.IsProducerByAccount(m.PID[:]) && !nexturnHasSelf(m.PID[:]) {
@@ -443,12 +458,10 @@ func hanleDArbiter(engine *pbft.Pbft, e *events.Event) (bool, error) {
 	}
 	err = elaCrypto.Verify(*pubKey, m.Data(), m.Signature)
 	if err != nil {
-		log.Error("hanleDArbiter invalid signature", "pid", common.Bytes2Hex(m.PID[:]))
 		return false, err
 	}
 	signerPublicKey, err := engine.DecryptArbiter(m.Cipher)
 	if err != nil {
-		log.Error("hanleDArbiter decrypt address cipher error", "error:", err, "self", common.Bytes2Hex(selfSigner), "cipher", common.Bytes2Hex(m.Cipher))
 		return false, err
 	}
 	if m.IsCurrent {
@@ -480,7 +493,10 @@ func collectToUpdateArbiters() {
 				bridgelog.Info("update arbiter collect completed, to collected current arbiters")
 				arbiterManager.SaveToCollection()
 				if IsFirstUpdateArbiter {
-					api.UpdateArbiters(escChainID)
+					err := api.UpdateArbiters(escChainID)
+					if err != nil {
+						bridgelog.Error("init arbiter failed", "error", err)
+					}
 				} else {
 					requireArbitersSignature(pbftEngine)
 				}
@@ -496,7 +512,7 @@ func collectToUpdateArbiters() {
 	}
 }
 
-func requireArbiters(engine *pbft.Pbft, isCurrent bool) bool {
+func requireArbiters(engine *pbft.Pbft, isCurrent bool) {
 	var peers [][]byte
 	if IsFirstUpdateArbiter || len(nextTurnArbiters) == 0 || isCurrent {
 		peers = engine.GetCurrentProducers()
@@ -509,7 +525,7 @@ func requireArbiters(engine *pbft.Pbft, isCurrent bool) bool {
 	if api.HasProducerMajorityCount(count, len(peers)) {
 		if count < len(peers) && retryCount < MAX_RETRYCOUNT && nowArbiterCount > 1 && !isCurrent {
 			retryCount++
-			return false
+			return
 		}
 		var list [][]byte
 		if isCurrent {
@@ -530,9 +546,7 @@ func requireArbiters(engine *pbft.Pbft, isCurrent bool) bool {
 
 		bridgelog.Info("request arbiters", "len", len(list))
 		engine.BroadMessageToPeers(msg, list)
-		return true
 	}
-	return false
 }
 
 func SendAriberToPeer(engine *pbft.Pbft, pid peer.PID, isCurrent bool) {
@@ -602,7 +616,10 @@ func escStateChanged(e *events.Event) {
 		bridgelog.Error("self is not in current arbiter list , can't update esc state")
 		return
 	}
-	MsgReleayer.SetESCState(state)
+	err := MsgReleayer.SetESCState(state)
+	if err != nil {
+		bridgelog.Error("SetESCState failed", "error", err)
+	}
 }
 
 func onProducersChanged(e *events.Event) {

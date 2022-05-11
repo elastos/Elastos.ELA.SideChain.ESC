@@ -1,6 +1,8 @@
 package chainbridge_core
 
 import (
+	"errors"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/bridgelog"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/pbft"
@@ -19,7 +21,7 @@ func (a *API) HasProducerMajorityCount(count, total int) bool {
 	return count > minSignCount
 }
 
-func (a *API) UpdateArbiters(chainID uint64) uint64 {
+func (a *API) UpdateArbiters(chainID uint64) error {
 	collection := arbiterManager.GetCollection()
 	list := collection.List
 	total := collection.NextTotalCount
@@ -36,7 +38,7 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 
 	if !currentArbitersHasself() && !IsFirstUpdateArbiter {
 		bridgelog.Info("self is not in contract arbiter list")
-		return 0
+		return errors.New("self is not in contract arbiter list")
 	}
 
 	if a.HasProducerMajorityCount(len(list), total) {
@@ -50,9 +52,9 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 			err := MsgReleayer.UpdateArbiters(list, total, sigs, chainID)
 			if err != nil {
 				log.Error("UpdateArbiters error", "error", err)
-				return 0
+				return err
 			}
-			return 1
+			return nil
 		}
 	} else {
 		bridgelog.Info("The arbiter list is not bigger than 2 / 3")
@@ -61,7 +63,7 @@ func (a *API) UpdateArbiters(chainID uint64) uint64 {
 		//}
 	}
 
-	return 0
+	return errors.New("the arbiter list is not bigger than 2 / 3")
 }
 
 type Arbiters struct {
@@ -134,12 +136,12 @@ func (a *API) GetCollectedArbiterList() *Message {
 	return msg
 }
 
-func (a *API) InitArbiterList(arbiters []common.Address, total int, chainID uint64) uint8 {
+func (a *API) InitArbiterList(arbiters []common.Address, total int, chainID uint64) error {
 	err := MsgReleayer.SetArbiterList(arbiters, total, chainID)
 	if err != nil {
-		return 0
+		return err
 	}
-	return 1
+	return nil
 }
 
 func (a *API) GetSignerAddress() string {
