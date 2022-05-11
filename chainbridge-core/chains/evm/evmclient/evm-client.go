@@ -8,7 +8,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -28,6 +27,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/ethapi"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 )
 
@@ -169,7 +169,7 @@ func (c *EVMClient) PendingCallContract(ctx context.Context, callArgs map[string
 func (c *EVMClient) SignAndSendTransaction(ctx context.Context, tx CommonTransaction) (common.Hash, error) {
 	id, err := c.ChainID(ctx)
 	if err != nil {
-		panic(err)
+		return common.Hash{}, err
 	}
 	rawTX, err := tx.RawWithSignature(c.config.Kp.PrivateKey(), id)
 	if err != nil {
@@ -178,7 +178,7 @@ func (c *EVMClient) SignAndSendTransaction(ctx context.Context, tx CommonTransac
 
 	err = c.SendRawTransaction(ctx, rawTX)
 	if err != nil {
-		fmt.Println("send account", "account", c.config.Kp.Address())
+		log.Error("send account", "account", c.config.Kp.Address())
 		return common.Hash{}, err
 	}
 	return tx.Hash(), nil

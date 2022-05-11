@@ -150,7 +150,6 @@ func (r *Relayer) SetESCState(state uint8) error {
 
 		err = c.SetESCState(state)
 		if err != nil {
-			log.Error("SetESCState error", "error", err, "chainID", c.ChainID())
 			return err
 		}
 	}
