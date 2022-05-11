@@ -129,7 +129,6 @@ func (c *EVMChain) GetHashSalt() (*big.Int, error) {
 func (c *EVMChain) SetESCState(state uint8) error {
 	err := c.writer.SetESCState(c.bridgeContractAddress, state)
 	if err != nil {
-		log.Error("SetESCState error", "error", err)
 		return err
 	}
 	return nil
