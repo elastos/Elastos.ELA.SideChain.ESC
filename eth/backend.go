@@ -215,6 +215,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 		chainConfig.DynamicArbiterHeight = config.DynamicArbiterHeight
 	}
 	chainConfig.FrozeAccountList = config.FrozenAccountList
+	chainConfig.BridgeContractAddr = config.ArbiterListContract
 	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	eth := &Ethereum{

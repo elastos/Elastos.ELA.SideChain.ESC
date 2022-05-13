@@ -173,4 +173,6 @@ type Config struct {
 
 	DynamicArbiterHeight uint64
 	FrozenAccountList    []string
+
+	ArbiterListContract string
 }
