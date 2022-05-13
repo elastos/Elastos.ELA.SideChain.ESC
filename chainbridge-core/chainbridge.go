@@ -651,6 +651,7 @@ func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
 	}
 	cfg, err := config.GetConfig(config.DefaultConfigDir)
 	if err != nil {
+		log.Info("engine.GetBlockChain().Config().BridgeContractAddr", "address", engine.GetBlockChain().Config().BridgeContractAddr)
 		return err
 	}
 	db, err := lvldb.NewLvlDB(config.BlockstoreFlagName)

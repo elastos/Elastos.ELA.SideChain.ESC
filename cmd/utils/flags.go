@@ -1588,6 +1588,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(FrozenAccount.Name) {
 			ctx.GlobalSet(FrozenAccount.Name, "0x6527946c8b26cc203f9674a5e1d8178beeed70c1")
 		}
+		cfg.ArbiterListContract = "test"
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 22
@@ -1600,6 +1601,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !ctx.GlobalIsSet(DynamicArbiter.Name) {
 			cfg.DynamicArbiterHeight = 2
 		}
+		cfg.ArbiterListContract = "0xcEAA743AA3D1E771600e34c7F18c9e30AB63EEb2"
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 23
@@ -1641,6 +1643,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	default: //main net
 		ctx.GlobalSet(FrozenAccount.Name, "0x93c3A8051b8ba814eB5FB22d655681720E6a4d74")
 		ctx.GlobalSet(FrozenAccount.Name, "0x4a9a0cC103199F67730bdC61337d192788858874")
+		cfg.ArbiterListContract = "mainnet"
 	}
 	list := ctx.StringSlice(FrozenAccount.Name)
 	for _, account := range list {
