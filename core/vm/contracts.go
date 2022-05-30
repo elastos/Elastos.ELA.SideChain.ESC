@@ -53,32 +53,32 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
 var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):  &ecrecover{},
-	common.BytesToAddress([]byte{2}):  &sha256hash{},
-	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):  &dataCopy{},
-	common.BytesToAddress([]byte{5}):  &bigModExp{},
-	common.BytesToAddress([]byte{6}):  &bn256AddByzantium{},
-	common.BytesToAddress([]byte{7}):  &bn256ScalarMulByzantium{},
-	common.BytesToAddress([]byte{8}):  &bn256PairingByzantium{},
-	common.BytesToAddress([]byte{20}): &arbiters{},
-	common.BytesToAddress([]byte{21}): &p256Verify{},
+	common.BytesToAddress([]byte{1}):   &ecrecover{},
+	common.BytesToAddress([]byte{2}):   &sha256hash{},
+	common.BytesToAddress([]byte{3}):   &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):   &dataCopy{},
+	common.BytesToAddress([]byte{5}):   &bigModExp{},
+	common.BytesToAddress([]byte{6}):   &bn256AddByzantium{},
+	common.BytesToAddress([]byte{7}):   &bn256ScalarMulByzantium{},
+	common.BytesToAddress([]byte{8}):   &bn256PairingByzantium{},
+	common.BytesToAddress([]byte{100}): &arbiters{},
+	common.BytesToAddress([]byte{101}): &p256Verify{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
 // contracts used in the Istanbul release.
 var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):  &ecrecover{},
-	common.BytesToAddress([]byte{2}):  &sha256hash{},
-	common.BytesToAddress([]byte{3}):  &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):  &dataCopy{},
-	common.BytesToAddress([]byte{5}):  &bigModExp{},
-	common.BytesToAddress([]byte{6}):  &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):  &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):  &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):  &blake2F{},
-	common.BytesToAddress([]byte{20}): &arbiters{},
-	common.BytesToAddress([]byte{21}): &p256Verify{},
+	common.BytesToAddress([]byte{1}):   &ecrecover{},
+	common.BytesToAddress([]byte{2}):   &sha256hash{},
+	common.BytesToAddress([]byte{3}):   &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):   &dataCopy{},
+	common.BytesToAddress([]byte{5}):   &bigModExp{},
+	common.BytesToAddress([]byte{6}):   &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):   &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):   &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):   &blake2F{},
+	common.BytesToAddress([]byte{100}): &arbiters{},
+	common.BytesToAddress([]byte{101}): &p256Verify{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
