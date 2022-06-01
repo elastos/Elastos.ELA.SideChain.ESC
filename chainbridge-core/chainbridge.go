@@ -26,6 +26,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 
@@ -85,13 +86,13 @@ func APIs(engine *pbft.Pbft) []rpc.API {
 	}}
 }
 
-func Init(engine *pbft.Pbft, accountPath, accountPassword string) {
+func Init(engine *pbft.Pbft, stack *node.Node, accountPath, accountPassword string) {
 	pbftEngine = engine
 	if MsgReleayer != nil {
 		log.Warn("chain bridge is started")
 		return
 	}
-	err := initRelayer(engine, accountPath, accountPassword)
+	err := initRelayer(engine, stack, accountPath, accountPassword)
 	if err != nil {
 		bridgelog.Error("chain bridge started error", "error", err)
 		return
@@ -645,13 +646,14 @@ func onProducersChanged(e *events.Event) {
 	bridgelog.Info("SetManualArbiters", "total", total, "error", err, "arbiterCount", len(addresses))
 }
 
-func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
+func initRelayer(engine *pbft.Pbft, stack *node.Node, accountPath, accountPassword string) error {
 	if MsgReleayer != nil {
 		return nil
 	}
 	cfg, err := config.GetConfig(config.DefaultConfigDir)
 	if err != nil {
 		log.Info("engine.GetBlockChain().Config().BridgeContractAddr", "address", engine.GetBlockChain().Config().BridgeContractAddr)
+		err = createSelfChain(engine, stack)
 		return err
 	}
 	db, err := lvldb.NewLvlDB(config.BlockstoreFlagName)
@@ -671,6 +673,24 @@ func initRelayer(engine *pbft.Pbft, accountPath, accountPassword string) error {
 			engine.GetBlockChain().Config().BridgeContractAddr = layer.GetBridgeContract()
 		}
 	}
+	MsgReleayer = relayer.NewRelayer(chains, escChainID)
+	return nil
+}
+
+func createSelfChain(engine *pbft.Pbft, stack *node.Node) error {
+	escChainID = engine.GetBlockChain().Config().ChainID.Uint64()
+	rpc := fmt.Sprintf("http://localhost:%d", stack.Config().HTTPPort)
+	generalConfig := config.GeneralChainConfig{
+		Name:     "ESC",
+		Id:       escChainID,
+		Endpoint: rpc,
+	}
+	layer, errMsg := createChain(&generalConfig, nil, engine, "", "")
+	if errMsg != nil {
+		return errors.New(fmt.Sprintf("evm createSelfChain is error:%s, chainid:%d", errMsg.Error(), escChainID))
+	}
+	chains := make([]relayer.RelayedChain, 1)
+	chains[0] = layer
 	MsgReleayer = relayer.NewRelayer(chains, escChainID)
 	return nil
 }
