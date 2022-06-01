@@ -1,0 +1,34 @@
+{
+	"chains":[
+		{
+		    "name": "layer1",
+		    "type": "ethereum",
+		    "id": 80,
+		    "endpoint": "http://127.0.0.1:1111",
+		    "freshstart": true,
+		    "opts": {
+		        "bridge": "0xd68251F74a6C1E502653A505cd0cF7072e66981D",
+		        "gasLimit": 8000000,
+		        "maxGasPrice": 10000000000,
+		        "blockConfirmations": 1,
+		        "gasMultiplier": 1.2,
+		        "startBlock": 5
+		    }    
+		},
+		{
+		    "name": "layer2",
+		    "type": "ethereum",
+		    "id": 83,
+		    "endpoint": "http://127.0.0.1:6111",
+		    "freshstart": false,
+		    "opts": {
+		        "bridge": "0xd68251F74a6C1E502653A505cd0cF7072e66981D",
+		        "gasLimit": 8000000,
+		        "maxGasPrice": 10000000000,
+		        "blockConfirmations": 1,
+		        "gasMultiplier": 1.2,
+		        "startBlock": 5
+		    }
+	   }
+	]
+}

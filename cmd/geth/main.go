@@ -653,7 +653,7 @@ func initChainBridge(ctx *cli.Context, stack *node.Node, blockChain *core.BlockC
 		log.Info("is common sync node, no password")
 	}
 	engine := blockChain.GetDposEngine().(*pbft.Pbft)
-	chainbridge_core.Init(engine, accPath, password)
+	chainbridge_core.Init(engine, stack, accPath, password)
 }
 
 func startLayer2(blockChain *core.BlockChain) {
