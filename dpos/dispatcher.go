@@ -40,7 +40,8 @@ type Dispatcher struct {
 	finishedBlockSealHash   common.Uint256
 	finishedProposal        common.Uint256
 
-	mu sync.RWMutex
+	mu         sync.RWMutex
+	proposalMu sync.RWMutex
 }
 
 func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal) (err error, isSendReject bool, handled bool) {
@@ -98,9 +99,13 @@ func (d *Dispatcher) GetFinishedProposal() common.Uint256 {
 }
 
 func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
-	d.processingProposal = p
 	Info("setProcessingProposal start")
-	defer Info("setProcessingProposal end")
+	d.proposalMu.Lock()
+	defer func() {
+		d.proposalMu.Unlock()
+		Info("setProcessingProposal end")
+	}()
+	d.processingProposal = p
 	for _, v := range d.pendingVotes {
 		if v.ProposalHash.IsEqual(p.Hash()) {
 			_, finished, _ := d.ProcessVote(v)
@@ -300,6 +305,8 @@ func (d *Dispatcher) ProducerIsOnDuty() bool {
 }
 
 func (d *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
+	d.proposalMu.Lock()
+	defer d.proposalMu.Unlock()
 	return d.processingProposal
 }
 

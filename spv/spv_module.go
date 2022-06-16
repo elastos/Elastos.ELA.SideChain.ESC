@@ -362,6 +362,8 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 		log.Info("all ready received this cross transaction")
 	}
 	l.service.SubmitTransactionReceipt(id, tx.Hash()) // give spv service a receipt, Indicates receipt of notice
+
+	log.Info("------------------------------------Notify END----------------------------------------------------")
 }
 
 func NotifySmallCrossTx(tx core.Transaction) {
