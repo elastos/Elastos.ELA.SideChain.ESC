@@ -367,7 +367,7 @@ func (s *spvservice) putTx(batch store.DataBatch, utx util.Transaction,
 			return false, err
 		}
 	}
-
+	fmt.Println(">>> zxb", "putTx", "txid", tx.Hash().String(), "height", height)
 	for _, listener := range s.listeners {
 		hash, _ := common.Uint168FromAddress(listener.Address())
 		if _, ok := hits[*hash]; ok {
@@ -508,11 +508,15 @@ func (s *spvservice) TransactionConfirmed(tx *util.Tx) {}
 // successfully committed into database.
 func (s *spvservice) BlockCommitted(block *util.Block) {
 	// Look up for queued transactions
+	fmt.Println(">>> zxb", "BlockCommitted", "height", block.Height, "hash", block.Hash().String())
+	defer fmt.Println(">>> zxb BlockCommitted end")
 	items, err := s.db.Que().GetAll()
 	if err != nil {
 		return
 	}
+	fmt.Println(">>> zxb", "BlockCommitted", "items count", len(items))
 	for _, item := range items {
+		fmt.Println(">>> zxb", "BlockCommitted", "items.height", item.Height, "txid", item.TxId.String())
 		// Check if the notify should be resend due to timeout.
 		if time.Now().Before(item.LastNotify.Add(notifyTimeout)) {
 			continue
@@ -551,6 +555,7 @@ func (s *spvservice) BlockCommitted(block *util.Block) {
 		if ok {
 			item.LastNotify = time.Now()
 			s.db.Que().Put(item)
+			fmt.Println(">>> zxb", "notifyTransaction end Notify", "txid", tx.Hash().String(), "item.txid", item.TxId)
 			listener.Notify(item.NotifyId, proof, tx)
 		}
 
@@ -612,6 +617,7 @@ func (s *spvservice) notifyTransaction(notifyId common.Uint256,
 
 	listener, ok := s.listeners[notifyId]
 	if !ok {
+		fmt.Println(">>> zxb", "notifyTransaction", "return false 1")
 		return nil, false
 	}
 
@@ -629,19 +635,24 @@ func (s *spvservice) notifyTransaction(notifyId common.Uint256,
 		} else {
 			s.db.Que().Del(&notifyId, &txId)
 		}
+		fmt.Println(">>> zxb", "notifyTransaction", "return false 2")
 		return nil, false
 	}
 
 	// Notify listener
+	fmt.Println(">>> zxb", "notifyTransaction 1111", "lister.flags", listener.Flags())
 	if listener.Flags()&FlagNotifyConfirmed == FlagNotifyConfirmed {
+		fmt.Println(">>> zxb", "notifyTransaction 2222", "confirmations", confirmations, "getConfirmations(tx)", getConfirmations(tx))
 		if confirmations >= getConfirmations(tx) {
+			fmt.Println(">>> zxb", "return true")
 			return listener, true
 		}
 	} else {
+		fmt.Println(">>> zxb", "notifyTransaction 3333", "notify immediately", "listener.Flags()&FlagNotifyConfirmed", listener.Flags()&FlagNotifyConfirmed)
 		listener.Notify(notifyId, proof, tx)
 		return listener, true
 	}
-
+	fmt.Println(">>> zxb", "notifyTransaction", "return false 3")
 	return nil, false
 }
 
