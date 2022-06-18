@@ -642,6 +642,16 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	if etherbase != (common.Address{}) {
 		return etherbase, nil
 	}
+	if len(s.config.PbftMinerAddress) > 0 {
+		etherbase := common.HexToAddress(s.config.PbftMinerAddress)
+		s.lock.Lock()
+		s.etherbase = etherbase
+		s.lock.Unlock()
+
+		log.Info("Etherbase configured by user", "address", etherbase)
+		return etherbase, nil
+	}
+
 	if wallets := s.AccountManager().Wallets(); len(wallets) > 0 {
 		if accounts := wallets[0].Accounts(); len(accounts) > 0 {
 			etherbase := accounts[0].Address

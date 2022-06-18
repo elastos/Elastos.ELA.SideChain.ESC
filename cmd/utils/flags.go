@@ -798,6 +798,11 @@ var (
 		Usage: "connect dpos direct net port",
 		Value: "20639",
 	}
+	PbftMinerAddress = cli.StringFlag{
+		Name:  "pbft.miner.address",
+		Usage: "miner's account to receive transaction's fee",
+		Value: "",
+	}
 	DynamicArbiter = cli.Uint64Flag{
 		Name:  "spv.arbiter.height",
 		Usage: "configue the offset blocks to pre-connect to switch to pbft consensus",
@@ -1568,6 +1573,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftKeyStorePassWord = MakeDposPasswordList(ctx)
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
+	cfg.PbftMinerAddress = ctx.GlobalString(PbftMinerAddress.Name)
+	if cfg.PbftMinerAddress != "" {
+		if !common.IsHexAddress(cfg.PbftMinerAddress) {
+			panic("pbft.miner.address is not ethereum format")
+		}
+	}
+
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
 
 	cfg.FrozenAccountList = make([]string, 0)
