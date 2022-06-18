@@ -168,6 +168,7 @@ type Config struct {
 	PreConnectOffset     uint64
 	PbftKeyStore         string
 	PbftKeyStorePassWord string
+	PbftMinerAddress     string
 	PbftIPAddress        string
 	PbftDPosPort         uint16
 

@@ -174,6 +174,7 @@ var (
 		utils.PbftKeystorePassWord,
 		utils.PbftIPAddress,
 		utils.PbftDposPort,
+		utils.PbftMinerAddress,
 		utils.DynamicArbiter,
 		utils.FrozenAccount,
 		utils.UpdateArbiterListToLayer1Flag,
