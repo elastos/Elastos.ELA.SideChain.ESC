@@ -141,5 +141,5 @@ var (
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
 
 	ArbiterAddress    = big.NewInt(1000)
-	P256VerifyAddress = big.NewInt(10001)
+	P256VerifyAddress = big.NewInt(1001)
 )

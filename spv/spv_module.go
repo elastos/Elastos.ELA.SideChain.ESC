@@ -1135,7 +1135,8 @@ func GetArbiters() ([]string, int, error) {
 	if PbftEngine != nil {
 		spvHeight := PbftEngine.CurrentBlock().Nonce()
 		if spvHeight == 0 {
-			return producers, 0, errors.New("current height is not best")
+			producers = PbftEngine.GetPbftConfig().Producers
+			return producers, len(producers), nil
 		}
 		list, totalProducers, err := GetProducers(spvHeight)
 		for _, p := range list {
