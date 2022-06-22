@@ -1133,11 +1133,15 @@ func SendEvilProof(addr ethCommon.Address, info interface{}) {
 func GetArbiters() ([]string, int, error) {
 	producers := make([]string, 0)
 	if PbftEngine != nil {
-		list := PbftEngine.GetCurrentProducers()
+		spvHeight := PbftEngine.CurrentBlock().Nonce()
+		if spvHeight == 0 {
+			return producers, 0, errors.New("current height is not best")
+		}
+		list, totalProducers, err := GetProducers(spvHeight)
 		for _, p := range list {
 			producers = append(producers, common.BytesToHexString(p))
 		}
-		return producers, PbftEngine.SignersCount(), nil
+		return producers, totalProducers, err
 	}
 	return producers, 0, errors.New("pbftEngine is nil")
 }
