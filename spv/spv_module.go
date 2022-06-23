@@ -670,7 +670,15 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int) (err er
 			return errmsg, false
 		}
 		if !res {
-			return errors.New("verifyed small cross chain transaction failed"), true
+			userfee, addr, output := FindOutputFeeAndaddressByTxHash(elaTx)
+			var blackAddr ethCommon.Address
+			if userfee.Cmp(new(big.Int)) <= 0 && output.Cmp(new(big.Int)) <= 0 && addr == blackAddr {
+				return errors.New("verifyed small cross chain transaction failed"), false
+			} else {
+				log.Info("send small cross chain transaction by spv", "elatx", elaTx)
+				data, err = common.HexStringToBytes(elaTx)
+			}
+
 		}
 	} else {
 		data, err = common.HexStringToBytes(elaTx)
