@@ -740,8 +740,6 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int) (err er
 		log.Error("gasLimit is zero:", "main txhash", elaTx)
 		return err, false
 	}
-	gasLimit = gasLimit * GASLimtScale
-
 	if atomic.LoadInt32(&candSend) == 0 {
 		err = errors.New("canSend is 0")
 		return err, false
@@ -753,7 +751,7 @@ func SendTransaction(from ethCommon.Address, elaTx string, fee *big.Int) (err er
 		log.Info("Cross chain Transaction failed", "elaTx", elaTx, "ethTh", hash.String(), "gasLimit", gasLimit, "price", price.String())
 		return err, true
 	}
-	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String(), "gasLimit", gasLimit)
+	log.Info("Cross chain Transaction", "elaTx", elaTx, "ethTh", hash.String(), "gasLimit", gasLimit, "price.String()", price.String())
 	return nil, true
 }
 
