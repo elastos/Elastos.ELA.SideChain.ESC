@@ -14,7 +14,7 @@ The keystore file is used as a file representation of a key. It contains 4 parts
 
 This keystore also requires a password to decrypt into a usable key.
 The keystore library can be used to both encrypt keys into keystores, and decrypt keystore into keys.
-For more information on how to encrypt and decrypt from the command line, reference the README: https://github.com/elastos/Elastos.ELA.SideChain.ETH/ChainBridge
+For more information on how to encrypt and decrypt from the command line, reference the README: https://github.com/elastos/Elastos.ELA.SideChain.ESC/ChainBridge
 
 The Keyring
 
