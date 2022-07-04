@@ -678,6 +678,9 @@ func initRelayer(engine *pbft.Pbft, stack *node.Node, accountPath, accountPasswo
 }
 
 func createSelfChain(engine *pbft.Pbft, stack *node.Node) error {
+	if engine.GetBlockChain().Config().ChainID == nil {
+		return errors.New("escChainID is nil")
+	}
 	escChainID = engine.GetBlockChain().Config().ChainID.Uint64()
 	rpc := fmt.Sprintf("http://localhost:%d", stack.Config().HTTPPort)
 	generalConfig := config.GeneralChainConfig{
