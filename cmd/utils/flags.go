@@ -1158,6 +1158,24 @@ func MakePasswordList(ctx *cli.Context) []string {
 	return lines
 }
 
+func MakeMinerCoinbaseAddress(ctx *cli.Context) string {
+	path := ctx.GlobalString(PbftMinerAddress.Name)
+	if path == "" {
+		return ""
+	}
+	text, err := ioutil.ReadFile(path)
+	if err != nil {
+		Fatalf("Failed to read pbft.miner.address file: %v", err)
+	}
+	address := strings.TrimRight(string(text), "\r")
+	address = strings.TrimRight(string(address), "\n")
+	if !common.IsHexAddress(address) {
+		panic(fmt.Sprintf("pbft.miner.address is not ethereum format:%s", address))
+	}
+
+	return address
+}
+
 // MakeDposPasswordList reads password lines from the file specified by the global --password flag.
 func MakeDposPasswordList(ctx *cli.Context) string {
 	path := ctx.GlobalString(PbftKeystorePassWord.Name)
@@ -1573,11 +1591,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftKeyStorePassWord = MakeDposPasswordList(ctx)
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
-	cfg.PbftMinerAddress = ctx.GlobalString(PbftMinerAddress.Name)
+	cfg.PbftMinerAddress = MakeMinerCoinbaseAddress(ctx)
 	if cfg.PbftMinerAddress != "" {
-		if !common.IsHexAddress(cfg.PbftMinerAddress) {
-			panic("pbft.miner.address is not ethereum format")
-		}
 		cfg.Miner.Etherbase = common.HexToAddress(cfg.PbftMinerAddress)
 	}
 
