@@ -1578,6 +1578,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		if !common.IsHexAddress(cfg.PbftMinerAddress) {
 			panic("pbft.miner.address is not ethereum format")
 		}
+		cfg.Miner.Etherbase = common.HexToAddress(cfg.PbftMinerAddress)
 	}
 
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)

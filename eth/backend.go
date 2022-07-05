@@ -216,7 +216,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	}
 	chainConfig.FrozeAccountList = config.FrozenAccountList
 	chainConfig.BridgeContractAddr = config.ArbiterListContract
-	log.Info("Initialised chain configuration", "config", chainConfig)
+	log.Info("Initialised chain configuration", "config", chainConfig, "config.Miner.Etherbase", config.Miner.Etherbase)
 
 	eth := &Ethereum{
 		config:         config,
@@ -640,6 +640,7 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	s.lock.RUnlock()
 
 	if etherbase != (common.Address{}) {
+		log.Info("Etherbase allreay set", "address", etherbase.String())
 		return etherbase, nil
 	}
 	if len(s.config.PbftMinerAddress) > 0 {
@@ -648,7 +649,7 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 		s.etherbase = etherbase
 		s.lock.Unlock()
 
-		log.Info("Etherbase configured by user", "address", etherbase)
+		log.Info("Etherbase configured by user", "address", etherbase.String())
 		return etherbase, nil
 	}
 
@@ -660,7 +661,7 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 			s.etherbase = etherbase
 			s.lock.Unlock()
 
-			log.Info("Etherbase automatically configured", "address", etherbase)
+			log.Info("Etherbase automatically configured", "address", etherbase.String())
 			return etherbase, nil
 		}
 	}
