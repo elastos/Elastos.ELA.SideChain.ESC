@@ -1163,6 +1163,9 @@ func MakeMinerCoinbaseAddress(ctx *cli.Context) string {
 	if path == "" {
 		return ""
 	}
+	if common.IsHexAddress(path) {
+		return path
+	}
 	text, err := ioutil.ReadFile(path)
 	if err != nil {
 		Fatalf("Failed to read pbft.miner.address file: %v", err)
