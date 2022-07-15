@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/elastos/Elastos.ELA.SPV/util"
 
-	"github.com/elastos/Elastos.ELA/core/types"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -57,20 +60,24 @@ func (b *dataBatch) DelAll(height uint32) error {
 			return err
 		}
 
-		var tx types.Transaction
-		err = tx.Deserialize(bytes.NewReader(utx.RawData))
+		r := bytes.NewReader(utx.RawData)
+		tx, err := elatx.GetTransactionByBytes(r)
+		if err != nil {
+			return fmt.Errorf("deseralize transaction file failed, error %s", err.Error())
+		}
+		err = tx.Deserialize(r)
 		if err != nil {
 			return err
 		}
 
 		// remove custom ID related data.
-		err = b.DeleteCustomID(&tx)
+		err = b.DeleteCustomID(tx)
 		if err != nil {
 			return err
 		}
 
-		for index := range tx.Outputs {
-			outpoint := types.NewOutPoint(utx.Hash, uint16(index))
+		for index := range tx.Outputs() {
+			outpoint := elacommon.NewOutPoint(utx.Hash, uint16(index))
 			b.Batch.Delete(toKey(BKTOps, outpoint.Bytes()...))
 		}
 
@@ -82,32 +89,32 @@ func (b *dataBatch) DelAll(height uint32) error {
 	return b.Que().DelAll(height)
 }
 
-func (b *dataBatch) DeleteCustomID(tx *types.Transaction) error {
-	switch tx.TxType {
-	case types.ReturnSideChainDepositCoin:
-		_, ok := tx.Payload.(*payload.ReturnSideChainDepositCoin)
+func (b *dataBatch) DeleteCustomID(tx it.Transaction) error {
+	switch tx.TxType() {
+	case elacommon.ReturnSideChainDepositCoin:
+		_, ok := tx.Payload().(*payload.ReturnSideChainDepositCoin)
 		if !ok {
 			return errors.New("invalid ReturnSideChainDepositCoin tx")
 		}
 		b.customID.BatchDeleteRetSideChainDepositCoinTx(tx, b.Batch)
-	case types.CRCProposal:
-		p, ok := tx.Payload.(*payload.CRCProposal)
+	case elacommon.CRCProposal:
+		p, ok := tx.Payload().(*payload.CRCProposal)
 		if !ok {
 			return errors.New("invalid crc proposal tx")
 		}
 		switch p.ProposalType {
 		case payload.ReserveCustomID:
 			b.customID.BatchDeleteControversialReservedCustomIDs(
-				p.Hash(tx.PayloadVersion), b.Batch)
+				p.Hash(tx.PayloadVersion()), b.Batch)
 		case payload.ReceiveCustomID:
 			b.customID.BatchDeleteControversialReceivedCustomIDs(
-				p.Hash(tx.PayloadVersion), b.Batch)
+				p.Hash(tx.PayloadVersion()), b.Batch)
 		case payload.ChangeCustomIDFee:
 			b.customID.BatchDeleteControversialChangeCustomIDFee(
-				p.Hash(tx.PayloadVersion), b.Batch)
+				p.Hash(tx.PayloadVersion()), b.Batch)
 		}
-	case types.ProposalResult:
-		p, ok := tx.Payload.(*payload.RecordProposalResult)
+	case elacommon.ProposalResult:
+		p, ok := tx.Payload().(*payload.RecordProposalResult)
 		if !ok {
 			return errors.New("invalid custom ID result tx")
 		}

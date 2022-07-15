@@ -34,19 +34,19 @@ type mockPeer struct {
 	addr         string
 	magic        uint32
 	messageFuncs []MessageFunc
-	port 		 uint16
+	port         uint16
 	inbound      bool
 }
 
 func (p *mockPeer) SendELAMessage(msg *ElaMsg) {
 	var (
 		sendMsg p2p.Message
-		err error
+		err     error
 	)
 
 	switch msg.Type {
 	case GetData:
-		sendMsg, err = p.makeEmptyMessage(p2p.CmdGetData)
+		sendMsg, err = p.makeEmptyMessage(*p2p.BuildHeader(2, p2p.CmdGetData, []byte{}), nil)
 	default:
 		panic("error msg type")
 	}
@@ -69,7 +69,7 @@ func (p *mockPeer) QueueMessage(msg p2p.Message, doneChan chan<- struct{}) {
 	}
 }
 
-func (p *mockPeer) SetNetConn(conn net.Conn, isInbound bool)  {
+func (p *mockPeer) SetNetConn(conn net.Conn, isInbound bool) {
 	p.conn = conn
 	p.inbound = isInbound
 	if isInbound {
@@ -78,8 +78,8 @@ func (p *mockPeer) SetNetConn(conn net.Conn, isInbound bool)  {
 }
 func newMockPeer() *mockPeer {
 	return &mockPeer{
-		magic:1111,
-		port:20445,
+		magic: 1111,
+		port:  20445,
 	}
 }
 
@@ -90,15 +90,15 @@ func (p *mockPeer) handleMessage(peer *mockPeer, msg p2p.Message) {
 	}
 }
 
-func (p *mockPeer) makeEmptyMessage(cmd string) (p2p.Message, error) {
+func (p *mockPeer) makeEmptyMessage(hdr p2p.Header, r net.Conn) (p2p.Message, error) {
 	var message p2p.Message
-	switch cmd {
+	switch hdr.GetCMD() {
 	case p2p.CmdVersion:
 		message = &msg.Version{}
 	case p2p.CmdGetData:
 		message = &msg.GetData{}
 	default:
-		fmt.Println("unkown message:", cmd)
+		fmt.Println("unkown message:", hdr.GetCMD())
 	}
 	return message, nil
 }
@@ -116,9 +116,9 @@ func (p *mockPeer) readMessage() (p2p.Message, error) {
 }
 
 func (p *mockPeer) writeMessage(m p2p.Message) error {
-	return p2p.WriteMessage(p.conn, p.magic, m, p2p.WriteMessageTimeOut,func(message p2p.Message) (*types.DposBlock, bool) {
-			return nil, false
-		})
+	return p2p.WriteMessage(p.conn, p.magic, m, p2p.WriteMessageTimeOut, func(message p2p.Message) (*types.DposBlock, bool) {
+		return nil, false
+	})
 }
 
 func (p *mockPeer) readRemoteVersionMsg() error {
@@ -145,7 +145,7 @@ func (p *mockPeer) negotiateInboundProtocol() error {
 }
 
 func (p *mockPeer) writeVersionMsg() error {
-	msg := msg.NewVersion(1, p.port,0, 1, 1, false,  "")
+	msg := msg.NewVersion(1, p.port, 0, 1, 1, false, "")
 	return p.writeMessage(msg)
 }
 
@@ -175,7 +175,7 @@ func (p *mockPeer) start() error {
 	}
 
 	go func() {
-		for  {
+		for {
 			m, err := p.readMessage()
 			if err != nil {
 				p.Disconnect()
@@ -248,7 +248,7 @@ func mockInboundPeer(addr string, pc chan<- *mockPeer, mc chan<- p2p.Message) er
 
 	return nil
 }
-func TestRouteMsg(t *testing.T)  {
+func TestRouteMsg(t *testing.T) {
 	quit := make(chan bool, 0)
 	active := make(chan struct{})
 	pc := make(chan *mockPeer, 1)
@@ -274,8 +274,8 @@ func TestRouteMsg(t *testing.T)  {
 
 	relay := make(chan struct{})
 	routes := New(&Config{
-		PID:        pk1,
-		Addr:       "localhost",
+		PID:  pk1,
+		Addr: "localhost",
 		Sign: func(data []byte) (signature []byte) {
 			signature, err = crypto.Sign(priKey1, data)
 			return
@@ -294,7 +294,8 @@ func TestRouteMsg(t *testing.T)  {
 		copy(pid1[:], pk1)
 		copy(pid2[:], pk2)
 		peers := []dp.PID{pid1, pid2}
-		events.Notify(events.ETDirectPeersChanged, peers)
+		events.Notify(events.ETDirectPeersChanged,
+			&dp.PeersInfo{CurrentPeers: peers, NextPeers: nil})
 	}()
 
 	go func() {
@@ -350,17 +351,17 @@ func TestRouteMsg(t *testing.T)  {
 	})
 	relayCount := 0
 out:
-	for  {
+	for {
 		select {
 		case <-relay:
-			relayCount ++
+			relayCount++
 			fmt.Println(relayCount)
 			if relayCount > 4 {
 				t.Logf("routes relay(%d) too frequent", relayCount)
 			}
 		case <-active:
 			time.Sleep(time.Millisecond * 5)
-		case <- quit:
+		case <-quit:
 			break out
 		}
 	}
@@ -368,7 +369,7 @@ out:
 
 func TestRoutes_AppendAddr(t *testing.T) {
 	routes := New(&Config{
-		Addr:       "localhost",
+		Addr: "localhost",
 		Sign: func(data []byte) (signature []byte) {
 			return
 		},

@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
 )
 
 const (
@@ -76,8 +76,11 @@ func (t *PayloadRechargeToSideChain) Deserialize(r io.Reader, version byte) erro
 
 func (t *PayloadRechargeToSideChain) GetMainchainTxHash(payloadVersion byte) (*common.Uint256, error) {
 	if payloadVersion == RechargeToSideChainPayloadVersion0 {
-		mainchainTx := new(types.Transaction)
 		reader := bytes.NewReader(t.MainChainTransaction)
+		mainchainTx, err := functions.GetTransactionByBytes(reader)
+		if err != nil {
+			return nil, err
+		}
 		if err := mainchainTx.Deserialize(reader); err != nil {
 			return nil, errors.New("[GetMainchainTxHash] RechargeToSideChain mainChainTransaction deserialize failed")
 		}

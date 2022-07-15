@@ -42,7 +42,8 @@ const (
 	// ETConfirmAccepted indicates a block confirmed message received.
 	ETConfirmAccepted
 
-	// ETDirectPeersChanged indicates direct peers has changed.
+	// ETDirectPeersChanged indicates direct peers has changed, but current
+	// peers and next peers is divided.
 	ETDirectPeersChanged
 
 	// ETBlockConfirmAccepted indicates a block with confirm was accepted
@@ -104,7 +105,7 @@ func (n EventType) String() string {
 // 	- ETBlockAccepted:     *types.Block
 // 	- ETBlockConnected:    *types.Block
 // 	- ETBlockDisconnected: *types.Block
-// 	- ETTransactionAccepted: *types.Transaction
+// 	- ETTransactionAccepted: *types.BaseTransaction
 type Event struct {
 	Type EventType
 	Data interface{}

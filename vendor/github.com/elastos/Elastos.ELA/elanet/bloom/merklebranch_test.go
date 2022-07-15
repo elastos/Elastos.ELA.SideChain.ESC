@@ -1,19 +1,19 @@
 // Copyright (c) 2017-2019 Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package bloom
 
 import (
 	"crypto/rand"
 	"fmt"
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
 	"os"
 	"testing"
 
 	"github.com/elastos/Elastos.ELA/auxpow"
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
 
@@ -53,7 +53,7 @@ func run(txs uint32) {
 	merkleRoot := *mBlock.CalcHash(treeDepth(txs), 0)
 	// Create and return the merkle block.
 	merkleBlock := msg.MerkleBlock{
-		Header: &types.Header{
+		Header: &common2.Header{
 			MerkleRoot: merkleRoot,
 		},
 		Transactions: mBlock.NumTx,

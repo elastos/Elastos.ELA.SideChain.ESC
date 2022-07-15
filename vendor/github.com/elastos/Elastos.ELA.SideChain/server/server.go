@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"net"
 
 	"github.com/elastos/Elastos.ELA.SideChain/blockchain"
 	"github.com/elastos/Elastos.ELA.SideChain/bloom"
@@ -17,6 +18,7 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/p2p"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
+	peer2 "github.com/elastos/Elastos.ELA/p2p/peer"
 	p2psvr "github.com/elastos/Elastos.ELA/p2p/server"
 )
 
@@ -898,9 +900,9 @@ func New(cfg *Config) (*server, error) {
 	svrcfg := p2psvr.NewDefaultConfig(
 		params.Magic, pact.EBIP002Version, uint64(services),
 		params.DefaultPort, params.DNSSeeds, params.ListenAddrs,
-		nil, nil, makeEmptyMessage,
+		nil, nil, createMessage,
 		func() uint64 { return uint64(cfg.Chain.GetBestHeight()) },
-		uint64(cfg.ChainParams.CRClaimDPOSNodeStartHeight), cfg.NodeVersion,
+		cfg.ChainParams.NewP2PProtocolVersionHeight, cfg.NodeVersion,
 	)
 	svrcfg.DataDir = cfg.DataDir
 	svrcfg.NAFilter = &naFilter{}
@@ -934,14 +936,13 @@ func New(cfg *Config) (*server, error) {
 	return &s, nil
 }
 
-func makeEmptyMessage(cmd string) (p2p.Message, error) {
-	var message p2p.Message
-	switch cmd {
+func createMessage(hdr p2p.Header, r net.Conn) (message p2p.Message, err error) {
+	switch hdr.GetCMD() {
 	case p2p.CmdMemPool:
 		message = &msg.MemPool{}
 
 	case p2p.CmdTx:
-		message = msg.NewTx(&types.Transaction{})
+		return peer2.CheckAndCreateTxMessage(hdr, r)
 
 	case p2p.CmdBlock:
 		message = msg.NewBlock(types.NewBlock())
@@ -974,7 +975,9 @@ func makeEmptyMessage(cmd string) (p2p.Message, error) {
 		message = &msg.Reject{}
 
 	default:
-		return nil, fmt.Errorf("unhandled command [%s]", cmd)
+		err = fmt.Errorf("unknown message type %s", hdr.GetCMD())
+		return
+
 	}
-	return message, nil
+	return peer2.CheckAndCreateMessage(hdr, message, r)
 }

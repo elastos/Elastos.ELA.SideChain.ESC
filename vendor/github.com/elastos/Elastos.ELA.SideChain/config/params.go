@@ -82,6 +82,52 @@ type Params struct {
 	// from main chain.
 	CheckPowHeaderHeight uint32
 
-	// CRClaimDPOSNodeStartHeight defines the height where starting claim DPOS node
+	// CRClaimDPOSNodeStartHeight defines the height where starting claim DPOS node.
 	CRClaimDPOSNodeStartHeight uint32
+
+	// NewP2PProtocolVersionHeight defines the new p2p protocol version message height.
+	NewP2PProtocolVersionHeight uint64
+
+	// RewardMinerOnlyStartHeight defines the height where starting reward miner only
+	// in coin base transaction.
+	RewardMinerOnlyStartHeight uint32
+
+	// RPCServiceLevel defines level of service provide to client.
+	RPCServiceLevel string
+}
+
+type RPCServiceLevel byte
+
+const (
+	// Allowed  query transaction, and configuration related options.
+	ConfigurationPermitted RPCServiceLevel = iota
+
+	// Allowed mining from RPC.
+	MiningPermitted
+
+	// Allowed query and transaction (such as sendrawtransaction) related options.
+	TransactionPermitted
+
+	// Allowed using wallet related function.
+	WalletPermitted
+
+	// Allowed only query related options.
+	QueryOnly
+)
+
+func (l RPCServiceLevel) String() string {
+	switch l {
+	case ConfigurationPermitted:
+		return "ConfigurationPermitted"
+	case MiningPermitted:
+		return "MiningPermitted"
+	case TransactionPermitted:
+		return "TransactionPermitted"
+	case WalletPermitted:
+		return "WalletPermitted"
+	case QueryOnly:
+		return "QueryOnly"
+	default:
+		return "Unknown"
+	}
 }

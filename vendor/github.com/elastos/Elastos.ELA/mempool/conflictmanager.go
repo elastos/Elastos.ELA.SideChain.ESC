@@ -7,8 +7,9 @@ package mempool
 
 import (
 	"fmt"
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 
-	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/errors"
 )
 
@@ -30,9 +31,11 @@ const (
 	slotCRCProposalRegisterSideChainGenesisHash = "CRCProposalRegisterSideChainGenesisHash"
 	slotCRCAppropriationKey                     = "CRCAppropriationKey"
 	slotCRCProposalRealWithdrawKey              = "CRCProposalRealWithdrawKey"
+	slotDposV2ClaimRewardRealWithdrawKey        = "DposV2ClaimRewardRealWithdrawKey"
 	slotCloseProposalTargetProposalHash         = "CloseProposalTargetProposalHash"
 	slotChangeProposalOwnerTargetProposalHash   = "ChangeProposalOwnerTargetProposalHash"
-	slotChangeCustomIDFee                       = "slotChangeCustomIDFee"
+	slotChangeCustomIDFee                       = "ChangeCustomIDFee"
+	slotReserveCustomID                         = "ReserveCustomID"
 	slotSpecialTxHash                           = "SpecialTxHash"
 	slotSidechainTxHashes                       = "SidechainTxHashes"
 	slotSidechainReturnDepositTxHashes          = "SidechainReturnDepositTxHashes"
@@ -42,6 +45,9 @@ const (
 	slotCRCouncilMemberDID                      = "CRCouncilMemberDID"
 	slotCRCSecretaryGeneral                     = "CRCSecretaryGeneral"
 	slotRevertToDPOSHash                        = "RevertToDPOSHash"
+	slotUnstakeRealWithdraw                     = "UnstakeRealWithdraw"
+	slotStake                                   = "Stake"
+	slotDposV2ClaimReward                       = "DposV2ClaimReward"
 )
 
 type conflict struct {
@@ -54,7 +60,7 @@ type conflictManager struct {
 	conflictSlots []*conflict
 }
 
-func (m *conflictManager) VerifyTx(tx *types.Transaction) errors.ELAError {
+func (m *conflictManager) VerifyTx(tx interfaces.Transaction) errors.ELAError {
 	for _, v := range m.conflictSlots {
 		if err := v.slot.VerifyTx(tx); err != nil {
 			return errors.SimpleWithMessage(errors.ErrTxPoolFailure, err,
@@ -64,7 +70,7 @@ func (m *conflictManager) VerifyTx(tx *types.Transaction) errors.ELAError {
 	return nil
 }
 
-func (m *conflictManager) AppendTx(tx *types.Transaction) errors.ELAError {
+func (m *conflictManager) AppendTx(tx interfaces.Transaction) errors.ELAError {
 	for _, v := range m.conflictSlots {
 		if err := v.slot.AppendTx(tx); err != nil {
 			return errors.SimpleWithMessage(errors.ErrTxPoolFailure, err,
@@ -74,7 +80,7 @@ func (m *conflictManager) AppendTx(tx *types.Transaction) errors.ELAError {
 	return nil
 }
 
-func (m *conflictManager) removeTx(tx *types.Transaction) errors.ELAError {
+func (m *conflictManager) removeTx(tx interfaces.Transaction) errors.ELAError {
 	for _, v := range m.conflictSlots {
 		if err := v.slot.RemoveTx(tx); err != nil {
 			return errors.SimpleWithMessage(errors.ErrTxPoolFailure, err,
@@ -85,7 +91,7 @@ func (m *conflictManager) removeTx(tx *types.Transaction) errors.ELAError {
 }
 
 func (m *conflictManager) GetTx(key interface{},
-	slotName string) *types.Transaction {
+	slotName string) interfaces.Transaction {
 	for _, v := range m.conflictSlots {
 		if v.name == slotName {
 			return v.slot.GetTx(key)
@@ -131,19 +137,19 @@ func newConflictManager() conflictManager {
 				name: slotDPoSOwnerPublicKey,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.RegisterProducer,
+						Type: common2.RegisterProducer,
 						Func: strProducerInfoOwnerPublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.UpdateProducer,
+						Type: common2.UpdateProducer,
 						Func: strProducerInfoOwnerPublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.CancelProducer,
+						Type: common2.CancelProducer,
 						Func: strCancelProducerOwnerPublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.RegisterCR,
+						Type: common2.RegisterCR,
 						Func: strRegisterCRPublicKey,
 					},
 				),
@@ -153,23 +159,23 @@ func newConflictManager() conflictManager {
 				name: slotDPoSNodePublicKey,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.RegisterProducer,
+						Type: common2.RegisterProducer,
 						Func: strProducerInfoNodePublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.UpdateProducer,
+						Type: common2.UpdateProducer,
 						Func: strProducerInfoNodePublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.ActivateProducer,
+						Type: common2.ActivateProducer,
 						Func: strActivateProducerNodePublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.RegisterCR,
+						Type: common2.RegisterCR,
 						Func: strRegisterCRPublicKey,
 					},
 					keyTypeFuncPair{
-						Type: types.CRCouncilMemberClaimNode,
+						Type: common2.CRCouncilMemberClaimNode,
 						Func: strCRManagementPublicKey,
 					},
 				),
@@ -179,7 +185,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCouncilMemberNodePublicKey,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRCouncilMemberClaimNode,
+						Type: common2.CRCouncilMemberClaimNode,
 						Func: strCRManagementPublicKey,
 					},
 				),
@@ -189,7 +195,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCouncilMemberDID,
 				slot: newConflictSlot(programHash,
 					keyTypeFuncPair{
-						Type: types.CRCouncilMemberClaimNode,
+						Type: common2.CRCouncilMemberClaimNode,
 						Func: strCRManagementDID,
 					},
 				),
@@ -199,11 +205,11 @@ func newConflictManager() conflictManager {
 				name: slotDPoSNickname,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.RegisterProducer,
+						Type: common2.RegisterProducer,
 						Func: strProducerInfoNickname,
 					},
 					keyTypeFuncPair{
-						Type: types.UpdateProducer,
+						Type: common2.UpdateProducer,
 						Func: strProducerInfoNickname,
 					},
 				),
@@ -213,15 +219,15 @@ func newConflictManager() conflictManager {
 				name: slotCRDID,
 				slot: newConflictSlot(programHash,
 					keyTypeFuncPair{
-						Type: types.RegisterCR,
+						Type: common2.RegisterCR,
 						Func: addrCRInfoCRCID,
 					},
 					keyTypeFuncPair{
-						Type: types.UpdateCR,
+						Type: common2.UpdateCR,
 						Func: addrCRInfoCRCID,
 					},
 					keyTypeFuncPair{
-						Type: types.UnregisterCR,
+						Type: common2.UnregisterCR,
 						Func: addrUnregisterCRCID,
 					},
 				),
@@ -231,11 +237,11 @@ func newConflictManager() conflictManager {
 				name: slotCRNickname,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.RegisterCR,
+						Type: common2.RegisterCR,
 						Func: strCRInfoNickname,
 					},
 					keyTypeFuncPair{
-						Type: types.UpdateCR,
+						Type: common2.UpdateCR,
 						Func: strCRInfoNickname,
 					},
 				),
@@ -245,11 +251,11 @@ func newConflictManager() conflictManager {
 				name: slotProgramCode,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.ReturnDepositCoin,
+						Type: common2.ReturnDepositCoin,
 						Func: strTxProgramCode,
 					},
 					keyTypeFuncPair{
-						Type: types.ReturnCRDepositCoin,
+						Type: common2.ReturnCRDepositCoin,
 						Func: strTxProgramCode,
 					},
 				),
@@ -259,8 +265,17 @@ func newConflictManager() conflictManager {
 				name: slotChangeCustomIDFee,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: strChangeCustomIDFee,
+					},
+				),
+			},
+			{
+				name: slotReserveCustomID,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: common2.CRCProposal,
+						Func: strReserveCustomID,
 					},
 				),
 			},
@@ -269,7 +284,7 @@ func newConflictManager() conflictManager {
 				name: slotCloseProposalTargetProposalHash,
 				slot: newConflictSlot(hash,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: hashCloseProposalTargetProposalHash,
 					},
 				),
@@ -278,7 +293,7 @@ func newConflictManager() conflictManager {
 				name: slotChangeProposalOwnerTargetProposalHash,
 				slot: newConflictSlot(hash,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: hashChangeProposalOwnerTargetProposalHash,
 					},
 				),
@@ -288,7 +303,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalDraftHash,
 				slot: newConflictSlot(hash,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: hashCRCProposalDraftHash,
 					},
 				),
@@ -298,7 +313,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalDID,
 				slot: newConflictSlot(programHash,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: hashCRCProposalDID,
 					},
 				),
@@ -308,7 +323,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalCustomID,
 				slot: newConflictSlot(strArray,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: strArrayCRCProposalCustomID,
 					},
 				),
@@ -318,7 +333,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalRegisterSideChainName,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: hashCRCProposalRegisterSideChainName,
 					},
 				),
@@ -328,7 +343,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalRegisterSideChainMagicNumber,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: hashCRCProposalRegisterSideChainMagicNumber,
 					},
 				),
@@ -338,7 +353,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalRegisterSideChainGenesisHash,
 				slot: newConflictSlot(hash,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: hashCRCProposalRegisterSideChainGenesisHash,
 					},
 				),
@@ -348,7 +363,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalHash,
 				slot: newConflictSlot(hash,
 					keyTypeFuncPair{
-						Type: types.CRCProposalWithdraw,
+						Type: common2.CRCProposalWithdraw,
 						Func: hashCRCProposalWithdrawProposalHash,
 					},
 				),
@@ -358,7 +373,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalTrackingHash,
 				slot: newConflictSlot(hash,
 					keyTypeFuncPair{
-						Type: types.CRCProposalTracking,
+						Type: common2.CRCProposalTracking,
 						Func: hashCRCProposalTrackingProposalHash,
 					},
 				),
@@ -368,7 +383,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalReviewKey,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRCProposalReview,
+						Type: common2.CRCProposalReview,
 						Func: strProposalReviewKey,
 					},
 				),
@@ -378,7 +393,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCAppropriationKey,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRCAppropriation,
+						Type: common2.CRCAppropriation,
 						Func: strCRCAppropriation,
 					},
 				),
@@ -388,7 +403,7 @@ func newConflictManager() conflictManager {
 				name: slotCRCSecretaryGeneral,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.CRCProposal,
+						Type: common2.CRCProposal,
 						Func: strSecretaryGeneral,
 					},
 				),
@@ -398,8 +413,55 @@ func newConflictManager() conflictManager {
 				name: slotCRCProposalRealWithdrawKey,
 				slot: newConflictSlot(hashArray,
 					keyTypeFuncPair{
-						Type: types.CRCProposalRealWithdraw,
+						Type: common2.CRCProposalRealWithdraw,
 						Func: hashArrayCRCProposalRealWithdrawTransactionHashes,
+					},
+				),
+			},
+			{
+				name: slotDposV2ClaimRewardRealWithdrawKey,
+				slot: newConflictSlot(hashArray,
+					keyTypeFuncPair{
+						Type: common2.DposV2ClaimRewardRealWithdraw,
+						Func: hashArrayDposV2ClaimRewardRealWithdrawTransactionHashes,
+					},
+				),
+			},
+			// Stake
+			{
+				name: slotStake,
+				slot: newConflictSlot(programHash,
+					keyTypeFuncPair{
+						Type: common2.Stake,
+						Func: strStake,
+					},
+					keyTypeFuncPair{
+						Type: common2.Voting,
+						Func: strVoting,
+					},
+					keyTypeFuncPair{
+						Type: common2.Unstake,
+						Func: strUnstake,
+					},
+				),
+			},
+			// DposV2ClaimReward
+			{
+				name: slotDposV2ClaimReward,
+				slot: newConflictSlot(programHash,
+					keyTypeFuncPair{
+						Type: common2.DposV2ClaimReward,
+						Func: programHashDposV2ClaimReward,
+					},
+				),
+			},
+			// UnstakeRealWithdraw key
+			{
+				name: slotUnstakeRealWithdraw,
+				slot: newConflictSlot(str,
+					keyTypeFuncPair{
+						Type: common2.UnstakeRealWithdraw,
+						Func: strUnstakeRealWithdrawTX,
 					},
 				),
 			},
@@ -407,7 +469,7 @@ func newConflictManager() conflictManager {
 				name: slotRevertToDPOSHash,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.RevertToDPOS,
+						Type: common2.RevertToDPOS,
 						Func: hashRevertToDPOS,
 					},
 				),
@@ -417,27 +479,27 @@ func newConflictManager() conflictManager {
 				name: slotSpecialTxHash,
 				slot: newConflictSlot(hash,
 					keyTypeFuncPair{
-						Type: types.IllegalProposalEvidence,
+						Type: common2.IllegalProposalEvidence,
 						Func: hashSpecialTxHash,
 					},
 					keyTypeFuncPair{
-						Type: types.IllegalVoteEvidence,
+						Type: common2.IllegalVoteEvidence,
 						Func: hashSpecialTxHash,
 					},
 					keyTypeFuncPair{
-						Type: types.IllegalBlockEvidence,
+						Type: common2.IllegalBlockEvidence,
 						Func: hashSpecialTxHash,
 					},
 					keyTypeFuncPair{
-						Type: types.IllegalSidechainEvidence,
+						Type: common2.IllegalSidechainEvidence,
 						Func: hashSpecialTxHash,
 					},
 					keyTypeFuncPair{
-						Type: types.InactiveArbitrators,
+						Type: common2.InactiveArbitrators,
 						Func: hashSpecialTxHash,
 					},
 					keyTypeFuncPair{
-						Type: types.NextTurnDPOSInfo,
+						Type: common2.NextTurnDPOSInfo,
 						Func: hashNextTurnDPOSInfoTxPayloadHash,
 					},
 				),
@@ -447,7 +509,7 @@ func newConflictManager() conflictManager {
 				name: slotCustomIDProposalResult,
 				slot: newConflictSlot(str,
 					keyTypeFuncPair{
-						Type: types.ProposalResult,
+						Type: common2.ProposalResult,
 						Func: hashCustomIDProposalResultTxPayloadHash,
 					},
 				),
@@ -457,7 +519,7 @@ func newConflictManager() conflictManager {
 				name: slotSidechainTxHashes,
 				slot: newConflictSlot(hashArray,
 					keyTypeFuncPair{
-						Type: types.WithdrawFromSideChain,
+						Type: common2.WithdrawFromSideChain,
 						Func: hashArraySidechainTransactionHashes,
 					},
 				),
@@ -467,7 +529,7 @@ func newConflictManager() conflictManager {
 				name: slotSidechainReturnDepositTxHashes,
 				slot: newConflictSlot(hashArray,
 					keyTypeFuncPair{
-						Type: types.ReturnSideChainDepositCoin,
+						Type: common2.ReturnSideChainDepositCoin,
 						Func: hashArraySidechainReturnDepositTransactionHashes,
 					},
 				),

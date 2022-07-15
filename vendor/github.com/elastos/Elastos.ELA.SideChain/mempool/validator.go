@@ -13,9 +13,11 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"github.com/elastos/Elastos.ELA.SideChain/vm"
 
+	spvitf "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/contract"
-	core "github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/elanet/bloom"
 )
@@ -24,11 +26,12 @@ var zeroHash = common.Uint256{}
 
 type TxValidateAction struct {
 	Name    FuncName
-	Handler func(txn *types.Transaction) error
+	Handler func(txn *types.Transaction, height uint32, mainChainHeight uint32) error
 }
 
 type Validator struct {
 	chainParams           *config.Params
+	Chain                 *blockchain.BlockChain
 	db                    *blockchain.ChainStore
 	txFeeHelper           *FeeHelper
 	spvService            *spv.Service
@@ -42,6 +45,7 @@ func NewValidator(cfg *Config) *Validator {
 		db:          cfg.ChainStore,
 		txFeeHelper: cfg.FeeHelper,
 		spvService:  cfg.SpvService,
+		Chain:       cfg.Chain,
 	}
 
 	v.RegisterSanityFunc(FuncNames.CheckTransactionSize, v.checkTransactionSize)
@@ -63,7 +67,7 @@ func NewValidator(cfg *Config) *Validator {
 	return v
 }
 
-func (v *Validator) RegisterSanityFunc(name FuncName, function func(txn *types.Transaction) error) {
+func (v *Validator) RegisterSanityFunc(name FuncName, function func(txn *types.Transaction, height uint32, mainChainHeight uint32) error) {
 	for _, action := range v.checkSanityFunctions {
 		if action.Name == name {
 			action.Handler = function
@@ -73,7 +77,7 @@ func (v *Validator) RegisterSanityFunc(name FuncName, function func(txn *types.T
 	v.checkSanityFunctions = append(v.checkSanityFunctions, &TxValidateAction{Name: name, Handler: function})
 }
 
-func (v *Validator) RegisterContextFunc(name FuncName, function func(txn *types.Transaction) error) {
+func (v *Validator) RegisterContextFunc(name FuncName, function func(txn *types.Transaction, height uint32, mainChainHeight uint32) error) {
 	for _, action := range v.checkContextFunctions {
 		if action.Name == name {
 			action.Handler = function
@@ -84,9 +88,9 @@ func (v *Validator) RegisterContextFunc(name FuncName, function func(txn *types.
 }
 
 // CheckTransactionSanity verifys received single transaction
-func (v *Validator) CheckTransactionSanity(txn *types.Transaction) error {
+func (v *Validator) CheckTransactionSanity(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	for _, checkFunc := range v.checkSanityFunctions {
-		if err := checkFunc.Handler(txn); err != nil {
+		if err := checkFunc.Handler(txn, height, mainChainHeight); err != nil {
 			if err == ErrBreak {
 				return nil
 			}
@@ -97,9 +101,9 @@ func (v *Validator) CheckTransactionSanity(txn *types.Transaction) error {
 }
 
 // CheckTransactionContext verifys a transaction with history transaction in ledger
-func (v *Validator) CheckTransactionContext(txn *types.Transaction) error {
+func (v *Validator) CheckTransactionContext(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	for _, checkFunc := range v.checkContextFunctions {
-		if err := checkFunc.Handler(txn); err != nil {
+		if err := checkFunc.Handler(txn, height, mainChainHeight); err != nil {
 			if err == ErrBreak {
 				return nil
 			}
@@ -109,7 +113,7 @@ func (v *Validator) CheckTransactionContext(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkReferencedOutput(txn *types.Transaction) error {
+func (v *Validator) checkReferencedOutput(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	// check referenced Output value
 	for _, input := range txn.Inputs {
 		referHash := input.Previous.TxID
@@ -138,7 +142,7 @@ func (v *Validator) checkReferencedOutput(txn *types.Transaction) error {
 }
 
 //validate the transaction of duplicate UTXO input
-func (v *Validator) checkTransactionInput(txn *types.Transaction) error {
+func (v *Validator) checkTransactionInput(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if txn.IsCoinBaseTx() {
 		if len(txn.Inputs) != 1 {
 			str := fmt.Sprint("[checkTransactionInput] coinbase must has only one input")
@@ -179,33 +183,7 @@ func (v *Validator) checkTransactionInput(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkTransactionOutput(txn *types.Transaction) error {
-	if txn.IsCoinBaseTx() {
-		if len(txn.Outputs) < 2 {
-			str := fmt.Sprint("[checkTransactionOutput] coinbase output is not enough, at least 2")
-			return ruleError(ErrInvalidOutput, str)
-		}
-
-		var totalReward = common.Fixed64(0)
-		var foundationReward = common.Fixed64(0)
-		for _, output := range txn.Outputs {
-			if output.AssetID != v.chainParams.ElaAssetId {
-				str := fmt.Sprint("[checkTransactionOutput] asset ID in coinbase is invalid")
-				return ruleError(ErrInvalidOutput, str)
-			}
-			totalReward += output.Value
-			if output.ProgramHash.IsEqual(v.chainParams.Foundation) {
-				foundationReward += output.Value
-			}
-		}
-		if common.Fixed64(foundationReward) < common.Fixed64(float64(totalReward)*0.3) {
-			str := fmt.Sprint("[checkTransactionOutput] Reward to foundation in coinbase < 30%")
-			return ruleError(ErrInvalidOutput, str)
-		}
-
-		return nil
-	}
-
+func (v *Validator) checkTransactionOutput(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if len(txn.Outputs) < 1 {
 		str := fmt.Sprint("[checkTransactionOutput] transaction has no outputs")
 		return ruleError(ErrInvalidOutput, str)
@@ -240,7 +218,7 @@ func (v *Validator) checkOutputProgramHash(programHash common.Uint168) bool {
 	return false
 }
 
-func (v *Validator) checkTransactionUTXOLock(txn *types.Transaction) error {
+func (v *Validator) checkTransactionUTXOLock(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if txn.IsCoinBaseTx() {
 		return nil
 	}
@@ -270,7 +248,7 @@ func (v *Validator) checkTransactionUTXOLock(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkTransactionSize(txn *types.Transaction) error {
+func (v *Validator) checkTransactionSize(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	size := txn.GetSize()
 	if size <= 0 || size > types.MaxBlockSize {
 		str := fmt.Sprintf("[checkTransactionSize] Invalid transaction size: %d bytes", size)
@@ -280,7 +258,7 @@ func (v *Validator) checkTransactionSize(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkAssetPrecision(txn *types.Transaction) error {
+func (v *Validator) checkAssetPrecision(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if len(txn.Outputs) == 0 {
 		return nil
 	}
@@ -306,7 +284,7 @@ func (v *Validator) checkAssetPrecision(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkTransactionBalance(txn *types.Transaction) error {
+func (v *Validator) checkTransactionBalance(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	for _, v := range txn.Outputs {
 		if v.Value < common.Fixed64(0) {
 			str := fmt.Sprint("[checkTransactionBalance] Invalide transaction UTXO output.")
@@ -326,7 +304,7 @@ func (v *Validator) checkTransactionBalance(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkAttributeProgram(txn *types.Transaction) error {
+func (v *Validator) checkAttributeProgram(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	// Check attributes
 	for _, attr := range txn.Attributes {
 		if !types.IsValidAttributeType(attr.Usage) {
@@ -349,7 +327,7 @@ func (v *Validator) checkAttributeProgram(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkTransactionDuplicate(txn *types.Transaction) error {
+func (v *Validator) checkTransactionDuplicate(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	// check if duplicated with transaction in ledger
 	if exist := v.db.IsDuplicateTx(txn.Hash()); exist {
 		str := fmt.Sprint("[CheckTransactionContext] duplicate transaction check faild.")
@@ -358,14 +336,52 @@ func (v *Validator) checkTransactionDuplicate(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkTransactionCoinBase(txn *types.Transaction) error {
+func (v *Validator) checkTransactionCoinBase(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if txn.IsCoinBaseTx() {
+		currentHeight := v.db.GetHeight()
+		if currentHeight >= v.chainParams.RewardMinerOnlyStartHeight {
+			if len(txn.Outputs) != 1 {
+				str := fmt.Sprint("[checkTransactionOutput] coinbase outputs count should be 1")
+				return ruleError(ErrInvalidOutput, str)
+			}
+
+			for _, output := range txn.Outputs {
+				if output.AssetID != v.chainParams.ElaAssetId {
+					str := fmt.Sprint("[checkTransactionOutput] asset ID in coinbase is invalid")
+					return ruleError(ErrInvalidOutput, str)
+				}
+			}
+		} else {
+			if len(txn.Outputs) != 2 {
+				str := fmt.Sprint("[checkTransactionOutput] coinbase outputs count should be 2")
+				return ruleError(ErrInvalidOutput, str)
+			}
+
+			var totalReward = common.Fixed64(0)
+			var foundationReward = common.Fixed64(0)
+			for _, output := range txn.Outputs {
+				if output.AssetID != v.chainParams.ElaAssetId {
+					str := fmt.Sprint("[checkTransactionOutput] asset ID in coinbase is invalid")
+					return ruleError(ErrInvalidOutput, str)
+				}
+				totalReward += output.Value
+				if output.ProgramHash.IsEqual(v.chainParams.Foundation) {
+					foundationReward += output.Value
+				}
+			}
+			if common.Fixed64(foundationReward) < common.Fixed64(float64(totalReward)*0.3) {
+				str := fmt.Sprint("[checkTransactionOutput] Reward to foundation in coinbase < 30%")
+				return ruleError(ErrInvalidOutput, str)
+			}
+		}
+
 		return ErrBreak
 	}
+
 	return nil
 }
 
-func (v *Validator) checkTransactionDoubleSpend(txn *types.Transaction) error {
+func (v *Validator) checkTransactionDoubleSpend(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	// check double spent transaction
 	if v.db.IsDoubleSpend(txn) {
 		str := fmt.Sprint("[CheckTransactionContext] IsDoubleSpend check faild.")
@@ -374,7 +390,7 @@ func (v *Validator) checkTransactionDoubleSpend(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkTransactionSignature(tx *types.Transaction) error {
+func (v *Validator) checkTransactionSignature(tx *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if tx.IsRechargeToSideChainTx() {
 		if err := v.spvService.VerifyTransaction(tx); err != nil {
 			return ruleError(ErrTransactionSignature, err.Error())
@@ -404,7 +420,7 @@ func (v *Validator) checkAmountPrecise(amount common.Fixed64, precision byte, as
 	return amount.IntValue()%int64(math.Pow10(int(assetPrecision-precision))) == 0
 }
 
-func (v *Validator) checkTransactionPayload(txn *types.Transaction) error {
+func (v *Validator) checkTransactionPayload(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	switch pld := txn.Payload.(type) {
 	case *types.PayloadRegisterAsset:
 		if pld.Asset.Precision < types.MinPrecision || pld.Asset.Precision > types.MaxPrecision {
@@ -427,7 +443,7 @@ func (v *Validator) checkTransactionPayload(txn *types.Transaction) error {
 	return nil
 }
 
-func (v *Validator) checkRechargeToSideChainTransaction(txn *types.Transaction) error {
+func (v *Validator) checkRechargeToSideChainTransaction(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if !txn.IsRechargeToSideChainTx() {
 		return nil
 	}
@@ -443,7 +459,7 @@ func (v *Validator) checkRechargeToSideChainTransaction(txn *types.Transaction) 
 		return ruleError(ErrRechargeToSideChain, str)
 	}
 
-	mainChainTransaction := new(core.Transaction)
+	var mainChainTransaction it.Transaction
 	if txn.PayloadVersion == types.RechargeToSideChainPayloadVersion0 {
 		proof := new(bloom.MerkleProof)
 		reader := bytes.NewReader(payloadRecharge.MerkleProof)
@@ -452,6 +468,11 @@ func (v *Validator) checkRechargeToSideChainTransaction(txn *types.Transaction) 
 			return ruleError(ErrRechargeToSideChain, str)
 		}
 		reader = bytes.NewReader(payloadRecharge.MainChainTransaction)
+		mainChainTransaction, err := functions.GetTransactionByBytes(reader)
+		if err != nil {
+			str := fmt.Sprint("[checkRechargeToSideChainTransaction] RechargeToSideChain mainChainTransaction deserialize failed")
+			return ruleError(ErrRechargeToSideChain, str)
+		}
 		if err := mainChainTransaction.Deserialize(reader); err != nil {
 			str := fmt.Sprint("[checkRechargeToSideChainTransaction] RechargeToSideChain mainChainTransaction deserialize failed")
 			return ruleError(ErrRechargeToSideChain, str)
@@ -474,7 +495,7 @@ func (v *Validator) checkRechargeToSideChainTransaction(txn *types.Transaction) 
 		return ruleError(ErrRechargeToSideChain, str)
 	}
 
-	payloadObj, ok := mainChainTransaction.Payload.(*payload.TransferCrossChainAsset)
+	payloadObj, ok := mainChainTransaction.Payload().(*payload.TransferCrossChainAsset)
 	if !ok {
 		str := fmt.Sprint("[checkRechargeToSideChainTransaction] Invalid PayloadTransferCrossChainAsset")
 		return ruleError(ErrRechargeToSideChain, str)
@@ -490,9 +511,9 @@ func (v *Validator) checkRechargeToSideChainTransaction(txn *types.Transaction) 
 	//check output fee and rate
 	var oriOutputTotalAmount common.Fixed64
 	for i := 0; i < len(payloadObj.CrossChainAddresses); i++ {
-		if mainChainTransaction.Outputs[payloadObj.OutputIndexes[i]].ProgramHash.IsEqual(*genesisProgramHash) {
+		if mainChainTransaction.Outputs()[payloadObj.OutputIndexes[i]].ProgramHash.IsEqual(*genesisProgramHash) {
 			if payloadObj.CrossChainAmounts[i] < 0 || payloadObj.CrossChainAmounts[i] >
-				mainChainTransaction.Outputs[payloadObj.OutputIndexes[i]].Value-
+				mainChainTransaction.Outputs()[payloadObj.OutputIndexes[i]].Value-
 					common.Fixed64(v.chainParams.MinCrossChainTxFee) {
 				str := fmt.Sprint("[checkRechargeToSideChainTransaction] Invalid transaction cross chain amount")
 				return ruleError(ErrRechargeToSideChain, str)
@@ -538,7 +559,15 @@ func (v *Validator) checkRechargeToSideChainTransaction(txn *types.Transaction) 
 	return ErrBreak
 }
 
-func (v *Validator) checkTransferCrossChainAssetTransaction(txn *types.Transaction) error {
+func (v *Validator) GetParams() *config.Params {
+	return v.chainParams
+}
+
+func (v *Validator) GetFeeHelper() *FeeHelper {
+	return v.txFeeHelper
+}
+
+func (v *Validator) checkTransferCrossChainAssetTransaction(txn *types.Transaction, height uint32, mainChainHeight uint32) error {
 	if !txn.IsTransferCrossChainAssetTx() {
 		return nil
 	}
@@ -548,6 +577,12 @@ func (v *Validator) checkTransferCrossChainAssetTransaction(txn *types.Transacti
 		str := fmt.Sprint("[checkTransferCrossChainAssetTransaction] Invalid transfer cross chain asset payload type")
 		return ruleError(ErrCrossChain, str)
 	}
+	ca, _ := v.spvService.GetConsensusAlgorithm(mainChainHeight)
+	if ca == spvitf.POW {
+		str := fmt.Sprint("[checkTransferCrossChainAssetTransaction] Current consensus algorithm is POW")
+		return ruleError(ErrCrossChain, str)
+	}
+
 	if len(payloadObj.CrossChainAddresses) == 0 ||
 		len(payloadObj.CrossChainAddresses) > len(txn.Outputs) ||
 		len(payloadObj.CrossChainAddresses) != len(payloadObj.CrossChainAmounts) ||

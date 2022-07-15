@@ -8,10 +8,11 @@ package payload
 import (
 	"bytes"
 	"errors"
-	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/crypto"
 	"io"
 	"regexp"
+
+	"github.com/elastos/Elastos.ELA/common"
+	"github.com/elastos/Elastos.ELA/crypto"
 )
 
 const (
@@ -1525,6 +1526,10 @@ func (p *CRCProposalInfo) Serialize(w io.Writer, version byte) error {
 		return errors.New("failed to serialize RateOfCustomIDFee")
 	}
 
+	if err := common.WriteUint32(w, p.EIDEffectiveHeight); err != nil {
+		return errors.New("failed to serialize EIDEffectiveHeight")
+	}
+
 	if err := p.NewRecipient.Serialize(w); err != nil {
 		return errors.New("failed to serialize Recipient")
 	}
@@ -1543,6 +1548,10 @@ func (p *CRCProposalInfo) Serialize(w io.Writer, version byte) error {
 
 	if err := p.CRCouncilMemberDID.Serialize(w); err != nil {
 		return errors.New("failed to serialize CRCouncilMemberDID")
+	}
+
+	if err := p.SideChainInfo.Serialize(w); err != nil {
+		return errors.New("failed to serialize SideChainInfo")
 	}
 
 	if err := p.Hash.Serialize(w); err != nil {
@@ -1627,6 +1636,10 @@ func (p *CRCProposalInfo) Deserialize(r io.Reader, version byte) error {
 		return errors.New("failed to deserialize RateOfCustomIDFee")
 	}
 
+	if p.EIDEffectiveHeight, err = common.ReadUint32(r); err != nil {
+		return errors.New("failed to deserialize EIDEffectiveHeight")
+	}
+
 	if err = p.NewRecipient.Deserialize(r); err != nil {
 		return errors.New("failed to deserialize Recipient")
 	}
@@ -1646,6 +1659,10 @@ func (p *CRCProposalInfo) Deserialize(r io.Reader, version byte) error {
 
 	if err := p.CRCouncilMemberDID.Deserialize(r); err != nil {
 		return errors.New("failed to deserialize CRCouncilMemberDID")
+	}
+
+	if err := p.SideChainInfo.Deserialize(r); err != nil {
+		return errors.New("failed to deserialize SideChainInfo")
 	}
 
 	if err := p.Hash.Deserialize(r); err != nil {

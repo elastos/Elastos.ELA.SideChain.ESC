@@ -1,7 +1,9 @@
 package sdk
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -112,7 +114,7 @@ func newService(cfg *Config) (*service, error) {
 	svrCfg := server.NewDefaultConfig(
 		params.Magic, pact.DPOSStartVersion, 0,
 		params.DefaultPort, params.DNSSeeds, nil,
-		service.newPeer, service.donePeer, service.makeEmptyMessage,
+		service.newPeer, service.donePeer, service.createMessage,
 		func() uint64 { return uint64(chain.BestHeight()) },
 		params.NewP2PProtocolVersionHeight, cfg.NodeVersion,
 	)
@@ -137,9 +139,8 @@ func (s *service) start() {
 	go s.txHandler()
 }
 
-func (s *service) makeEmptyMessage(cmd string) (p2p.Message, error) {
-	var message p2p.Message
-	switch cmd {
+func (s *service) createMessage(hdr p2p.Header, r net.Conn) (message p2p.Message, err error) {
+	switch hdr.GetCMD() {
 	case p2p.CmdInv:
 		message = new(msg.Inv)
 
@@ -150,7 +151,7 @@ func (s *service) makeEmptyMessage(cmd string) (p2p.Message, error) {
 		message = new(msg.NotFound)
 
 	case p2p.CmdTx:
-		message = msg.NewTx(s.cfg.NewTransaction())
+		return peer.CheckAndCreateTxMessage(hdr, r)
 
 	case p2p.CmdMerkleBlock:
 		message = msg.NewMerkleBlock(s.cfg.NewBlockHeader())
@@ -159,9 +160,10 @@ func (s *service) makeEmptyMessage(cmd string) (p2p.Message, error) {
 		message = new(msg.Reject)
 
 	default:
-		return nil, fmt.Errorf("unhandled command [%s]", cmd)
+		return nil, errors.New("Received unsupported message, CMD " + hdr.GetCMD())
 	}
-	return message, nil
+
+	return peer.CheckAndCreateMessage(hdr, message, r)
 }
 
 func (s *service) newPeer(peer server.IPeer) bool {

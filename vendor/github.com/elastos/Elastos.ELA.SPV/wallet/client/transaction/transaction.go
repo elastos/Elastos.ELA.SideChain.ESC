@@ -13,7 +13,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/wallet/client"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/urfave/cli"
 )
@@ -26,7 +27,7 @@ func CreateTransaction(c *cli.Context, wallet *client.Wallet) error {
 	return output(txn)
 }
 
-func createTransaction(c *cli.Context, wallet *client.Wallet) (*types.Transaction, error) {
+func createTransaction(c *cli.Context, wallet *client.Wallet) (it.Transaction, error) {
 	feeStr := c.String("fee")
 	if feeStr == "" {
 		return nil, errors.New("use --fee to specify transfer fee")
@@ -45,7 +46,7 @@ func createTransaction(c *cli.Context, wallet *client.Wallet) (*types.Transactio
 		}
 	}
 
-	var tx *types.Transaction
+	var tx it.Transaction
 
 	multiOutput := c.String("file")
 	if multiOutput != "" {
@@ -91,7 +92,7 @@ func createTransaction(c *cli.Context, wallet *client.Wallet) (*types.Transactio
 	return tx, nil
 }
 
-func createMultiOutputTransaction(c *cli.Context, wallet *client.Wallet, path, from string, fee *common.Fixed64) (*types.Transaction, error) {
+func createMultiOutputTransaction(c *cli.Context, wallet *client.Wallet, path, from string, fee *common.Fixed64) (it.Transaction, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, errors.New("invalid multi output file path")
 	}
@@ -117,7 +118,7 @@ func createMultiOutputTransaction(c *cli.Context, wallet *client.Wallet, path, f
 	}
 
 	lockStr := c.String("lock")
-	var tx *types.Transaction
+	var tx it.Transaction
 	if lockStr == "" {
 		tx, err = wallet.CreateMultiOutputTransaction(from, fee, multiOutput...)
 		if err != nil {
@@ -151,8 +152,8 @@ func SignTransaction(password []byte, context *cli.Context, wallet *client.Walle
 	return output(txn)
 }
 
-func signTransaction(password []byte, wallet *client.Wallet, tx *types.Transaction) (*types.Transaction, error) {
-	haveSign, needSign, err := crypto.GetSignStatus(tx.Programs[0].Code, tx.Programs[0].Parameter)
+func signTransaction(password []byte, wallet *client.Wallet, tx it.Transaction) (it.Transaction, error) {
+	haveSign, needSign, err := crypto.GetSignStatus(tx.Programs()[0].Code, tx.Programs()[0].Parameter)
 	if haveSign == needSign {
 		return nil, errors.New("transaction was fully signed, no need more sign")
 	}
@@ -168,7 +169,7 @@ func signTransaction(password []byte, wallet *client.Wallet, tx *types.Transacti
 func SendTransaction(password []byte, context *cli.Context, wallet *client.Wallet) error {
 	content, err := getContent(context)
 
-	var tx *types.Transaction
+	var tx it.Transaction
 	if content == nil {
 		// Create transaction with command line arguments
 		tx, err = createTransaction(context, wallet)
@@ -181,12 +182,16 @@ func SendTransaction(password []byte, context *cli.Context, wallet *client.Walle
 			return err
 		}
 	} else {
-		tx = new(types.Transaction)
 		data, err := common.HexStringToBytes(*content)
 		if err != nil {
-			return fmt.Errorf("Deseralize transaction file failed, error %s", err.Error())
+			return fmt.Errorf("deseralize transaction file failed, error %s", err.Error())
 		}
-		err = tx.Deserialize(bytes.NewReader(data))
+		r := bytes.NewReader(data)
+		tx, err = elatx.GetTransactionByBytes(r)
+		if err != nil {
+			return fmt.Errorf("deseralize transaction file failed, error %s", err.Error())
+		}
+		err = tx.Deserialize(r)
 		if err != nil {
 			return err
 		}
@@ -234,7 +239,7 @@ func getContent(context *cli.Context) (*string, error) {
 	return &content, nil
 }
 
-func getTransaction(context *cli.Context) (*types.Transaction, error) {
+func getTransaction(context *cli.Context) (it.Transaction, error) {
 	content, err := getContent(context)
 	if err != nil {
 		return nil, err
@@ -245,16 +250,20 @@ func getTransaction(context *cli.Context) (*types.Transaction, error) {
 		return nil, errors.New("decode transaction content failed")
 	}
 
-	var txn types.Transaction
-	err = txn.Deserialize(bytes.NewReader(rawData))
+	r :=bytes.NewReader(rawData)
+	txn, err := elatx.GetTransactionByBytes(r)
+	if err != nil {
+		return nil, err
+	}
+	err = txn.Deserialize(r)
 	if err != nil {
 		return nil, errors.New("deserialize transaction failed")
 	}
 
-	return &txn, nil
+	return txn, nil
 }
 
-func output(tx *types.Transaction) error {
+func output(tx it.Transaction) error {
 	// Serialise transaction content
 	buf := new(bytes.Buffer)
 	tx.Serialize(buf)
@@ -266,7 +275,7 @@ func output(tx *types.Transaction) error {
 	// Output to file
 	fileName := "to_be_signed" // Create transaction file name
 
-	haveSign, needSign, _ := crypto.GetSignStatus(tx.Programs[0].Code, tx.Programs[0].Parameter)
+	haveSign, needSign, _ := crypto.GetSignStatus(tx.Programs()[0].Code, tx.Programs()[0].Parameter)
 
 	if needSign > haveSign {
 		fileName = fmt.Sprint(fileName, "_", haveSign, "_of_", needSign)

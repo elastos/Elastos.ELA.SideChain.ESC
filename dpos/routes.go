@@ -23,7 +23,7 @@ import (
 
 type IPeer interface {
 	Disconnect()
-    SendELAMessage(msg *ElaMsg)
+	SendELAMessage(msg *ElaMsg)
 }
 
 const (
@@ -116,10 +116,10 @@ type Routes struct {
 	knownAddr map[common.Uint256]*msg.DAddr
 	knownList *list.List
 
-	queue    chan interface{}
+	queue     chan interface{}
 	donequeue chan IPeer
-	announce chan struct{}
-	quit     chan struct{}
+	announce  chan struct{}
+	quit      chan struct{}
 }
 
 // New creates and return a Routes instance.
@@ -144,7 +144,13 @@ func New(cfg *Config) *Routes {
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
 		case events.ETDirectPeersChanged:
-			go r.PeersChanged(e.Data.([]peer.PID))
+			peersInfo := e.Data.(*peer.PeersInfo)
+			current := peersInfo.CurrentPeers
+			next := peersInfo.NextPeers
+			if next != nil {
+				current = append(current, next...)
+			}
+			go r.PeersChanged(current)
 		case ETElaMsg:
 			go r.ElaMsg(e.Data.(*MsgEvent))
 		case ETNewPeer:
