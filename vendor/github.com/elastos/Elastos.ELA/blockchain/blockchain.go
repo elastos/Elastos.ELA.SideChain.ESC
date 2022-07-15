@@ -10,6 +10,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -23,6 +24,9 @@ import (
 	"github.com/elastos/Elastos.ELA/common/log"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
 	. "github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/common"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	crstate "github.com/elastos/Elastos.ELA/cr/state"
@@ -111,7 +115,7 @@ func New(db IChainStore, chainParams *config.Params, state *state.State,
 		TimeSource:          NewMedianTime(),
 	}
 
-	// Initialize the chain state from the passed database.  When the db
+	// Initialize the chain state from the passed database.  When the DB
 	// does not yet contain any chain state, both it and the chain state
 	// will be initialized to contain only the genesis block.
 	if err := chain.initChainState(); err != nil {
@@ -123,6 +127,10 @@ func New(db IChainStore, chainParams *config.Params, state *state.State,
 
 func (b *BlockChain) GetDB() IChainStore {
 	return b.db
+}
+
+func (b *BlockChain) GetParams() *config.Params {
+	return b.chainParams
 }
 
 func (b *BlockChain) Init(interrupt <-chan struct{}) error {
@@ -194,14 +202,14 @@ func (b *BlockChain) MigrateOldDB(
 			if start >= params.CRCOnlyDPOSHeight {
 				confirm, err = b.db.GetConfirm(hash)
 				if err != nil {
-					done <- fmt.Errorf("GetConfirm err: %s", err)
+					done <- fmt.Errorf("get confirm err: %s", err)
 					break
 				}
 			}
 
 			node, err := b.LoadBlockNode(&block.Header, &hash)
 			if err != nil {
-				done <- fmt.Errorf("LoadBlockNode err: %s", err)
+				done <- fmt.Errorf("load block node err: %s", err)
 				break
 			}
 			b.SetTip(node)
@@ -209,20 +217,25 @@ func (b *BlockChain) MigrateOldDB(
 			b.index.SetFlags(&block.Header, statusDataStored)
 			err = b.index.flushToDB()
 			if err != nil {
-				done <- fmt.Errorf("flushToDB err: %s", err)
+				done <- fmt.Errorf("flusht to DB err: %s", err)
 				break
 			}
 
-			err = b.db.GetFFLDB().SaveBlock(block, node, confirm, CalcPastMedianTime(node))
+			ps, err := GetSaveProcessorsFromBlock(block)
 			if err != nil {
-				done <- fmt.Errorf("SaveBlock err: %s", err)
+				done <- fmt.Errorf("get processors err: %s", err)
+				break
+			}
+			err = b.db.GetFFLDB().SaveBlock(block, node, confirm, CalcPastMedianTime(node), ps)
+			if err != nil {
+				done <- fmt.Errorf("save block err: %s", err)
 				break
 			}
 
 			b.index.SetFlags(&block.Header, statusDataStored|statusValid)
 			err = b.index.flushToDB()
 			if err != nil {
-				done <- fmt.Errorf("flushToDB err: %s", err)
+				done <- fmt.Errorf("flush to DB err: %s", err)
 				break
 			}
 
@@ -241,7 +254,7 @@ func (b *BlockChain) MigrateOldDB(
 		if err != nil {
 			err = fmt.Errorf("process block failed, %s", err)
 		} else {
-			log.Info("Migrating the old db finished, then delete the old db files.")
+			log.Info("Migrating the old DB finished, then delete the old DB files.")
 
 			// Delete the old database files include "chain", "blocks_ffldb" and "dpos".
 			oldFFLDB.Close()
@@ -318,17 +331,26 @@ func (b *BlockChain) InitCheckpoint(interrupt <-chan struct{},
 	select {
 	case <-done:
 		arbiters.Start()
+
+		currentArbiters := arbiters.GetCurrentNeedConnectArbiters()
+		nextArbiters := arbiters.GetNextNeedConnectArbiters()
+		crArbiters := arbiters.GetNeedConnectCRArbiters()
+
 		events.Notify(events.ETDirectPeersChanged,
-			arbiters.GetNeedConnectArbiters())
+			&peer.PeersInfo{
+			CurrentPeers: currentArbiters,
+			NextPeers: nextArbiters,
+			CRPeers: crArbiters})
 
 	case <-interrupt:
 	}
 	return err
 }
 
-func (b *BlockChain) createTransaction(pd Payload, txType TxType,
+func (b *BlockChain) createTransaction(pd interfaces.Payload, txType common.TxType,
 	fromAddress Uint168, fee Fixed64, lockedUntil uint32,
-	utxos []*UTXO, outputs ...*OutputInfo) (*Transaction, error) {
+	utxos []*common.UTXO, outputs ...*common.OutputInfo) (interfaces.Transaction, error) {
+
 	// check output
 	if len(outputs) == 0 {
 		return nil, errors.New("invalid transaction target")
@@ -339,36 +361,38 @@ func (b *BlockChain) createTransaction(pd Payload, txType TxType,
 	if err != nil {
 		return nil, err
 	}
-	// create inputs
+	// create Inputs
 	txInputs, changeOutputs, err := b.createInputs(fromAddress, totalAmount, utxos)
 	if err != nil {
 		return nil, err
 	}
 	txOutputs = append(txOutputs, changeOutputs...)
-	return &Transaction{
-		Version:    TxVersion09,
-		TxType:     txType,
-		Payload:    pd,
-		Attributes: []*Attribute{},
-		Inputs:     txInputs,
-		Outputs:    txOutputs,
-		Programs:   []*program.Program{},
-		LockTime:   0,
-	}, nil
+
+	return functions.CreateTransaction(
+		common.TxVersion09,
+		txType,
+		0,
+		pd,
+		[]*common.Attribute{},
+		txInputs,
+		txOutputs,
+		0,
+		[]*program.Program{},
+	), nil
 }
 
-func (b *BlockChain) createNormalOutputs(outputs []*OutputInfo, fee Fixed64,
-	lockedUntil uint32) ([]*Output, Fixed64, error) {
-	var totalAmount = Fixed64(0) // The total amount will be spend
-	var txOutputs []*Output      // The outputs in transaction
-	totalAmount += fee           // Add transaction fee
+func (b *BlockChain) createNormalOutputs(outputs []*common.OutputInfo, fee Fixed64,
+	lockedUntil uint32) ([]*common.Output, Fixed64, error) {
+	var totalAmount = Fixed64(0)   // The total amount will be spend
+	var txOutputs []*common.Output // The outputs in transaction
+	totalAmount += fee             // Add transaction fee
 	for _, output := range outputs {
-		txOutput := &Output{
+		txOutput := &common.Output{
 			AssetID:     *elaact.SystemAssetID,
 			ProgramHash: output.Recipient,
 			Value:       output.Amount,
 			OutputLock:  lockedUntil,
-			Type:        OTNone,
+			Type:        common.OTNone,
 			Payload:     &outputpayload.DefaultOutput{},
 		}
 		totalAmount += output.Amount
@@ -377,8 +401,8 @@ func (b *BlockChain) createNormalOutputs(outputs []*OutputInfo, fee Fixed64,
 	return txOutputs, totalAmount, nil
 }
 
-func (b *BlockChain) getUTXOsFromAddress(address Uint168) ([]*UTXO, Fixed64, error) {
-	var utxoSlice []*UTXO
+func (b *BlockChain) getUTXOsFromAddress(address Uint168) ([]*common.UTXO, Fixed64, error) {
+	var utxoSlice []*common.UTXO
 	var lockedAmount Fixed64
 	utxos, err := b.db.GetFFLDB().GetUTXO(&address)
 	if err != nil {
@@ -390,7 +414,7 @@ func (b *BlockChain) getUTXOsFromAddress(address Uint168) ([]*UTXO, Fixed64, err
 		if err != nil {
 			return nil, 0, err
 		}
-		diff := curHeight - referTxn.LockTime
+		diff := curHeight - referTxn.LockTime()
 		if referTxn.IsCoinBaseTx() && diff < b.chainParams.CoinbaseMaturity {
 			lockedAmount += utxo.Value
 			continue
@@ -408,12 +432,12 @@ func (b *BlockChain) getUTXOsFromAddress(address Uint168) ([]*UTXO, Fixed64, err
 }
 
 func (b *BlockChain) createInputs(fromAddress Uint168,
-	totalAmount Fixed64, utxos []*UTXO) ([]*Input, []*Output, error) {
-	var txInputs []*Input
-	var changeOutputs []*Output
+	totalAmount Fixed64, utxos []*common.UTXO) ([]*common.Input, []*common.Output, error) {
+	var txInputs []*common.Input
+	var changeOutputs []*common.Output
 	for _, utxo := range utxos {
-		input := &Input{
-			Previous: OutPoint{
+		input := &common.Input{
+			Previous: common.OutPoint{
 				TxID:  utxo.TxID,
 				Index: uint16(utxo.Index),
 			},
@@ -427,12 +451,12 @@ func (b *BlockChain) createInputs(fromAddress Uint168,
 			totalAmount = 0
 			break
 		} else if *amount > totalAmount {
-			change := &Output{
+			change := &common.Output{
 				AssetID:     *elaact.SystemAssetID,
 				Value:       *amount - totalAmount,
 				OutputLock:  uint32(0),
 				ProgramHash: fromAddress,
-				Type:        OTNone,
+				Type:        common.OTNone,
 				Payload:     &outputpayload.DefaultOutput{},
 			}
 			changeOutputs = append(changeOutputs, change)
@@ -447,7 +471,7 @@ func (b *BlockChain) createInputs(fromAddress Uint168,
 	return txInputs, changeOutputs, nil
 }
 
-func (b *BlockChain) CreateCRCAppropriationTransaction() (*Transaction, Fixed64, error) {
+func (b *BlockChain) CreateCRCAppropriationTransaction() (interfaces.Transaction, Fixed64, error) {
 	utxos, lockedAmount, err := b.getUTXOsFromAddress(b.chainParams.CRAssetsAddress)
 	if err != nil {
 		return nil, 0, err
@@ -463,11 +487,10 @@ func (b *BlockChain) CreateCRCAppropriationTransaction() (*Transaction, Fixed64,
 	if appropriationAmount <= 0 {
 		return nil, 0, nil
 	}
-	outputs := []*OutputInfo{{b.chainParams.CRExpensesAddress,
+	outputs := []*common.OutputInfo{{b.chainParams.CRExpensesAddress,
 		appropriationAmount}}
 
-	var tx *Transaction
-	tx, err = b.createTransaction(&payload.CRCAppropriation{}, CRCAppropriation,
+	tx, err := b.createTransaction(&payload.CRCAppropriation{}, common.CRCAppropriation,
 		b.chainParams.CRAssetsAddress, Fixed64(0), uint32(0), utxos, outputs...)
 	if err != nil {
 		return nil, 0, err
@@ -475,8 +498,73 @@ func (b *BlockChain) CreateCRCAppropriationTransaction() (*Transaction, Fixed64,
 	return tx, lockedAmount, nil
 }
 
+func (b *BlockChain) CreateDposV2RealWithdrawTransaction(
+	withdrawTransactionHashes []Uint256, outputs []*common.OutputInfo) (interfaces.Transaction, error) {
+	utxos, _, err := b.getUTXOsFromAddress(b.chainParams.DPoSV2RewardAccumulateAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	wPayload := &payload.DposV2ClaimRewardRealWithdraw{
+		WithdrawTransactionHashes: withdrawTransactionHashes,
+	}
+
+	for _, v := range outputs {
+		v.Amount -= b.chainParams.RealWithdrawSingleFee
+	}
+
+	txFee := b.chainParams.RealWithdrawSingleFee * Fixed64(len(withdrawTransactionHashes))
+	var tx interfaces.Transaction
+	tx, err = b.createTransaction(wPayload, common.DposV2ClaimRewardRealWithdraw,
+		b.chainParams.DPoSV2RewardAccumulateAddress, txFee, uint32(0), utxos, outputs...)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (b *BlockChain) CreateUnstakeRealWithdrawTransaction(
+	unstakeTXHashes []Uint256, outputs []*common.OutputInfo) (interfaces.Transaction, error) {
+	stakePoolAddr, err := Uint168FromAddress(b.chainParams.StakePool)
+	if err != nil {
+		log.Error("CreateUnstakeRealWithdrawTransaction StakePool to hash error")
+		return nil, errors.New("CreateUnstakeRealWithdrawTransaction StakePool to hash error")
+	}
+
+	utxos, _, err := b.getUTXOsFromAddress(*stakePoolAddr)
+	if err != nil {
+		return nil, err
+	}
+	var unstakeRealWithdraw []payload.UnstakeRealWidhdraw
+	for i, output := range outputs {
+		withdraw := payload.UnstakeRealWidhdraw{
+			UnstakeTXHash: unstakeTXHashes[i],
+			StakeAddress:  output.Recipient,
+			Value:         output.Amount,
+		}
+		unstakeRealWithdraw = append(unstakeRealWithdraw, withdraw)
+	}
+
+	wPayload := &payload.UnstakeRealWithdrawPayload{
+		UnstakeRealWithdraw: unstakeRealWithdraw,
+	}
+
+	for _, v := range outputs {
+		v.Amount -= b.chainParams.RealWithdrawSingleFee
+	}
+	//todo fee
+	txFee := b.chainParams.RealWithdrawSingleFee * Fixed64(len(unstakeTXHashes))
+	var tx interfaces.Transaction
+	tx, err = b.createTransaction(wPayload, common.UnstakeRealWithdraw,
+		*stakePoolAddr, txFee, uint32(0), utxos, outputs...)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
 func (b *BlockChain) CreateCRRealWithdrawTransaction(
-	withdrawTransactionHashes []Uint256, outputs []*OutputInfo) (*Transaction, error) {
+	withdrawTransactionHashes []Uint256, outputs []*common.OutputInfo) (interfaces.Transaction, error) {
 	utxos, _, err := b.getUTXOsFromAddress(b.chainParams.CRExpensesAddress)
 	if err != nil {
 		return nil, err
@@ -491,8 +579,7 @@ func (b *BlockChain) CreateCRRealWithdrawTransaction(
 	}
 
 	txFee := b.chainParams.RealWithdrawSingleFee * Fixed64(len(withdrawTransactionHashes))
-	var tx *Transaction
-	tx, err = b.createTransaction(wPayload, CRCProposalRealWithdraw,
+	tx, err := b.createTransaction(wPayload, common.CRCProposalRealWithdraw,
 		b.chainParams.CRExpensesAddress, txFee, uint32(0), utxos, outputs...)
 	if err != nil {
 		return nil, err
@@ -500,13 +587,13 @@ func (b *BlockChain) CreateCRRealWithdrawTransaction(
 	return tx, nil
 }
 
-func (b *BlockChain) CreateCRAssetsRectifyTransaction() (*Transaction, error) {
+func (b *BlockChain) CreateCRAssetsRectifyTransaction() (interfaces.Transaction, error) {
 	utxos, _, err := b.getUTXOsFromAddress(b.chainParams.CRAssetsAddress)
 	if err != nil {
 		return nil, err
 	}
 	if len(utxos) < int(b.chainParams.MinCRAssetsAddressUTXOCount) {
-		return nil, errors.New("Avaliable utxo is less than MinCRAssetsAddressUTXOCount")
+		return nil, errors.New("Available utxo is less than MinCRAssetsAddressUTXOCount")
 	}
 	if len(utxos) > int(b.chainParams.MaxCRAssetsAddressUTXOCount) {
 		utxos = utxos[:b.chainParams.MaxCRAssetsAddressUTXOCount]
@@ -524,11 +611,10 @@ func (b *BlockChain) CreateCRAssetsRectifyTransaction() (*Transaction, error) {
 	if rectifyAmount <= 0 {
 		return nil, nil
 	}
-	outputs := []*OutputInfo{{b.chainParams.CRAssetsAddress,
+	outputs := []*common.OutputInfo{{b.chainParams.CRAssetsAddress,
 		rectifyAmount}}
 
-	var tx *Transaction
-	tx, err = b.createTransaction(&payload.CRAssetsRectify{}, CRAssetsRectify,
+	tx, err := b.createTransaction(&payload.CRAssetsRectify{}, common.CRAssetsRectify,
 		b.chainParams.CRAssetsAddress, b.chainParams.RectifyTxFee, uint32(0), utxos, outputs...)
 	if err != nil {
 		return nil, err
@@ -543,22 +629,22 @@ func CalculateTxsFee(block *Block) {
 		}
 		references, err := DefaultLedger.Blockchain.UTXOCache.GetTxReference(tx)
 		if err != nil {
-			log.Error("get transaction reference failed")
+			log.Error("get transaction Reference failed")
 			return
 		}
 		var outputValue Fixed64
 		var inputValue Fixed64
-		for _, output := range tx.Outputs {
+		for _, output := range tx.Outputs() {
 			outputValue += output.Value
 		}
 		for _, output := range references {
 			inputValue += output.Value
 		}
 		// set Fee and FeePerKB if check has passed
-		tx.Fee = inputValue - outputValue
+		tx.SetFee(inputValue - outputValue)
 		buf := new(bytes.Buffer)
 		tx.Serialize(buf)
-		tx.FeePerKB = tx.Fee * 1000 / Fixed64(len(buf.Bytes()))
+		tx.SetFeePerKB(tx.Fee() * 1000 / Fixed64(len(buf.Bytes())))
 	}
 }
 
@@ -567,8 +653,15 @@ func CalculateTxsFee(block *Block) {
 func (b *BlockChain) GetState() *state.State {
 	return b.state
 }
+func (b *BlockChain) SetState(s *state.State) {
+	b.state = s
+}
+
 func (b *BlockChain) GetCRCommittee() *crstate.Committee {
 	return b.crCommittee
+}
+func (b *BlockChain) SetCRCommittee(c *crstate.Committee) {
+	b.crCommittee = c
 }
 
 func (b *BlockChain) GetBestBlockHash() *Uint256 {
@@ -600,7 +693,7 @@ func (b *BlockChain) ProcessBlock(block *Block, confirm *payload.Confirm) (bool,
 	return b.processBlock(block, confirm)
 }
 
-func (b *BlockChain) GetHeader(hash Uint256) (*Header, error) {
+func (b *BlockChain) GetHeader(hash Uint256) (*common.Header, error) {
 	header, err := b.db.GetFFLDB().GetHeader(hash)
 	if err != nil {
 		return nil, errors.New("[BlockChain], GetHeader failed.")
@@ -944,7 +1037,7 @@ func RemoveChildNode(children []*BlockNode, node *BlockNode) []*BlockNode {
 
 }
 
-func (b *BlockChain) LoadBlockNode(blockHeader *Header, hash *Uint256) (*BlockNode, error) {
+func (b *BlockChain) LoadBlockNode(blockHeader *common.Header, hash *Uint256) (*BlockNode, error) {
 
 	// Create the new block node for the block and set the work.
 	node := NewBlockNode(blockHeader, hash)
@@ -1058,7 +1151,7 @@ func (b *BlockChain) removeBlockNode(node *BlockNode) error {
 	}
 	node.Children = nil
 
-	// Remove the reference from the dependency index.
+	// Remove the Reference from the dependency index.
 	prevHash := node.ParentHash
 	if children, ok := b.DepNodes[*prevHash]; ok {
 		// Find the node amongst the children of the
@@ -1634,7 +1727,7 @@ func (b *BlockChain) processBlock(block *Block, confirm *payload.Confirm) (bool,
 	log.Debugf("[ProcessBLock] orphan already exist= %v", exists)
 
 	// Perform preliminary sanity checks on the block and its transactions.
-	//err = PowCheckBlockSanity(block, PowLimit, b.TimeSource)
+	//err = PowCheckBlockSanity(block, powLimit, b.TimeSource)
 	err := b.CheckBlockSanity(block)
 	if err != nil {
 		log.Errorf("PowCheckBlockSanity error %s", err.Error())

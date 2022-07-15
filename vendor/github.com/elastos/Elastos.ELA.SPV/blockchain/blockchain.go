@@ -258,6 +258,5 @@ func (b *BlockChain) Clear() error {
 // Close the blockchain
 func (b *BlockChain) Close() error {
 	b.lock.Lock()
-	defer b.lock.Unlock()
 	return b.db.Close()
 }

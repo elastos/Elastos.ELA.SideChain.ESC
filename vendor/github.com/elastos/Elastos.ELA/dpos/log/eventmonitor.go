@@ -1,15 +1,15 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package log
 
 import (
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
 	"time"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
@@ -41,7 +41,7 @@ type ConsensusEvent struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Height    uint32
-	RawData   *types.Header
+	RawData   *common2.Header
 }
 
 type EventListener interface {

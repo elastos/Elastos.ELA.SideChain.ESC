@@ -51,6 +51,11 @@ var (
 		Name:  "amount",
 		Usage: "the transfer `<amount>` of the transaction",
 	}
+	TransactionClaimAmountFlag = cli.Int64Flag{
+		Name:  "claimamount",
+		Usage: "the amount to claim of dposv2 reward",
+		Value: 0,
+	}
 	TransactionFeeFlag = cli.StringFlag{
 		Name:  "fee",
 		Usage: "the transfer `<fee>` of the transaction",
@@ -73,7 +78,7 @@ var (
 	}
 	TransactionNodePublicKeyFlag = cli.StringFlag{
 		Name:  "nodepublickey",
-		Usage: "the node public key of an arbitrator which have been inactivated",
+		Usage: "the node public key of an arbitrator which have been inactivated (default: same as owner public key)",
 	}
 	TransactionForFlag = cli.StringFlag{
 		Name:  "for",
@@ -82,6 +87,162 @@ var (
 	TransactionSAddressFlag = cli.StringFlag{
 		Name:  "saddress",
 		Usage: "the locked `<address>` on main chain represents one side chain",
+	}
+	TransactionNickNameFlag = cli.StringFlag{
+		Name:  "nickname",
+		Usage: "the nick name of producer or cr council member",
+	}
+	TransactionUrlFlag = cli.StringFlag{
+		Name:  "url",
+		Usage: "the url of producer or cr council member",
+	}
+	TransactionLocationFlag = cli.Uint64Flag{
+		Name:  "location",
+		Usage: "localtion code of producer or cr council member",
+	}
+	TransactionNetAddressFlag = cli.StringFlag{
+		Name:  "netaddress",
+		Usage: "ip address of producer",
+	}
+	TransactionStakeUntilFlag = cli.UintFlag{
+		Name:  "stakeuntil",
+		Usage: "stake until this block height",
+	}
+	TransactionPayloadFlag = cli.StringFlag{
+		Name:  "payload",
+		Usage: "proposal payload",
+	}
+	TransactionCategoryDataFlag = cli.StringFlag{
+		Name:  "category",
+		Usage: "proposal category data",
+	}
+	TransactionDraftHashFlag = cli.StringFlag{
+		Name:  "drafthash",
+		Usage: "proposal draft hash",
+	}
+	TransactionDraftDataFlag = cli.StringFlag{
+		Name:  "draftdata",
+		Usage: "proposal draft data",
+	}
+	TransactionBudgetsFlag = cli.StringFlag{
+		Name:  "budgets",
+		Usage: "proposal budgets, eg: --budgets \"type1,stage1,amount1|type2,stage2,amount2\"",
+	}
+	TransactionRecipientFlag = cli.StringFlag{
+		Name:  "recipient",
+		Usage: "proposal recipient address",
+	}
+	TransactionTargetProposalHashFlag = cli.StringFlag{
+		Name:  "targetproposalhash",
+		Usage: "proposal target proposal hash",
+	}
+	TransactionReservedCustomIDListFlag = cli.StringFlag{
+		Name:  "reservedcustomidlist",
+		Usage: "proposal reserved custom id list, eg: --reservedcustomidlist \"id1|id2|id3\"",
+	}
+	TransactionReceivedCustomIDListFlag = cli.StringFlag{
+		Name:  "receivedcustomidlist",
+		Usage: "proposal received custom id list, eg: --receivedcustomidlist \"id1|id2|id3\"",
+	}
+	TransactionReceiverDIDFlag = cli.StringFlag{
+		Name:  "receiverdid",
+		Usage: "proposal receiver did",
+	}
+	TransactionCustomIDFeeRateInfoFlag = cli.StringFlag{
+		Name:  "customidfeerate",
+		Usage: "proposal custom id fee rate info, eg: --customidfeerate \"rate|height\"",
+	}
+	TransactionNewRecipientFlag = cli.StringFlag{
+		Name:  "newrecipient",
+		Usage: "proposal new recipient",
+	}
+	TransactionOwnerPublicKeyFlag = cli.StringFlag{
+		Name:  "ownerpubkey",
+		Usage: "proposal owner public key",
+	}
+	TransactionNewOwnerPublicKeyFlag = cli.StringFlag{
+		Name:  "newownerpubkey",
+		Usage: "proposal new owner public key",
+	}
+	TransactionSecretaryPublicKeyFlag = cli.StringFlag{
+		Name:  "secretarypublickey",
+		Usage: "proposal secretary public key",
+	}
+	TransactionSecretaryDIDFlag = cli.StringFlag{
+		Name:  "secretarydid",
+		Usage: "proposal secretary did",
+	}
+	TransactionSignatureFlag = cli.StringFlag{
+		Name:  "signature",
+		Usage: "signature hex-string",
+	}
+	TransactionOwnerSignatureFlag = cli.StringFlag{
+		Name:  "ownersignature",
+		Usage: "proposal owner signature",
+	}
+	TransactionNewOwnerSignatureFlag = cli.StringFlag{
+		Name:  "newownersignature",
+		Usage: "proposal new owner signature",
+	}
+	TransactionCRCouncilMemberDIDFlag = cli.StringFlag{
+		Name:  "crcmemberdid",
+		Usage: "proposal cr council member did",
+	}
+	TransactionCRCouncilMemberSignatureFlag = cli.StringFlag{
+		Name:  "crcmembersignature",
+		Usage: "proposal cr council member signature",
+	}
+	TransactionRegisterSideChainFlag = cli.StringFlag{
+		Name:  "sidechaininfo",
+		Usage: "proposal register side chain info, eg: --sidechaininfo \"name|magic|genesisHash|exchangeRate|effectiveHeight|resourcePath\"",
+	}
+	TransactionProposalHashFlag = cli.StringFlag{
+		Name:  "proposalhash",
+		Usage: "proposal hash",
+	}
+	TransactionVoteResultFlag = cli.StringFlag{
+		Name:  "voteresult",
+		Usage: "vote result, eg: --voteresult=`<result>`, `<result>` can be 0:approve 1:reject 2:abstain",
+	}
+	TransactionOpinionHashFlag = cli.StringFlag{
+		Name:  "opinionhash",
+		Usage: "opinion hash",
+	}
+	TransactionOpinionDataFlag = cli.StringFlag{
+		Name:  "opiniondata",
+		Usage: "opinion data",
+	}
+	TransactionDIDFlag = cli.StringFlag{
+		Name:  "did",
+		Usage: "did string",
+	}
+	TransactionMessageHashFlag = cli.StringFlag{
+		Name:  "messagehash",
+		Usage: "message hash",
+	}
+	TransactionMessageDataFlag = cli.StringFlag{
+		Name:  "messagedata",
+		Usage: "message data",
+	}
+	TransactionProposalTrackingTypeFlag = cli.StringFlag{
+		Name:  "type",
+		Usage: "proposal tracking type, eg: --type=`<type>`, `<type>` can be 0:common 1:progress 2:rejected 3:terminated 4:changeOwner 5:finalized",
+	}
+	TransactionSecretaryGeneralOpinionHashFlag = cli.StringFlag{
+		Name:  "secretarygeneralopinionhash",
+		Usage: "opinion hash of secretary general",
+	}
+	TransactionSecretaryGeneralOpinionDataFlag = cli.StringFlag{
+		Name:  "secretarygeneralopiniondata",
+		Usage: "opinion data of secretary general",
+	}
+	TransactionSecretaryGeneralSignatureFlag = cli.StringFlag{
+		Name:  "secretarygeneralsignature",
+		Usage: "secretary general signature",
+	}
+	TransactionDigestFlag = cli.StringFlag{
+		Name:  "digest",
+		Usage: "digest hex-string",
 	}
 
 	// RPC flags
@@ -238,6 +399,10 @@ var (
 		Name:  "illegalpenalty",
 		Usage: "defines the num of illegal penalty should be punished ",
 	}
+	DPoSV2IllegalPenaltyFlag = cli.StringFlag{
+		Name:  "dposv2illegalpenalty",
+		Usage: "defines the num of illegal penalty should be punished ",
+	}
 	CRCommitteeStartHeightFlag = cli.StringFlag{
 		Name:  "crcommitteestartheight",
 		Usage: "defines the height of CR Committee started",
@@ -322,6 +487,18 @@ var (
 	EmergencyInactivePenaltyFlag = cli.StringFlag{
 		Name:  "emergencyinactivepenalty",
 		Usage: "defines penalty of emergency inactive",
+	}
+	DPoSV2DepositCoinMinLockTimeFlag = cli.StringFlag{
+		Name:  "dposv2depositcoinminlocktime",
+		Usage: "minimum lock time of DPoS V2 deposit coin",
+	}
+	DPoSV2MinVotesLockTimeFlag = cli.StringFlag{
+		Name:  "dposv2minvoteslocktime",
+		Usage: "minimum lock time of DPoS V2 votes",
+	}
+	DPoSV2MaxVotesLockTimeFlag = cli.StringFlag{
+		Name:  "dposv2maxvoteslocktime",
+		Usage: "max lock time of DPoS V2 votes",
 	}
 	CRMemberCountFlag = cli.StringFlag{
 		Name:  "crmembercount",
@@ -435,6 +612,11 @@ var (
 		Usage: "defines the proposal draft data start height",
 	}
 
+	CRClaimPeriodFlag = cli.StringFlag{
+		Name:  "crclaimperiod",
+		Usage: "defines the duration of CR claim DPoS node",
+	}
+
 	CustomIDProposalStartHeight = cli.StringFlag{
 		Name:  "CustomIDProposalStartHeight",
 		Usage: "defines the height to allow custom ID related transaction",
@@ -513,6 +695,46 @@ var (
 	ReturnCrossChainCoinStartHeightFlag = cli.StringFlag{
 		Name:  "returncrosschaincoinstartheight",
 		Usage: "defines the start height to support ReturnCrossChainDepositCoin transaction",
+	}
+
+	DposV2StartHeightFlag = cli.StringFlag{
+		Name:  "dposv2startheight",
+		Usage: "defines the start height to support DposV2 transaction",
+	}
+
+	DposV2EffectiveVotesFlag = cli.StringFlag{
+		Name:  "dposv2effectivevotes",
+		Usage: "defines the minimum votes to active a DposV2 producer",
+	}
+
+	DposV2RewardAccumulateAddressFlag = cli.StringFlag{
+		Name:  "dposv2rewardaccumulateaddress",
+		Usage: "defines dposv2 reward accumulate address",
+	}
+
+	StakePoolFlag = cli.StringFlag{
+		Name:  "stakepool",
+		Usage: "defines the stake address of DPoS v2 votes",
+	}
+
+	SchnorrStartHeightFlag = cli.StringFlag{
+		Name:  "schnorrstartheight",
+		Usage: "defines the start height to support schnorr transaction",
+	}
+
+	CRDPoSNodeHotFixHeightFlag = cli.StringFlag{
+		Name:  "crdposnodehotfixheight",
+		Usage: "CRDPoSNodeHotFixHeight indicates the hot fix start height of CR DPoS node",
+	}
+
+	CrossChainMonitorStartHeightFlag = cli.StringFlag{
+		Name:  "crosschainmonitorstartheight",
+		Usage: "defines the start height to monitor cr cross chain transaction",
+	}
+
+	CrossChainMonitorIntervalFlag = cli.StringFlag{
+		Name:  "crosschainmonitorinterval",
+		Usage: "defines the interval cross chain arbitration",
 	}
 )
 

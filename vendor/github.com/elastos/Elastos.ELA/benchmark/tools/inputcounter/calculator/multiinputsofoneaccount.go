@@ -1,15 +1,15 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package calculator
 
 import (
 	"bytes"
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
 )
 
 type multiInputsOfOneAccount struct {
@@ -43,8 +43,8 @@ func newMultiInputsOfOneAccount() (*multiInputsOfOneAccount, error) {
 }
 
 func calculateInputSize() (uint64, error) {
-	input := types.Input{
-		Previous: types.OutPoint{
+	input := common2.Input{
+		Previous: common2.OutPoint{
 			TxID:  common.Uint256{},
 			Index: 0,
 		},

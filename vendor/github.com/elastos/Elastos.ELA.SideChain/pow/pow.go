@@ -478,7 +478,10 @@ func GenerateBlockTransactions(cfg *Config, msgBlock *types.Block, coinBaseTx *t
 			continue
 		}
 
-		if err := cfg.Validator.CheckTransactionContext(tx); err != nil {
+		if err := cfg.Validator.CheckTransactionContext(tx,
+			msgBlock.GetHeight(), msgBlock.GetMainChainHeight()); err != nil {
+			log.Warnf("found invalid transaction:%s, err:%s",
+				common.ToReversedString(tx.Hash()), err)
 			continue
 		}
 
@@ -492,7 +495,12 @@ func GenerateBlockTransactions(cfg *Config, msgBlock *types.Block, coinBaseTx *t
 	}
 
 	reward := totalFee
-	rewardFoundation := common.Fixed64(float64(reward) * 0.3)
-	msgBlock.Transactions[0].Outputs[0].Value = rewardFoundation
-	msgBlock.Transactions[0].Outputs[1].Value = common.Fixed64(reward) - rewardFoundation
+	if msgBlock.GetHeight() > cfg.ChainParams.RewardMinerOnlyStartHeight {
+		msgBlock.Transactions[0].Outputs[1].Value = reward
+		msgBlock.Transactions[0].Outputs = msgBlock.Transactions[0].Outputs[1:]
+	} else {
+		rewardFoundation := common.Fixed64(float64(reward) * 0.3)
+		msgBlock.Transactions[0].Outputs[0].Value = rewardFoundation
+		msgBlock.Transactions[0].Outputs[1].Value = common.Fixed64(reward) - rewardFoundation
+	}
 }

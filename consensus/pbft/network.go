@@ -31,6 +31,8 @@ import (
 	elap2p "github.com/elastos/Elastos.ELA/p2p"
 )
 
+const maxViewOffset = 100
+
 func (p *Pbft) StartProposal(block *types.Block) error {
 	sealHash := p.SealHash(block.Header())
 	log.Info("StartProposal", "block hash:", sealHash.String())
@@ -128,9 +130,11 @@ func (p *Pbft) AnnounceDAddr() bool {
 		log.Error("is not a super node")
 		return false
 	}
-	producers := p.dispatcher.GetNeedConnectProducers()
-	log.Info("Announce DAddr ", "Producers:", producers)
-	events.Notify(events.ETDirectPeersChanged, producers)
+	currents := p.dispatcher.GetCurrentNeedConnectArbiters()
+	nextArbites := p.dispatcher.GetNextNeedConnectArbiters()
+	log.Info("Announce DAddr ", "currents:", currents, "nextArbites", nextArbites)
+	events.Notify(events.ETDirectPeersChanged,
+		&peer.PeersInfo{CurrentPeers: currents, NextPeers: nextArbites})
 	return true
 }
 
@@ -353,13 +357,16 @@ func (p *Pbft) OnRequestConsensus(id peer.PID, height uint64) {
 }
 
 func (p *Pbft) OnResponseConsensus(id peer.PID, status *dmsg.ConsensusStatus) {
-	log.Info("---------[OnResponseConsensus]------------", "pid", id.String())
 	if !p.IsProducer() {
 		return
 	}
 	if !p.recoverStarted {
 		return
 	}
+	if p.statusMap[status.ViewOffset][common.Bytes2Hex(id[:])] != nil {
+		return
+	}
+	log.Info("---------[OnResponseConsensus]------------", "pid", id.String(), "status.viewOffset", status.ViewOffset)
 	if _, ok := p.statusMap[status.ViewOffset]; !ok {
 		p.statusMap[status.ViewOffset] = make(map[string]*dmsg.ConsensusStatus)
 	}
@@ -395,7 +402,7 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 		log.Info("consensus is not running")
 		return
 	}
-	p.dispatcher.OnChangeView()
+	p.OnChangeView()
 
 	if proposal.BlockHash.IsEqual(p.dispatcher.GetFinishedBlockSealHash()) {
 		log.Info("already processed block")
@@ -423,7 +430,7 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 			p.notHandledProposal[pubKey] = struct{}{}
 			count := len(p.notHandledProposal)
 			log.Info("[OnProposalReceived] not handled", "count", count)
-			if p.dispatcher.GetConsensusView().HasArbitersMinorityCount(count) {
+			if p.dispatcher.GetConsensusView().GetViewOffset() != 0 && p.dispatcher.GetConsensusView().HasArbitersMinorityCount(count) {
 				log.Info("[OnProposalReceived] has minority not handled" +
 					" proposals, need recover")
 				if p.recoverAbnormalState() {
@@ -496,6 +503,25 @@ func (p *Pbft) OnVoteRejected(id peer.PID, vote *payload.DPOSProposalVote) {
 
 func (p *Pbft) OnChangeView() {
 	p.dispatcher.OnChangeView()
+
+	if p.dispatcher.GetConsensusView().GetViewOffset() >= maxViewOffset {
+		m := &msg.ResetView{
+			Sponsor: p.account.PublicKeyBytes(),
+		}
+		buf := new(bytes.Buffer)
+		err := m.SerializeUnsigned(buf)
+		if err != nil {
+			log.Error("failed to serialize ResetView message")
+			return
+		}
+
+		m.Sign = p.account.Sign(buf.Bytes())
+		log.Info("[TryChangeView] ResetView message created, broadcast it")
+		p.BroadMessage(m)
+
+		// record self
+		p.dispatcher.RecordViewRequest(m.Sponsor)
+	}
 }
 
 func (p *Pbft) OnBadNetwork() {
@@ -513,19 +539,30 @@ func (p *Pbft) recoverAbnormalState() bool {
 	if p.recoverStarted {
 		return false
 	}
+	minCount := p.dispatcher.GetConsensusView().GetMajorityCount()
 	if producers := p.dispatcher.GetConsensusView().GetProducers(); len(producers) > 0 {
-		if peers := p.network.GetActivePeers(); len(peers) == 0 {
-			log.Error("[recoverAbnormalState] can not find active peer")
+		if peers := p.network.GetActivePeers(); len(peers) < minCount {
+			log.Error("[recoverAbnormalState] can not find active peer", "minCount", minCount, "peers.size", len(peers))
 			return false
 		}
 		p.recoverStarted = true
 		p.RequestAbnormalRecovering()
+		startTime := time.Now()
 		go func() {
-			<-time.NewTicker(time.Second * 2).C
-			p.OnRecoverTimeout()
-			p.isRecoved = true
-			if p.chain.Engine() == p {
-				p.StartMine()
+			for {
+				var count int
+				for _, v := range p.statusMap {
+					count += len(v)
+				}
+				if count > minCount {
+					p.OnRecoverTimeout()
+					break
+				}
+				if time.Now().Sub(startTime) > time.Second*3 {
+					p.OnRecoverTimeout()
+					break
+				}
+				time.Sleep(time.Millisecond * 100)
 			}
 		}()
 		return true
@@ -541,16 +578,17 @@ func (p *Pbft) OnRecoverTimeout() {
 		p.recoverStarted = false
 		p.statusMap = make(map[uint32]map[string]*dmsg.ConsensusStatus)
 	}
+
+	p.isRecoved = true
+	if p.chain.Engine() == p {
+		p.StartMine()
+	}
 }
 
 func (p *Pbft) DoRecover() {
-	var maxCount int
 	var maxCountMaxViewOffset uint32
-	for k, v := range p.statusMap {
-		if maxCount < len(v) {
-			maxCount = len(v)
-			maxCountMaxViewOffset = k
-		} else if maxCount == len(v) && maxCountMaxViewOffset < k {
+	for k, _ := range p.statusMap {
+		if maxCountMaxViewOffset < k {
 			maxCountMaxViewOffset = k
 		}
 	}
@@ -586,6 +624,27 @@ func medianOf(nums []int64) int64 {
 	}
 
 	return nums[l/2]
+}
+
+func (p *Pbft) OnResponseResetViewReceived(msg *msg.ResetView) {
+	if !p.IsProducer() {
+		log.Error("[OnResponseResetViewReceived] self is not producer")
+		return
+	}
+	if !p.IsProducerByAccount(msg.Sponsor) {
+		log.Error(fmt.Sprintf("[OnResponseResetViewReceived] %s is not a procuer", common.Bytes2Hex(msg.Sponsor)))
+		return
+	}
+	if p.dispatcher.ResetViewRequestIsContain(msg.Sponsor) {
+		return
+	}
+	p.dispatcher.OnResponseResetViewReceived(msg)
+	if p.dispatcher.GetResetViewReqCount() >= p.dispatcher.GetConsensusView().GetMajorityCount() && p.dispatcher.GetConsensusView().GetViewOffset() > maxViewOffset {
+		// do reset
+		p.dispatcher.ResetConsensus()
+
+		log.Info("[end reset consensus]", "p.dispatcher.GetResetViewReqCount()", p.dispatcher.GetResetViewReqCount(), "p.dispatcher.GetConsensusView().GetViewOffset()", p.dispatcher.GetConsensusView().GetViewOffset())
+	}
 }
 
 func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {

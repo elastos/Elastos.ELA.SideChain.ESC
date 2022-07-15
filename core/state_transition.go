@@ -33,7 +33,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
 
-	elaType "github.com/elastos/Elastos.ELA/core/types"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
 )
 
 var (
@@ -432,11 +432,15 @@ func (st *StateTransition) dealSmallCrossTx() (isSmallCrossTx, verifyed bool, tx
 		verifyed = false
 		return isSmallCrossTx, verifyed, rawTxid, err
 	}
-
-	var txn elaType.Transaction
-	err = txn.Deserialize(bytes.NewReader(buff))
+	r := bytes.NewReader(buff)
+	txn, err := elatx.GetTransactionByBytes(r)
 	if err != nil {
-		log.Error("[Small-Transfer] Decode transaction error", err.Error())
+		log.Error("[dealSmallCrossTx] Invalid data from GetTransactionByBytes")
+		return isSmallCrossTx, verifyed, rawTxid, err
+	}
+	err = txn.Deserialize(r)
+	if err != nil {
+		log.Error("[dealSmallCrossTx] Decode transaction error", err.Error())
 		verifyed = false
 		return isSmallCrossTx, verifyed, rawTxid, err
 	}

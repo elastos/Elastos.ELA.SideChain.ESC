@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package p2p
 
@@ -44,8 +44,8 @@ func TestNotifier(t *testing.T) {
 			sign, _ := crypto.Sign(priKey, nonce)
 			return sign
 		},
-		MakeEmptyMessage: makeEmptyMessage,
-		StateNotifier:    notifier,
+		CreateMessage: createMessage,
+		StateNotifier: notifier,
 	})
 	if !assert.NoError(t, err) {
 		t.FailNow()
@@ -60,7 +60,7 @@ func TestNotifier(t *testing.T) {
 		server.AddAddr(pid, fmt.Sprintf("127.0.0.1:%d", port))
 	}
 
-	server.ConnectPeers(peerList)
+	server.ConnectPeers(peerList, nil)
 
 	// Mock peers not started, wait for connection timeout.
 	select {
@@ -87,7 +87,7 @@ func TestNotifier(t *testing.T) {
 			t.FailNow()
 		}
 	}
-	server.ConnectPeers(peerList)
+	server.ConnectPeers(peerList, nil)
 
 	// Wait for network stable notify.
 	select {

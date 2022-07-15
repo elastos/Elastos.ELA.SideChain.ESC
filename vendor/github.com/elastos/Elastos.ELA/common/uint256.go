@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package common
 
@@ -36,6 +36,10 @@ func (u Uint256) IsEqual(o Uint256) bool {
 
 func (u Uint256) String() string {
 	return BytesToHexString(u.Bytes())
+}
+
+func (u Uint256) ReversedString() string {
+	return BytesToHexString(BytesReverse(u[:]))
 }
 
 func (u Uint256) Bytes() []byte {
@@ -78,4 +82,18 @@ func Uint256FromHexString(hexHash string) (*Uint256, error) {
 	copy(hash[:], hashByte)
 
 	return &hash, nil
+}
+
+func Uint256FromReversedHexString(hexHash string) (*Uint256, error) {
+	if len(hexHash) != UINT256SIZE*2 {
+		return nil, errors.New("[Common]: Uint256ParseFromString err, len != 64")
+	}
+	hashByte, err := hex.DecodeString(hexHash)
+	if err != nil {
+		return nil, err
+	}
+
+	hashByte = BytesReverse(hashByte)
+
+	return Uint256FromBytes(hashByte)
 }

@@ -7,11 +7,12 @@ package state
 
 import (
 	"fmt"
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/core/contract"
-	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/utils"
@@ -76,6 +77,18 @@ type ProposalManager struct {
 	ProposalKeyFrame
 	params  *config.Params
 	history *utils.History
+}
+
+func (p *ProposalManager) tryCancelReservedCustomID(height uint32) {
+	if len(p.ReservedCustomIDLists) == 0 {
+		oriReservedCustomID := p.ReservedCustomID
+		p.history.Append(height, func() {
+			p.ReservedCustomID = false
+		}, func() {
+			p.ReservedCustomID = oriReservedCustomID
+		})
+
+	}
 }
 
 //only init use
@@ -191,6 +204,9 @@ func (p *ProposalManager) updateProposals(height uint32,
 				p.abortProposal(v, height)
 				unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
 				recordPartProposalResult(&results, proposalType, k, false)
+				if proposalType == payload.ReserveCustomID {
+					p.tryCancelReservedCustomID(height)
+				}
 				break
 			}
 
@@ -201,6 +217,9 @@ func (p *ProposalManager) updateProposals(height uint32,
 					unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
 					pass = false
 					recordPartProposalResult(&results, proposalType, k, pass)
+					if proposalType == payload.ReserveCustomID {
+						p.tryCancelReservedCustomID(height)
+					}
 				}
 			}
 		case CRAgreed:
@@ -208,6 +227,9 @@ func (p *ProposalManager) updateProposals(height uint32,
 				p.abortProposal(v, height)
 				unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
 				recordPartProposalResult(&results, proposalType, k, false)
+				if proposalType == payload.ReserveCustomID {
+					p.tryCancelReservedCustomID(height)
+				}
 				break
 			}
 			if p.shouldEndPublicVote(v.VoteStartHeight, height) {
@@ -215,6 +237,9 @@ func (p *ProposalManager) updateProposals(height uint32,
 					p.removeRegisterSideChainInfo(v, height)
 					unusedAmount += getProposalTotalBudgetAmount(v.Proposal)
 					recordPartProposalResult(&results, proposalType, k, false)
+					if proposalType == payload.ReserveCustomID {
+						p.tryCancelReservedCustomID(height)
+					}
 					continue
 				}
 				p.dealProposal(v, &unusedAmount, height)
@@ -291,7 +316,7 @@ func (p *ProposalManager) terminatedProposal(proposalState *ProposalState,
 	})
 }
 
-// transferRegisteredState will transfer the Registered state by CR agreement
+// transferRegisteredState will transfer the Registered State by CR agreement
 // count.
 func (p *ProposalManager) transferRegisteredState(proposalState *ProposalState,
 	height uint32) (status ProposalStatus) {
@@ -375,14 +400,14 @@ func (p *ProposalManager) dealProposal(proposalState *ProposalState, unusedAmoun
 	case payload.ReserveCustomID:
 		oriReservedCustomIDLists := p.ReservedCustomIDLists
 		p.history.Append(height, func() {
-			p.ReservedCustomIDLists = append(p.ReservedCustomIDLists, proposalState.Proposal.ReservedCustomIDList)
+			p.ReservedCustomIDLists = append(p.ReservedCustomIDLists, proposalState.Proposal.ReservedCustomIDList...)
 		}, func() {
 			p.ReservedCustomIDLists = oriReservedCustomIDLists
 		})
 	case payload.ReceiveCustomID:
 		oriReceivedCustomIDLists := p.ReceivedCustomIDLists
 		p.history.Append(height, func() {
-			p.ReceivedCustomIDLists = append(p.ReceivedCustomIDLists, proposalState.Proposal.ReceivedCustomIDList)
+			p.ReceivedCustomIDLists = append(p.ReceivedCustomIDLists, proposalState.Proposal.ReceivedCustomIDList...)
 		}, func() {
 			p.ReceivedCustomIDLists = oriReceivedCustomIDLists
 		})
@@ -402,7 +427,7 @@ func (p *ProposalManager) dealProposal(proposalState *ProposalState, unusedAmoun
 	}
 }
 
-// transferCRAgreedState will transfer CRAgreed state by votes' reject amount.
+// transferCRAgreedState will transfer CRAgreed State by Votes' reject amount.
 func (p *ProposalManager) transferCRAgreedState(proposalState *ProposalState,
 	height uint32, circulation common.Fixed64) (status ProposalStatus) {
 	if proposalState.VotersRejectAmount >= common.Fixed64(float64(circulation)*
@@ -468,7 +493,7 @@ func isSpecialProposal(proposalType payload.CRCProposalType) bool {
 	}
 }
 
-// shouldEndCRCVote returns if current height should end CRC vote about
+// shouldEndCRCVote returns if current Height should end CRC vote about
 // 	the specified proposal.
 func (p *ProposalManager) shouldEndCRCVote(RegisterHeight uint32,
 	height uint32) bool {
@@ -525,7 +550,7 @@ func (p *ProposalManager) removeRegisterSideChainInfo(proposalState *ProposalSta
 	}
 }
 
-// shouldEndPublicVote returns if current height should end public vote
+// shouldEndPublicVote returns if current Height should end public vote
 // about the specified proposal.
 func (p *ProposalManager) shouldEndPublicVote(VoteStartHeight uint32,
 	height uint32) bool {
@@ -569,10 +594,10 @@ func (p *ProposalManager) delProposal(did common.Uint168,
 	}
 }
 
-// registerProposal will register proposal state in proposal manager
-func (p *ProposalManager) registerProposal(tx *types.Transaction,
+// registerProposal will register proposal State in proposal manager
+func (p *ProposalManager) registerProposal(tx interfaces.Transaction,
 	height uint32, currentsSession uint64, history *utils.History) {
-	proposal := tx.Payload.(*payload.CRCProposal)
+	proposal := tx.Payload().(*payload.CRCProposal)
 	//The number of the proposals of the committee can not more than 128
 	if p.isProposalFull(proposal.CRCouncilMemberDID) {
 		return
@@ -587,9 +612,9 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 	}
 	proposalState := &ProposalState{
 		Status:              Registered,
-		Proposal:            proposal.ToProposalInfo(tx.PayloadVersion),
+		Proposal:            proposal.ToProposalInfo(tx.PayloadVersion()),
 		TxHash:              tx.Hash(),
-		TxPayloadVer:        tx.PayloadVersion,
+		TxPayloadVer:        tx.PayloadVersion(),
 		CRVotes:             map[common.Uint168]payload.VoteResult{},
 		VotersRejectAmount:  common.Fixed64(0),
 		RegisterHeight:      height,
@@ -604,10 +629,10 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 		Recipient:           proposal.Recipient,
 	}
 	crCouncilMemberDID := proposal.CRCouncilMemberDID
-	hash := proposal.Hash(tx.PayloadVersion)
+	hash := proposal.Hash(tx.PayloadVersion())
 
 	history.Append(height, func() {
-		hash := proposal.Hash(tx.PayloadVersion)
+		hash := proposal.Hash(tx.PayloadVersion())
 		log.Debug("registerProposal hash", hash.String())
 		p.Proposals[hash] = proposalState
 		p.addProposal(crCouncilMemberDID, hash)
@@ -615,9 +640,9 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 			p.ProposalSession[currentsSession] = make([]common.Uint256, 0)
 		}
 		p.ProposalSession[currentsSession] =
-			append(p.ProposalSession[currentsSession], proposal.Hash(tx.PayloadVersion))
+			append(p.ProposalSession[currentsSession], proposal.Hash(tx.PayloadVersion()))
 	}, func() {
-		delete(p.Proposals, proposal.Hash(tx.PayloadVersion))
+		delete(p.Proposals, proposal.Hash(tx.PayloadVersion()))
 		p.delProposal(crCouncilMemberDID, hash)
 		if len(p.ProposalSession[currentsSession]) == 1 {
 			delete(p.ProposalSession, currentsSession)
@@ -629,6 +654,13 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 
 	// record to PendingReceivedCustomIDMap
 	switch proposal.ProposalType {
+	case payload.ReserveCustomID:
+		oriReservedCustomID := p.ReservedCustomID
+		history.Append(height, func() {
+			p.ReservedCustomID = true
+		}, func() {
+			p.ReservedCustomID = oriReservedCustomID
+		})
 	case payload.ReceiveCustomID:
 		oriPendingReceivedCustomIDMap := p.PendingReceivedCustomIDMap
 		history.Append(height, func() {
@@ -643,7 +675,7 @@ func (p *ProposalManager) registerProposal(tx *types.Transaction,
 	}
 }
 
-func getCIDByCode(code []byte) (*common.Uint168, error) {
+func GetCIDByCode(code []byte) (*common.Uint168, error) {
 	ct1, err := contract.CreateCRIDContractByCode(code)
 	if err != nil {
 		return nil, err
@@ -651,7 +683,7 @@ func getCIDByCode(code []byte) (*common.Uint168, error) {
 	return ct1.ToProgramHash(), err
 }
 
-func getDIDByCode(code []byte) (*common.Uint168, error) {
+func GetDIDByCode(code []byte) (*common.Uint168, error) {
 	didCode := make([]byte, len(code))
 	copy(didCode, code)
 	didCode = append(didCode[:len(code)-1], common.DID)
@@ -678,9 +710,9 @@ func getCIDByPublicKey(publicKey []byte) (*common.Uint168, error) {
 	return ct.ToProgramHash(), nil
 }
 
-func (p *ProposalManager) proposalReview(tx *types.Transaction,
+func (p *ProposalManager) proposalReview(tx interfaces.Transaction,
 	height uint32, history *utils.History) {
-	proposalReview := tx.Payload.(*payload.CRCProposalReview)
+	proposalReview := tx.Payload().(*payload.CRCProposalReview)
 	proposalState := p.getProposal(proposalReview.ProposalHash)
 	if proposalState == nil {
 		return
@@ -698,9 +730,9 @@ func (p *ProposalManager) proposalReview(tx *types.Transaction,
 	})
 }
 
-func (p *ProposalManager) proposalWithdraw(tx *types.Transaction,
+func (p *ProposalManager) proposalWithdraw(tx interfaces.Transaction,
 	height uint32, history *utils.History) {
-	withdrawPayload := tx.Payload.(*payload.CRCProposalWithdraw)
+	withdrawPayload := tx.Payload().(*payload.CRCProposalWithdraw)
 	proposalState := p.getProposal(withdrawPayload.ProposalHash)
 	if proposalState == nil {
 		return
@@ -724,8 +756,8 @@ func (p *ProposalManager) proposalWithdraw(tx *types.Transaction,
 				proposalState.BudgetsStatus[k] = Withdrawn
 			}
 		}
-		if tx.PayloadVersion == payload.CRCProposalWithdrawVersion01 {
-			p.WithdrawableTxInfo[tx.Hash()] = types.OutputInfo{
+		if tx.PayloadVersion() == payload.CRCProposalWithdrawVersion01 {
+			p.WithdrawableTxInfo[tx.Hash()] = common2.OutputInfo{
 				Recipient: withdrawPayload.Recipient,
 				Amount:    withdrawPayload.Amount,
 			}
@@ -735,15 +767,15 @@ func (p *ProposalManager) proposalWithdraw(tx *types.Transaction,
 			delete(proposalState.WithdrawnBudgets, k)
 		}
 		proposalState.BudgetsStatus = oriBudgetsStatus
-		if tx.PayloadVersion == payload.CRCProposalWithdrawVersion01 {
+		if tx.PayloadVersion() == payload.CRCProposalWithdrawVersion01 {
 			delete(p.WithdrawableTxInfo, tx.Hash())
 		}
 	})
 }
 
-func (p *ProposalManager) proposalTracking(tx *types.Transaction,
+func (p *ProposalManager) proposalTracking(tx interfaces.Transaction,
 	height uint32, history *utils.History) (unusedBudget common.Fixed64) {
-	proposalTracking := tx.Payload.(*payload.CRCProposalTracking)
+	proposalTracking := tx.Payload().(*payload.CRCProposalTracking)
 	proposalState := p.getProposal(proposalTracking.ProposalHash)
 	if proposalState == nil {
 		return
