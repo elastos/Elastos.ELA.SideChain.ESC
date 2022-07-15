@@ -6,12 +6,13 @@
 package indexers
 
 import (
+	"github.com/elastos/Elastos.ELA/core/types/functions"
 	"io"
 	"sync"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
-	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 )
 
 const (
@@ -23,29 +24,33 @@ const (
 )
 
 type TxInfo struct {
-	blockHeight uint32
-	txn         *types.Transaction
+	BlockHeight uint32
+	Txn         interfaces.Transaction
 }
 
 func (t *TxInfo) Serialize(w io.Writer) (err error) {
-	err = common.WriteUint32(w, t.blockHeight)
+	err = common.WriteUint32(w, t.BlockHeight)
 	if err != nil {
 		return
 	}
-	return t.txn.Serialize(w)
+	return t.Txn.Serialize(w)
 }
 
 func (t *TxInfo) Deserialize(r io.Reader) (err error) {
-	t.blockHeight, err = common.ReadUint32(r)
+
+	t.BlockHeight, err = common.ReadUint32(r)
 	if err != nil {
 		return
 	}
-	var txn types.Transaction
+	txn, err := functions.GetTransactionByBytes(r)
+	if err != nil {
+		return err
+	}
 	err = txn.Deserialize(r)
 	if err != nil {
 		return
 	}
-	t.txn = &txn
+	t.Txn = txn
 	return nil
 }
 
@@ -87,27 +92,27 @@ func (t *TxCache) Deserialize(r io.Reader) (err error) {
 		if err != nil {
 			return err
 		}
-		t.setTxn(txInfo.blockHeight, txInfo.txn)
+		t.setTxn(txInfo.BlockHeight, txInfo.Txn)
 	}
 
 	return nil
 }
 
-func (t *TxCache) setTxn(height uint32, txn *types.Transaction) {
+func (t *TxCache) setTxn(height uint32, txn interfaces.Transaction) {
 	if t.params.NodeProfileStrategy ==
 		config.MemoryFirst.String() {
 		return
 	}
 
-	if len(txn.Inputs) > MaxCacheInputsCountPerTransaction {
+	if len(txn.Inputs()) > MaxCacheInputsCountPerTransaction {
 		return
 	}
 
 	t.Lock()
 	defer t.Unlock()
 	t.txns[txn.Hash()] = &TxInfo{
-		blockHeight: height,
-		txn:         txn,
+		BlockHeight: height,
+		Txn:         txn,
 	}
 }
 
@@ -122,7 +127,7 @@ func (t *TxCache) deleteTxn(hash common.Uint256) {
 	delete(t.txns, hash)
 }
 
-func (t *TxCache) getTxn(hash common.Uint256) *TxInfo {
+func (t *TxCache) GetTxn(hash common.Uint256) *TxInfo {
 	t.RLock()
 	defer t.RUnlock()
 

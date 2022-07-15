@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2019 Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package bloom
 
@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/elanet/filter"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 )
@@ -40,11 +40,11 @@ func (f *TxFilter) Add(filter []byte) error {
 	return nil
 }
 
-func (f *TxFilter) MatchConfirmed(tx *types.Transaction) bool {
+func (f *TxFilter) MatchConfirmed(tx interfaces.Transaction) bool {
 	return f.filter.MatchTxAndUpdate(tx)
 }
 
-func (f *TxFilter) MatchUnconfirmed(tx *types.Transaction) bool {
+func (f *TxFilter) MatchUnconfirmed(tx interfaces.Transaction) bool {
 	return f.filter.MatchTxAndUpdate(tx)
 }
 

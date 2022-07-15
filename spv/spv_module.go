@@ -32,7 +32,10 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
-	core "github.com/elastos/Elastos.ELA/core/types"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
+	elacom "github.com/elastos/Elastos.ELA/core/types/common"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
@@ -134,6 +137,13 @@ func SpvDbInit(spvdataDir string) {
 		return
 	}
 	spvTransactiondb = db
+
+	// Initialize functions
+	functions.GetTransactionByTxType = elatx.GetTransaction
+	functions.GetTransactionByBytes = elatx.GetTransactionByBytes
+	functions.CreateTransaction = elatx.CreateTransaction
+	functions.GetTransactionParameters = elatx.GetTransactionparameters
+	config.DefaultParams = config.GetDefaultParams()
 }
 
 //Spv service initialization
@@ -243,7 +253,7 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription,
 			go eevents.Notify(dpos.ETOnDutyEvent, nil)
 		case obj := <-smallCrossTxSub.Chan():
 			if evt, ok := obj.Data.(events.CmallCrossTx); ok {
-				NotifySmallCrossTx(*evt.Tx)
+				NotifySmallCrossTx(evt.Tx)
 			}
 		case _ = <-stopChn:
 			return
@@ -288,7 +298,7 @@ func (s *Service) VerifyTransaction(tx *types.Transaction) error {
 	case types.RechargeToSideChainPayloadVersion0:
 
 		proof := new(bloom.MerkleProof)
-		mainChainTransaction := new(core.Transaction)
+		mainChainTransaction := new(elatx.BaseTransaction)
 
 		reader := bytes.NewReader(payload.MerkleProof)
 		if err := proof.Deserialize(reader); err != nil {
@@ -300,7 +310,7 @@ func (s *Service) VerifyTransaction(tx *types.Transaction) error {
 			return errors.New("[VerifyTransaction] RechargeToSideChain mainChainTransaction deserialize failed")
 		}
 
-		if err := s.SPVService.VerifyTransaction(*proof, *mainChainTransaction); err != nil {
+		if err := s.SPVService.VerifyTransaction(*proof, mainChainTransaction); err != nil {
 			return errors.New("[VerifyTransaction] SPV module verify transaction failed.")
 		}
 
@@ -336,15 +346,15 @@ func (l *listener) Address() string {
 	return l.address
 }
 
-func (l *listener) Type() core.TxType {
-	return core.TransferCrossChainAsset
+func (l *listener) Type() elacom.TxType {
+	return elacom.TransferCrossChainAsset
 }
 
 func (l *listener) Flags() uint64 {
 	return spv.FlagNotifyInSyncing | spv.FlagNotifyConfirmed
 }
 
-func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Transaction) {
+func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx it.Transaction) {
 	// Submit transaction receipt
 	log.Info("========================================================================================")
 	log.Info("mainchain transaction info")
@@ -357,7 +367,7 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	fee, addr, output := FindOutputFeeAndaddressByTxHash(tx.Hash().String())
 	var blackAddr ethCommon.Address
 	if fee.Cmp(new(big.Int)) <= 0 && output.Cmp(new(big.Int)) <= 0 && addr == blackAddr {
-		savePayloadInfo(tx, l)
+		savePayloadInfo(tx.(*elatx.TransferCrossChainAssetTransaction), l)
 	} else {
 		log.Info("all ready received this cross transaction")
 	}
@@ -366,7 +376,7 @@ func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx core.Tr
 	log.Info("------------------------------------Notify END----------------------------------------------------")
 }
 
-func NotifySmallCrossTx(tx core.Transaction) {
+func NotifySmallCrossTx(tx it.Transaction) {
 	fee, addr, output := FindOutputFeeAndaddressByTxHash(tx.Hash().String())
 	var blackAddr ethCommon.Address
 	if fee.Cmp(new(big.Int)) > 0 || output.Cmp(new(big.Int)) > 0 || addr != blackAddr {
@@ -383,10 +393,10 @@ func NotifySmallCrossTx(tx core.Transaction) {
 	savePayloadInfo(tx, nil)
 }
 
-func OnReceivedRechargeTx(tx core.Transaction) error {
-	output := make([]*core.Output, 0)
-	for _, v := range tx.Outputs {
-		if v.Type != core.OTCrossChain {
+func OnReceivedRechargeTx(tx it.Transaction) error {
+	output := make([]*elacom.Output, 0)
+	for _, v := range tx.Outputs() {
+		if v.Type != elacom.OTCrossChain {
 			continue
 		}
 		op, ok := v.Payload.(*outputpayload.CrossChainOutput)
@@ -408,7 +418,7 @@ func OnReceivedRechargeTx(tx core.Transaction) error {
 	return nil
 }
 
-func saveOutputPayload(outputs []*core.Output, txHash string) error {
+func saveOutputPayload(outputs []*elacom.Output, txHash string) error {
 	var fees []string
 	var address []string
 	var amounts []string
@@ -477,28 +487,28 @@ func saveOutputPayload(outputs []*core.Output, txHash string) error {
 
 //
 //savePayloadInfo save and send spv perception
-func savePayloadInfo(elaTx core.Transaction, l *listener) {
-	if elaTx.PayloadVersion >= payload.TransferCrossChainVersionV1 {
+func savePayloadInfo(elaTx it.Transaction, l *listener) {
+	if elaTx.PayloadVersion() >= payload.TransferCrossChainVersionV1 {
 		err := OnReceivedRechargeTx(elaTx)
 		if err != nil {
 			log.Error("new recharge tx resolve error", "error", err)
 		}
 		return
 	}
-	nr := bytes.NewReader(elaTx.Payload.Data(elaTx.PayloadVersion))
+	nr := bytes.NewReader(elaTx.Payload().Data(elaTx.PayloadVersion()))
 	p := new(payload.TransferCrossChainAsset)
-	p.Deserialize(nr, elaTx.PayloadVersion)
+	p.Deserialize(nr, elaTx.PayloadVersion())
 	var fees []string
 	var address []string
 	var outputs []string
 	for i, amount := range p.CrossChainAmounts {
-		v, err := SafeFixed64Minus(elaTx.Outputs[i].Value, amount)
+		v, err := SafeFixed64Minus(elaTx.Outputs()[i].Value, amount)
 		if err != nil {
 			log.Error("SafeFixed64Minus error", "error", err)
 			continue
 		}
 		fees = append(fees, v.String())
-		outputs = append(outputs, elaTx.Outputs[i].Value.String())
+		outputs = append(outputs, elaTx.Outputs()[i].Value.String())
 		address = append(address, p.CrossChainAddresses[i])
 	}
 	addr := strings.Join(address, ",")

@@ -26,6 +26,7 @@ import (
 	"github.com/elastos/Elastos.ELA/dpos"
 	"github.com/elastos/Elastos.ELA/dpos/account"
 	dlog "github.com/elastos/Elastos.ELA/dpos/log"
+	msg2 "github.com/elastos/Elastos.ELA/dpos/p2p/msg"
 	"github.com/elastos/Elastos.ELA/dpos/state"
 	"github.com/elastos/Elastos.ELA/elanet"
 	"github.com/elastos/Elastos.ELA/elanet/routes"
@@ -129,9 +130,10 @@ func setupNode() *cli.App {
 }
 
 func startNode(c *cli.Context, st *settings.Settings) {
-	// Enable http profiling server if requested.
+	// Enable profiling server if requested.
 	if st.Config().ProfilePort != 0 {
-		go utils.StartPProf(st.Config().ProfilePort)
+		go utils.StartPProf(st.Config().ProfilePort,
+			st.Config().ProfileHost)
 	}
 
 	flagDataDir := c.String("datadir")
@@ -194,7 +196,10 @@ func startNode(c *cli.Context, st *settings.Settings) {
 		committee.TryUpdateCRMemberInactivity,
 		committee.TryRevertCRMemberInactivity,
 		committee.TryUpdateCRMemberIllegal,
-		committee.TryRevertCRMemberIllegal)
+		committee.TryRevertCRMemberIllegal,
+		committee.UpdateCRInactivePenalty,
+		committee.RevertUpdateCRInactivePenalty,
+	)
 	if err != nil {
 		printErrorAndExit(err)
 	}
@@ -238,7 +243,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 	}
 
 	route := routes.New(routesCfg)
-	server, err := elanet.NewServer(dataDir, &elanet.Config{
+	netServer, err := elanet.NewServer(dataDir, &elanet.Config{
 		Chain:          chain,
 		ChainParams:    st.Params(),
 		PermanentPeers: st.Params().PermanentPeers,
@@ -249,40 +254,39 @@ func startNode(c *cli.Context, st *settings.Settings) {
 	if err != nil {
 		printErrorAndExit(err)
 	}
-	routesCfg.IsCurrent = server.IsCurrent
-	routesCfg.RelayAddr = server.RelayInventory
-	blockMemPool.IsCurrent = server.IsCurrent
+	routesCfg.IsCurrent = netServer.IsCurrent
+	routesCfg.RelayAddr = netServer.RelayInventory
+	blockMemPool.IsCurrent = netServer.IsCurrent
 
-	committee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
-		GetTxReference:                   chain.UTXOCache.GetTxReference,
-		GetUTXO:                          chainStore.GetFFLDB().GetUTXO,
-		GetHeight:                        chainStore.GetHeight,
-		CreateCRAppropriationTransaction: chain.CreateCRCAppropriationTransaction,
-		CreateCRAssetsRectifyTransaction: chain.CreateCRAssetsRectifyTransaction,
-		CreateCRRealWithdrawTransaction:  chain.CreateCRRealWithdrawTransaction,
-		IsCurrent:                        server.IsCurrent,
+	arbiters.State.RegisterFuncitons(&state.StateFuncsConfig{
+		GetHeight: chainStore.GetHeight,
+		IsCurrent: netServer.IsCurrent,
 		Broadcast: func(msg p2p.Message) {
-			server.BroadcastMessage(msg)
+			netServer.BroadcastMessage(msg)
 		},
-		AppendToTxpool: txMemPool.AppendToTxPool,
+		AppendToTxpool:                       txMemPool.AppendToTxPool,
+		CreateDposV2RealWithdrawTransaction:  chain.CreateDposV2RealWithdrawTransaction,
+		CreateUnstakeRealWithdrawTransaction: chain.CreateUnstakeRealWithdrawTransaction,
 	})
 
 	var arbitrator *dpos.Arbitrator
 	if act != nil {
 		dlog.Init(flagDataDir, uint8(st.Config().PrintLevel),
 			st.Config().MaxPerLogSize, st.Config().MaxLogsSize)
+
 		arbitrator, err = dpos.NewArbitrator(act, dpos.Config{
 			EnableEventLog: true,
 			Chain:          chain,
 			ChainParams:    st.Params(),
 			Arbitrators:    arbiters,
-			Server:         server,
+			Server:         netServer,
 			TxMemPool:      txMemPool,
 			BlockMemPool:   blockMemPool,
 			Broadcast: func(msg p2p.Message) {
-				server.BroadcastMessage(msg)
+				netServer.BroadcastMessage(msg)
 			},
 			AnnounceAddr: route.AnnounceAddr,
+			NodeVersion:  nodePrefix + Version,
 		})
 		if err != nil {
 			printErrorAndExit(err)
@@ -293,13 +297,28 @@ func startNode(c *cli.Context, st *settings.Settings) {
 		defer arbitrator.Stop()
 	}
 
+	committee.RegisterFuncitons(&crstate.CommitteeFuncsConfig{
+		GetTxReference:                   chain.UTXOCache.GetTxReference,
+		GetUTXO:                          chainStore.GetFFLDB().GetUTXO,
+		GetHeight:                        chainStore.GetHeight,
+		CreateCRAppropriationTransaction: chain.CreateCRCAppropriationTransaction,
+		CreateCRAssetsRectifyTransaction: chain.CreateCRAssetsRectifyTransaction,
+		CreateCRRealWithdrawTransaction:  chain.CreateCRRealWithdrawTransaction,
+		IsCurrent:                        netServer.IsCurrent,
+		Broadcast: func(msg p2p.Message) {
+			netServer.BroadcastMessage(msg)
+		},
+		AppendToTxpool:     txMemPool.AppendToTxPool,
+		GetCurrentArbiters: arbiters.GetCurrentArbitratorKeys,
+	})
+
 	servers.Compile = Version
 	servers.Config = st.Config()
 	servers.ChainParams = st.Params()
 	servers.Chain = chain
 	servers.Store = chainStore
 	servers.TxMemPool = txMemPool
-	servers.Server = server
+	servers.Server = netServer
 	servers.Arbiters = arbiters
 	servers.Pow = pow.NewService(&pow.Config{
 		PayToAddr:   st.Config().PowConfiguration.PayToAddr,
@@ -310,7 +329,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 		BlkMemPool:  blockMemPool,
 		BroadcastBlock: func(block *types.Block) {
 			hash := block.Hash()
-			server.RelayInventory(msg.NewInvVect(msg.InvTypeBlock, &hash), block)
+			netServer.RelayInventory(msg.NewInvVect(msg.InvTypeBlock, &hash), block)
 		},
 		Arbitrators: arbiters,
 	})
@@ -323,6 +342,11 @@ func startNode(c *cli.Context, st *settings.Settings) {
 	}
 	pgBar.Stop()
 
+	// todo remove me
+	if chain.GetHeight() > st.Params().DPoSV2StartHeight {
+		msg2.SetPayloadVersion(msg2.DPoSV2Version)
+	}
+
 	// Add small cross chain transactions to transaction pool
 	txs, _ := chain.GetDB().GetSmallCrossTransferTxs()
 	for _, tx := range txs {
@@ -332,8 +356,8 @@ func startNode(c *cli.Context, st *settings.Settings) {
 	}
 
 	log.Info("Start the P2P networks")
-	server.Start()
-	defer server.Stop()
+	netServer.Start()
+	defer netServer.Stop()
 
 	log.Info("Start services")
 	if st.Config().EnableRPC {
@@ -349,9 +373,9 @@ func startNode(c *cli.Context, st *settings.Settings) {
 		go httpnodeinfo.StartServer()
 	}
 
-	go printSyncState(chain, server)
+	go printSyncState(chain, netServer)
 
-	waitForSyncFinish(server, interrupt.C)
+	waitForSyncFinish(netServer, interrupt.C)
 	if interrupt.Interrupted() {
 		return
 	}

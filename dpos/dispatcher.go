@@ -14,6 +14,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
+	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/msg"
@@ -42,6 +43,9 @@ type Dispatcher struct {
 
 	mu         sync.RWMutex
 	proposalMu sync.RWMutex
+
+	resetViewRequests map[string]struct{} // sponsors
+	resetViewMu       sync.RWMutex
 }
 
 func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal) (err error, isSendReject bool, handled bool) {
@@ -192,7 +196,78 @@ func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256,
 	d.CleanProposals(false)
 	d.consensusView.UpdateDutyIndex(height)
 	d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true, headerTime)
+	d.resetViewMu.Lock()
+	d.resetViewRequests = make(map[string]struct{}, 0)
+	d.resetViewMu.Unlock()
 }
+
+func (d *Dispatcher) ResetConsensus() {
+	Info("[resetConsensus] start", "d.consensusView.IsRunning()", d.consensusView.IsRunning())
+	defer Info("[resetConsensus] end")
+
+	if d.consensusView.IsRunning() {
+		Info("[resetConsensus] reset view")
+		d.consensusView.SetReady()
+		d.CleanProposals(false)
+		d.consensusView.resetViewOffset()
+		go func() {
+			time.Sleep(d.consensusView.signTolerance)
+			Info("[resetConsensus] reset delay to view setRunning")
+			d.consensusView.SetRunning()
+		}()
+	}
+	d.resetViewMu.Lock()
+	d.resetViewRequests = make(map[string]struct{}, 0)
+	d.resetViewMu.Unlock()
+}
+
+func (d *Dispatcher) OnResponseResetViewReceived(msg *msg.ResetView) {
+	signer := msg.Sponsor
+	sign := msg.Sign
+
+	data := new(bytes.Buffer)
+	if err := msg.SerializeUnsigned(
+		data); err != nil {
+		return
+	}
+
+	pk, err := crypto.DecodePoint(signer)
+	if err != nil {
+		return
+	}
+
+	if err := crypto.Verify(*pk, data.Bytes(), sign); err != nil {
+		Errorf("invalid message signature:", *msg)
+		return
+	}
+	d.RecordViewRequest(signer)
+}
+
+func (d *Dispatcher) GetResetViewReqCount() int {
+	d.resetViewMu.Lock()
+	defer d.resetViewMu.Unlock()
+	return len(d.resetViewRequests)
+}
+
+func (d *Dispatcher) ResetViewRequestIsContain(sponsor []byte) bool {
+	d.resetViewMu.Lock()
+	defer d.resetViewMu.Unlock()
+	if d.resetViewRequests == nil {
+		return false
+	}
+	_, ok := d.resetViewRequests[common.BytesToHexString(sponsor)]
+	return ok
+}
+
+func (d *Dispatcher) RecordViewRequest(sponsor []byte) {
+	d.resetViewMu.Lock()
+	defer d.resetViewMu.Unlock()
+	if d.resetViewRequests == nil {
+		d.resetViewRequests = make(map[string]struct{}, 0)
+	}
+	d.resetViewRequests[common.BytesToHexString(sponsor)] = struct{}{}
+}
+
 func (d *Dispatcher) CleanProposals(changeView bool) {
 	Info("Clean proposals")
 	d.processingProposal = nil
@@ -310,8 +385,12 @@ func (d *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
 	return d.processingProposal
 }
 
-func (d *Dispatcher) GetNeedConnectProducers() []peer.PID {
-	return d.consensusView.GetNeedConnectArbiters()
+func (d *Dispatcher) GetNextNeedConnectArbiters() []peer.PID {
+	return d.consensusView.GetNextNeedConnectArbiters()
+}
+
+func (d *Dispatcher) GetCurrentNeedConnectArbiters() []peer.PID {
+	return d.consensusView.getCurrentNeedConnectArbiters()
 }
 
 func (d *Dispatcher) OnChangeView() {
@@ -343,24 +422,24 @@ func (d *Dispatcher) HelpToRecoverAbnormal(id peer.PID, height uint64, currentHe
 	status.ViewStartTime = d.consensusView.GetViewStartTime()
 
 	status.AcceptVotes = make([]payload.DPOSProposalVote, 0, len(d.acceptVotes))
-	for _, v := range d.acceptVotes {
-		status.AcceptVotes = append(status.AcceptVotes, *v)
-	}
+	//for _, v := range d.acceptVotes {
+	//	status.AcceptVotes = append(status.AcceptVotes, *v)
+	//}
 
 	status.RejectedVotes = make([]payload.DPOSProposalVote, 0, len(d.rejectedVotes))
-	for _, v := range d.rejectedVotes {
-		status.RejectedVotes = append(status.RejectedVotes, *v)
-	}
+	//for _, v := range d.rejectedVotes {
+	//	status.RejectedVotes = append(status.RejectedVotes, *v)
+	//}
 
 	status.PendingProposals = make([]payload.DPOSProposal, 0, 1)
-	if d.processingProposal != nil {
-		status.PendingProposals = append(status.PendingProposals, *d.processingProposal)
-	}
+	//if d.processingProposal != nil {
+	//	status.PendingProposals = append(status.PendingProposals, *d.processingProposal)
+	//}
 
 	status.PendingVotes = make([]payload.DPOSProposalVote, 0, len(d.pendingVotes))
-	for _, v := range d.pendingVotes {
-		status.PendingVotes = append(status.PendingVotes, *v)
-	}
+	//for _, v := range d.pendingVotes {
+	//	status.PendingVotes = append(status.PendingVotes, *v)
+	//}
 	status.WorkingHeight = d.consensusView.producers.workingHeight
 	return status
 
@@ -382,33 +461,35 @@ func (d *Dispatcher) RecoverAbnormal(status *dmsg.ConsensusStatus, medianTime in
 func (d *Dispatcher) RecoverFromConsensusStatus(status *dmsg.ConsensusStatus) error {
 	d.consensusView.consensusStatus = status.ConsensusStatus
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
-	for _, v := range status.AcceptVotes {
-		vote := v
-		d.acceptVotes[v.Hash()] = &vote
-	}
+	//for _, v := range status.AcceptVotes {
+	//	vote := v
+	//	d.acceptVotes[v.Hash()] = &vote
+	//}
 
 	d.rejectedVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
-	for _, v := range status.RejectedVotes {
-		vote := v
-		d.rejectedVotes[v.Hash()] = &vote
-	}
+	//for _, v := range status.RejectedVotes {
+	//	vote := v
+	//	d.rejectedVotes[v.Hash()] = &vote
+	//}
 	d.processingProposal = nil
-	for _, v := range status.PendingProposals {
-		d.setProcessingProposal(&v)
-	}
+	//for _, v := range status.PendingProposals {
+	//	d.setProcessingProposal(&v)
+	//}
 
 	d.pendingVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
-	for _, v := range status.PendingVotes {
-		vote := v
-		d.pendingVotes[v.Hash()] = &vote
-	}
+	//for _, v := range status.PendingVotes {
+	//	vote := v
+	//	d.pendingVotes[v.Hash()] = &vote
+	//}
 
 	d.consensusView.viewOffset = status.ViewOffset
 	d.consensusView.ResetView(uint64(status.ViewStartTime.Unix()))
 	d.consensusView.isDposOnDuty = d.consensusView.ProducerIsOnDuty(d.consensusView.publicKey)
 	d.consensusView.SetWorkingHeight(status.WorkingHeight)
-	d.consensusView.UpdateDutyIndex(d.finishedHeight)
-	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime(), "WorkingHeight", status.WorkingHeight, "dutyIndex", d.GetConsensusView().GetDutyIndex())
+	if d.finishedHeight > 0 {
+		d.consensusView.UpdateDutyIndex(d.finishedHeight)
+	}
+	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime(), "WorkingHeight", status.WorkingHeight, "dutyIndex", d.GetConsensusView().GetDutyIndex(), "d.finishedHeight", d.finishedHeight)
 	d.consensusView.DumpInfo()
 	Info("\n\n\n\n \n\n\n\n")
 	return nil

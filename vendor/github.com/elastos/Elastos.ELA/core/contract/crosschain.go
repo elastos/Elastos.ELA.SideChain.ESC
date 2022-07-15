@@ -1,12 +1,13 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package contract
 
 import (
 	"bytes"
+	"github.com/elastos/Elastos.ELA/vm"
 
 	"github.com/elastos/Elastos.ELA/common"
 )
@@ -45,7 +46,7 @@ func CreateCrossChainRedeemScript(genesisHash common.Uint256) []byte {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(len(genesisHash.Bytes())))
 	buf.Write(genesisHash.Bytes())
-	buf.WriteByte(byte(CROSSCHAIN))
+	buf.WriteByte(byte(vm.CROSSCHAIN))
 
 	return buf.Bytes()
 }

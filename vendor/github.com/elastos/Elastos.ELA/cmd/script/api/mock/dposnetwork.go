@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package mock
 
@@ -119,7 +119,7 @@ func (n *network) BroadcastMessage(msg p2p.Message) {
 	n.messageList = append(n.messageList, messageItem{ID: nil, Message: msg})
 }
 
-func (n *network) UpdatePeers(peers []peer.PID) {}
+func (n *network) UpdatePeers(currentPeers []peer.PID, nextPeers []peer.PID) {}
 
 func (n *network) GetActivePeers() []dp2p.Peer {
 	return nil

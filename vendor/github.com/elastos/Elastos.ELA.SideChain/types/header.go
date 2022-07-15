@@ -85,6 +85,12 @@ func (header *Header) Serialize(w io.Writer) error {
 	return nil
 }
 
+func (header *Header) GetHeaderSize() int {
+	var buf bytes.Buffer
+	header.Serialize(&buf)
+	return buf.Len()
+}
+
 func (header *Header) Deserialize(r io.Reader) error {
 	err := header.Base.Deserialize(r)
 	if err != nil {
@@ -114,6 +120,10 @@ func (header *Header) SetHeight(height uint32) {
 
 func (header *Header) GetHeight() uint32 {
 	return header.Base.Height
+}
+
+func (header *Header) GetMainChainHeight() uint32 {
+	return header.SideAuxPow.MainBlockHeader.Height
 }
 
 func (header *Header) GetBits() uint32 {

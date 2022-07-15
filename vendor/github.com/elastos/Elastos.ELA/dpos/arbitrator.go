@@ -14,6 +14,7 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/account"
 	"github.com/elastos/Elastos.ELA/dpos/dtime"
@@ -31,15 +32,16 @@ import (
 const DumpPeersInfoInterval = 10 * time.Minute
 
 type Config struct {
-	EnableEventLog bool
-	Chain          *blockchain.BlockChain
-	Arbitrators    state.Arbitrators
-	Server         elanet.Server
-	TxMemPool      *mempool.TxPool
-	BlockMemPool   *mempool.BlockPool
-	ChainParams    *config.Params
-	Broadcast      func(msg p2p.Message)
-	AnnounceAddr   func()
+	EnableEventLog  bool
+	Chain           *blockchain.BlockChain
+	Arbitrators     state.Arbitrators
+	Server          elanet.Server
+	TxMemPool       *mempool.TxPool
+	BlockMemPool    *mempool.BlockPool
+	ChainParams     *config.Params
+	Broadcast       func(msg p2p.Message)
+	AnnounceAddr    func()
+	NodeVersion     string
 }
 
 type Arbitrator struct {
@@ -70,7 +72,7 @@ func (a *Arbitrator) Start() {
 	a.network.Start()
 
 	go a.changeViewLoop()
-	go a.recover()
+	//go a.recover()
 	go a.dumpPeersInfo()
 }
 
@@ -97,6 +99,14 @@ func (a *Arbitrator) Stop() error {
 
 func (a *Arbitrator) GetCurrentArbitrators() []*state.ArbiterInfo {
 	return a.dposManager.GetArbitrators().GetArbitrators()
+}
+
+func (a *Arbitrator) GetCurrentArbitratorKeys() [][]byte {
+	var ret [][]byte
+	for _, info := range a.dposManager.GetArbitrators().GetArbitrators() {
+		ret = append(ret, info.NodePublicKey)
+	}
+	return ret
 }
 
 func (a *Arbitrator) GetNextArbitrators() []*state.ArbiterInfo {
@@ -208,8 +218,8 @@ func (a *Arbitrator) OnConfirmReceived(p *mempool.ConfirmInfo) {
 	a.network.PostConfirmReceivedTask(p)
 }
 
-func (a *Arbitrator) OnPeersChanged(peers []peer.PID) {
-	a.network.UpdatePeers(peers)
+func (a *Arbitrator) OnPeersChanged(currentPeers []peer.PID, nextPeers []peer.PID) {
+	a.network.UpdatePeers(currentPeers, nextPeers)
 }
 
 func (a *Arbitrator) changeViewLoop() {
@@ -241,10 +251,11 @@ func NewArbitrator(account account.Account, cfg Config) (*Arbitrator, error) {
 	})
 
 	network, err := NewDposNetwork(NetworkConfig{
-		ChainParams: cfg.ChainParams,
-		Account:     account,
-		MedianTime:  medianTime,
-		Listener:    dposManager,
+		ChainParams:     cfg.ChainParams,
+		Account:         account,
+		MedianTime:      medianTime,
+		Listener:        dposManager,
+		NodeVersion:     cfg.NodeVersion,
 	})
 	if err != nil {
 		log.Error("Init p2p network error")
@@ -282,7 +293,7 @@ func NewArbitrator(account account.Account, cfg Config) (*Arbitrator, error) {
 		})
 	dposHandlerSwitch.Initialize(proposalDispatcher, consensus)
 
-	dposManager.Initialize(dposHandlerSwitch, proposalDispatcher, consensus,
+	dposManager.Initialize(account, dposHandlerSwitch, proposalDispatcher, consensus,
 		network, illegalMonitor, cfg.BlockMemPool, cfg.TxMemPool, cfg.Broadcast)
 	network.Initialize(manager.DPOSNetworkConfig{
 		ProposalDispatcher: proposalDispatcher,
@@ -308,14 +319,15 @@ func NewArbitrator(account account.Account, cfg Config) (*Arbitrator, error) {
 			go a.OnConfirmReceived(e.Data.(*mempool.ConfirmInfo))
 
 		case events.ETDirectPeersChanged:
-			a.OnPeersChanged(e.Data.([]peer.PID))
+			peersInfo := e.Data.(*peer.PeersInfo)
+			a.OnPeersChanged(peersInfo.CurrentPeers, peersInfo.NextPeers)
 
 		case events.ETTransactionAccepted:
-			tx := e.Data.(*types.Transaction)
+			tx := e.Data.(interfaces.Transaction)
 			if tx.IsIllegalBlockTx() {
-				a.OnIllegalBlockTxReceived(tx.Payload.(*payload.DPOSIllegalBlocks))
+				a.OnIllegalBlockTxReceived(tx.Payload().(*payload.DPOSIllegalBlocks))
 			} else if tx.IsInactiveArbitrators() {
-				a.OnInactiveArbitratorsTxReceived(tx.Payload.(*payload.InactiveArbitrators))
+				a.OnInactiveArbitratorsTxReceived(tx.Payload().(*payload.InactiveArbitrators))
 			}
 		}
 	})

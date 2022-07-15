@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package info
 
@@ -153,7 +153,7 @@ func NewCommand() *cli.Command {
 				Usage: "Get raw transaction by transaction hash",
 				Action: func(c *cli.Context) error {
 					if c.NArg() < 1 {
-						cmdcom.PrintErrorMsg("Missing argument. Transaction hash expected.")
+						cmdcom.PrintErrorMsg("Missing argument. BaseTransaction hash expected.")
 						cli.ShowCommandHelpAndExit(c, "getrawtransaction", 1)
 					}
 					param := c.Args().First()

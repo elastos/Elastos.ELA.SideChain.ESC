@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package httpwebsocket
 
@@ -19,6 +19,7 @@ import (
 	"github.com/elastos/Elastos.ELA/common/config"
 	"github.com/elastos/Elastos.ELA/common/log"
 	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/events"
 	"github.com/elastos/Elastos.ELA/servers"
 	"github.com/elastos/Elastos.ELA/servers/errors"
@@ -301,7 +302,7 @@ func (s *Server) PushResult(action string, v interface{}) {
 			result = servers.GetBlockTransactions(block)
 		}
 	case "sendnewtransaction":
-		if tx, ok := v.(*types.Transaction); ok {
+		if tx, ok := v.(interfaces.Transaction); ok {
 			result = servers.GetTransactionContextInfo(nil, tx)
 		}
 	default:

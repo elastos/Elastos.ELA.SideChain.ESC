@@ -1,16 +1,16 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package blockchain
 
 import (
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
 	"math/big"
 	"testing"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +25,7 @@ func init() {
 }
 
 func TestBlockChain_GetNetworkHashPS(t *testing.T) {
-	firstHeader := &types.Header{
+	firstHeader := &common2.Header{
 		Previous:  common.Uint256{},
 		Timestamp: uint32(10000000),
 		Bits:      bits,
@@ -38,7 +38,7 @@ func TestBlockChain_GetNetworkHashPS(t *testing.T) {
 	tipNode := firstNode
 
 	for i := 1; i < blockCount; i++ {
-		header := &types.Header{
+		header := &common2.Header{
 			Previous:  common.Uint256{},
 			Timestamp: uint32(10000000 + i*timespanPerBlock),
 			Bits:      bits,

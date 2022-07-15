@@ -20,6 +20,8 @@ import (
 	cmdcom "github.com/elastos/Elastos.ELA/cmd/common"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
+	transaction2 "github.com/elastos/Elastos.ELA/core/transaction"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
 	"github.com/elastos/Elastos.ELA/elanet/pact"
 	"github.com/elastos/Elastos.ELA/utils/elalog"
 	"github.com/elastos/Elastos.ELA/utils/gpath"
@@ -218,6 +220,15 @@ func (s *Settings) Add(item *settingItem) {
 }
 
 func (s *Settings) initNetSetting() (err error) {
+	// Initialize functions
+	functions.GetTransactionByTxType = transaction2.GetTransaction
+	functions.GetTransactionByBytes = transaction2.GetTransactionByBytes
+	functions.CreateTransaction = transaction2.CreateTransaction
+	functions.GetTransactionParameters = transaction2.GetTransactionparameters
+
+	// Initialize default parameters
+	config.DefaultParams = config.GetDefaultParams()
+
 	var testNet, regTest bool
 	switch strings.ToLower(s.conf.ActiveNet) {
 	case "testnet", "test":
@@ -495,11 +506,18 @@ func NewSettings() *Settings {
 		DefaultValue: uint32(0),
 		ConfigPath:   "PublicDPOSHeight",
 		ParamName:    "PublicDPOSHeight"})
+
 	result.Add(&settingItem{
 		Flag:         cmdcom.IllegalPenaltyFlag,
-		DefaultValue: uint32(0),
+		DefaultValue: common.Fixed64(0),
 		ConfigPath:   "DPoSConfiguration.IllegalPenalty",
 		ParamName:    "IllegalPenalty"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.DPoSV2IllegalPenaltyFlag,
+		DefaultValue: common.Fixed64(0),
+		ConfigPath:   "DPoSConfiguration.DPoSV2IllegalPenalty",
+		ParamName:    "DPoSV2IllegalPenalty"})
 
 	result.Add(&settingItem{
 		Flag:         cmdcom.CRCommitteeStartHeightFlag,
@@ -781,6 +799,24 @@ func NewSettings() *Settings {
 		ConfigPath:   "DPoSConfiguration.EmergencyInactivePenalty",
 		ParamName:    "EmergencyInactivePenalty"})
 
+	result.Add(&settingItem{
+		Flag:         cmdcom.DPoSV2MinVotesLockTimeFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.DPoSV2MinVotesLockTime",
+		ParamName:    "DPoSV2MinVotesLockTime"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.DPoSV2DepositCoinMinLockTimeFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.DPoSV2DepositCoinMinLockTime",
+		ParamName:    "DPoSV2DepositCoinMinLockTime"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.DPoSV2MaxVotesLockTimeFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.DPoSV2MaxVotesLockTime",
+		ParamName:    "DPoSV2MaxVotesLockTime"})
+
 	// CR configurations
 
 	result.Add(&settingItem{
@@ -945,6 +981,12 @@ func NewSettings() *Settings {
 		ParamName:    "CRCProposalDraftDataStartHeight"})
 
 	result.Add(&settingItem{
+		Flag:         cmdcom.CRClaimPeriodFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CRConfiguration.CRClaimPeriod",
+		ParamName:    "CRClaimPeriod"})
+
+	result.Add(&settingItem{
 		Flag:         cmdcom.CustomIDProposalStartHeight,
 		DefaultValue: uint32(0),
 		ConfigPath:   "CustomIDProposalStartHeight",
@@ -979,6 +1021,12 @@ func NewSettings() *Settings {
 		DefaultValue: uint32(0),
 		ConfigPath:   "DPoSConfiguration.DPOSNodeCrossChainHeight",
 		ParamName:    "DPOSNodeCrossChainHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.CRDPoSNodeHotFixHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSConfiguration.CRDPoSNodeHotFixHeight",
+		ParamName:    "CRDPoSNodeHotFixHeight"})
 
 	result.Add(&settingItem{
 		Flag:         cmdcom.HalvingRewardHeightFlag,
@@ -1021,6 +1069,70 @@ func NewSettings() *Settings {
 		DefaultValue: uint32(0),
 		ConfigPath:   "ReturnCrossChainCoinStartHeight",
 		ParamName:    "ReturnCrossChainCoinStartHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.DposV2StartHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "DPoSV2StartHeight",
+		ParamName:    "DPoSV2StartHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.DposV2EffectiveVotesFlag,
+		DefaultValue: common.Fixed64(0),
+		ConfigPath:   "DPoSV2EffectiveVotes",
+		ParamName:    "DPoSV2EffectiveVotes"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.StakePoolFlag,
+		DefaultValue: common.Fixed64(0),
+		ConfigPath:   "StakePool",
+		ParamName:    "StakePool"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.DposV2RewardAccumulateAddressFlag,
+		DefaultValue: "",
+		ConfigSetter: func(path string, params *config.Params,
+			conf *config.Configuration) error {
+			DposV2RewardAccumulateAddress, err := common.Uint168FromAddress(conf.DPoSConfiguration.DPoSV2RewardAccumulateAddress)
+			if err != nil {
+				return errors.New("invalid CR expenses address")
+			}
+			params.DPoSV2RewardAccumulateAddress = *DposV2RewardAccumulateAddress
+			return nil
+		},
+		CliSetter: func(i interface{}, params *config.Params,
+			conf *config.Configuration) error {
+			value, ok := i.(string)
+			if !ok {
+				return errors.New("unknown foundation address type")
+			}
+			DposV2RewardAccumulateAddress, err := common.Uint168FromAddress(value)
+			if err != nil {
+				return errors.New("invalid CR expenses address")
+			}
+			params.DPoSV2RewardAccumulateAddress = *DposV2RewardAccumulateAddress
+			return nil
+		},
+		ConfigPath: "DPoSConfiguration.DPoSV2RewardAccumulateAddress",
+		ParamName:  "DPoSV2RewardAccumulateAddress"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.SchnorrStartHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "SchnorrStartHeight",
+		ParamName:    "SchnorrStartHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.CrossChainMonitorStartHeightFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CrossChainMonitorStartHeight",
+		ParamName:    "CrossChainMonitorStartHeight"})
+
+	result.Add(&settingItem{
+		Flag:         cmdcom.CrossChainMonitorIntervalFlag,
+		DefaultValue: uint32(0),
+		ConfigPath:   "CrossChainMonitorInterval",
+		ParamName:    "CrossChainMonitorInterval"})
 
 	return result
 }
