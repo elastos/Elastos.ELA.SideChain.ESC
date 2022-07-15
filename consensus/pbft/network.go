@@ -128,9 +128,11 @@ func (p *Pbft) AnnounceDAddr() bool {
 		log.Error("is not a super node")
 		return false
 	}
-	producers := p.dispatcher.GetNeedConnectProducers()
-	log.Info("Announce DAddr ", "Producers:", producers)
-	events.Notify(events.ETDirectPeersChanged, producers)
+	currents := p.dispatcher.GetCurrentNeedConnectArbiters()
+	nextArbites := p.dispatcher.GetNextNeedConnectArbiters()
+	log.Info("Announce DAddr ", "currents:", currents, "nextArbites", nextArbites)
+	events.Notify(events.ETDirectPeersChangedV2,
+		&peer.PeersInfo{CurrentPeers: currents, NextPeers: nextArbites})
 	return true
 }
 

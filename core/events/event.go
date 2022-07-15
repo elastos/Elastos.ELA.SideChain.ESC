@@ -1,6 +1,8 @@
 package events
 
-import elaType "github.com/elastos/Elastos.ELA/core/types"
+import (
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
+)
 
 // MinedBlockEvent is posted when a block has been imported.
 type MinedBlockEvent struct{}
@@ -9,9 +11,9 @@ type MinedBlockEvent struct{}
 type OnDutyEvent struct{}
 
 //InitCurrentProducers is posted when spv module is initialization completed
-type InitCurrentProducers struct {}
+type InitCurrentProducers struct{}
 
 //CmallCrossTx is posted when a small cross transaction is received 2/3 signatures
-type CmallCrossTx struct{
-	Tx *elaType.Transaction
+type CmallCrossTx struct {
+	Tx it.Transaction
 }

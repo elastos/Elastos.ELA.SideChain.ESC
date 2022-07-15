@@ -1,11 +1,14 @@
 package auxpow
 
 import (
+	"errors"
 	"io"
 
 	"github.com/elastos/Elastos.ELA/auxpow"
 	"github.com/elastos/Elastos.ELA/common"
-	ela "github.com/elastos/Elastos.ELA/core/types"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+	ela "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
@@ -13,13 +16,13 @@ type SideAuxPow struct {
 	SideAuxMerkleBranch []common.Uint256
 	SideAuxMerkleIndex  int
 	SideAuxBlockTx      ela.Transaction
-	MainBlockHeader     ela.Header
+	MainBlockHeader     elacommon.Header
 }
 
 func NewSideAuxPow(sideAuxMerkleBranch []common.Uint256,
 	sideAuxMerkleIndex int,
 	sideAuxBlockTx ela.Transaction,
-	mainBlockHeader ela.Header) *SideAuxPow {
+	mainBlockHeader elacommon.Header) *SideAuxPow {
 
 	return &SideAuxPow{
 		SideAuxMerkleBranch: sideAuxMerkleBranch,
@@ -56,17 +59,24 @@ func (sap *SideAuxPow) Serialize(w io.Writer) error {
 }
 
 func (sap *SideAuxPow) Deserialize(r io.Reader) error {
-	err := sap.SideAuxBlockTx.Deserialize(r)
+	tx, err := elatx.GetTransactionByBytes(r)
 	if err != nil {
 		return err
 	}
+
+	err = tx.Deserialize(r)
+	if err != nil {
+		return err
+	}
+
+	sap.SideAuxBlockTx = tx
 
 	count, err := common.ReadUint32(r)
 	if err != nil {
 		return err
 	}
 
-	sap.SideAuxMerkleBranch = make([]common.Uint256, 0, count)
+	sap.SideAuxMerkleBranch = make([]common.Uint256, 0)
 	for i := uint32(0); i < count; i++ {
 		var branch common.Uint256
 		err = branch.Deserialize(r)
@@ -85,27 +95,27 @@ func (sap *SideAuxPow) Deserialize(r io.Reader) error {
 	return sap.MainBlockHeader.Deserialize(r)
 }
 
-func (sap *SideAuxPow) SideAuxPowCheck(hashAuxBlock common.Uint256) bool {
+func (sap *SideAuxPow) SideAuxPowCheck(hashAuxBlock common.Uint256) error {
 	mainBlockHeader := sap.MainBlockHeader
 	mainBlockHeaderHash := mainBlockHeader.Hash()
 	if !mainBlockHeader.AuxPow.Check(&mainBlockHeaderHash, auxpow.AuxPowChainID) {
-		return false
+		return errors.New("mainBlockHeader AuxPow check is failed")
 	}
 
 	sideAuxPowMerkleRoot := auxpow.GetMerkleRoot(sap.SideAuxBlockTx.Hash(), sap.SideAuxMerkleBranch, sap.SideAuxMerkleIndex)
 	if sideAuxPowMerkleRoot != sap.MainBlockHeader.MerkleRoot {
-		return false
+		return errors.New("sideAuxPowMerkleRoot check is failed")
 	}
 
-	payloadData := sap.SideAuxBlockTx.Payload.Data(payload.SideChainPowVersion)
+	payloadData := sap.SideAuxBlockTx.Payload().Data(payload.SideChainPowVersion)
 	payloadHashData := payloadData[0:32]
 	payloadHash, err := common.Uint256FromBytes(payloadHashData)
 	if err != nil {
-		return false
+		return errors.New("payloadHash to Uint256 is failed")
 	}
 	if *payloadHash != hashAuxBlock {
-		return false
+		return errors.New("payloadHash is not equal to hashAuxBlock")
 	}
 
-	return true
+	return nil
 }

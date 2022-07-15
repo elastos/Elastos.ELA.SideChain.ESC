@@ -62,10 +62,12 @@ func (p *TxPool) AppendToTxPool(tx *types.Transaction) error {
 
 func (p *TxPool) appendToTxPool(tx *types.Transaction) error {
 	//verify transaction with Concurrency
-	if err := p.validator.CheckTransactionSanity(tx); err != nil {
+	if err := p.validator.CheckTransactionSanity(tx, p.chain.BestChain.Height,
+		p.chain.BestChain.MainChainHeight); err != nil {
 		return err
 	}
-	if err := p.validator.CheckTransactionContext(tx); err != nil {
+	if err := p.validator.CheckTransactionContext(tx, p.chain.BestChain.Height,
+		p.chain.BestChain.MainChainHeight); err != nil {
 		return err
 	}
 
@@ -122,7 +124,28 @@ func (p *TxPool) CleanSubmittedTransactions(block *types.Block) error {
 	p.Lock()
 	defer p.Unlock()
 	p.cleanMainChainTx(block.Transactions)
-	return p.cleanTransactionList(block.Transactions)
+	p.cleanTransactionList(block.Transactions)
+	p.checkAndCleanAllTransactions()
+	return nil
+}
+
+func (p *TxPool) checkAndCleanAllTransactions() {
+	txCount := len(p.txnList)
+	var deleteCount int
+	for _, tx := range p.txnList {
+		if err := p.validator.CheckTransactionContext(tx, p.chain.BestChain.Height,
+			p.chain.BestChain.MainChainHeight); err != nil {
+			log.Warnf("[checkAndCleanAllTransactions] check transaction"+
+				" context failed:%s, need to remove", err)
+			p.doRemoveTransaction(tx)
+			deleteCount++
+			return
+		}
+	}
+
+	log.Debug(fmt.Sprintf("[checkAndCleanAllTransactions],transaction %d "+
+		"in transaction pool before, %d deleted. Remains %d in TxPool", txCount,
+		deleteCount, txCount-deleteCount))
 }
 
 //get the transaction by hash
@@ -155,7 +178,7 @@ func (mp *TxPool) doRemoveTransaction(tx *types.Transaction) {
 }
 
 // clean the trasaction Pool with committed transactions.
-func (p *TxPool) cleanTransactionList(txns []*types.Transaction) error {
+func (p *TxPool) cleanTransactionList(txns []*types.Transaction) {
 	cleaned := 0
 	for _, txn := range txns {
 		if txn.TxType == types.CoinBase {
@@ -198,7 +221,7 @@ func (p *TxPool) cleanTransactionList(txns []*types.Transaction) error {
 
 	log.Debugf("[cleanTransactionList] %d cleaned,  Remains %d in TxPool",
 		cleaned, p.getTransactionCount())
-	return nil
+	return
 }
 
 // clean the mainchain tx pool

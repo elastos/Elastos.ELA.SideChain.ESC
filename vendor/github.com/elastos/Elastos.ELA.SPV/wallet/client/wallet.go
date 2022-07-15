@@ -15,7 +15,9 @@ import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/contract"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
-	"github.com/elastos/Elastos.ELA/core/types"
+	tx "github.com/elastos/Elastos.ELA/core/transaction"
+	types "github.com/elastos/Elastos.ELA/core/types/common"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/utils/http/jsonrpc"
@@ -117,28 +119,28 @@ func (wallet *Wallet) AddMultiSignAccount(m int, publicKeys ...*crypto.PublicKey
 }
 
 func (wallet *Wallet) CreateTransaction(fromAddress, toAddress string, amount,
-	fee *common.Fixed64) (*types.Transaction, error) {
+	fee *common.Fixed64) (it.Transaction, error) {
 	return wallet.CreateLockedTransaction(fromAddress, toAddress, amount, fee, uint32(0))
 }
 
 func (wallet *Wallet) CreateLockedTransaction(fromAddress, toAddress string,
-	amount, fee *common.Fixed64, lockedUntil uint32) (*types.Transaction, error) {
+	amount, fee *common.Fixed64, lockedUntil uint32) (it.Transaction, error) {
 	return wallet.CreateLockedMultiOutputTransaction(fromAddress, fee, lockedUntil,
 		&Transfer{toAddress, amount})
 }
 
 func (wallet *Wallet) CreateMultiOutputTransaction(fromAddress string, fee *common.Fixed64,
-	outputs ...*Transfer) (*types.Transaction, error) {
+	outputs ...*Transfer) (it.Transaction, error) {
 	return wallet.CreateLockedMultiOutputTransaction(fromAddress, fee, uint32(0), outputs...)
 }
 
 func (wallet *Wallet) CreateLockedMultiOutputTransaction(fromAddress string, fee *common.Fixed64,
-	lockedUntil uint32, outputs ...*Transfer) (*types.Transaction, error) {
+	lockedUntil uint32, outputs ...*Transfer) (it.Transaction, error) {
 	return wallet.createTransaction(fromAddress, fee, lockedUntil, outputs...)
 }
 
 func (wallet *Wallet) createTransaction(fromAddress string, fee *common.Fixed64, lockedUntil uint32,
-	outputs ...*Transfer) (*types.Transaction, error) {
+	outputs ...*Transfer) (it.Transaction, error) {
 	// Check if output is valid
 	if outputs == nil || len(outputs) == 0 {
 		return nil, errors.New("[Wallet], Invalid transaction target")
@@ -209,14 +211,14 @@ func (wallet *Wallet) createTransaction(fromAddress string, fee *common.Fixed64,
 	return wallet.newTransaction(addr.Script(), txInputs, txOutputs), nil
 }
 
-func (wallet *Wallet) Sign(password []byte, tx *types.Transaction) (*types.Transaction, error) {
+func (wallet *Wallet) Sign(password []byte, tx it.Transaction) (it.Transaction, error) {
 	// Verify password
 	err := wallet.VerifyPassword(password)
 	if err != nil {
 		return nil, err
 	}
 	// Get sign type
-	signType, err := crypto.GetScriptType(tx.Programs[0].Code)
+	signType, err := crypto.GetScriptType(tx.Programs()[0].Code)
 	if err != nil {
 		return nil, err
 	}
@@ -241,8 +243,8 @@ func (wallet *Wallet) Sign(password []byte, tx *types.Transaction) (*types.Trans
 	return tx, nil
 }
 
-func (wallet *Wallet) signStandardTransaction(tx *types.Transaction) (*types.Transaction, error) {
-	code := tx.Programs[0].Code
+func (wallet *Wallet) signStandardTransaction(tx it.Transaction) (it.Transaction, error) {
+	code := tx.Programs()[0].Code
 	// Get signer
 	programHash := common.ToProgramHash(byte(contract.PrefixStandard), code)
 	// Check if current user is a valid signer
@@ -262,14 +264,14 @@ func (wallet *Wallet) signStandardTransaction(tx *types.Transaction) (*types.Tra
 	buf.WriteByte(byte(len(signature)))
 	buf.Write(signature)
 	// Set program
-	tx.Programs = []*program.Program{{code, buf.Bytes()}}
+	tx.SetPrograms([]*program.Program{{code, buf.Bytes()}})
 
 	return tx, nil
 }
 
-func (wallet *Wallet) signMultiSigTransaction(tx *types.Transaction) (*types.Transaction, error) {
-	code := tx.Programs[0].Code
-	param := tx.Programs[0].Parameter
+func (wallet *Wallet) signMultiSigTransaction(tx it.Transaction) (it.Transaction, error) {
+	code := tx.Programs()[0].Code
+	param := tx.Programs()[0].Parameter
 	// Check if current user is a valid signer
 	var signerIndex = -1
 	publicKeys, err := crypto.ParseMultisigScript(code)
@@ -297,7 +299,7 @@ func (wallet *Wallet) signMultiSigTransaction(tx *types.Transaction) (*types.Tra
 		return nil, err
 	}
 	// Append signature
-	tx.Programs[0].Parameter, err = crypto.AppendSignature(signerIndex, signedTx, buf.Bytes(), code, param)
+	tx.Programs()[0].Parameter, err = crypto.AppendSignature(signerIndex, signedTx, buf.Bytes(), code, param)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +307,7 @@ func (wallet *Wallet) signMultiSigTransaction(tx *types.Transaction) (*types.Tra
 	return tx, nil
 }
 
-func (wallet *Wallet) SendTransaction(tx *types.Transaction) error {
+func (wallet *Wallet) SendTransaction(tx it.Transaction) error {
 	buf := new(bytes.Buffer)
 	if err := tx.Serialize(buf); err != nil {
 		return err
@@ -342,7 +344,7 @@ func InputFromUTXO(utxo *sutil.UTXO) *types.Input {
 	return input
 }
 
-func (wallet *Wallet) newTransaction(redeemScript []byte, inputs []*types.Input, outputs []*types.Output) *types.Transaction {
+func (wallet *Wallet) newTransaction(redeemScript []byte, inputs []*types.Input, outputs []*types.Output) it.Transaction {
 	// Create payload
 	txPayload := &payload.TransferAsset{}
 	// Create attributes
@@ -350,13 +352,15 @@ func (wallet *Wallet) newTransaction(redeemScript []byte, inputs []*types.Input,
 	attributes := make([]*types.Attribute, 0)
 	attributes = append(attributes, &txAttr)
 	// Create transaction
-	return &types.Transaction{
-		TxType:     types.TransferAsset,
-		Payload:    txPayload,
-		Attributes: attributes,
-		Inputs:     inputs,
-		Outputs:    outputs,
-		Programs:   []*program.Program{{redeemScript, nil}},
-		LockTime:   wallet.BestHeight(),
-	}
+	return tx.CreateTransaction(
+		types.TxVersionDefault,
+		types.TransferAsset,
+		payload.TransferCrossChainVersion,
+		txPayload,
+		attributes,
+		inputs,
+		outputs,
+		wallet.BestHeight(),
+		[]*program.Program{{redeemScript, nil}},
+		)
 }

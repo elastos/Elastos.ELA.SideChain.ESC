@@ -111,7 +111,7 @@ func Start() bool {
 	isStarted = true
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
-		case events.ETDirectPeersChanged:
+		case events.ETDirectPeersChangedV2:
 			bridgelog.Info("ETDirectPeersChanged, to collect old arbiter signed new arbiter's signature")
 			if atomic.LoadInt32(&canStart) == 0 {
 				bridgelog.Info("is starting, can't restart")

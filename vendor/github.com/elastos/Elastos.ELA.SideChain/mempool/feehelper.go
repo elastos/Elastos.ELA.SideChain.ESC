@@ -10,7 +10,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 
 	"github.com/elastos/Elastos.ELA/common"
-	ela "github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
@@ -41,14 +42,17 @@ func (h *FeeHelper) GetTxFeeMap(tx *types.Transaction) (map[common.Uint256]commo
 	feeMap := make(map[common.Uint256]common.Fixed64)
 
 	if tx.IsRechargeToSideChainTx() {
-		var mainChainTransaction *ela.Transaction
+		var mainChainTransaction it.Transaction
 		depositPayload, ok := tx.Payload.(*types.PayloadRechargeToSideChain)
 		if !ok {
 			return nil, errors.New("invalid recharge to side chain transaction payload")
 		}
 		if tx.PayloadVersion == types.RechargeToSideChainPayloadVersion0 {
-			mainChainTransaction = new(ela.Transaction)
 			reader := bytes.NewReader(depositPayload.MainChainTransaction)
+			mainChainTransaction, err := functions.GetTransactionByBytes(reader)
+			if err != nil {
+				return nil, err
+			}
 			if err := mainChainTransaction.Deserialize(reader); err != nil {
 				return nil, errors.New("main chain transaction deserialize failed")
 			}
@@ -60,7 +64,7 @@ func (h *FeeHelper) GetTxFeeMap(tx *types.Transaction) (map[common.Uint256]commo
 			}
 		}
 
-		crossChainPayload, ok := mainChainTransaction.Payload.(*payload.TransferCrossChainAsset)
+		crossChainPayload, ok := mainChainTransaction.Payload().(*payload.TransferCrossChainAsset)
 		if !ok {
 			return nil, errors.New("invalid transfer cross chain asset transaction payload")
 		}
@@ -71,7 +75,7 @@ func (h *FeeHelper) GetTxFeeMap(tx *types.Transaction) (map[common.Uint256]commo
 					return nil, err
 				}
 				if targetAddress == crossChainPayload.CrossChainAddresses[i] {
-					mcAmount := mainChainTransaction.Outputs[crossChainPayload.OutputIndexes[i]].Value
+					mcAmount := mainChainTransaction.Outputs()[crossChainPayload.OutputIndexes[i]].Value
 
 					amount, ok := feeMap[v.AssetID]
 					if ok {

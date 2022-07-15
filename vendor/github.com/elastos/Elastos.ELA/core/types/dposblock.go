@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package types
 
@@ -39,11 +39,11 @@ func (b *DposBlock) Serialize(w io.Writer) error {
 func (b *DposBlock) Deserialize(r io.Reader) error {
 	b.Block = new(Block)
 	if err := b.Block.Deserialize(r); err != nil {
-		return errors.New("Block dserialize failed," + err.Error())
+		return errors.New("Block deserialize failed," + err.Error())
 	}
 
 	if err := common.ReadElement(r, &b.HaveConfirm); err != nil {
-		return errors.New("Confirm flag dserialize failed," + err.Error())
+		return errors.New("Confirm flag deserialize failed," + err.Error())
 	}
 
 	if b.HaveConfirm {

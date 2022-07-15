@@ -4,7 +4,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/util"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
+	types "github.com/elastos/Elastos.ELA/core/types/common"
 )
 
 // Ensure Header implement BlockHeader interface.

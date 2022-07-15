@@ -103,8 +103,12 @@ func (v *ConsensusView) SetWorkingHeight(workingHeight uint64) {
 	v.producers.SetWorkingHeight(workingHeight)
 }
 
-func (v *ConsensusView) GetNeedConnectArbiters() []peer.PID {
-	return v.producers.GetNeedConnectArbiters()
+func (v *ConsensusView) getCurrentNeedConnectArbiters() []peer.PID {
+	return v.producers.getCurrentNeedConnectArbiters()
+}
+
+func (v *ConsensusView) GetNextNeedConnectArbiters() []peer.PID {
+	return v.producers.GetNextNeedConnectArbiters()
 }
 
 func (v *ConsensusView) UpdateNextProducers(producers []peer.PID, totalCount int) {

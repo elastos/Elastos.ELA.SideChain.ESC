@@ -9,7 +9,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/elastos/Elastos.ELA/common"
@@ -24,6 +26,7 @@ const (
 	luaTransferAssetTypeName                = "transferasset"
 	luaTransferCrossChainAssetTypeName      = "transfercrosschainasset"
 	luaRegisterProducerName                 = "registerproducer"
+	luaRegisterV2ProducerName               = "registerv2producer"
 	luaUpdateProducerName                   = "updateproducer"
 	luaCancelProducerName                   = "cancelproducer"
 	luaActivateProducerName                 = "activateproducer"
@@ -43,7 +46,326 @@ const (
 	luaCRCProposalWithdrawName              = "crcproposalwithdraw"
 	luaCRCouncilMemberClaimNodeName         = "crcouncilmemebrclaimnode"
 	luaCRCRegisterSideChainProposalHashName = "crcproposalregistersidechain"
+
+	// dpos2.0
+	luaStakeName       = "stake"
+	luaVotingName      = "voting"
+	luaRenewVotingName = "renewvoting"
+	luaCancelVotesName = "cancelVotes"
+	luaUnstakeName     = "unstake"
 )
+
+func RegisterStakeType(L *lua.LState) {
+	mt := L.NewTypeMetatable(luaStakeName)
+	L.SetGlobal("stake", mt)
+	L.SetField(mt, "new", L.NewFunction(newStake))
+	// methods
+	L.SetField(mt, "__index", L.SetFuncs(L.NewTable(), stakeMethods))
+}
+
+func RegisterUnstakeType(L *lua.LState) {
+	mt := L.NewTypeMetatable(luaUnstakeName)
+	L.SetGlobal("unstake", mt)
+	L.SetField(mt, "new", L.NewFunction(newUnstake))
+	// methods
+	L.SetField(mt, "__index", L.SetFuncs(L.NewTable(), unstakeMethods))
+}
+
+// Constructor
+func newStake(L *lua.LState) int {
+	cb := &payload.Stake{}
+	ud := L.NewUserData()
+	ud.Value = cb
+	L.SetMetatable(ud, L.GetTypeMetatable(luaStakeName))
+	L.Push(ud)
+
+	return 1
+}
+
+func newUnstake(L *lua.LState) int {
+	publicKeyStr := L.ToString(1)
+	toAddr := L.ToString(2)
+	amount := L.ToInt(3)
+	client, err := checkClient(L, 4)
+
+	addr, err := common.Uint168FromAddress(toAddr)
+	if err != nil {
+		fmt.Println("invalid unstake toAddr")
+		os.Exit(1)
+	}
+
+	publicKey, err := common.HexStringToBytes(publicKeyStr)
+	if err != nil {
+		fmt.Println("wrong producer public key")
+		os.Exit(1)
+	}
+
+	code, err := getCode(publicKey)
+	if err != nil {
+		fmt.Println("wrong producer public key")
+		os.Exit(1)
+	}
+	unstakePayload := &payload.Unstake{
+		ToAddr: *addr,
+		Code:   code,
+		Value:  common.Fixed64(amount),
+	}
+
+	codeHash, err := contract.PublicKeyToStandardCodeHash(publicKey)
+	acc := client.GetAccountByCodeHash(*codeHash)
+	if acc == nil {
+		fmt.Println("no available account in wallet")
+		os.Exit(1)
+	}
+
+	buf := new(bytes.Buffer)
+	if err := unstakePayload.SerializeUnsigned(buf, 0); err != nil {
+		fmt.Println("invalid unstake payload")
+		os.Exit(1)
+	}
+
+	rpSig, err := crypto.Sign(acc.PrivKey(), buf.Bytes())
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	unstakePayload.Signature = rpSig
+
+	ud := L.NewUserData()
+	ud.Value = unstakePayload
+	L.SetMetatable(ud, L.GetTypeMetatable(luaCoinBaseTypeName))
+	L.Push(ud)
+
+	return 1
+}
+
+// Checks whether the first lua argument is a *LUserData with *Stake and
+// returns this *Stake.
+func checkStake(L *lua.LState, idx int) *payload.Voting {
+	ud := L.CheckUserData(idx)
+	if v, ok := ud.Value.(*payload.Voting); ok {
+		return v
+	}
+	L.ArgError(1, "Exchange votes expected")
+	return nil
+}
+
+func checkUnstake(L *lua.LState, idx int) *payload.Unstake {
+	ud := L.CheckUserData(idx)
+	if v, ok := ud.Value.(*payload.Unstake); ok {
+		return v
+	}
+	L.ArgError(1, "Exchange votes expected")
+	return nil
+}
+
+var stakeMethods = map[string]lua.LGFunction{
+	"get": stakeGet,
+}
+
+var unstakeMethods = map[string]lua.LGFunction{
+	"get": unstakeGet,
+}
+
+// Getter and setter for the Person#Name
+func stakeGet(L *lua.LState) int {
+	p := checkStake(L, 1)
+	fmt.Println(p)
+
+	return 0
+}
+
+func unstakeGet(L *lua.LState) int {
+	p := checkUnstake(L, 1)
+	fmt.Println(p)
+
+	return 0
+}
+
+func RegisterVotingType(L *lua.LState) {
+	mt := L.NewTypeMetatable(luaVotingName)
+	L.SetGlobal("voting", mt)
+	L.SetField(mt, "new", L.NewFunction(newVoting))
+	// methods
+	L.SetField(mt, "__index", L.SetFuncs(L.NewTable(), votingMethods))
+}
+
+func RegisterRenewVotingType(L *lua.LState) {
+	mt := L.NewTypeMetatable(luaRenewVotingName)
+	L.SetGlobal("renewvoting", mt)
+	L.SetField(mt, "new", L.NewFunction(newRenewVoting))
+	// methods
+	L.SetField(mt, "__index", L.SetFuncs(L.NewTable(), renewVotingMethods))
+}
+
+// Constructor
+func newVoting(L *lua.LState) int {
+	voteType := L.ToInt(1)
+	candidatesTable := L.ToTable(2)
+	candidateVotesTable := L.ToTable(3)
+	lockUntil := L.ToInt(4)
+	candidates := make([][]byte, 0)
+	votes := make([]common.Fixed64, 0)
+	candidatesTable.ForEach(func(i, value lua.LValue) {
+		publicKey := lua.LVAsString(value)
+		publicKey = strings.Replace(publicKey, "{", "", 1)
+		publicKey = strings.Replace(publicKey, "}", "", 1)
+		if publicKey == "" {
+			return
+		}
+		pk, err := common.HexStringToBytes(publicKey)
+		if err != nil {
+			fmt.Println("invalid public key")
+			os.Exit(1)
+		}
+		candidates = append(candidates, pk)
+	})
+	candidateVotesTable.ForEach(func(i, value lua.LValue) {
+		voteStr := lua.LVAsString(value)
+		voteStr = strings.Replace(voteStr, "{", "", 1)
+		voteStr = strings.Replace(voteStr, "}", "", 1)
+		if voteStr == "" {
+			return
+		}
+		vote, err := strconv.ParseFloat(voteStr, 64)
+		if err != nil {
+			fmt.Println("invalid votes")
+			os.Exit(1)
+		}
+		votes = append(votes, common.Fixed64(int64(vote*1e8)))
+	})
+
+	candidateVotes := make([]payload.VotesWithLockTime, 0, len(candidates))
+	for i := 0; i < len(candidates); i++ {
+		candidateVotes = append(candidateVotes, payload.VotesWithLockTime{
+			Candidate: candidates[i],
+			Votes:     votes[i],
+			LockTime:  uint32(lockUntil),
+		})
+	}
+
+	voteContent := payload.VotesContent{
+		VoteType:  outputpayload.VoteType(voteType),
+		VotesInfo: candidateVotes,
+	}
+
+	cb := &payload.Voting{
+		Contents: []payload.VotesContent{voteContent},
+	}
+	ud := L.NewUserData()
+	ud.Value = cb
+	L.SetMetatable(ud, L.GetTypeMetatable(luaVotingName))
+	L.Push(ud)
+
+	return 1
+}
+
+// Constructor
+func newRenewVoting(L *lua.LState) int {
+	//voteType := L.ToInt(1)
+	candidatesTable := L.ToTable(2)
+	candidateVotesTable := L.ToTable(3)
+	lockUntil := L.ToInt(4)
+	referkey := L.ToString(5)
+	referkey = strings.TrimLeft(referkey, " ")
+	candidates := make([][]byte, 0)
+	votes := make([]common.Fixed64, 0)
+	candidatesTable.ForEach(func(i, value lua.LValue) {
+		publicKey := lua.LVAsString(value)
+		publicKey = strings.Replace(publicKey, "{", "", 1)
+		publicKey = strings.Replace(publicKey, "}", "", 1)
+		pk, err := common.HexStringToBytes(publicKey)
+		if err != nil {
+			os.Exit(1)
+		}
+		candidates = append(candidates, pk)
+	})
+	candidateVotesTable.ForEach(func(i, value lua.LValue) {
+		voteStr := lua.LVAsString(value)
+		voteStr = strings.Replace(voteStr, "{", "", 1)
+		voteStr = strings.Replace(voteStr, "}", "", 1)
+		vote, err := strconv.ParseFloat(voteStr, 64)
+		if err != nil {
+			fmt.Println("invalid votes")
+			os.Exit(1)
+		}
+		votes = append(votes, common.Fixed64(int64(vote*1e8)))
+	})
+	referKey256, err := common.Uint256FromHexString(referkey)
+	if err != nil {
+		fmt.Println("###" + referkey)
+		fmt.Println("convert uint256 error")
+		os.Exit(1)
+	}
+
+	voteContent := make([]payload.RenewalVotesContent, 0, len(candidates))
+	for i := 0; i < len(candidates); i++ {
+		voteContent = append(voteContent, payload.RenewalVotesContent{
+			*referKey256,
+			payload.VotesWithLockTime{
+				Candidate: candidates[i],
+				Votes:     votes[i],
+				LockTime:  uint32(lockUntil),
+			},
+		})
+	}
+
+	cb := &payload.Voting{
+		RenewalContents: voteContent,
+	}
+	ud := L.NewUserData()
+	ud.Value = cb
+	L.SetMetatable(ud, L.GetTypeMetatable(luaVotingName))
+	L.Push(ud)
+
+	return 1
+}
+
+// Checks whether the first lua argument is a *LUserData with *Voting and
+// returns this *Voting.
+func checkVoting(L *lua.LState, idx int) *payload.Voting {
+	ud := L.CheckUserData(idx)
+	if v, ok := ud.Value.(*payload.Voting); ok {
+		return v
+	}
+	L.ArgError(1, "Voting expected")
+	return nil
+}
+
+// Checks whether the first lua argument is a *LUserData with *Voting and
+// returns this *Voting.
+func checkRenewVoting(L *lua.LState, idx int) *payload.Voting {
+	ud := L.CheckUserData(idx)
+	if v, ok := ud.Value.(*payload.Voting); ok {
+		return v
+	}
+	L.ArgError(1, "Voting expected")
+	return nil
+}
+
+var votingMethods = map[string]lua.LGFunction{
+	"get": votingGet,
+}
+
+var renewVotingMethods = map[string]lua.LGFunction{
+	"get": renewVotingGet,
+}
+
+// Getter and setter for the Person#Name
+func votingGet(L *lua.LState) int {
+	p := checkVoting(L, 1)
+	fmt.Println(p)
+
+	return 0
+}
+
+// Getter and setter for the Person#Name
+func renewVotingGet(L *lua.LState) int {
+	p := checkRenewVoting(L, 1)
+	fmt.Println(p)
+
+	return 0
+}
 
 func RegisterCoinBaseType(L *lua.LState) {
 	mt := L.NewTypeMetatable(luaCoinBaseTypeName)
@@ -195,8 +517,9 @@ func newUpdateProducer(L *lua.LState) int {
 	url := L.ToString(4)
 	location := L.ToInt64(5)
 	address := L.ToString(6)
+	stakeuntil := L.ToInt64(7)
 	needSign := true
-	client, err := checkClient(L, 7)
+	client, err := checkClient(L, 8)
 	if err != nil {
 		needSign = false
 	}
@@ -218,11 +541,16 @@ func newUpdateProducer(L *lua.LState) int {
 		Url:            url,
 		Location:       uint64(location),
 		NetAddress:     address,
+		StakeUntil:     uint32(stakeuntil),
 	}
 
 	if needSign {
 		upSignBuf := new(bytes.Buffer)
-		err = updateProducer.SerializeUnsigned(upSignBuf, payload.ProducerInfoVersion)
+		version := payload.ProducerInfoVersion
+		if stakeuntil != 0 {
+			version = payload.ProducerInfoDposV2Version
+		}
+		err = updateProducer.SerializeUnsigned(upSignBuf, version)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -279,6 +607,16 @@ func RegisterRegisterProducerType(L *lua.LState) {
 	L.SetField(mt, "new", L.NewFunction(newRegisterProducer))
 	// methods
 	L.SetField(mt, "__index", L.SetFuncs(L.NewTable(), registerProducerMethods))
+}
+
+// Registers my person type to given L.
+func RegisterRegisterV2ProducerType(L *lua.LState) {
+	mt := L.NewTypeMetatable(luaRegisterV2ProducerName)
+	L.SetGlobal("registerv2producer", mt)
+	// static attributes
+	L.SetField(mt, "new", L.NewFunction(newRegisterV2Producer))
+	// methods
+	L.SetField(mt, "__index", L.SetFuncs(L.NewTable(), registerV2ProducerMethods))
 }
 
 // Constructor
@@ -344,6 +682,71 @@ func newRegisterProducer(L *lua.LState) int {
 	return 1
 }
 
+// Constructor
+func newRegisterV2Producer(L *lua.LState) int {
+	ownerPublicKeyStr := L.ToString(1)
+	nodePublicKeyStr := L.ToString(2)
+	nickName := L.ToString(3)
+	url := L.ToString(4)
+	location := L.ToInt64(5)
+	address := L.ToString(6)
+	stakeUntil := L.ToInt64(7)
+	needSign := true
+	client, err := checkClient(L, 8)
+	if err != nil {
+		needSign = false
+	}
+
+	ownerPublicKey, err := common.HexStringToBytes(ownerPublicKeyStr)
+	if err != nil {
+		fmt.Println("wrong producer public key")
+		os.Exit(1)
+	}
+	nodePublicKey, err := common.HexStringToBytes(nodePublicKeyStr)
+	if err != nil {
+		fmt.Println("wrong producer public key")
+		os.Exit(1)
+	}
+
+	registerProducer := &payload.ProducerInfo{
+		OwnerPublicKey: []byte(ownerPublicKey),
+		NodePublicKey:  []byte(nodePublicKey),
+		NickName:       nickName,
+		Url:            url,
+		Location:       uint64(location),
+		NetAddress:     address,
+		StakeUntil:     uint32(stakeUntil),
+	}
+
+	if needSign {
+		rpSignBuf := new(bytes.Buffer)
+		err = registerProducer.SerializeUnsigned(rpSignBuf, payload.ProducerInfoDposV2Version)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		codeHash, err := contract.PublicKeyToStandardCodeHash(ownerPublicKey)
+		acc := client.GetAccountByCodeHash(*codeHash)
+		if acc == nil {
+			fmt.Println("no available account in wallet")
+			os.Exit(1)
+		}
+		rpSig, err := crypto.Sign(acc.PrivKey(), rpSignBuf.Bytes())
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		registerProducer.Signature = rpSig
+	}
+
+	ud := L.NewUserData()
+	ud.Value = registerProducer
+	L.SetMetatable(ud, L.GetTypeMetatable(luaRegisterProducerName))
+	L.Push(ud)
+
+	return 1
+}
+
 // Checks whether the first lua argument is a *LUserData with *ProducerInfo and
 // returns this *ProducerInfo.
 func checkRegisterProducer(L *lua.LState, idx int) *payload.ProducerInfo {
@@ -355,8 +758,31 @@ func checkRegisterProducer(L *lua.LState, idx int) *payload.ProducerInfo {
 	return nil
 }
 
+// Checks whether the first lua argument is a *LUserData with *ProducerInfo and
+// returns this *ProducerInfo.
+func checkRegisterV2Producer(L *lua.LState, idx int) *payload.ProducerInfo {
+	ud := L.CheckUserData(idx)
+	if v, ok := ud.Value.(*payload.ProducerInfo); ok {
+		return v
+	}
+	L.ArgError(1, "ProducerInfo expected")
+	return nil
+}
+
 var registerProducerMethods = map[string]lua.LGFunction{
 	"get": registerProducerGet,
+}
+
+var registerV2ProducerMethods = map[string]lua.LGFunction{
+	"get": registerV2ProducerGet,
+}
+
+// Getter and setter for the Person#Name
+func registerV2ProducerGet(L *lua.LState) int {
+	p := checkRegisterV2Producer(L, 1)
+	fmt.Println(p)
+
+	return 0
 }
 
 // Getter and setter for the Person#Name
@@ -898,6 +1324,14 @@ func RegisterUnregisterCRType(L *lua.LState) {
 }
 func getIDProgramHash(code []byte) *common.Uint168 {
 	ct, _ := contract.CreateCRIDContractByCode(code)
+	return ct.ToProgramHash()
+}
+
+func getDposV2ProgramHash(code []byte) *common.Uint168 {
+	ct := &contract.Contract{
+		Code:   code,
+		Prefix: contract.PrefixDPoSV2,
+	}
 	return ct.ToProgramHash()
 }
 
@@ -1897,14 +2331,6 @@ func newCRCCloseProposalHash(L *lua.LState) int {
 	return 1
 }
 
-func getCodeHexStr(publicKey string) string {
-	pkBytes, _ := common.HexStringToBytes(publicKey)
-	pk, _ := crypto.DecodePoint(pkBytes)
-	redeemScript, _ := contract.CreateStandardRedeemScript(pk)
-	codeHexStr := common.BytesToHexString(redeemScript)
-	return codeHexStr
-}
-
 // Checks whether the first lua argument is a *LUserData with *CRInfo and
 // returns this *CRInfo.
 func checkCRCProposal(L *lua.LState, idx int) *payload.CRCProposal {
@@ -2272,7 +2698,7 @@ func newCRCouncilMemberClaimNode(L *lua.LState) int {
 
 	if needSign {
 		signBuf := new(bytes.Buffer)
-		err = crCouncilMemberClaimNode.SerializeUnsigned(signBuf, payload.CRManagementVersion)
+		err = crCouncilMemberClaimNode.SerializeUnsigned(signBuf, payload.CurrentCRClaimDPoSNodeVersion)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

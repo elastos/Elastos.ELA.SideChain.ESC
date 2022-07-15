@@ -10,6 +10,7 @@ import (
 	"errors"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
+	"net"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -276,16 +277,23 @@ func (n *Network) changeView() {
 	n.listener.OnChangeView()
 }
 
-func (n *Network) UpdatePeers(peers []peer.PID) {
+func (n *Network) UpdatePeers(currentPeers []peer.PID, nextPeers []peer.PID) {
 	Info("[UpdatePeers]", "self account:", common.BytesToHexString(n.publicKey))
-	for _, p := range peers {
+	for _, p := range currentPeers {
 		if bytes.Equal(n.publicKey, p[:]) {
-			n.p2pServer.ConnectPeers(peers)
+			n.p2pServer.ConnectPeers(currentPeers, nextPeers)
+			return
+		}
+	}
+
+	for _, p := range nextPeers {
+		if bytes.Equal(n.publicKey, p[:]) {
+			n.p2pServer.ConnectPeers(currentPeers, nextPeers)
 			return
 		}
 	}
 	Info("[UpdatePeers] i am not in peers", "self account:", common.BytesToHexString(n.publicKey))
-	n.p2pServer.ConnectPeers(nil)
+	n.p2pServer.ConnectPeers(nil, nil)
 }
 
 func (n *Network) handleMessage(pid peer.PID, msg elap2p.Message) {
@@ -342,20 +350,20 @@ func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 	var pid peer.PID
 	copy(pid[:], cfg.Account.PublicKeyBytes())
 	server, err := p2p.NewServer(&p2p.Config{
-		DataDir:          cfg.DataPath,
-		PID:              pid,
-		EnableHub:        true,
-		Localhost:        cfg.IPAddress,
-		MagicNumber:      cfg.Magic,
-		DefaultPort:      cfg.DefaultPort,
-		TimeSource:       cfg.MedianTime,
-		MaxNodePerHost:   cfg.MaxNodePerHost,
-		MakeEmptyMessage: makeEmptyMessage,
-		HandleMessage:    network.handleMessage,
-		PingNonce:        network.GetCurrentHeight,
-		PongNonce:        network.GetCurrentHeight,
-		Sign:             cfg.Account.Sign,
-		StateNotifier:    notifier,
+		DataDir:        cfg.DataPath,
+		PID:            pid,
+		EnableHub:      true,
+		Localhost:      cfg.IPAddress,
+		MagicNumber:    cfg.Magic,
+		DefaultPort:    cfg.DefaultPort,
+		TimeSource:     cfg.MedianTime,
+		MaxNodePerHost: cfg.MaxNodePerHost,
+		CreateMessage:  createMessage,
+		HandleMessage:  network.handleMessage,
+		PingNonce:      network.GetCurrentHeight,
+		PongNonce:      network.GetCurrentHeight,
+		Sign:           cfg.Account.Sign,
+		StateNotifier:  notifier,
 	})
 	if err != nil {
 		return nil, err
@@ -365,8 +373,8 @@ func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 	return network, nil
 }
 
-func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
-	switch cmd {
+func createMessage(hdr elap2p.Header, r net.Conn) (message elap2p.Message, err error) {
+	switch hdr.GetCMD() {
 	case elap2p.CmdBlock:
 		message = dmsg.NewBlockMsg([]byte{})
 	case msg.CmdAcceptVote:
@@ -412,7 +420,12 @@ func makeEmptyMessage(cmd string) (message elap2p.Message, err error) {
 	case dpos_msg.CmdFeedbackArbiterSignature:
 		message = &dpos_msg.FeedBackArbitersSignature{}
 	default:
-		return nil, errors.New("Received unsupported message, CMD " + cmd)
+		return nil, errors.New("Received unsupported message, CMD " + hdr.GetCMD())
+	}
+
+	errmsg := message.Deserialize(r)
+	if errmsg != nil {
+		return nil, errors.New("createMessage deserialize error " + message.CMD())
 	}
 	return message, nil
 }

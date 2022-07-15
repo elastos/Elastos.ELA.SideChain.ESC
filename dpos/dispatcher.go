@@ -310,8 +310,12 @@ func (d *Dispatcher) GetProcessingProposal() *payload.DPOSProposal {
 	return d.processingProposal
 }
 
-func (d *Dispatcher) GetNeedConnectProducers() []peer.PID {
-	return d.consensusView.GetNeedConnectArbiters()
+func (d *Dispatcher) GetNextNeedConnectArbiters() []peer.PID {
+	return d.consensusView.GetNextNeedConnectArbiters()
+}
+
+func (d *Dispatcher) GetCurrentNeedConnectArbiters() []peer.PID {
+	return d.consensusView.getCurrentNeedConnectArbiters()
 }
 
 func (d *Dispatcher) OnChangeView() {

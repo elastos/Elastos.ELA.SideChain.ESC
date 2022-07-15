@@ -8,13 +8,14 @@ package state
 import (
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 )
 
 type Arbitrators interface {
 	Start()
 	CheckDPOSIllegalTx(block *types.Block) error
-	ProcessSpecialTxPayload(p types.Payload, height uint32) error
+	ProcessSpecialTxPayload(p interfaces.Payload, height uint32) error
 	CheckCRCAppropriationTx(block *types.Block) error
 	CheckNextTurnDPOSInfoTx(block *types.Block) error
 	CheckCustomIDResultsTx(block *types.Block) error
@@ -28,6 +29,8 @@ type Arbitrators interface {
 	GetAllProducersPublicKey() []string
 	GetNextArbitrators() []*ArbiterInfo
 	GetNextCandidates() [][]byte
+	GetCurrentNeedConnectArbiters() []peer.PID
+	GetNextNeedConnectArbiters() []peer.PID
 	GetNeedConnectArbiters() []peer.PID
 	GetDutyIndexByHeight(height uint32) int
 	GetDutyIndex() int
@@ -46,11 +49,13 @@ type Arbitrators interface {
 	GetConnectedProducer(publicKey []byte) ArbiterMember
 	GetCRCArbiters() []*ArbiterInfo
 	GetNextCRCArbiters() [][]byte
+	GetAllNextCRCArbiters() [][]byte
 	CRCProducerCount() int
 	IsCRCArbitrator(pk []byte) bool
 	IsActiveProducer(pk []byte) bool
 	IsDisabledProducer(pk []byte) bool
 	IsNeedNextTurnDPOSInfo() bool
+	IsDPoSV2Run(blockHeight uint32) bool
 
 	GetOnDutyArbitrator() []byte
 	GetNextOnDutyArbitrator(offset uint32) []byte
@@ -65,6 +70,8 @@ type Arbitrators interface {
 	GetArbitersMajorityCount() int
 	HasArbitersMajorityCount(num int) bool
 	HasArbitersMinorityCount(num int) bool
+	GetDPoSV2ActiveHeight() uint32
+	HasArbitersHalfMinorityCount(num int) bool
 
 	GetSnapshot(height uint32) []*CheckPoint
 	DumpInfo(height uint32)

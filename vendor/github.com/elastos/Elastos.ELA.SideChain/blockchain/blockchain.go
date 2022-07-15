@@ -11,8 +11,8 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain/config"
 	"github.com/elastos/Elastos.ELA.SideChain/events"
-	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"github.com/elastos/Elastos.ELA.SideChain/interfaces"
+	"github.com/elastos/Elastos.ELA.SideChain/types"
 
 	"github.com/elastos/Elastos.ELA/common"
 )
@@ -32,8 +32,8 @@ type Config struct {
 	ChainStore     *ChainStore
 	ChainParams    *config.Params
 	Validator      *Validator
-	CheckTxSanity  func(*types.Transaction) error
-	CheckTxContext func(*types.Transaction) error
+	CheckTxSanity  func(*types.Transaction, uint32, uint32) error
+	CheckTxContext func(*types.Transaction, uint32, uint32) error
 	GetTxFee       func(tx *types.Transaction, assetId common.Uint256) (common.Fixed64, error)
 	GetHeader      func(hash common.Uint256) (interfaces.Header, error)
 	GetBlock       func(hash common.Uint256) (*types.Block, error)
@@ -369,16 +369,17 @@ func (b *BlockChain) GetOrphanRoot(hash *common.Uint256) *common.Uint256 {
 }
 
 type BlockNode struct {
-	Hash        *common.Uint256
-	ParentHash  *common.Uint256
-	Height      uint32
-	Version     uint32
-	Bits        uint32
-	Timestamp   uint32
-	WorkSum     *big.Int
-	InMainChain bool
-	Parent      *BlockNode
-	Children    []*BlockNode
+	Hash            *common.Uint256
+	ParentHash      *common.Uint256
+	Height          uint32
+	MainChainHeight uint32
+	Version         uint32
+	Bits            uint32
+	Timestamp       uint32
+	WorkSum         *big.Int
+	InMainChain     bool
+	Parent          *BlockNode
+	Children        []*BlockNode
 }
 
 func NewBlockNode(header interfaces.Header, hash *common.Uint256) *BlockNode {
@@ -386,13 +387,14 @@ func NewBlockNode(header interfaces.Header, hash *common.Uint256) *BlockNode {
 	copy(previous[:], header.GetPrevious().Bytes()[:])
 	copy(current[:], hash[:])
 	node := BlockNode{
-		Hash:       &current,
-		ParentHash: &previous,
-		Height:     header.GetHeight(),
-		Version:    header.GetVersion(),
-		Bits:       header.GetBits(),
-		Timestamp:  header.GetTimeStamp(),
-		WorkSum:    CalcWork(header.GetBits()),
+		Hash:            &current,
+		ParentHash:      &previous,
+		Height:          header.GetHeight(),
+		MainChainHeight: header.GetMainChainHeight(),
+		Version:         header.GetVersion(),
+		Bits:            header.GetBits(),
+		Timestamp:       header.GetTimeStamp(),
+		WorkSum:         CalcWork(header.GetBits()),
 	}
 	return &node
 }
@@ -800,7 +802,7 @@ func (b *BlockChain) CheckBlockContext(block *types.Block) error {
 	var rewardInCoinbase = common.Fixed64(0)
 	var totalTxFee = common.Fixed64(0)
 	for index, tx := range block.Transactions {
-		if err := b.cfg.CheckTxContext(tx); err != nil {
+		if err := b.cfg.CheckTxContext(tx, block.GetHeight(), block.GetMainChainHeight()); err != nil {
 			return fmt.Errorf("CheckTransactionContext failed when verify block: %s", err)
 		}
 		if index == 0 {

@@ -6,11 +6,13 @@ import (
 	"github.com/elastos/Elastos.ELA/auxpow"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
-	ela "github.com/elastos/Elastos.ELA/core/types"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+	ela "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 )
 
-func getSideChainPowTx(msgBlockHash common.Uint256, genesisHash common.Uint256) *ela.Transaction {
+func getSideChainPowTx(msgBlockHash common.Uint256, genesisHash common.Uint256) ela.Transaction {
 
 	txPayload := &payload.SideChainPow{
 		SideBlockHash:   msgBlockHash,
@@ -26,7 +28,7 @@ func GenerateSideAuxPow(msgBlockHash common.Uint256, genesisHash common.Uint256)
 	sideAuxMerkleBranch := make([]common.Uint256, 0)
 	sideAuxMerkleIndex := 0
 	sideAuxBlockTx := getSideChainPowTx(msgBlockHash, genesisHash)
-	elaBlockHeader := ela.Header{
+	elaBlockHeader := elacommon.Header{
 		Version:    0x7fffffff,
 		Previous:   common.EmptyHash,
 		MerkleRoot: sideAuxBlockTx.Hash(),
@@ -44,28 +46,31 @@ func GenerateSideAuxPow(msgBlockHash common.Uint256, genesisHash common.Uint256)
 	sideAuxPow := NewSideAuxPow(
 		sideAuxMerkleBranch,
 		sideAuxMerkleIndex,
-		*sideAuxBlockTx,
+		sideAuxBlockTx,
 		elaBlockHeader,
 	)
 
 	return sideAuxPow
 }
 
-func NewSideChainPowTx(payload *payload.SideChainPow, currentHeight uint32) *ela.Transaction {
-	return &ela.Transaction{
-		TxType:  ela.SideChainPow,
-		Payload: payload,
-		Inputs: []*ela.Input{
+func NewSideChainPowTx(payload *payload.SideChainPow, currentHeight uint32) ela.Transaction {
+	return elatx.CreateTransaction(
+		elacommon.TxVersion09,
+		elacommon.SideChainPow,
+		0,
+		payload,
+		[]*elacommon.Attribute{},
+		[]*elacommon.Input{
 			{
-				Previous: ela.OutPoint{
+				Previous: elacommon.OutPoint{
 					TxID:  common.EmptyHash,
 					Index: 0x0000,
 				},
 				Sequence: 0x00000000,
 			},
 		},
-		Attributes: []*ela.Attribute{},
-		LockTime:   currentHeight,
-		Programs:   []*program.Program{},
-	}
+		[]*elacommon.Output{},
+		currentHeight,
+		[]*program.Program{},
+	)
 }

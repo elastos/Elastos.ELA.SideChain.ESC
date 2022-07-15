@@ -7,10 +7,10 @@ package state
 
 import (
 	"bytes"
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
 	"io"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	"github.com/elastos/Elastos.ELA/utils"
@@ -101,7 +101,7 @@ func (s *BudgetStatus) Name() string {
 	return "Unknown"
 }
 
-// CRMember defines CR committee member related info.
+// CRMember defines CR committee member related Info.
 type CRMember struct {
 	Info                   payload.CRInfo
 	ImpeachmentVotes       common.Fixed64
@@ -113,13 +113,19 @@ type CRMember struct {
 	PenaltyBlockCount      uint32
 	InactiveCount          uint32
 	InactiveCountingHeight uint32
+	InactiveCountV2        uint32
+	WorkedInRound          bool
 }
 
-// StateKeyFrame holds necessary state about CR committee.
+// StateKeyFrame holds necessary State about CR committee.
 type KeyFrame struct {
-	Members                  map[common.Uint168]*CRMember
-	HistoryMembers           map[uint64]map[common.Uint168]*CRMember
-	PartProposalResults      []payload.ProposalResult
+	Members             map[common.Uint168]*CRMember
+	NextMembers         map[common.Uint168]*CRMember
+	ClaimedDPoSKeys     map[string]struct{}
+	NextClaimedDPoSKeys map[string]struct{}
+	HistoryMembers      map[uint64]map[common.Uint168]*CRMember
+	PartProposalResults []payload.ProposalResult
+
 	LastCommitteeHeight      uint32
 	LastVotingStartHeight    uint32
 	InElectionPeriod         bool
@@ -135,6 +141,9 @@ type KeyFrame struct {
 	CommitteeUsedAmount      common.Fixed64
 
 	CRAssetsAddressUTXOCount uint32
+
+	CurrentWithdrawFromSideChainIndex      uint32
+	CurrentSignedWithdrawFromSideChainKeys []string
 }
 
 type DepositInfo struct {
@@ -143,22 +152,25 @@ type DepositInfo struct {
 	TotalAmount   common.Fixed64
 }
 
-// StateKeyFrame holds necessary state about CR state.
+// StateKeyFrame holds necessary State about CR State.
 type StateKeyFrame struct {
-	CodeCIDMap           map[string]common.Uint168
-	DepositHashCIDMap    map[common.Uint168]common.Uint168
-	Candidates           map[common.Uint168]*Candidate
-	HistoryCandidates    map[uint64]map[common.Uint168]*Candidate
-	depositInfo          map[common.Uint168]*DepositInfo
-	CurrentSession       uint64
-	Nicknames            map[string]struct{}
-	Votes                map[string]struct{}
-	DepositOutputs       map[string]common.Fixed64
-	CRCFoundationOutputs map[string]common.Fixed64
-	CRCCommitteeOutputs  map[string]common.Fixed64
+	CodeCIDMap              map[string]common.Uint168
+	DepositHashCIDMap       map[common.Uint168]common.Uint168
+	Candidates              map[common.Uint168]*Candidate
+	HistoryCandidates       map[uint64]map[common.Uint168]*Candidate
+	DepositInfo             map[common.Uint168]*DepositInfo
+	CurrentSession          uint64
+	Nicknames               map[string]struct{}
+	Votes                   map[string]struct{}
+	DepositOutputs          map[string]common.Fixed64
+	CRCFoundationOutputs    map[string]common.Fixed64
+	CRCCommitteeOutputs     map[string]common.Fixed64
+	UsedCRVotes             map[common.Uint168][]payload.VotesWithLockTime // key: stake program hash
+	UsdedCRImpeachmentVotes map[common.Uint168][]payload.VotesWithLockTime // key: stake program hash
+	UsedCRCProposalVotes    map[common.Uint168][]payload.VotesWithLockTime // key: stake program hash
 }
 
-// ProposalState defines necessary state about an CR proposals.
+// ProposalState defines necessary State about an CR proposals.
 type ProposalState struct {
 	Status             ProposalStatus
 	Proposal           payload.CRCProposalInfo
@@ -230,21 +242,21 @@ type ProposalsMap map[common.Uint256]*ProposalState
 type ReviewDraftDataMap map[common.Uint256][]byte
 type TrackingDraftDataMap map[common.Uint256][]byte
 
-// ProposalKeyFrame holds all runtime state about CR proposals.
+// ProposalKeyFrame holds all runtime State about CR proposals.
 type ProposalKeyFrame struct {
 	// key is did value is proposalhash set
 	Proposals       ProposalsMap
 	ProposalHashes  map[common.Uint168]ProposalHashSet
 	ProposalSession map[uint64][]common.Uint256
-	// proposalWithdraw info
-	WithdrawableTxInfo map[common.Uint256]types.OutputInfo
+	// proposalWithdraw Info
+	WithdrawableTxInfo map[common.Uint256]common2.OutputInfo
 	// publicKey of SecretaryGeneral
 	SecretaryGeneralPublicKey string
 	// reserved custom id list
-	ReservedCustomIDLists [][]string
+	ReservedCustomIDLists []string
 	// received custom id list
-	PendingReceivedCustomIDMap map[string]struct{} // todo: serialize and deserialize
-	ReceivedCustomIDLists      [][]string
+	PendingReceivedCustomIDMap map[string]struct{}
+	ReceivedCustomIDLists      []string
 	// registered side chain name
 	RegisteredSideChainNames []string
 	// magic numbers
@@ -252,8 +264,11 @@ type ProposalKeyFrame struct {
 	// genesis hashes
 	RegisteredGenesisHashes []common.Uint256
 
-	// store register info with the approved height
+	// store register Info with the approved Height
 	RegisteredSideChainPayloadInfo map[uint32]map[common.Uint256]payload.SideChainInfo
+
+	// reserve CustomID
+	ReservedCustomID bool
 }
 
 func NewProposalMap() ProposalsMap {
@@ -295,7 +310,13 @@ func (c *CRMember) Serialize(w io.Writer) (err error) {
 	if err = common.WriteUint32(w, c.InactiveCount); err != nil {
 		return
 	}
-	return common.WriteUint32(w, c.InactiveCountingHeight)
+	if err = common.WriteUint32(w, c.InactiveCountingHeight); err != nil {
+		return
+	}
+	if err = common.WriteUint32(w, c.InactiveCountV2); err != nil {
+		return
+	}
+	return common.WriteElement(w, c.WorkedInRound)
 }
 
 func (c *CRMember) Deserialize(r io.Reader) (err error) {
@@ -337,14 +358,26 @@ func (c *CRMember) Deserialize(r io.Reader) (err error) {
 	if c.InactiveCountingHeight, err = common.ReadUint32(r); err != nil {
 		return
 	}
-	return
+	if c.InactiveCountV2, err = common.ReadUint32(r); err != nil {
+		return
+	}
+
+	return common.ReadElement(r, &c.WorkedInRound)
 }
 
 func (kf *KeyFrame) Serialize(w io.Writer) (err error) {
 	if err = kf.serializeMembersMap(w, kf.Members); err != nil {
 		return
 	}
-
+	if err = kf.serializeMembersMap(w, kf.NextMembers); err != nil {
+		return
+	}
+	if err = kf.serializeClaimedDPoSKeysMap(w, kf.ClaimedDPoSKeys); err != nil {
+		return
+	}
+	if err = kf.serializeClaimedDPoSKeysMap(w, kf.NextClaimedDPoSKeys); err != nil {
+		return
+	}
 	if err = kf.serializeHistoryMembersMap(w, kf.HistoryMembers); err != nil {
 		return
 	}
@@ -353,16 +386,33 @@ func (kf *KeyFrame) Serialize(w io.Writer) (err error) {
 		return
 	}
 
+	if err = serializeUnsignedWithdrawFromSideChainKeys(w, kf.CurrentSignedWithdrawFromSideChainKeys); err != nil {
+		return
+	}
 	return common.WriteElements(w, kf.LastCommitteeHeight,
 		kf.LastVotingStartHeight, kf.InElectionPeriod, kf.NeedAppropriation,
 		kf.NeedRecordProposalResult, kf.CRCFoundationBalance,
 		kf.CRCCommitteeBalance, kf.CRCCommitteeUsedAmount, kf.CRCCurrentStageAmount,
 		kf.DestroyedAmount, kf.CirculationAmount, kf.AppropriationAmount,
-		kf.CommitteeUsedAmount, kf.CRAssetsAddressUTXOCount)
+		kf.CommitteeUsedAmount, kf.CRAssetsAddressUTXOCount, kf.CurrentWithdrawFromSideChainIndex)
+
+	return
 }
 
 func (kf *KeyFrame) Deserialize(r io.Reader) (err error) {
 	if kf.Members, err = kf.deserializeMembersMap(r); err != nil {
+		return
+	}
+
+	if kf.NextMembers, err = kf.deserializeMembersMap(r); err != nil {
+		return
+	}
+
+	if kf.ClaimedDPoSKeys, err = kf.deserializeClaimedDPoSKeysMap(r); err != nil {
+		return
+	}
+
+	if kf.NextClaimedDPoSKeys, err = kf.deserializeClaimedDPoSKeysMap(r); err != nil {
 		return
 	}
 
@@ -374,12 +424,15 @@ func (kf *KeyFrame) Deserialize(r io.Reader) (err error) {
 		return
 	}
 
-	err = common.ReadElements(r, &kf.LastCommitteeHeight,
+	if kf.CurrentSignedWithdrawFromSideChainKeys, err = deserializeUnsignedWithdrawFromSideChainKeys(r); err != nil {
+		return
+	}
+
+	return common.ReadElements(r, &kf.LastCommitteeHeight,
 		&kf.LastVotingStartHeight, &kf.InElectionPeriod, &kf.NeedAppropriation,
 		&kf.NeedRecordProposalResult, &kf.CRCFoundationBalance, &kf.CRCCommitteeBalance,
 		&kf.CRCCommitteeUsedAmount, &kf.CRCCurrentStageAmount, &kf.DestroyedAmount, &kf.CirculationAmount,
-		&kf.AppropriationAmount, &kf.CommitteeUsedAmount, &kf.CRAssetsAddressUTXOCount)
-	return
+		&kf.AppropriationAmount, &kf.CommitteeUsedAmount, &kf.CRAssetsAddressUTXOCount, &kf.CurrentWithdrawFromSideChainIndex)
 }
 
 func (kf *KeyFrame) serializeMembersMap(w io.Writer,
@@ -395,6 +448,101 @@ func (kf *KeyFrame) serializeMembersMap(w io.Writer,
 		if err = v.Serialize(w); err != nil {
 			return
 		}
+	}
+	return
+}
+
+func (kf *KeyFrame) serializeClaimedDPoSKeysMap(w io.Writer,
+	mmap map[string]struct{}) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(mmap))); err != nil {
+		return
+	}
+	for k, _ := range mmap {
+		if err = common.WriteVarString(w, k); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (kf *KeyFrame) deserializeClaimedDPoSKeysMap(
+	r io.Reader) (mmap map[string]struct{}, err error) {
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	mmap = make(map[string]struct{})
+	for i := uint64(0); i < count; i++ {
+		var candidate string
+		if candidate, err = common.ReadVarString(r); err != nil {
+			return
+		}
+		mmap[candidate] = struct{}{}
+	}
+	return
+}
+
+func copyClaimedDPoSKeysMap(src map[string]struct{}) (
+	dst map[string]struct{}) {
+	dst = make(map[string]struct{})
+	for k, _ := range src {
+		dst[k] = struct{}{}
+	}
+	return
+}
+
+func (kf *KeyFrame) serializeClaimedKeysMap(w io.Writer,
+	mmap map[uint32][]string) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(mmap))); err != nil {
+		return
+	}
+	for k, v := range mmap {
+		if err = common.WriteUint32(w, k); err != nil {
+			return
+		}
+		if err = common.WriteVarUint(w, uint64(len(v))); err != nil {
+			return
+		}
+		for i := 0; i < len(v); i++ {
+			err = common.WriteVarString(w, v[i])
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+func (kf *KeyFrame) deserializeClaimedKeysMap(
+	r io.Reader) (mmap map[uint32][]string, err error) {
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	mmap = make(map[uint32][]string)
+	for i := uint64(0); i < count; i++ {
+		var k uint32
+		if k, err = common.ReadUint32(r); err != nil {
+			return
+		}
+		var kids uint64
+		if kids, err = common.ReadVarUint(r, 0); err != nil {
+			return
+		}
+		var value []string
+		for z := uint64(0); z < kids; z++ {
+			var candidate string
+			if candidate, err = common.ReadVarString(r); err != nil {
+				return
+			}
+			if mmap[k] == nil {
+				value = make([]string, 0)
+			} else {
+				value = mmap[k]
+			}
+			value = append(value, candidate)
+		}
+		mmap[k] = value
 	}
 	return
 }
@@ -439,6 +587,68 @@ func (kf *KeyFrame) serializeProposalResultList(w io.Writer,
 		if err = a.Serialize(w, payload.CustomIDResultVersion); err != nil {
 			return err
 		}
+	}
+	return
+}
+func serializeDetailVoteInfoMap(w io.Writer, vmap map[common.Uint256]payload.DetailedVoteInfo) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(vmap))); err != nil {
+		return
+	}
+	for k, v := range vmap {
+		if err = k.Serialize(w); err != nil {
+			return
+		}
+		if err = v.Serialize(w); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func serializeUnsignedWithdrawFromSideChainKeys(w io.Writer, src []string) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(src))); err != nil {
+		return
+	}
+	for _, v := range src {
+		if err = common.WriteVarString(w, v); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func deserializeUnsignedWithdrawFromSideChainKeys(r io.Reader) (ret []string, err error) {
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	for i := uint64(0); i < count; i++ {
+		var v string
+		if v, err = common.ReadVarString(r); err != nil {
+			return
+		}
+		ret = append(ret, v)
+	}
+	return
+}
+
+func deserializeDetailVoteInfoMap(
+	r io.Reader) (vmap map[common.Uint256]payload.DetailedVoteInfo, err error) {
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	vmap = make(map[common.Uint256]payload.DetailedVoteInfo)
+	for i := uint64(0); i < count; i++ {
+		var k common.Uint256
+		if err = k.Deserialize(r); err != nil {
+			return
+		}
+		var v payload.DetailedVoteInfo
+		if err = v.Deserialize(r); err != nil {
+			return
+		}
+		vmap[k] = v
 	}
 	return
 }
@@ -541,14 +751,20 @@ func (kf *KeyFrame) Snapshot() *KeyFrame {
 	frame.Members = copyMembersMap(kf.Members)
 	frame.HistoryMembers = copyHistoryMembersMap(kf.HistoryMembers)
 	frame.CRAssetsAddressUTXOCount = kf.CRAssetsAddressUTXOCount
+	frame.CurrentWithdrawFromSideChainIndex = kf.CurrentWithdrawFromSideChainIndex
+	frame.CurrentSignedWithdrawFromSideChainKeys = copyUnsidedWithdrawFromSideChainKeys(kf.CurrentSignedWithdrawFromSideChainKeys)
 	return frame
 }
 
 func NewKeyFrame() *KeyFrame {
 	return &KeyFrame{
-		Members:             make(map[common.Uint168]*CRMember, 0),
-		HistoryMembers:      make(map[uint64]map[common.Uint168]*CRMember, 0),
-		LastCommitteeHeight: 0,
+		Members:                                make(map[common.Uint168]*CRMember, 0),
+		NextMembers:                            make(map[common.Uint168]*CRMember, 0),
+		ClaimedDPoSKeys:                        make(map[string]struct{}, 0),
+		NextClaimedDPoSKeys:                    make(map[string]struct{}, 0),
+		HistoryMembers:                         make(map[uint64]map[common.Uint168]*CRMember, 0),
+		LastCommitteeHeight:                    0,
+		CurrentSignedWithdrawFromSideChainKeys: make([]string, 0),
 	}
 }
 
@@ -584,6 +800,23 @@ func (d *DepositInfo) Deserialize(r io.Reader) (err error) {
 	return
 }
 
+func (kf *StateKeyFrame) SerializeProgramHashVotesInfoMap(vmap map[common.Uint168][]payload.VotesWithLockTime,
+	w io.Writer) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(vmap))); err != nil {
+		return
+	}
+	for k, v := range vmap {
+		if err = k.Serialize(w); err != nil {
+			return
+		}
+		common.WriteVarUint(w, uint64(len(v)))
+		for _, votes := range v {
+			votes.Serialize(w, 0)
+		}
+	}
+	return
+}
+
 func (kf *StateKeyFrame) Serialize(w io.Writer) (err error) {
 	if err = kf.serializeCodeAddressMap(w, kf.CodeCIDMap); err != nil {
 		return
@@ -601,7 +834,7 @@ func (kf *StateKeyFrame) Serialize(w io.Writer) (err error) {
 		return
 	}
 
-	if err = kf.serializeDepositInfoMap(w, kf.depositInfo); err != nil {
+	if err = kf.serializeDepositInfoMap(w, kf.DepositInfo); err != nil {
 		return
 	}
 
@@ -625,7 +858,51 @@ func (kf *StateKeyFrame) Serialize(w io.Writer) (err error) {
 		return
 	}
 
-	return kf.SerializeFixed64Map(w, kf.CRCCommitteeOutputs)
+	if err = kf.SerializeFixed64Map(w, kf.CRCCommitteeOutputs); err != nil {
+		return
+	}
+
+	if err = kf.SerializeProgramHashVotesInfoMap(kf.UsedCRVotes, w); err != nil {
+		return
+	}
+	if err = kf.SerializeProgramHashVotesInfoMap(kf.UsdedCRImpeachmentVotes, w); err != nil {
+		return
+	}
+	if err = kf.SerializeProgramHashVotesInfoMap(kf.UsedCRCProposalVotes, w); err != nil {
+		return
+	}
+
+	return
+}
+
+func (kf *StateKeyFrame) DeserializeProgramHashInfoMap(
+	r io.Reader) (vmap map[common.Uint168][]payload.VotesWithLockTime, err error) {
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	vmap = make(map[common.Uint168][]payload.VotesWithLockTime)
+	for i := uint64(0); i < count; i++ {
+		var k common.Uint168
+		if err = k.Deserialize(r); err != nil {
+			return
+		}
+		var votesCount uint64
+		if votesCount, err = common.ReadVarUint(r, 0); err != nil {
+			return
+		}
+		votesInfo := make([]payload.VotesWithLockTime, 0)
+		for i := uint64(0); i < votesCount; i++ {
+			var v payload.VotesWithLockTime
+			if err = v.Deserialize(r, 0); err != nil {
+				return
+			}
+			votesInfo = append(votesInfo, v)
+		}
+
+		vmap[k] = votesInfo
+	}
+	return
 }
 
 func (kf *StateKeyFrame) Deserialize(r io.Reader) (err error) {
@@ -645,7 +922,7 @@ func (kf *StateKeyFrame) Deserialize(r io.Reader) (err error) {
 		return
 	}
 
-	if kf.depositInfo, err = kf.deserializeDepositInfoMap(r); err != nil {
+	if kf.DepositInfo, err = kf.deserializeDepositInfoMap(r); err != nil {
 		return
 	}
 
@@ -672,6 +949,17 @@ func (kf *StateKeyFrame) Deserialize(r io.Reader) (err error) {
 	if kf.CRCCommitteeOutputs, err = kf.DeserializeFixed64Map(r); err != nil {
 		return
 	}
+
+	if kf.UsedCRVotes, err = kf.DeserializeProgramHashInfoMap(r); err != nil {
+		return
+	}
+	if kf.UsdedCRImpeachmentVotes, err = kf.DeserializeProgramHashInfoMap(r); err != nil {
+		return
+	}
+	if kf.UsedCRCProposalVotes, err = kf.DeserializeProgramHashInfoMap(r); err != nil {
+		return
+	}
+
 	return
 }
 
@@ -914,15 +1202,60 @@ func (kf *StateKeyFrame) Snapshot() *StateKeyFrame {
 	state.DepositHashCIDMap = copyHashIDMap(kf.DepositHashCIDMap)
 	state.Candidates = copyCandidateMap(kf.Candidates)
 	state.HistoryCandidates = copyHistoryCandidateMap(kf.HistoryCandidates)
-	state.depositInfo = copyDepositInfoMap(kf.depositInfo)
+	state.DepositInfo = copyDepositInfoMap(kf.DepositInfo)
 	state.CurrentSession = kf.CurrentSession
 	state.Nicknames = utils.CopyStringSet(kf.Nicknames)
 	state.Votes = utils.CopyStringSet(kf.Votes)
 	state.DepositOutputs = copyFixed64Map(kf.DepositOutputs)
 	state.CRCFoundationOutputs = copyFixed64Map(kf.CRCFoundationOutputs)
 	state.CRCCommitteeOutputs = copyFixed64Map(kf.CRCCommitteeOutputs)
+	state.UsedCRVotes = copyProgramHashVotesInfoSet(kf.UsedCRVotes)
+	state.UsdedCRImpeachmentVotes = copyProgramHashVotesInfoSet(kf.UsdedCRImpeachmentVotes)
+	state.UsedCRCProposalVotes = copyProgramHashVotesInfoSet(kf.UsedCRCProposalVotes)
 
 	return state
+}
+
+func (kf *StateKeyFrame) GetUsedCRVoteRights(stakeProgramHash *common.Uint168) common.Fixed64 {
+	usedCRVotes, _ := kf.UsedCRVotes[*stakeProgramHash]
+	var result common.Fixed64
+	for _, v := range usedCRVotes {
+		result += v.Votes
+	}
+
+	return result
+}
+
+func (kf *StateKeyFrame) GetUsedCRImpeachmentVoteRights(stakeProgramHash *common.Uint168) common.Fixed64 {
+	usedCRImpeachmentVotes, _ := kf.UsdedCRImpeachmentVotes[*stakeProgramHash]
+	var result common.Fixed64
+	for _, v := range usedCRImpeachmentVotes {
+		result += v.Votes
+	}
+
+	return result
+}
+
+func (kf *StateKeyFrame) GetUsedCRCProposalVoteRights(stakeProgramHash *common.Uint168) common.Fixed64 {
+	usedCRCProposalVotes, _ := kf.UsedCRCProposalVotes[*stakeProgramHash]
+	var maxVotes common.Fixed64
+	for _, v := range usedCRCProposalVotes {
+		if v.Votes > maxVotes {
+			maxVotes = v.Votes
+		}
+	}
+
+	return maxVotes
+}
+
+func copyProgramHashVotesInfoSet(src map[common.Uint168][]payload.VotesWithLockTime) (
+	dst map[common.Uint168][]payload.VotesWithLockTime) {
+	dst = map[common.Uint168][]payload.VotesWithLockTime{}
+	for k, v := range src {
+		a := v
+		dst[k] = a
+	}
+	return
 }
 
 func (p *ProposalState) Serialize(w io.Writer) (err error) {
@@ -931,6 +1264,10 @@ func (p *ProposalState) Serialize(w io.Writer) (err error) {
 	}
 
 	if err = common.WriteUint8(w, uint8(p.Status)); err != nil {
+		return
+	}
+
+	if err = common.WriteUint8(w, p.TxPayloadVer); err != nil {
 		return
 	}
 
@@ -997,6 +1334,12 @@ func (p *ProposalState) Deserialize(r io.Reader) (err error) {
 		return
 	}
 	p.Status = ProposalStatus(status)
+
+	var payloadVersion uint8
+	if payloadVersion, err = common.ReadUint8(r); err != nil {
+		return
+	}
+	p.TxPayloadVer = payloadVersion
 
 	if p.RegisterHeight, err = common.ReadUint32(r); err != nil {
 		return
@@ -1151,6 +1494,33 @@ func (p *ProposalKeyFrame) Serialize(w io.Writer) (err error) {
 	if err = p.serializeWithdrawableTransactionsMap(p.WithdrawableTxInfo, w); err != nil {
 		return
 	}
+	if err = common.WriteVarString(w, p.SecretaryGeneralPublicKey); err != nil {
+		return
+	}
+
+	if err = common.WriteVarUint(w, uint64(len(p.ReservedCustomIDLists))); err != nil {
+		return
+	}
+	for _, name := range p.ReservedCustomIDLists {
+		err = common.WriteVarString(w, name)
+		if err != nil {
+			return
+		}
+	}
+
+	if err = p.serializeMapStringNULL(w, p.PendingReceivedCustomIDMap); err != nil {
+		return
+	}
+
+	if err = common.WriteVarUint(w, uint64(len(p.ReceivedCustomIDLists))); err != nil {
+		return
+	}
+	for _, name := range p.ReceivedCustomIDLists {
+		err = common.WriteVarString(w, name)
+		if err != nil {
+			return
+		}
+	}
 
 	if err = common.WriteVarUint(w, uint64(len(p.RegisteredSideChainNames))); err != nil {
 		return
@@ -1181,6 +1551,16 @@ func (p *ProposalKeyFrame) Serialize(w io.Writer) (err error) {
 			return
 		}
 	}
+
+	if err = p.serializeRegisterSideChainData(w, p.RegisteredSideChainPayloadInfo); err != nil {
+		return
+	}
+
+	////ReservedCustomID
+	if err = common.WriteElements(w, p.ReservedCustomID); err != nil {
+		return
+	}
+
 	return
 }
 
@@ -1196,6 +1576,104 @@ func (p *ProposalKeyFrame) serializeDraftDataMap(draftData map[common.Uint256][]
 		if err = common.WriteVarBytes(w, data); err != nil {
 			return
 		}
+	}
+	return
+}
+
+func (p *ProposalKeyFrame) serializeMapStringNULL(w io.Writer, data map[string]struct{}) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(data))); err != nil {
+		return
+	}
+	for k, _ := range data {
+		if err = common.WriteVarString(w, k); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (p *ProposalKeyFrame) deserializeMapStringNULL(r io.Reader) (
+	result map[string]struct{}, err error) {
+	var count uint64
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	result = make(map[string]struct{})
+	for i := uint64(0); i < count; i++ {
+
+		var str string
+		str, err = common.ReadVarString(r)
+		if err != nil {
+			return
+		}
+		result[str] = struct{}{}
+	}
+	return
+}
+
+func (p *ProposalKeyFrame) serializeRegisterSideChainData(w io.Writer,
+	data map[uint32]map[common.Uint256]payload.SideChainInfo) (err error) {
+	if err = common.WriteVarUint(w, uint64(len(data))); err != nil {
+		return
+	}
+	for k1, v1 := range data {
+		// write key
+		if err = common.WriteUint32(w, k1); err != nil {
+			return
+		}
+
+		// write value
+		if err = common.WriteVarUint(w, uint64(len(v1))); err != nil {
+			return
+		}
+		for k2, v2 := range v1 {
+			if err = k2.Serialize(w); err != nil {
+				return
+			}
+			if err = v2.Serialize(w); err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+func (p *ProposalKeyFrame) deserializeRegisterSideChainData(r io.Reader) (
+	result map[uint32]map[common.Uint256]payload.SideChainInfo, err error) {
+	var count1 uint64
+	if count1, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	result = make(map[uint32]map[common.Uint256]payload.SideChainInfo)
+	for i := uint64(0); i < count1; i++ {
+		var height uint32
+		height, err = common.ReadUint32(r)
+		if err != nil {
+			return
+		}
+
+		var count2 uint64
+		if count2, err = common.ReadVarUint(r, 0); err != nil {
+			return
+		}
+		data := make(map[common.Uint256]payload.SideChainInfo)
+		for i := uint64(0); i < count2; i++ {
+			var hash common.Uint256
+			err = hash.Deserialize(r)
+			if err != nil {
+				return
+			}
+
+			var sideChainInfo payload.SideChainInfo
+			err = sideChainInfo.Deserialize(r)
+			if err != nil {
+				return
+			}
+
+			data[hash] = sideChainInfo
+		}
+
+		result[height] = data
 	}
 	return
 }
@@ -1245,7 +1723,7 @@ func (p *ProposalKeyFrame) serializeProposalSessionMap(
 }
 
 func (p *ProposalKeyFrame) serializeWithdrawableTransactionsMap(
-	proposalWithdrableTx map[common.Uint256]types.OutputInfo, w io.Writer) (err error) {
+	proposalWithdrableTx map[common.Uint256]common2.OutputInfo, w io.Writer) (err error) {
 	if err = common.WriteVarUint(w, uint64(len(proposalWithdrableTx))); err != nil {
 		return
 	}
@@ -1288,6 +1766,39 @@ func (p *ProposalKeyFrame) Deserialize(r io.Reader) (err error) {
 	if p.WithdrawableTxInfo, err = p.deserializeWithdrawableTransactionsMap(r); err != nil {
 		return
 	}
+	if p.SecretaryGeneralPublicKey, err = common.ReadVarString(r); err != nil {
+		return
+	}
+
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	p.ReservedCustomIDLists = make([]string, 0)
+	for i := uint64(0); i < count; i++ {
+		var name string
+		name, err = common.ReadVarString(r)
+		p.ReservedCustomIDLists = append(p.ReservedCustomIDLists, name)
+		if err != nil {
+			return
+		}
+	}
+
+	if p.PendingReceivedCustomIDMap, err = p.deserializeMapStringNULL(r); err != nil {
+		return
+	}
+
+	if count, err = common.ReadVarUint(r, 0); err != nil {
+		return
+	}
+	p.ReceivedCustomIDLists = make([]string, 0)
+	for i := uint64(0); i < count; i++ {
+		var name string
+		name, err = common.ReadVarString(r)
+		p.ReceivedCustomIDLists = append(p.ReceivedCustomIDLists, name)
+		if err != nil {
+			return
+		}
+	}
 
 	if count, err = common.ReadVarUint(r, 0); err != nil {
 		return
@@ -1327,6 +1838,15 @@ func (p *ProposalKeyFrame) Deserialize(r io.Reader) (err error) {
 		}
 		p.RegisteredGenesisHashes = append(p.RegisteredGenesisHashes, h)
 	}
+
+	if p.RegisteredSideChainPayloadInfo, err = p.deserializeRegisterSideChainData(r); err != nil {
+		return
+	}
+
+	if err = common.ReadElements(r, &p.ReservedCustomID); err != nil {
+		return
+	}
+
 	return
 }
 
@@ -1418,18 +1938,18 @@ func (p *ProposalKeyFrame) deserializeProposalSessionMap(r io.Reader) (
 }
 
 func (p *ProposalKeyFrame) deserializeWithdrawableTransactionsMap(r io.Reader) (
-	withdrawableTxsMap map[common.Uint256]types.OutputInfo, err error) {
+	withdrawableTxsMap map[common.Uint256]common2.OutputInfo, err error) {
 	var count uint64
 	if count, err = common.ReadVarUint(r, 0); err != nil {
 		return
 	}
-	withdrawableTxsMap = make(map[common.Uint256]types.OutputInfo)
+	withdrawableTxsMap = make(map[common.Uint256]common2.OutputInfo)
 	for i := uint64(0); i < count; i++ {
 		var hash common.Uint256
 		if err = hash.Deserialize(r); err != nil {
 			return
 		}
-		var withdrawInfo types.OutputInfo
+		var withdrawInfo common2.OutputInfo
 		if err = withdrawInfo.Deserialize(r); err != nil {
 			return
 		}
@@ -1453,7 +1973,7 @@ func NewProposalKeyFrame() *ProposalKeyFrame {
 		Proposals:                      make(map[common.Uint256]*ProposalState),
 		ProposalHashes:                 make(map[common.Uint168]ProposalHashSet),
 		ProposalSession:                make(map[uint64][]common.Uint256),
-		WithdrawableTxInfo:             make(map[common.Uint256]types.OutputInfo),
+		WithdrawableTxInfo:             make(map[common.Uint256]common2.OutputInfo),
 		PendingReceivedCustomIDMap:     make(map[string]struct{}),
 		RegisteredSideChainPayloadInfo: make(map[uint32]map[common.Uint256]payload.SideChainInfo),
 		RegisteredSideChainNames:       []string{"ID"},
@@ -1464,17 +1984,20 @@ func NewProposalKeyFrame() *ProposalKeyFrame {
 
 func NewStateKeyFrame() *StateKeyFrame {
 	return &StateKeyFrame{
-		CodeCIDMap:           make(map[string]common.Uint168),
-		DepositHashCIDMap:    make(map[common.Uint168]common.Uint168),
-		Candidates:           make(map[common.Uint168]*Candidate),
-		HistoryCandidates:    make(map[uint64]map[common.Uint168]*Candidate),
-		depositInfo:          make(map[common.Uint168]*DepositInfo),
-		CurrentSession:       0,
-		Nicknames:            make(map[string]struct{}),
-		Votes:                make(map[string]struct{}),
-		DepositOutputs:       make(map[string]common.Fixed64),
-		CRCFoundationOutputs: make(map[string]common.Fixed64),
-		CRCCommitteeOutputs:  make(map[string]common.Fixed64),
+		CodeCIDMap:              make(map[string]common.Uint168),
+		DepositHashCIDMap:       make(map[common.Uint168]common.Uint168),
+		Candidates:              make(map[common.Uint168]*Candidate),
+		HistoryCandidates:       make(map[uint64]map[common.Uint168]*Candidate),
+		DepositInfo:             make(map[common.Uint168]*DepositInfo),
+		CurrentSession:          0,
+		Nicknames:               make(map[string]struct{}),
+		Votes:                   make(map[string]struct{}),
+		DepositOutputs:          make(map[string]common.Fixed64),
+		CRCFoundationOutputs:    make(map[string]common.Fixed64),
+		CRCCommitteeOutputs:     make(map[string]common.Fixed64),
+		UsedCRVotes:             make(map[common.Uint168][]payload.VotesWithLockTime),
+		UsdedCRImpeachmentVotes: make(map[common.Uint168][]payload.VotesWithLockTime),
+		UsedCRCProposalVotes:    make(map[common.Uint168][]payload.VotesWithLockTime),
 	}
 }
 
@@ -1489,7 +2012,7 @@ func copyCandidateMap(src map[common.Uint168]*Candidate) (
 	return
 }
 
-// copyHistoryCandidateMap copy the CR history map's key and value, and return
+// copyHistoryCandidateMap copy the CR History map's key and value, and return
 // the dst map.
 func copyHistoryCandidateMap(src map[uint64]map[common.Uint168]*Candidate) (
 	dst map[uint64]map[common.Uint168]*Candidate) {
@@ -1589,6 +2112,17 @@ func getElectedCRMembers(src map[common.Uint168]*CRMember) []*CRMember {
 	return dst
 }
 
+func getOriginElectedCRMembers(src map[common.Uint168]*CRMember) []*CRMember {
+	dst := make([]*CRMember, 0)
+	for _, v := range src {
+		if v.MemberState == MemberElected {
+			m := v
+			dst = append(dst, m)
+		}
+	}
+	return dst
+}
+
 func getImpeachableCRMembers(src map[common.Uint168]*CRMember) []*CRMember {
 	dst := make([]*CRMember, 0)
 	for _, v := range src {
@@ -1619,6 +2153,13 @@ func copyHistoryMembersMap(src map[uint64]map[common.Uint168]*CRMember) (
 	dst = map[uint64]map[common.Uint168]*CRMember{}
 	for k, v := range src {
 		dst[k] = copyMembersMap(v)
+	}
+	return
+}
+
+func copyUnsidedWithdrawFromSideChainKeys(src []string) (dst []string) {
+	for _, v := range src {
+		dst = append(dst, v)
 	}
 	return
 }

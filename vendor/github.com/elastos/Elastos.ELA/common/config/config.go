@@ -87,6 +87,13 @@ type Configuration struct {
 	ReturnDepositCoinFee            common.Fixed64    `json:"ReturnDepositCoinFee"`
 	NewCrossChainStartHeight        uint32            `json:"NewCrossChainStartHeight"`
 	ReturnCrossChainCoinStartHeight uint32            `json:"ReturnCrossChainCoinStartHeight"`
+	DPoSV2StartHeight               uint32            `json:"DPoSV2StartHeight"`
+	DPoSV2EffectiveVotes            common.Fixed64    `json:"DPoSV2EffectiveVotes"`
+	StakeAddress                    string            `json:"StakeAddress"`
+	SchnorrStartHeight              uint32            `json:"SchnorrStartHeight"`
+	CrossChainMonitorStartHeight    uint32            `json:"CrossChainMonitorStartHeight"`
+	CrossChainMonitorInterval       uint32            `json:"CrossChainMonitorInterval"`
+	ShowPeersIp                     bool              `json:"ShowPeersIp"`
 }
 
 // DPoSConfiguration defines the DPoS consensus parameters.
@@ -112,6 +119,10 @@ type DPoSConfiguration struct {
 	RevertToPOWNoBlockTime        int64          `json:"RevertToPOWNoBlockTime"`
 	StopConfirmBlockTime          int64          `json:"StopConfirmBlockTime"`
 	RevertToPOWStartHeight        uint32         `json:"RevertToPOWStartHeight"`
+	DPoSV2RewardAccumulateAddress string         `json:"DPoSV2RewardAccumulateAddress"`
+	DPoSV2MinVotesLockTime        uint32         `json:"DPoSV2MinVotesLockTime"`
+	DPoSV2MaxVotesLockTime        uint32         `json:"DPoSV2MaxVotesLockTime"`
+	CRDPoSNodeHotFixHeight        uint32         `json:"CRDPoSNodeHotFixHeight"`
 }
 
 type CRConfiguration struct {
@@ -145,6 +156,7 @@ type CRConfiguration struct {
 	NewP2PProtocolVersionHeight        uint64         `json:"NewP2PProtocolVersionHeight"`
 	ChangeCommitteeNewCRHeight         uint32         `json:"ChangeCommitteeNewCRHeight"`
 	CRCProposalDraftDataStartHeight    uint32         `json:"CRCProposalDraftDataStartHeight"`
+	CRClaimPeriod                      uint32         `json:"CRClaimPeriod"`
 }
 
 type RPCServiceLevel byte

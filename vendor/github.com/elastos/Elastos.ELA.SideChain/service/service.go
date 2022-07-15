@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 
 	"github.com/elastos/Elastos.ELA.SideChain/blockchain"
+	"github.com/elastos/Elastos.ELA.SideChain/config"
 	"github.com/elastos/Elastos.ELA.SideChain/interfaces"
 	"github.com/elastos/Elastos.ELA.SideChain/mempool"
 	"github.com/elastos/Elastos.ELA.SideChain/pow"
@@ -16,22 +19,40 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 
 	"github.com/elastos/Elastos.ELA/common"
-	ela "github.com/elastos/Elastos.ELA/core/types"
+	ela "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 	"github.com/elastos/Elastos.ELA/utils/elalog"
 	"github.com/elastos/Elastos.ELA/utils/http"
 )
 
+func RPCServiceLevelFromString(str string) config.RPCServiceLevel {
+	switch str {
+	case "ConfigurationPermitted":
+		return config.ConfigurationPermitted
+	case "MiningPermitted":
+		return config.MiningPermitted
+	case "TransactionPermitted":
+		return config.TransactionPermitted
+	case "WalletPermitted":
+		return config.WalletPermitted
+	case "QueryOnly":
+		return config.QueryOnly
+	default:
+		return config.ConfigurationPermitted
+	}
+}
+
 type Config struct {
-	Server         server.Server
-	Chain          *blockchain.BlockChain
-	Store          *blockchain.ChainStore
-	GenesisAddress string
-	TxMemPool      *mempool.TxPool
-	PowService     *pow.Service
-	SpvService     *spv.Service
-	SetLogLevel    func(level elalog.Level)
+	Server                 server.Server
+	Chain                  *blockchain.BlockChain
+	Store                  *blockchain.ChainStore
+	GenesisAddress         string
+	TxMemPool              *mempool.TxPool
+	PowService             *pow.Service
+	SpvService             *spv.Service
+	SetLogLevel            func(level elalog.Level)
+	ConfigurationPermitted string
 
 	GetBlockInfo                func(cfg *Config, block *types.Block, verbose bool) BlockInfo
 	GetTransactionInfo          func(cfg *Config, header interfaces.Header, tx *types.Transaction) *TransactionInfo
@@ -120,6 +141,10 @@ func (s *HttpService) GetNeighbors(param http.Params) (interface{}, error) {
 }
 
 func (s *HttpService) SetLogLevel(param http.Params) (interface{}, error) {
+	if ok := CheckRPCServiceLevel(s.cfg.ConfigurationPermitted, config.ConfigurationPermitted); ok != nil {
+		return nil, http.NewError(int(InvalidMethod), "requesting method if out of service level")
+	}
+
 	level, ok := param["level"].(float64)
 	if !ok || level < 0 {
 		return nil, http.NewError(int(InvalidParams), "level must be an integer in 0-6")
@@ -130,6 +155,10 @@ func (s *HttpService) SetLogLevel(param http.Params) (interface{}, error) {
 }
 
 func (s *HttpService) SubmitAuxBlock(param http.Params) (interface{}, error) {
+	if ok := CheckRPCServiceLevel(s.cfg.ConfigurationPermitted, config.MiningPermitted); ok != nil {
+		return nil, http.NewError(int(InvalidMethod), "requesting method if out of service level")
+	}
+
 	blockHash, ok := param.String("blockhash")
 	if !ok {
 		return nil, newError(InvalidParams)
@@ -151,6 +180,10 @@ func (s *HttpService) SubmitAuxBlock(param http.Params) (interface{}, error) {
 }
 
 func (s *HttpService) CreateAuxBlock(param http.Params) (interface{}, error) {
+	if ok := CheckRPCServiceLevel(s.cfg.ConfigurationPermitted, config.MiningPermitted); ok != nil {
+		return nil, http.NewError(int(InvalidMethod), "requesting method if out of service level")
+	}
+
 	addr, _ := param.String("paytoaddress")
 
 	msgBlock, curHashStr, _ := s.cfg.PowService.GenerateAuxBlock(addr)
@@ -186,6 +219,10 @@ func (s *HttpService) CreateAuxBlock(param http.Params) (interface{}, error) {
 }
 
 func (s *HttpService) ToggleMining(param http.Params) (interface{}, error) {
+	if ok := CheckRPCServiceLevel(s.cfg.ConfigurationPermitted, config.MiningPermitted); ok != nil {
+		return nil, http.NewError(int(InvalidMethod), "requesting method if out of service level")
+	}
+
 	mining, ok := param.Bool("mining")
 	if !ok {
 		return nil, newError(InvalidParams)
@@ -204,6 +241,10 @@ func (s *HttpService) ToggleMining(param http.Params) (interface{}, error) {
 }
 
 func (s *HttpService) DiscreteMining(param http.Params) (interface{}, error) {
+	if ok := CheckRPCServiceLevel(s.cfg.ConfigurationPermitted, config.MiningPermitted); ok != nil {
+		return nil, http.NewError(int(InvalidMethod), "requesting method if out of service level")
+	}
+
 	count, ok := param.Uint("count")
 	if !ok {
 		return nil, newError(InvalidParams)
@@ -275,6 +316,10 @@ func (s *HttpService) GetBlockByHash(param http.Params) (interface{}, error) {
 }
 
 func (s *HttpService) SendRechargeToSideChainTxByHash(param http.Params) (interface{}, error) {
+	if ok := CheckRPCServiceLevel(s.cfg.ConfigurationPermitted, config.TransactionPermitted); ok != nil {
+		return nil, http.NewError(int(InvalidMethod), "requesting method if out of service level")
+	}
+
 	txid, ok := param.String("txid")
 	if !ok {
 		return nil, http.NewError(int(InvalidParams), "txid not found")
@@ -306,7 +351,10 @@ func (s *HttpService) SendRechargeToSideChainTxByHash(param http.Params) (interf
 	return depositTx.Hash().String(), nil
 }
 
-func createRechargeToSideChainTransaction(tx *ela.Transaction, genesisAddress string) (*types.Transaction, error) {
+func createRechargeToSideChainTransaction(tx ela.Transaction, genesisAddress string) (*types.Transaction, error) {
+	if tx.PayloadVersion() >= payload.TransferCrossChainVersionV1 {
+		return createRechargeToSideChainTransactionV1(tx, genesisAddress)
+	}
 	rechargeInfo, err := parseRechargeToSideChainTransactionInfo(tx, genesisAddress)
 	if err != nil {
 		return nil, err
@@ -326,13 +374,13 @@ type RechargeToSideChainInfo struct {
 	DepositAssets            []*RechargeToSideChainAsset
 }
 
-func parseRechargeToSideChainTransactionInfo(txn *ela.Transaction, genesisAddress string) (*RechargeToSideChainInfo, error) {
+func parseRechargeToSideChainTransactionInfo(txn ela.Transaction, genesisAddress string) (*RechargeToSideChainInfo, error) {
 	result := new(RechargeToSideChainInfo)
-	payloadObj, ok := txn.Payload.(*payload.TransferCrossChainAsset)
+	payloadObj, ok := txn.Payload().(*payload.TransferCrossChainAsset)
 	if !ok {
 		return nil, errors.New("Invalid payload")
 	}
-	if len(txn.Outputs) == 0 {
+	if len(txn.Outputs()) == 0 {
 		return nil, errors.New("Invalid TransferCrossChainAsset payload, outputs is null")
 	}
 	programHash, err := common.Uint168FromAddress(genesisAddress)
@@ -343,15 +391,70 @@ func parseRechargeToSideChainTransactionInfo(txn *ela.Transaction, genesisAddres
 	result.MainChainTransactionHash = &hash
 	result.DepositAssets = make([]*RechargeToSideChainAsset, 0)
 	for i := 0; i < len(payloadObj.CrossChainAddresses); i++ {
-		if txn.Outputs[payloadObj.OutputIndexes[i]].ProgramHash.IsEqual(*programHash) {
+		if txn.Outputs()[payloadObj.OutputIndexes[i]].ProgramHash.IsEqual(*programHash) {
 			result.DepositAssets = append(result.DepositAssets, &RechargeToSideChainAsset{
 				TargetAddress:    payloadObj.CrossChainAddresses[i],
-				Amount:           &txn.Outputs[payloadObj.OutputIndexes[i]].Value,
+				Amount:           &txn.Outputs()[payloadObj.OutputIndexes[i]].Value,
 				CrossChainAmount: &payloadObj.CrossChainAmounts[i],
 			})
 		}
 	}
 	return result, nil
+}
+
+func createRechargeToSideChainTransactionV1(txn ela.Transaction, genesisAddress string) (*types.Transaction, error) {
+	// create payload
+	payload := new(types.PayloadRechargeToSideChain)
+
+	// set transaction hash
+	hash := txn.Hash()
+	payload.MainChainTransactionHash = hash
+
+	// get assetId
+	asset := types.GetSystemAssetId()
+	assetId := &asset
+
+	// get cross chain address's program hash
+	crossChainHash, err := common.Uint168FromAddress(genesisAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	// set outputs
+	var txOutputs []*types.Output
+	for _, output := range txn.Outputs() {
+		if output.Type != elacommon.OTCrossChain {
+			continue
+		}
+
+		if !crossChainHash.IsEqual(output.ProgramHash) {
+			continue
+		}
+
+		op, ok := output.Payload.(*outputpayload.CrossChainOutput)
+		if !ok {
+			return nil, errors.New("invalid cross chain output payload")
+		}
+		target, err := common.Uint168FromAddress(op.TargetAddress)
+		if err != nil {
+			return nil, err
+		}
+		output := &types.Output{
+			AssetID:     *assetId,
+			Value:       op.TargetAmount,
+			OutputLock:  0,
+			ProgramHash: *target,
+		}
+		txOutputs = append(txOutputs, output)
+	}
+
+	txTransaction := &types.Transaction{
+		TxType:         types.RechargeToSideChain,
+		PayloadVersion: types.RechargeToSideChainPayloadVersion1,
+		Payload:        payload,
+		Outputs:        txOutputs,
+	}
+	return txTransaction, nil
 }
 
 func createRechargeToSideChainTransactionByInfo(txInfo *RechargeToSideChainInfo) (*types.Transaction, error) {
@@ -387,6 +490,10 @@ func createRechargeToSideChainTransactionByInfo(txInfo *RechargeToSideChainInfo)
 }
 
 func (s *HttpService) SendRawTransaction(param http.Params) (interface{}, error) {
+	if ok := CheckRPCServiceLevel(s.cfg.ConfigurationPermitted, config.TransactionPermitted); ok != nil {
+		return nil, http.NewError(int(InvalidMethod), "requesting method if out of service level")
+	}
+
 	str, ok := param.String("data")
 	if !ok {
 		return nil, http.NewError(int(InvalidParams), "need a string parameter named data")
@@ -790,6 +897,7 @@ func (s *HttpService) GetWithdrawTxsInfo(txs []*types.Transaction) interface{} {
 				CrossChainAddress: payload.CrossChainAddresses[i],
 				CrossChainAmount:  payload.CrossChainAmounts[i].String(),
 				OutputAmount:      tx.Outputs[payload.OutputIndexes[i]].Value.String(),
+				TargetData:        "",
 			})
 		}
 
@@ -808,6 +916,7 @@ type WithdrawOutputInfo struct {
 	CrossChainAddress string `json:"crosschainaddress"`
 	CrossChainAmount  string `json:"crosschainamount"`
 	OutputAmount      string `json:"outputamount"`
+	TargetData        string `json:"targetdata"`
 }
 
 type WithdrawTxInfo struct {
@@ -1323,4 +1432,11 @@ func ruleError(err error) error {
 		return http.NewError(int(ruleErr.ErrorCode), ruleErr.Error())
 	}
 	return http.NewError(int(InvalidTransaction), err.Error())
+}
+
+func CheckRPCServiceLevel(configurationPermitted string, level config.RPCServiceLevel) interface{} {
+	if level < RPCServiceLevelFromString(configurationPermitted) {
+		return InvalidMethod
+	}
+	return nil
 }

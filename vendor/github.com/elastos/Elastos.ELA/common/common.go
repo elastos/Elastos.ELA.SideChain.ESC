@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"math"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -47,6 +48,10 @@ func BytesReverse(u []byte) []byte {
 		u[i], u[j] = u[j], u[i]
 	}
 	return u
+}
+
+func GetPublicKeyFromCode(code []byte) []byte {
+	return code[1 : len(code)-1]
 }
 
 func BytesToHexString(data []byte) string {
@@ -137,4 +142,10 @@ func GetIpFromAddr(addr string) string {
 		return ""
 	}
 	return addr[0:endIndex]
+}
+
+// check if the string is only letter or number.
+func IsLetterOrNumber(s string) bool {
+	isLetterOrNumber := regexp.MustCompile(`^[a-zA-Z0-9]+$`).MatchString
+	return isLetterOrNumber(s)
 }

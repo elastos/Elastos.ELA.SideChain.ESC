@@ -1,7 +1,6 @@
 package interfaces
 
 import (
-
 	"github.com/elastos/Elastos.ELA/common"
 
 	"github.com/elastos/Elastos.ELA.SideChain/auxpow"
@@ -15,6 +14,7 @@ type Header interface {
 	Hash() common.Uint256
 	SetHeight(uint32)
 	GetHeight() uint32
+	GetMainChainHeight() uint32
 	SetBits(uint32)
 	GetBits() uint32
 	GetAuxPow() *auxpow.SideAuxPow
@@ -27,4 +27,5 @@ type Header interface {
 	GetTimeStamp() uint32
 	SetNonce(uint32)
 	GetNonce() uint32
+	GetHeaderSize() int
 }

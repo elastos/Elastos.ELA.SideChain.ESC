@@ -16,7 +16,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 	currenHeight = 1000
 	proposalHeight = 100
 	revertInfo = []RevertInfo{}
-	assert.Equal(t, 900, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -26,7 +26,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.POW),
 		},
 	}
-	assert.Equal(t, 0, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, false, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -40,7 +40,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.DPOS),
 		},
 	}
-	assert.Equal(t, 900, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -54,25 +54,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.DPOS),
 		},
 	}
-	assert.Equal(t, 800, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
-
-	currenHeight = 1000
-	proposalHeight = 100
-	revertInfo = []RevertInfo{
-		{
-			WorkingHeight: 10,
-			Mode:          byte(state.POW),
-		},
-		{
-			WorkingHeight: 200,
-			Mode:          byte(state.DPOS),
-		},
-		{
-			WorkingHeight: 300,
-			Mode:          byte(state.POW),
-		},
-	}
-	assert.Equal(t, 100, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -89,12 +71,8 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			WorkingHeight: 300,
 			Mode:          byte(state.POW),
 		},
-		{
-			WorkingHeight: 900,
-			Mode:          byte(state.DPOS),
-		},
 	}
-	assert.Equal(t, 200, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -116,7 +94,29 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.DPOS),
 		},
 	}
-	assert.Equal(t, 200, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
+
+	currenHeight = 1000
+	proposalHeight = 100
+	revertInfo = []RevertInfo{
+		{
+			WorkingHeight: 10,
+			Mode:          byte(state.POW),
+		},
+		{
+			WorkingHeight: 200,
+			Mode:          byte(state.DPOS),
+		},
+		{
+			WorkingHeight: 300,
+			Mode:          byte(state.POW),
+		},
+		{
+			WorkingHeight: 900,
+			Mode:          byte(state.DPOS),
+		},
+	}
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -138,7 +138,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.DPOS),
 		},
 	}
-	assert.Equal(t, 100, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -160,7 +160,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.DPOS),
 		},
 	}
-	assert.Equal(t, 6, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, false, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -186,7 +186,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.POW),
 		},
 	}
-	assert.Equal(t, 6, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, false, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -212,7 +212,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.POW),
 		},
 	}
-	assert.Equal(t, 700, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -226,7 +226,7 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.DPOS),
 		},
 	}
-	assert.Equal(t, 900, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 
 	currenHeight = 1000
 	proposalHeight = 100
@@ -248,5 +248,57 @@ func TestCustomID_GetConfirmCount(t *testing.T) {
 			Mode:          byte(state.DPOS),
 		},
 	}
-	assert.Equal(t, 900, int(getConfirmCount(currenHeight, proposalHeight, revertInfo)))
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
+
+	currenHeight = 1000
+	proposalHeight = 100
+	revertInfo = []RevertInfo{
+		{
+			WorkingHeight: 10,
+			Mode:          byte(state.POW),
+		},
+		{
+			WorkingHeight: 20,
+			Mode:          byte(state.DPOS),
+		},
+		{
+			WorkingHeight: 30,
+			Mode:          byte(state.POW),
+		},
+		{
+			WorkingHeight: 110,
+			Mode:          byte(state.DPOS),
+		},
+		{
+			WorkingHeight: 120,
+			Mode:          byte(state.POW),
+		},
+	}
+	assert.Equal(t, true, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
+
+	currenHeight = 1000
+	proposalHeight = 100
+	revertInfo = []RevertInfo{
+		{
+			WorkingHeight: 10,
+			Mode:          byte(state.POW),
+		},
+		{
+			WorkingHeight: 20,
+			Mode:          byte(state.DPOS),
+		},
+		{
+			WorkingHeight: 30,
+			Mode:          byte(state.POW),
+		},
+		{
+			WorkingHeight: 110,
+			Mode:          byte(state.DPOS),
+		},
+		{
+			WorkingHeight: 115,
+			Mode:          byte(state.POW),
+		},
+	}
+	assert.Equal(t, false, isProposalConfirmed(currenHeight, proposalHeight, revertInfo))
 }

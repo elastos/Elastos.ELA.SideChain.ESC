@@ -1723,7 +1723,10 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 		if !bc.cacheConfig.TrieCleanNoPrefetch {
 			if followup, err := it.peek(); followup != nil && err == nil {
 				go func(start time.Time) {
-					throwaway, _ := state.New(parent.Root, bc.stateCache)
+					throwaway, errmsg := state.New(parent.Root, bc.stateCache)
+					if errmsg != nil {
+						log.Error("state new db error", "root", parent.Root.String(), "err", errmsg)
+					}
 					bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, &followupInterrupt)
 
 					blockPrefetchExecuteTimer.Update(time.Since(start))
@@ -1857,7 +1860,8 @@ func (bc *BlockChain) OnSyncHeader(header *types.Header) {
 			producer := common.Hex2Bytes(v)
 			copy(producers[i][:], producer[:])
 		}
-		go events.Notify(events.ETDirectPeersChanged, producers)
+		go events.Notify(events.ETDirectPeersChangedV2,
+			&peer.PeersInfo{CurrentPeers: producers, NextPeers: []peer.PID{}})
 	}
 	if height >= cfg.PBFTBlock.Uint64() && bc.engine != bc.pbftEngine {
 		bc.engineChange.Send(EngineChangeEvent{})

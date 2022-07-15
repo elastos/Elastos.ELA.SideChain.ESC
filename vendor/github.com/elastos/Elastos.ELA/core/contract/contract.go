@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package contract
 
@@ -17,6 +17,7 @@ const (
 	PrefixCrossChain PrefixType = 0x4B
 	PrefixDeposit    PrefixType = 0x1F
 	PrefixCRDID      PrefixType = 0x67
+	PrefixDPoSV2     PrefixType = 0x3f
 )
 
 // Contract include the redeem script and hash prefix

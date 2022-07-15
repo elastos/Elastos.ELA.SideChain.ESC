@@ -186,15 +186,16 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 	if account != nil {
 		accpubkey = account.PublicKeyBytes()
 		network, err := dpos.NewNetwork(&dpos.NetworkConfig{
-			IPAddress:      cfg.IPAddress,
-			Magic:          cfg.Magic,
-			DefaultPort:    cfg.DPoSPort,
-			Account:        account,
-			MedianTime:     medianTimeSouce,
-			MaxNodePerHost: cfg.MaxNodePerHost,
-			Listener:       pbft,
-			DataPath:       dposPath,
-			PublicKey:      accpubkey,
+			IPAddress:        cfg.IPAddress,
+			Magic:            cfg.Magic,
+			DefaultPort:      cfg.DPoSPort,
+			Account:          account,
+			MedianTime:       medianTimeSouce,
+			MaxNodePerHost:   cfg.MaxNodePerHost,
+			Listener:         pbft,
+			DataPath:         dposPath,
+			PublicKey:        accpubkey,
+			GetCurrentHeight: pbft.GetMainChainHeight,
 			AnnounceAddr: func() {
 				events.Notify(dpos.ETAnnounceAddr, nil)
 			},
@@ -211,11 +212,16 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 	return pbft
 }
 
+func (p *Pbft) GetMainChainHeight(pid peer.PID) uint64 {
+	return spv.GetSpvHeight()
+}
+
 func (p *Pbft) subscribeEvent() {
 	events.Subscribe(func(e *events.Event) {
 		switch e.Type {
-		case events.ETDirectPeersChanged:
-			go p.network.UpdatePeers(e.Data.([]peer.PID))
+		case events.ETDirectPeersChangedV2:
+			peersInfo := e.Data.(*peer.PeersInfo)
+			go p.network.UpdatePeers(peersInfo.CurrentPeers, peersInfo.NextPeers)
 		case dpos.ETNewPeer:
 			count := len(p.network.GetActivePeers())
 			log.Info("new peer accept", "active peer count", count)
