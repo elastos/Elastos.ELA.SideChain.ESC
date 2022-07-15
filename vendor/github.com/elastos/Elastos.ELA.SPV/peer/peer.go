@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
+	"github.com/elastos/Elastos.ELA.SPV/interface/iutil"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 
 	"github.com/elastos/Elastos.ELA/common"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/p2p"
 	"github.com/elastos/Elastos.ELA/p2p/msg"
 	"github.com/elastos/Elastos.ELA/p2p/peer"
@@ -139,7 +141,7 @@ out:
 
 			case *msg.Tx:
 				// Remove received transaction from expected response map.
-				delete(pendingResponses, m.Serializable.(util.Transaction).Hash().String())
+				delete(pendingResponses, m.Serializable.(it.Transaction).Hash().String())
 
 			case *msg.NotFound:
 				// Remove received transaction from expected response map.
@@ -263,13 +265,17 @@ out:
 
 			case *msg.Tx:
 				// Not in block downloading mode, just notify new transaction.
-				tx := m.Serializable.(util.Transaction)
+				itx, ok := m.Serializable.(it.Transaction)
+				if !ok {
+					continue
+				}
+				utx := iutil.NewTx(itx)
 				if header == nil {
-					p.cfg.OnTx(p, tx)
+					p.cfg.OnTx(p, utx)
 					continue
 				}
 
-				txId := tx.Hash()
+				txId := utx.Hash()
 
 				// When downloading block, received transactions can only by
 				// those within the block.
@@ -280,7 +286,7 @@ out:
 				}
 
 				// Save downloaded transaction to cache.
-				txs = append(txs, tx)
+				txs = append(txs, utx)
 
 				// Remove transaction from pending list.
 				delete(pendingTxs, txId)

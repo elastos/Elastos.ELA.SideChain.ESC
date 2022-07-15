@@ -4,13 +4,14 @@ import (
 	"bytes"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
+
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	eevent "github.com/elastos/Elastos.ELA.SideChain.ESC/core/events"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dpos"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 
-	"github.com/elastos/Elastos.ELA/core/types"
+	"github.com/elastos/Elastos.ELA/core/transaction"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/p2p/peer"
 	"github.com/elastos/Elastos.ELA/events"
@@ -107,24 +108,24 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 
 func IsNexturnBlock(block interface{}) bool {
 	b := block.(*util.Block)
-	var tx types.Transaction
+	var tx transaction.BaseTransaction
 	for _, t := range b.Transactions {
 		buf := new(bytes.Buffer)
 		t.Serialize(buf)
 		r := bytes.NewReader(buf.Bytes())
-		tx = types.Transaction{}
+		tx = transaction.BaseTransaction{}
 		tx.Deserialize(r)
-		if tx.TxType == types.NextTurnDPOSInfo {
+		if tx.IsNextTurnDPOSInfoTx() {
 			break
 		}
 	}
 
-	if tx.TxType != types.NextTurnDPOSInfo {
+	if !tx.IsNextTurnDPOSInfoTx() {
 		log.Info("received not next turn block", "height", b.Height)
 		return false
 	}
 
-	payloadData := tx.Payload.(*payload.NextTurnDPOSInfo)
+	payloadData := tx.Payload().(*payload.NextTurnDPOSInfo)
 
 	if IsOnlyCRConsensus {
 		payloadData.DPOSPublicKeys = make([][]byte, 0)

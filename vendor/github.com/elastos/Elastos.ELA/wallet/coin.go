@@ -1,20 +1,20 @@
 // Copyright (c) 2017-2020 The Elastos Foundation
 // Use of this source code is governed by an MIT
 // license that can be found in the LICENSE file.
-// 
+//
 
 package wallet
 
 import (
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
 	"io"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
 )
 
 type Coin struct {
-	TxVersion types.TransactionVersion
-	Output    *types.Output
+	TxVersion common2.TransactionVersion
+	Output    *common2.Output
 	Height    uint32
 }
 
@@ -34,9 +34,9 @@ func (coin *Coin) Deserialize(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	coin.TxVersion = types.TransactionVersion(txVersion)
-	coin.Output = new(types.Output)
-	if err := coin.Output.Deserialize(r, types.TransactionVersion(txVersion)); err != nil {
+	coin.TxVersion = common2.TransactionVersion(txVersion)
+	coin.Output = new(common2.Output)
+	if err := coin.Output.Deserialize(r, common2.TransactionVersion(txVersion)); err != nil {
 		return err
 	}
 

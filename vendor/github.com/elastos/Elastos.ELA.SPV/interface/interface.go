@@ -6,7 +6,8 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
-	"github.com/elastos/Elastos.ELA/core/types"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 )
 
 // SPV service config
@@ -60,13 +61,13 @@ type SPVService interface {
 
 	// To verify if a transaction is valid
 	// This method is useful when receive a transaction from other peer
-	VerifyTransaction(bloom.MerkleProof, types.Transaction) error
+	VerifyTransaction(bloom.MerkleProof, it.Transaction) error
 
 	// Send a transaction to the P2P network
-	SendTransaction(types.Transaction) error
+	SendTransaction(it.Transaction) error
 
 	// GetTransaction query a transaction by it's hash.
-	GetTransaction(txId *common.Uint256) (*types.Transaction, error)
+	GetTransaction(txId *common.Uint256) (it.Transaction, error)
 
 	// GetTransactionIds query all transaction hashes on the given block height.
 	GetTransactionIds(height uint32) ([]*common.Uint256, error)
@@ -128,7 +129,7 @@ type TransactionListener interface {
 	Address() string
 
 	// Type() indicates which transaction type this listener are interested
-	Type() types.TxType
+	Type() elacommon.TxType
 
 	// Flags control the notification actions by the given flag
 	Flags() uint64
@@ -136,7 +137,7 @@ type TransactionListener interface {
 	// Notify() is the method to callback the received transaction
 	// with the merkle tree proof to verify it, the notifyId is key of this
 	// notify message and it must be submitted with the receipt together.
-	Notify(notifyId common.Uint256, proof bloom.MerkleProof, tx types.Transaction)
+	Notify(notifyId common.Uint256, proof bloom.MerkleProof, tx it.Transaction)
 }
 
 /*
@@ -145,15 +146,15 @@ to receive revert related transactions notifications.
 */
 type RevertListener interface {
 	// NotifyRevertToPow is the method to callback when received RevertToPow transaction.
-	NotifyRevertToPow(tx types.Transaction)
+	NotifyRevertToPow(tx it.Transaction)
 
 	// NotifyRevertToPow is the method to callback when received RevertToDPOS transaction.
-	NotifyRevertToDPOS(tx types.Transaction)
+	NotifyRevertToDPOS(tx it.Transaction)
 
-	NotifyRollbackRevertToPow(tx types.Transaction)
+	NotifyRollbackRevertToPow(tx it.Transaction)
 
 	// NotifyRollbackRevertToDPOS is the method to callback when rolled back RevertToDPOS transaction.
-	NotifyRollbackRevertToDPOS(tx types.Transaction)
+	NotifyRollbackRevertToDPOS(tx it.Transaction)
 }
 
 /*

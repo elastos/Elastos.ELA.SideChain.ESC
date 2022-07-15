@@ -15,6 +15,7 @@ const (
 	MethodNotFound        ErrorCode = -32601
 	InvalidParams         ErrorCode = -32602
 	InternalError         ErrorCode = -32603
+	InvalidMethod         ErrorCode = -32604
 	ParseError            ErrorCode = -32700
 )
 
@@ -22,6 +23,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	InvalidParams:         "Invalid Params",
 	InvalidTransaction:    "Invalid transaction",
 	InvalidAsset:          "Invalid asset",
+	InvalidMethod:         "Invalid Method",
 	UnknownTransaction:    "Unknown Transaction",
 	UnknownAsset:          "Unknown asset",
 	UnknownBlock:          "Unknown Block",

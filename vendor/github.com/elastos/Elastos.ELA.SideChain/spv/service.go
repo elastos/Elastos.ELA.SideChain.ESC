@@ -3,14 +3,15 @@ package spv
 import (
 	"bytes"
 	"errors"
-
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
-	ela "github.com/elastos/Elastos.ELA/core/types"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	elapayload "github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 )
@@ -30,6 +31,8 @@ type Config struct {
 
 	//FilterType is the filter type .(FTBloom, FTDPOS  and so on )
 	FilterType uint8
+
+	NodeVersion string
 }
 
 type Service struct {
@@ -44,6 +47,7 @@ func NewService(cfg *Config) (*Service, error) {
 		PermanentPeers: cfg.PermanentPeers,
 		OnRollback:     nil, // Not implemented yet
 		FilterType:     cfg.FilterType,
+		NodeVersion:    cfg.NodeVersion,
 	}
 
 	service, err := spv.NewSPVService(&spvCfg)
@@ -80,7 +84,6 @@ func (s *Service) VerifyTransaction(tx *types.Transaction) error {
 	case types.RechargeToSideChainPayloadVersion0:
 
 		proof := new(bloom.MerkleProof)
-		mainChainTransaction := new(ela.Transaction)
 
 		reader := bytes.NewReader(payload.MerkleProof)
 		if err := proof.Deserialize(reader); err != nil {
@@ -88,11 +91,16 @@ func (s *Service) VerifyTransaction(tx *types.Transaction) error {
 		}
 
 		reader = bytes.NewReader(payload.MainChainTransaction)
+		mainChainTransaction, err := functions.GetTransactionByBytes(reader)
+		if err != nil {
+			return err
+		}
+
 		if err := mainChainTransaction.Deserialize(reader); err != nil {
 			return errors.New("[VerifyTransaction] RechargeToSideChain mainChainTransaction deserialize failed")
 		}
 
-		if err := s.SPVService.VerifyTransaction(*proof, *mainChainTransaction); err != nil {
+		if err := s.SPVService.VerifyTransaction(*proof, mainChainTransaction); err != nil {
 			return errors.New("[VerifyTransaction] SPV module verify transaction failed.")
 		}
 
@@ -110,8 +118,8 @@ func (s *Service) VerifyTransaction(tx *types.Transaction) error {
 	return nil
 }
 
-func (s *Service) CheckCRCArbiterSignatureV0(sideChainPowTx *ela.Transaction) error {
-	payload, ok := sideChainPowTx.Payload.(*elapayload.SideChainPow)
+func (s *Service) CheckCRCArbiterSignatureV0(sideChainPowTx it.Transaction) error {
+	payload, ok := sideChainPowTx.Payload().(*elapayload.SideChainPow)
 	if !ok {
 		return errors.New("[checkCRCArbiterSignature], invalid sideChainPow tx")
 	}
@@ -132,11 +140,11 @@ func (s *Service) CheckCRCArbiterSignatureV0(sideChainPowTx *ela.Transaction) er
 			return nil
 		}
 	}
-	return errors.New("CRC arbiter expected")
+	return errors.New("CRC arbiter expected.")
 }
 
-func (s *Service) CheckCRCArbiterSignatureV1(height uint32, sideChainPowTx *ela.Transaction) error {
-	payload, ok := sideChainPowTx.Payload.(*elapayload.SideChainPow)
+func (s *Service) CheckCRCArbiterSignatureV1(height uint32, sideChainPowTx it.Transaction) error {
+	payload, ok := sideChainPowTx.Payload().(*elapayload.SideChainPow)
 	if !ok {
 		return errors.New("[checkCRCArbiterSignature], invalid sideChainPow tx")
 	}
@@ -146,6 +154,9 @@ func (s *Service) CheckCRCArbiterSignatureV1(height uint32, sideChainPowTx *ela.
 		return err
 	}
 	for _, v := range crcArbiters {
+		if len(v) == 0 {
+			continue
+		}
 		pubKey, err := crypto.DecodePoint(v)
 		if err != nil {
 			return err
@@ -170,15 +181,15 @@ func (l *listener) Address() string {
 	return l.address
 }
 
-func (l *listener) Type() ela.TxType {
-	return ela.TransferCrossChainAsset
+func (l *listener) Type() elacommon.TxType {
+	return elacommon.TransferCrossChainAsset
 }
 
 func (l *listener) Flags() uint64 {
 	return spv.FlagNotifyInSyncing
 }
 
-func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx ela.Transaction) {
+func (l *listener) Notify(id common.Uint256, proof bloom.MerkleProof, tx it.Transaction) {
 	l.service.SubmitTransactionReceipt(id, tx.Hash())
 }
 

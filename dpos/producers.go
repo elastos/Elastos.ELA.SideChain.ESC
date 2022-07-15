@@ -104,6 +104,30 @@ func (p *Producers) GetNeedConnectArbiters() []peer.PID {
 	return pids
 }
 
+func (p *Producers) getCurrentNeedConnectArbiters() []peer.PID {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	pids := make([]peer.PID, 0)
+	for _, producer := range p.producers {
+		var pid peer.PID
+		copy(pid[:], producer)
+		pids = append(pids, pid)
+	}
+	return pids
+}
+
+func (p *Producers) GetNextNeedConnectArbiters() []peer.PID {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	pids := make([]peer.PID, 0)
+	for _, producer := range p.nextProducers {
+		var pid peer.PID
+		copy(pid[:], producer[:])
+		pids = append(pids, pid)
+	}
+	return pids
+}
+
 func (p *Producers) UpdateDutyIndex(height uint64) uint32 {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()

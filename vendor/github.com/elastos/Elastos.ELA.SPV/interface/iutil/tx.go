@@ -3,13 +3,13 @@ package iutil
 import (
 	"github.com/elastos/Elastos.ELA.SPV/util"
 
-	"github.com/elastos/Elastos.ELA/core/types"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 )
 
 var _ util.Transaction = (*Tx)(nil)
 
 type Tx struct {
-	*types.Transaction
+	it.Transaction
 }
 
 func (tx *Tx) MatchFilter(bf util.Filter) bool {
@@ -18,7 +18,7 @@ func (tx *Tx) MatchFilter(bf util.Filter) bool {
 	hash := tx.Hash()
 	matched := bf.Matches(hash[:])
 
-	for i, txOut := range tx.Outputs {
+	for i, txOut := range tx.Outputs() {
 		if !bf.Matches(txOut.ProgramHash[:]) {
 			continue
 		}
@@ -36,7 +36,7 @@ func (tx *Tx) MatchFilter(bf util.Filter) bool {
 	// public key scripts of its outputs matched.
 
 	// Check if the filter matches any outpoints this tx spends
-	for _, txIn := range tx.Inputs {
+	for _, txIn := range tx.Inputs() {
 		op := txIn.Previous
 		if bf.Matches(util.NewOutPoint(op.TxID, op.Index).Bytes()) {
 			return true
@@ -46,6 +46,6 @@ func (tx *Tx) MatchFilter(bf util.Filter) bool {
 	return false
 }
 
-func NewTx(tx *types.Transaction) *Tx {
+func NewTx(tx it.Transaction) *Tx {
 	return &Tx{tx}
 }

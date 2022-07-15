@@ -7,7 +7,6 @@ import (
 	"errors"
 	"sort"
 	"sync"
-	"fmt"
 
 	"github.com/elastos/Elastos.ELA/common"
 
@@ -139,7 +138,6 @@ func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]
 	for i := uint8(0); i < crcCount; i++ {
 		cr, err := common.ReadVarBytes(r, 33, "public key")
 		if err != nil {
-			fmt.Println("read public key error 1111", "error", err)
 			return nil, nil, err
 		}
 		crcArbiters = append(crcArbiters, cr)
@@ -151,7 +149,6 @@ func (c *arbiters) get(height uint32) (crcArbiters [][]byte, normalArbiters [][]
 	for i := uint8(0); i < normalCount; i++ {
 		producer, err := common.ReadVarBytes(r, 33, "public key")
 		if err != nil {
-			fmt.Println("read public key error 22222 ", "error", err)
 			return nil, nil, err
 		}
 		normalArbiters = append(normalArbiters, producer)
@@ -171,7 +168,6 @@ func (c *arbiters) GetByHeight(height uint32) (crcArbiters [][]byte, normalArbit
 	}
 	slot, err := findSlot(pos, height, c.arbitersCount)
 	if err != nil {
-		fmt.Println("find Slot error", "error", err)
 		return nil, nil, err
 	}
 	if slot == 0 {
@@ -379,7 +375,7 @@ func (c *arbiters) GetRevertInfo() []RevertInfo {
 	if len(c.revertPOSCache) == 0 {
 		var err error
 		pos, err = c.getCurrentRevertPositions()
-		if err!= nil && err != leveldb.ErrNotFound {
+		if err != nil && err != leveldb.ErrNotFound {
 			return pos
 		}
 		c.revertPOSCache = pos
@@ -397,7 +393,7 @@ func (c *arbiters) GetConsensusAlgorithmByHeight(height uint32) (byte, error) {
 	if len(c.revertPOSCache) == 0 {
 		var err error
 		pos, err = c.getCurrentRevertPositions()
-		if err!= nil && err != leveldb.ErrNotFound {
+		if err != nil && err != leveldb.ErrNotFound {
 			return 0, err
 		}
 		c.revertPOSCache = pos
@@ -426,6 +422,7 @@ func (c *arbiters) BatchPutRevertTransaction(batch *leveldb.Batch, workingHeight
 		isRollback = true
 	}
 	batch.Put(BKTRevertPosition, uint32toBytes(workingHeight))
+
 	if !isRollback {
 		posCache, err := c.getCurrentRevertPositions()
 		if err != nil && err != leveldb.ErrNotFound {

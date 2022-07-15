@@ -6,7 +6,8 @@ import (
 	"sync"
 
 	"github.com/elastos/Elastos.ELA/common"
-	"github.com/elastos/Elastos.ELA/core/types"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/dpos/state"
@@ -389,8 +390,7 @@ func (c *customID) getReservedCustomIDs(height uint32, info []RevertInfo) (map[s
 
 	results := make(map[string]struct{})
 	for k, v := range c.reservedCustomIDs {
-		confirmCount := getConfirmCount(height, v, info)
-		if confirmCount < DefaultConfirmations {
+		if !isProposalConfirmed(height, v, info) {
 			continue
 		}
 		results[k] = struct{}{}
@@ -398,14 +398,13 @@ func (c *customID) getReservedCustomIDs(height uint32, info []RevertInfo) (map[s
 	return results, nil
 }
 
-func getConfirmCount(currentHeight, proposalHeight uint32, info []RevertInfo) uint32 {
+func isProposalConfirmed(currentHeight, proposalHeight uint32, info []RevertInfo) bool {
 	if currentHeight <= proposalHeight {
-		return 0
+		return false
 	}
 
 	var lastMode byte
 	var lastWorkingHeight uint32
-	var confirmCount uint32
 	var reachedTheEnd bool
 	var beganFromStartHeight bool
 	for _, r := range info {
@@ -420,9 +419,15 @@ func getConfirmCount(currentHeight, proposalHeight uint32, info []RevertInfo) ui
 
 			if lastMode == byte(state.DPOS) {
 				if proposalHeight > lastWorkingHeight {
-					confirmCount += calculateHeight - proposalHeight
+					confirmCount := calculateHeight - proposalHeight
+					if confirmCount >= DefaultConfirmations {
+						return true
+					}
 				} else {
-					confirmCount += calculateHeight - lastWorkingHeight
+					confirmCount := calculateHeight - lastWorkingHeight
+					if confirmCount >= DefaultConfirmations {
+						return true
+					}
 				}
 			}
 			beganFromStartHeight = true
@@ -438,13 +443,19 @@ func getConfirmCount(currentHeight, proposalHeight uint32, info []RevertInfo) ui
 
 	if lastMode == byte(state.DPOS) {
 		if !beganFromStartHeight {
-			confirmCount += currentHeight - proposalHeight
+			confirmCount := currentHeight - proposalHeight
+			if confirmCount >= DefaultConfirmations {
+				return true
+			}
 		} else if !reachedTheEnd {
-			confirmCount += currentHeight - lastWorkingHeight
+			confirmCount := currentHeight - lastWorkingHeight
+			if confirmCount >= DefaultConfirmations {
+				return true
+			}
 		}
 	}
 
-	return confirmCount
+	return false
 }
 
 func maxUint32(first, second uint32) uint32 {
@@ -593,8 +604,7 @@ func (c *customID) getReceivedCustomIDs(height uint32, info []RevertInfo) (map[s
 
 	results := make(map[string]common.Uint168)
 	for k, v := range c.receivedCustomIDs {
-		confirmCount := getConfirmCount(height, v.Height, info)
-		if confirmCount < DefaultConfirmations {
+		if !isProposalConfirmed(height, v.Height, info) {
 			continue
 		}
 		results[k] = v.DID
@@ -723,13 +733,13 @@ func (c *customID) RollbackBatch(batch *leveldb.Batch) error {
 	return nil
 }
 
-func (c *customID) BatchPutRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error {
+func (c *customID) BatchPutRetSideChainDepositCoinTx(tx it.Transaction, batch *leveldb.Batch) error {
 	c.Lock()
 	defer c.Unlock()
-	for _, output := range tx.Outputs {
+	for _, output := range tx.Outputs() {
 
 		//if this output is not OTReturnSideChainDepositCoin
-		if output.Type != types.OTReturnSideChainDepositCoin {
+		if output.Type != elacommon.OTReturnSideChainDepositCoin {
 			continue
 		}
 		outputPayload, ok := output.Payload.(*outputpayload.ReturnSideChainDeposit)
@@ -745,12 +755,12 @@ func (c *customID) BatchPutRetSideChainDepositCoinTx(tx *types.Transaction, batc
 	return nil
 }
 
-func (c *customID) BatchDeleteRetSideChainDepositCoinTx(tx *types.Transaction, batch *leveldb.Batch) error {
+func (c *customID) BatchDeleteRetSideChainDepositCoinTx(tx it.Transaction, batch *leveldb.Batch) error {
 	c.Lock()
 	defer c.Unlock()
-	for _, output := range tx.Outputs {
+	for _, output := range tx.Outputs() {
 		//if this output is not OTReturnSideChainDepositCoin
-		if output.Type != types.OTReturnSideChainDepositCoin {
+		if output.Type != elacommon.OTReturnSideChainDepositCoin {
 			continue
 		}
 		outputPayload, ok := output.Payload.(*outputpayload.ReturnSideChainDeposit)

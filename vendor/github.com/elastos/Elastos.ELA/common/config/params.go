@@ -14,6 +14,9 @@ import (
 	"github.com/elastos/Elastos.ELA/core/checkpoint"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
 	"github.com/elastos/Elastos.ELA/core/types"
+	common2 "github.com/elastos/Elastos.ELA/core/types/common"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
+	"github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 )
@@ -24,28 +27,9 @@ var (
 	// zeroHash represents a hash with all '0' value.
 	zeroHash = common.Uint256{}
 
-	// elaAsset is the transaction that create and register the ELA coin.
-	elaAsset = types.Transaction{
-		TxType:         types.RegisterAsset,
-		PayloadVersion: 0,
-		Payload: &payload.RegisterAsset{
-			Asset: payload.Asset{
-				Name:      "ELA",
-				Precision: ELAPrecision,
-				AssetType: 0x00,
-			},
-			Amount:     0 * 100000000,
-			Controller: common.Uint168{},
-		},
-		Attributes: []*types.Attribute{},
-		Inputs:     []*types.Input{},
-		Outputs:    []*types.Output{},
-		Programs:   []*program.Program{},
-	}
-
 	// attrNonce represents the nonce attribute used in the genesis coinbase
 	// transaction.
-	attrNonce = types.NewAttribute(types.Nonce,
+	attrNonce = common2.NewAttribute(common2.Nonce,
 		[]byte{77, 101, 130, 33, 7, 252, 253, 82})
 
 	// genesisTime indicates the time when ELA genesis block created.
@@ -107,7 +91,13 @@ var (
 	}
 
 	// ELAAssetID represents the asset ID of ELA coin.
-	ELAAssetID = elaAsset.Hash()
+	ELAAssetID = common.Uint256{
+		0xb0, 0x37, 0xdb, 0x96, 0x4a, 0x23, 0x14,
+		0x58, 0xd2, 0xd6, 0xff, 0xd5, 0xea, 0x18,
+		0x94, 0x4c, 0x4f, 0x90, 0xe6, 0x3d, 0x54,
+		0x7c, 0x5d, 0x3b, 0x98, 0x74, 0xdf, 0x66,
+		0xa4, 0xea, 0xd0, 0xa3,
+	}
 
 	// ELAPrecision represents the precision of ELA coin.
 	ELAPrecision = byte(0x08)
@@ -127,134 +117,158 @@ var (
 		0x54, 0x2d, 0x26, 0x1a, 0x8d, 0x22, 0x7f,
 		0xe0, 0xf5, 0xee, 0x2c, 0x4e, 0xd2, 0xd3,
 	}
+
+	// Dpos V2 reward accumulate address
+	DposV2RewardAccumulateAddress = common.Uint168{
+		0x21, 0xF9, 0x3D, 0x20, 0x65, 0x24, 0xBF,
+		0xDD, 0x21, 0xCD, 0x6D, 0xA3, 0xB1, 0x14,
+		0x15, 0xFF, 0x8A, 0x27, 0xF5, 0x60, 0xE8,
+	}
 )
 
 // DefaultParams defines the default network parameters.
-var DefaultParams = Params{
-	Magic:       2017001,
-	DefaultPort: 20338,
+var DefaultParams = Params{}
 
-	DNSSeeds: []string{
-		"node-mainnet-005.elastos.org:20338",
-		"node-mainnet-010.elastos.org:20338",
-		"node-mainnet-015.elastos.org:20338",
-		"node-mainnet-020.elastos.org:20338",
-		"node-mainnet-025.elastos.org:20338",
-	},
+func GetDefaultParams() Params {
 
-	Foundation:        mainNetFoundation,
-	CRCAddress:        mainNetCRCAddress,
-	CRAssetsAddress:   CRAssetsAddress,
-	CRExpensesAddress: CRCExpensesAddress,
-	DestroyELAAddress: DestroyELAAddress,
-	GenesisBlock:      GenesisBlock(&mainNetFoundation),
+	// DefaultParams defines the default network parameters.
+	return Params{
+		Magic:       2017001,
+		DefaultPort: 20338,
 
-	DPoSMagic:       2019000,
-	DPoSDefaultPort: 20339,
-	OriginArbiters: []string{
-		"0248df6705a909432be041e0baa25b8f648741018f70d1911f2ed28778db4b8fe4",
-		"02771faf0f4d4235744b30972d5f2c470993920846c761e4d08889ecfdc061cddf",
-		"0342196610e57d75ba3afa26e030092020aec56822104e465cba1d8f69f8d83c8e",
-		"02fa3e0d14e0e93ca41c3c0f008679e417cf2adb6375dd4bbbee9ed8e8db606a56",
-		"03ab3ecd1148b018d480224520917c6c3663a3631f198e3b25cf4c9c76786b7850",
-	},
-	CRCArbiters: []string{
-		"02089d7e878171240ce0e3633d3ddc8b1128bc221f6b5f0d1551caa717c7493062",
-		"0268214956b8421c0621d62cf2f0b20a02c2dc8c2cc89528aff9bd43b45ed34b9f",
-		"03cce325c55057d2c8e3fb03fb5871794e73b85821e8d0f96a7e4510b4a922fad5",
-		"02661637ae97c3af0580e1954ee80a7323973b256ca862cfcf01b4a18432670db4",
-		"027d816821705e425415eb64a9704f25b4cd7eaca79616b0881fc92ac44ff8a46b",
-		"02d4a8f5016ae22b1acdf8a2d72f6eb712932213804efd2ce30ca8d0b9b4295ac5",
-		"029a4d8e4c99a1199f67a25d79724e14f8e6992a0c8b8acf102682bd8f500ce0c1",
-		"02871b650700137defc5d34a11e56a4187f43e74bb078e147dd4048b8f3c81209f",
-		"02fc66cba365f9957bcb2030e89a57fb3019c57ea057978756c1d46d40dfdd4df0",
-		"03e3fe6124a4ea269224f5f43552250d627b4133cfd49d1f9e0283d0cd2fd209bc",
-		"02b95b000f087a97e988c24331bf6769b4a75e4b7d5d2a38105092a3aa841be33b",
-		"02a0aa9eac0e168f3474c2a0d04e50130833905740a5270e8a44d6c6e85cf6d98c",
-	},
-	SecretaryGeneral:            "02712da531804d1c38d159a901313239d2100dfb5b693d71a2f76b15dec3f8fc32",
-	MaxProposalTrackingCount:    128,
-	PowLimit:                    powLimit,
-	PowLimitBits:                0x1f0008ff,
-	TargetTimespan:              24 * time.Hour,  // 24 hours
-	TargetTimePerBlock:          2 * time.Minute, // 2 minute
-	AdjustmentFactor:            4,               // 25% less, 400% more
-	RewardPerBlock:              rewardPerBlock(2 * time.Minute),
-	CoinbaseMaturity:            100,
-	MinTransactionFee:           100,
-	MinCrossChainTxFee:          10000,
-	CheckAddressHeight:          88812,
-	VoteStartHeight:             290000,
-	CRCOnlyDPOSHeight:           343400,
-	PublicDPOSHeight:            402680,
-	EnableActivateIllegalHeight: 439000,
-	CRVotingStartHeight:         537670,
-	CRCommitteeStartHeight:      658930,
-	CRClaimDPOSNodeStartHeight:  751400,
-	CRClaimDPOSNodePeriod:       720 * 14,
-	CheckRewardHeight:           436812,
-	VoteStatisticsHeight:        512881,
-	RegisterCRByDIDHeight:       598000,
-	//todo
-	ProhibitTransferToDIDHeight: 0,
-	DIDSideChainAddress:         "XKUh4GLhFJiqAMTF6HyWQrV9pK9HcGUdfJ",
-	ToleranceDuration:           5 * time.Second,
-	MaxInactiveRounds:           720 * 2,
-	InactivePenalty:             0, //there will be no penalty in this version
-	IllegalPenalty:              0, //there will be no penalty in this version
-	EmergencyInactivePenalty:    0, //there will be no penalty in this version
-	GeneralArbiters:             24,
-	CandidateArbiters:           72,
-	PreConnectOffset:            360,
-	CRMemberCount:               12,
-	CRVotingPeriod:              30 * 720,
-	CRDutyPeriod:                365 * 720,
-	CRDepositLockupBlocks:       2160,
-	ProposalCRVotingPeriod:      7 * 720,
-	ProposalPublicVotingPeriod:  7 * 720,
-	CRAgreementCount:            8,
-	VoterRejectPercentage:       10,
-	CRCAppropriatePercentage:    10,
-	MaxCommitteeProposalCount:   128,
-	EnableUtxoDB:                true,
-	EnableCORS:                  false,
-	WalletPath:                  "keystore.dat",
-	RPCServiceLevel:             ConfigurationPermitted.String(),
-	NodeProfileStrategy:         Balanced.String(),
-	MaxNodePerHost:              72,
-	CkpManager: checkpoint.NewManager(&checkpoint.Config{
-		EnableHistory:      true,
-		HistoryStartHeight: uint32(0),
-		NeedSave:           true,
-	}),
-	TxCacheVolume:                      100000,
-	CheckVoteCRCountHeight:             658930,
-	MaxCRAssetsAddressUTXOCount:        800,
-	MinCRAssetsAddressUTXOCount:        720,
-	CRAssetsRectifyTransactionHeight:   751400,
-	CRCProposalWithdrawPayloadV1Height: 751400,
-	CRCProposalV1Height:                751400,
-	RectifyTxFee:                       10000,
-	RealWithdrawSingleFee:              10000,
-	NewP2PProtocolVersionHeight:        751400,
-	ChangeCommitteeNewCRHeight:         932530,
-	CustomIDProposalStartHeight:        932530,
-	NoCRCDPOSNodeHeight:                932530,
-	RevertToPOWStartHeight:             932530,
-	RandomCandidatePeriod:              36 * 10,
-	MaxInactiveRoundsOfRandomNode:      36 * 8,
-	MaxReservedCustomIDLength:          255,
-	CRCProposalDraftDataStartHeight:    2000000,
-	DPOSNodeCrossChainHeight:           2000000,
-	RevertToPOWNoBlockTime:             12 * 3600,
-	StopConfirmBlockTime:               11 * 3600,
-	HalvingRewardHeight:                1051200,   // 4 * 365 * 720
-	HalvingRewardInterval:              1051200,   // 4 * 365 * 720
-	NewELAIssuanceHeight:               919800,    // 3.5 * 365 * 720
-	SmallCrossTransferThreshold:        100000000, //TODO reset latter
-	ReturnDepositCoinFee:               100,       //TODO reset latter
-	NewCrossChainStartHeight:           2000000,   // todo complete me
-	ReturnCrossChainCoinStartHeight:    2000000,   // todo complete me
+		DNSSeeds: []string{
+			"node-mainnet-005.elastos.org:20338",
+			"node-mainnet-010.elastos.org:20338",
+			"node-mainnet-015.elastos.org:20338",
+			"node-mainnet-020.elastos.org:20338",
+			"node-mainnet-025.elastos.org:20338",
+		},
+
+		Foundation:        mainNetFoundation,
+		CRCAddress:        mainNetCRCAddress,
+		CRAssetsAddress:   CRAssetsAddress,
+		CRExpensesAddress: CRCExpensesAddress,
+		DestroyELAAddress: DestroyELAAddress,
+		GenesisBlock:      GenesisBlock(&mainNetFoundation),
+
+		DPoSMagic:       2019000,
+		DPoSDefaultPort: 20339,
+		OriginArbiters: []string{
+			"0248df6705a909432be041e0baa25b8f648741018f70d1911f2ed28778db4b8fe4",
+			"02771faf0f4d4235744b30972d5f2c470993920846c761e4d08889ecfdc061cddf",
+			"0342196610e57d75ba3afa26e030092020aec56822104e465cba1d8f69f8d83c8e",
+			"02fa3e0d14e0e93ca41c3c0f008679e417cf2adb6375dd4bbbee9ed8e8db606a56",
+			"03ab3ecd1148b018d480224520917c6c3663a3631f198e3b25cf4c9c76786b7850",
+		},
+		CRCArbiters: []string{
+			"02089d7e878171240ce0e3633d3ddc8b1128bc221f6b5f0d1551caa717c7493062",
+			"0268214956b8421c0621d62cf2f0b20a02c2dc8c2cc89528aff9bd43b45ed34b9f",
+			"03cce325c55057d2c8e3fb03fb5871794e73b85821e8d0f96a7e4510b4a922fad5",
+			"02661637ae97c3af0580e1954ee80a7323973b256ca862cfcf01b4a18432670db4",
+			"027d816821705e425415eb64a9704f25b4cd7eaca79616b0881fc92ac44ff8a46b",
+			"02d4a8f5016ae22b1acdf8a2d72f6eb712932213804efd2ce30ca8d0b9b4295ac5",
+			"029a4d8e4c99a1199f67a25d79724e14f8e6992a0c8b8acf102682bd8f500ce0c1",
+			"02871b650700137defc5d34a11e56a4187f43e74bb078e147dd4048b8f3c81209f",
+			"02fc66cba365f9957bcb2030e89a57fb3019c57ea057978756c1d46d40dfdd4df0",
+			"03e3fe6124a4ea269224f5f43552250d627b4133cfd49d1f9e0283d0cd2fd209bc",
+			"02b95b000f087a97e988c24331bf6769b4a75e4b7d5d2a38105092a3aa841be33b",
+			"02a0aa9eac0e168f3474c2a0d04e50130833905740a5270e8a44d6c6e85cf6d98c",
+		},
+		SecretaryGeneral:            "02712da531804d1c38d159a901313239d2100dfb5b693d71a2f76b15dec3f8fc32",
+		MaxProposalTrackingCount:    128,
+		PowLimit:                    powLimit,
+		PowLimitBits:                0x1f0008ff,
+		TargetTimespan:              24 * time.Hour,  // 24 hours
+		TargetTimePerBlock:          2 * time.Minute, // 2 minute
+		AdjustmentFactor:            4,               // 25% less, 400% more
+		RewardPerBlock:              RewardPerBlock(2 * time.Minute),
+		CoinbaseMaturity:            100,
+		MinTransactionFee:           100,
+		MinCrossChainTxFee:          10000,
+		CheckAddressHeight:          88812,
+		VoteStartHeight:             290000,
+		CRCOnlyDPOSHeight:           343400,
+		PublicDPOSHeight:            402680,
+		EnableActivateIllegalHeight: 439000,
+		CRVotingStartHeight:         537670,
+		CRCommitteeStartHeight:      658930,
+		CRClaimDPOSNodeStartHeight:  751400,
+		CRClaimDPOSNodePeriod:       720 * 14,
+		CheckRewardHeight:           436812,
+		VoteStatisticsHeight:        512881,
+		RegisterCRByDIDHeight:       598000,
+		ToleranceDuration:           5 * time.Second,
+		MaxInactiveRounds:           720 * 2,
+		InactivePenalty:             0, //there will be no penalty in this version
+		IllegalPenalty:              0,
+		DPoSV2IllegalPenalty:        20000000000, // todo complete me
+		EmergencyInactivePenalty:    0,           //there will be no penalty in this version
+		GeneralArbiters:             24,
+		CandidateArbiters:           72,
+		PreConnectOffset:            360,
+		CRMemberCount:               12,
+		CRVotingPeriod:              30 * 720,
+		CRDutyPeriod:                365 * 720,
+		CRDepositLockupBlocks:       2160,
+		ProposalCRVotingPeriod:      7 * 720,
+		ProposalPublicVotingPeriod:  7 * 720,
+		CRAgreementCount:            8,
+		VoterRejectPercentage:       10,
+		CRCAppropriatePercentage:    10,
+		MaxCommitteeProposalCount:   128,
+		EnableUtxoDB:                true,
+		EnableCORS:                  false,
+		WalletPath:                  "keystore.dat",
+		RPCServiceLevel:             ConfigurationPermitted.String(),
+		NodeProfileStrategy:         Balanced.String(),
+		MaxNodePerHost:              72,
+		CkpManager: checkpoint.NewManager(&checkpoint.Config{
+			EnableHistory:      true,
+			HistoryStartHeight: uint32(0),
+			NeedSave:           true,
+		}),
+		TxCacheVolume:                      100000,
+		CheckVoteCRCountHeight:             658930,
+		MaxCRAssetsAddressUTXOCount:        800,
+		MinCRAssetsAddressUTXOCount:        720,
+		CRAssetsRectifyTransactionHeight:   751400,
+		CRCProposalWithdrawPayloadV1Height: 751400,
+		CRCProposalV1Height:                751400,
+		RectifyTxFee:                       10000,
+		RealWithdrawSingleFee:              10000,
+		NewP2PProtocolVersionHeight:        751400,
+		ChangeCommitteeNewCRHeight:         932530,
+		CustomIDProposalStartHeight:        932530,
+		NoCRCDPOSNodeHeight:                932530,
+		RevertToPOWStartHeight:             932530,
+		RandomCandidatePeriod:              36 * 10,
+		MaxInactiveRoundsOfRandomNode:      36 * 8,
+		MaxReservedCustomIDLength:          255,
+		CRCProposalDraftDataStartHeight:    1056600,
+		DPOSNodeCrossChainHeight:           2000000, // todo complete me
+		RevertToPOWNoBlockTime:             12 * 3600,
+		StopConfirmBlockTime:               11 * 3600,
+		HalvingRewardHeight:                1051200, // 4 * 365 * 720
+		HalvingRewardInterval:              1051200, // 4 * 365 * 720
+		NewELAIssuanceHeight:               919800,  // 3.5 * 365 * 720
+		SmallCrossTransferThreshold:        100000000,
+		ReturnDepositCoinFee:               100,
+		NewCrossChainStartHeight:           1032840,
+		ReturnCrossChainCoinStartHeight:    1032840,
+		ProhibitTransferToDIDHeight:        1032840,
+		DIDSideChainAddress:                "XKUh4GLhFJiqAMTF6HyWQrV9pK9HcGUdfJ",
+		DPoSV2StartHeight:                  2000000, // todo complete me
+		DPoSV2EffectiveVotes:               8000000000000,
+		DPoSV2RewardAccumulateAddress:      DposV2RewardAccumulateAddress,
+		StakePool:                          "",      // todo complete me
+		DPoSV2DepositCoinMinLockTime:       7200,    // todo complete me change to 216000
+		DPoSV2MinVotesLockTime:             7200,    // todo complete me
+		DPoSV2MaxVotesLockTime:             720000,  // todo complete me
+		SchnorrStartHeight:                 2000000, // todo complete me
+		CRDPoSNodeHotFixHeight:             0,
+		CrossChainMonitorStartHeight:       2000000, // todo complete me
+		CrossChainMonitorInterval:          100,     // todo complete me
+	}
 }
 
 // TestNet returns the network parameters for the test network.
@@ -316,9 +330,6 @@ func (p *Params) TestNet() *Params {
 	copy.CheckRewardHeight = 100
 	copy.VoteStatisticsHeight = 0
 	copy.RegisterCRByDIDHeight = 483500
-	//todo
-	copy.ProhibitTransferToDIDHeight = 0
-	copy.DIDSideChainAddress = "XKUh4GLhFJiqAMTF6HyWQrV9pK9HcGUdfJ"
 	copy.EnableUtxoDB = true
 	copy.EnableCORS = false
 	copy.VoterRejectPercentage = 10
@@ -328,25 +339,40 @@ func (p *Params) TestNet() *Params {
 	copy.CheckVoteCRCountHeight = 546500
 	copy.MaxCRAssetsAddressUTXOCount = 800
 	copy.ChangeCommitteeNewCRHeight = 815060
-	copy.CRCProposalDraftDataStartHeight = 2000000
 	copy.CustomIDProposalStartHeight = 815060
 	copy.InactivePenalty = 0
 	copy.IllegalPenalty = 0
+	copy.DPoSV2IllegalPenalty = 20000000000 // todo complete me
 	copy.NoCRCDPOSNodeHeight = 815060
 	copy.RandomCandidatePeriod = 36 * 10
 	copy.MaxInactiveRoundsOfRandomNode = 36 * 8
-	copy.DPOSNodeCrossChainHeight = 2000000
+	copy.DPOSNodeCrossChainHeight = 2000000 // todo complete me
 	copy.MaxReservedCustomIDLength = 255
 	copy.RevertToPOWNoBlockTime = 12 * 3600
 	copy.StopConfirmBlockTime = 11 * 3600
 	copy.RevertToPOWStartHeight = 815060
-	copy.HalvingRewardHeight = 877880              //767000 + 154 * 720
-	copy.HalvingRewardInterval = 1051200           //4 * 365 * 720
-	copy.NewELAIssuanceHeight = 774920             //767000 + 720 * 11
-	copy.SmallCrossTransferThreshold = 100000000   //TODO reset latter
-	copy.ReturnDepositCoinFee = 100                //TODO reset latter
-	copy.NewCrossChainStartHeight = 2000000        // todo complete me
-	copy.ReturnCrossChainCoinStartHeight = 2000000 // todo complete me
+	copy.HalvingRewardHeight = 877880    //767000 + 154 * 720
+	copy.HalvingRewardInterval = 1051200 //4 * 365 * 720
+	copy.NewELAIssuanceHeight = 774920   //767000 + 720 * 11
+	copy.SmallCrossTransferThreshold = 100000000
+	copy.ReturnDepositCoinFee = 100
+	copy.NewCrossChainStartHeight = 807000
+	copy.ReturnCrossChainCoinStartHeight = 807000
+	copy.CRCProposalDraftDataStartHeight = 807000
+	copy.ProhibitTransferToDIDHeight = 807000
+	copy.DIDSideChainAddress = "XKUh4GLhFJiqAMTF6HyWQrV9pK9HcGUdfJ"
+	copy.DPoSV2StartHeight = 2000000 // todo complete me
+	copy.DPoSV2EffectiveVotes = 8000000000000
+	copy.DPoSV2RewardAccumulateAddress = DposV2RewardAccumulateAddress
+	copy.StakePool = ""                      // todo complete me
+	copy.DPoSV2DepositCoinMinLockTime = 7200 // todo complete me change to 216000
+	copy.DPoSV2MinVotesLockTime = 7200       // todo complete me
+	copy.DPoSV2MaxVotesLockTime = 720000     // todo complete me
+	copy.RealWithdrawSingleFee = 10000
+	copy.SchnorrStartHeight = 2000000 // todo complete me
+	copy.CRDPoSNodeHotFixHeight = 0
+	copy.CrossChainMonitorStartHeight = 2000000 // todo complete me
+	copy.CrossChainMonitorInterval = 10         // todo complete me
 
 	return &copy
 }
@@ -410,9 +436,6 @@ func (p *Params) RegNet() *Params {
 	copy.CheckRewardHeight = 280000
 	copy.VoteStatisticsHeight = 0
 	copy.RegisterCRByDIDHeight = 393000
-	//todo
-	copy.ProhibitTransferToDIDHeight = 0
-	copy.DIDSideChainAddress = "XKUh4GLhFJiqAMTF6HyWQrV9pK9HcGUdfJ"
 
 	copy.EnableUtxoDB = true
 	copy.EnableCORS = false
@@ -423,9 +446,9 @@ func (p *Params) RegNet() *Params {
 	copy.CheckVoteCRCountHeight = 435000
 	copy.MaxCRAssetsAddressUTXOCount = 1440
 	copy.ChangeCommitteeNewCRHeight = 706240
-	copy.CRCProposalDraftDataStartHeight = 2000000
 	copy.CustomIDProposalStartHeight = 706240
 	copy.IllegalPenalty = 0
+	copy.DPoSV2IllegalPenalty = 20000000000 // todo complete me
 	copy.InactivePenalty = 0
 	copy.NoCRCDPOSNodeHeight = 706240
 	copy.RandomCandidatePeriod = 36 * 10
@@ -435,13 +458,28 @@ func (p *Params) RegNet() *Params {
 	copy.RevertToPOWNoBlockTime = 12 * 3600
 	copy.StopConfirmBlockTime = 11 * 3600
 	copy.RevertToPOWStartHeight = 706240
-	copy.HalvingRewardHeight = 801240              //690360 + 154 * 720
-	copy.HalvingRewardInterval = 1051200           //4 * 365 * 720
-	copy.NewELAIssuanceHeight = 691740             //690300 + 720 * 2
-	copy.SmallCrossTransferThreshold = 100000000   //TODO reset latter
-	copy.ReturnDepositCoinFee = 100                //TODO reset latter
-	copy.NewCrossChainStartHeight = 2000000        // todo complete me
-	copy.ReturnCrossChainCoinStartHeight = 2000000 // todo complete me
+	copy.HalvingRewardHeight = 801240    //690360 + 154 * 720
+	copy.HalvingRewardInterval = 1051200 //4 * 365 * 720
+	copy.NewELAIssuanceHeight = 691740   //690300 + 720 * 2
+	copy.SmallCrossTransferThreshold = 100000000
+	copy.ReturnDepositCoinFee = 100
+	copy.NewCrossChainStartHeight = 730000
+	copy.ReturnCrossChainCoinStartHeight = 730000
+	copy.CRCProposalDraftDataStartHeight = 730000
+	copy.ProhibitTransferToDIDHeight = 730000
+	copy.DIDSideChainAddress = "XKUh4GLhFJiqAMTF6HyWQrV9pK9HcGUdfJ"
+	copy.DPoSV2StartHeight = 2000000
+	copy.DPoSV2EffectiveVotes = 8000000000000
+	copy.DPoSV2RewardAccumulateAddress = DposV2RewardAccumulateAddress
+	copy.StakePool = ""                      // todo complete me
+	copy.DPoSV2DepositCoinMinLockTime = 7200 // todo complete me change to 216000
+	copy.DPoSV2MinVotesLockTime = 7200       // todo complete me
+	copy.DPoSV2MaxVotesLockTime = 720000     // todo complete me
+	copy.RealWithdrawSingleFee = 10000
+	copy.SchnorrStartHeight = 2000000 // todo fix me
+	copy.CRDPoSNodeHotFixHeight = 0
+	copy.CrossChainMonitorStartHeight = 2000000 // todo complete me
+	copy.CrossChainMonitorInterval = 10         // todo complete me
 
 	return &copy
 }
@@ -494,7 +532,7 @@ type Params struct {
 	// GenesisBlock defines the first block of the chain.
 	GenesisBlock *types.Block
 
-	// PowLimit defines the highest allowed proof of work value for a block
+	// powLimit defines the highest allowed proof of work value for a block
 	// as a uint256.
 	PowLimit *big.Int
 
@@ -638,6 +676,9 @@ type Params struct {
 	// InactivePenalty defines the penalty amount the producer takes.
 	IllegalPenalty common.Fixed64
 
+	// DPoSV2InactivePenalty defines the penalty amount the producer takes.
+	DPoSV2IllegalPenalty common.Fixed64
+
 	// EmergencyInactivePenalty defines the penalty amount the emergency
 	// producer takes.
 	EmergencyInactivePenalty common.Fixed64
@@ -652,6 +693,10 @@ type Params struct {
 	// CRDutyPeriod defines the duration of a normal duty period which
 	// measured by block height
 	CRDutyPeriod uint32
+
+	// CRClaimPeriod defines the duration of CR claim DPoS node period which
+	// measured by block height
+	CRClaimPeriod uint32
 
 	// DepositLockupBlocks indicates how many blocks need to wait when cancel
 	// producer or CRC was triggered, and can submit return deposit coin request
@@ -777,14 +822,47 @@ type Params struct {
 	// ReturnDepositCoinFee indicates the fee the
 	ReturnDepositCoinFee common.Fixed64
 
-	// ReturnCrossChainCoinStartHeight indeicates the start height of
+	// ReturnCrossChainCoinStartHeight indicates the start height of
 	// ReturnCroossChainDepositCoin transaction
 	ReturnCrossChainCoinStartHeight uint32
+
+	// DPoSV2StartHeight defines the start height of dpos 2.0.
+	DPoSV2StartHeight uint32
+
+	// DPoSV2EffectiveVotes defines the votes which producer will become a dposV2 effective node
+	DPoSV2EffectiveVotes common.Fixed64
+
+	// DPoSV2RewardAccumulateAddress defines the dposv2 reward accumulating address
+	DPoSV2RewardAccumulateAddress common.Uint168
+
+	// Stake address of votes
+	StakePool string
+
+	// minimum lock time of DPoS V2 deposit coin
+	DPoSV2DepositCoinMinLockTime uint32
+
+	// minimum lock time of DPoS V2 votes
+	DPoSV2MinVotesLockTime uint32
+
+	// max lock time of DPoS V2 votes
+	DPoSV2MaxVotesLockTime uint32
+
+	// SchnorrStartHeight indicates the start height of schnorr
+	SchnorrStartHeight uint32
+
+	// CRDPoSNodeHotFixHeight indicates the hot fix start height of CR DPoS node
+	CRDPoSNodeHotFixHeight uint32
+
+	// CrossChainMonitorStartHeight indicates the monitor height of cr cross chain arbitration
+	CrossChainMonitorStartHeight uint32
+
+	// CrossChainMonitorInterval indicates the interval value of cr cross chain arbitration
+	CrossChainMonitorInterval uint32
 }
 
-// rewardPerBlock calculates the reward for each block by a specified time
+// RewardPerBlock calculates the reward for each block by a specified time
 // duration.
-func rewardPerBlock(targetTimePerBlock time.Duration) common.Fixed64 {
+func RewardPerBlock(targetTimePerBlock time.Duration) common.Fixed64 {
 	blockGenerateInterval := int64(targetTimePerBlock / time.Second)
 	generatedBlocksPerYear := 365 * 24 * 60 * 60 / blockGenerateInterval
 	return common.Fixed64(float64(inflationPerYear) / float64(generatedBlocksPerYear))
@@ -807,37 +885,59 @@ func (p *Params) newRewardPerBlock(targetTimePerBlock time.Duration, height uint
 // The genesis block goes different because the foundation address in each
 // network is different.
 func GenesisBlock(foundation *common.Uint168) *types.Block {
-	coinBase := types.Transaction{
-		Version:        0,
-		TxType:         types.CoinBase,
-		PayloadVersion: payload.CoinBaseVersion,
-		Payload:        &payload.CoinBase{},
-		Attributes:     []*types.Attribute{&attrNonce},
-		Inputs: []*types.Input{
+
+	// elaAsset is the transaction that create and register the ELA coin.
+	elaAsset := functions.CreateTransaction(
+		0,
+		common2.RegisterAsset,
+		0,
+		&payload.RegisterAsset{
+			Asset: payload.Asset{
+				Name:      "ELA",
+				Precision: ELAPrecision,
+				AssetType: 0x00,
+			},
+			Amount:     0 * 100000000,
+			Controller: common.Uint168{},
+		},
+		[]*common2.Attribute{},
+		[]*common2.Input{},
+		[]*common2.Output{},
+		0,
+		[]*program.Program{},
+	)
+
+	coinBase := functions.CreateTransaction(
+		0,
+		common2.CoinBase,
+		payload.CoinBaseVersion,
+		&payload.CoinBase{},
+		[]*common2.Attribute{&attrNonce},
+		[]*common2.Input{
 			{
-				Previous: types.OutPoint{
+				Previous: common2.OutPoint{
 					TxID:  zeroHash,
 					Index: 0x0000,
 				},
 				Sequence: 0x00000000,
 			},
 		},
-		Outputs: []*types.Output{
+		[]*common2.Output{
 			{
 				AssetID:     ELAAssetID,
 				Value:       3300 * 10000 * 100000000,
 				ProgramHash: *foundation,
 			},
 		},
-		LockTime: 0,
-		Programs: []*program.Program{},
-	}
+		0,
+		[]*program.Program{},
+	)
 
 	merkleRoot, _ := crypto.ComputeRoot([]common.Uint256{coinBase.Hash(),
 		ELAAssetID})
 
 	return &types.Block{
-		Header: types.Header{
+		Header: common2.Header{
 			Version:    0,
 			Previous:   zeroHash,
 			MerkleRoot: merkleRoot,
@@ -846,7 +946,7 @@ func GenesisBlock(foundation *common.Uint168) *types.Block {
 			Nonce:      2083236893,
 			Height:     0,
 		},
-		Transactions: []*types.Transaction{&coinBase, &elaAsset},
+		Transactions: []interfaces.Transaction{coinBase, elaAsset},
 	}
 }
 
