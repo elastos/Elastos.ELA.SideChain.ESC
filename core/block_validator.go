@@ -18,7 +18,6 @@ package core
 
 import (
 	"fmt"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/state"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
@@ -52,6 +51,13 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	//Check whether the block is validated
 	if v.engine.IsInBlockPool(block.Hash()) {
 		return nil
+	}
+	oldBlock := v.bc.GetBlockByNumber(block.NumberU64())
+	if oldBlock != nil && v.bc.chainConfig.IsPBFTFork(block.Number()) {
+		current := v.bc.CurrentHeader()
+		if block.Number().Cmp(current.Number) < 0 {
+			return consensus.ErrInvalidNumber
+		}
 	}
 	// Check whether the block's known, and if not, that it's linkable
 	if v.bc.HasBlockAndState(block.Hash(), block.NumberU64()) {
