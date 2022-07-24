@@ -182,6 +182,10 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256,
 	headerTime uint64) {
 	Info("FinishedProposal")
+	if height < d.finishedHeight {
+		Warn("FinishedProposal received fork block", "height", height)
+		return
+	}
 	d.finishedHeight = height
 	d.finishedBlockSealHash = sealHash
 	if d.processingProposal != nil {

@@ -737,21 +737,18 @@ func (s *Ethereum) shouldPreserve(block *types.Block) bool {
 				log.Error("new Block is error confirm")
 				return false
 			}
-			if newErr != nil {
-				return true
-			}
 
 			oldNonce := oldBlock.Nonce()
 			newNonce := block.Nonce()
 			log.Info("detected chain fork", "oldNonce", oldNonce, "newNonce", newNonce, "SignersCount", s.engine.SignersCount())
 			if oldNonce > 0 && newNonce > 0 && oldNonce != newNonce {
-				return newNonce > oldNonce
+				//return newNonce > oldNonce
 			}
 
 			oldViewOffset := oldConfirm.Proposal.ViewOffset
 			newViewOffset := newConfirm.Proposal.ViewOffset
 			log.Info("detected chain fork", "oldViewOffset", oldViewOffset, "newViewOffset", newViewOffset, "SignersCount", s.engine.SignersCount())
-			return newViewOffset > oldViewOffset
+			//return newViewOffset > oldViewOffset
 		}
 	}
 	return s.isLocalBlock(block)
