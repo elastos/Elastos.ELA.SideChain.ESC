@@ -1126,6 +1126,7 @@ func setEtherbase(ctx *cli.Context, ks *keystore.KeyStore, cfg *eth.Config) {
 	if ctx.GlobalIsSet(MinerEtherbaseFlag.Name) {
 		etherbase = ctx.GlobalString(MinerEtherbaseFlag.Name)
 	}
+	cfg.PbftMinerAddress = MakeMinerCoinbaseAddress(ctx)
 	// Convert the etherbase into an address and configure it
 	if etherbase != "" {
 		if ks != nil {
@@ -1594,10 +1595,6 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	cfg.PbftKeyStorePassWord = MakeDposPasswordList(ctx)
 	cfg.PbftIPAddress = ctx.GlobalString(PbftIPAddress.Name)
 	cfg.PbftDPosPort = uint16(ctx.GlobalUint(PbftDposPort.Name))
-	cfg.PbftMinerAddress = MakeMinerCoinbaseAddress(ctx)
-	if cfg.PbftMinerAddress != "" {
-		cfg.Miner.Etherbase = common.HexToAddress(cfg.PbftMinerAddress)
-	}
 
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
 
