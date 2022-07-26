@@ -639,17 +639,17 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	etherbase := s.etherbase
 	s.lock.RUnlock()
 
-	if etherbase != (common.Address{}) {
-		log.Info("Etherbase allreay set", "address", etherbase.String())
-		return etherbase, nil
-	}
-	if len(s.config.PbftMinerAddress) > 0 {
-		etherbase := common.HexToAddress(s.config.PbftMinerAddress)
+	if len(s.config.PbftMinerAddress) > 0 && s.engine == s.blockchain.GetDposEngine() {
+		etherbase = common.HexToAddress(s.config.PbftMinerAddress)
 		s.lock.Lock()
 		s.etherbase = etherbase
 		s.lock.Unlock()
 
 		log.Info("Etherbase configured by user", "address", etherbase.String())
+		return etherbase, nil
+	}
+
+	if etherbase != (common.Address{}) {
 		return etherbase, nil
 	}
 
