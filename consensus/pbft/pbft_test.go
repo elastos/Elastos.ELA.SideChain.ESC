@@ -7,7 +7,6 @@ package pbft
 
 import (
 	"bytes"
-
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"math/rand"
@@ -60,7 +59,7 @@ func TestReimportMirroredState(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, PbftProtocolChanges, engine, engine, vm.Config{}, nil)
 	defer chain.Stop()
 
-	blocks, _ := core.GenerateChain(PbftProtocolChanges, genesis, engine, db, 3, func(i int, block *core.BlockGen) {
+	blocks, _ := core.GenerateChain(PbftProtocolChanges, genesis, engine, db, 4, func(i int, block *core.BlockGen) {
 		// We want to simulate an empty middle block, having the same state as the
 		// first one. The last is needs a state change again to force a reorg.
 		if i != 1 {
@@ -91,7 +90,6 @@ func TestReimportMirroredState(t *testing.T) {
 	genspec.MustCommit(db)
 
 	chain, _ = core.NewBlockChain(db, nil, PbftProtocolChanges, engine, engine, vm.Config{}, nil)
-	defer chain.Stop()
 
 	if _, err := chain.InsertChain(blocks[:2]); err != nil {
 		t.Fatalf("failed to insert initial blocks: %v", err)
@@ -99,7 +97,7 @@ func TestReimportMirroredState(t *testing.T) {
 	if head := chain.CurrentBlock().NumberU64(); head != 2 {
 		t.Fatalf("chain head mismatch: have %d, want %d", head, 2)
 	}
-
+	chain.Stop()
 	// Simulate a crash by creating a new chain on top of the database, without
 	// flushing the dirty states out. Insert the last block, trigerring a sidechain
 	// reimport.
@@ -110,7 +108,7 @@ func TestReimportMirroredState(t *testing.T) {
 	if _, err := chain.InsertChain(blocks[2:]); err != nil {
 		t.Fatalf("failed to insert final block: %v", err)
 	}
-	if head := chain.CurrentBlock().NumberU64(); head != 3 {
+	if head := chain.CurrentBlock().NumberU64(); head != 4 {
 		t.Fatalf("chain head mismatch: have %d, want %d", head, 3)
 	}
 }
