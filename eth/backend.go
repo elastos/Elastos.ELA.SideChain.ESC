@@ -742,7 +742,7 @@ func (s *Ethereum) shouldPreserve(block *types.Block) bool {
 			newNonce := block.Nonce()
 			log.Info("detected chain fork", "oldNonce", oldNonce, "newNonce", newNonce, "SignersCount", s.engine.SignersCount())
 			if oldNonce > 0 && newNonce > 0 && oldNonce != newNonce {
-				//return newNonce > oldNonce
+				return newNonce > oldNonce
 			}
 
 			oldViewOffset := oldConfirm.Proposal.ViewOffset

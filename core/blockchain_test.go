@@ -22,10 +22,12 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus/ethash"
@@ -36,7 +38,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 )
 
 // So we can deterministically seed different blockchains
@@ -379,6 +380,7 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 	if err != nil {
 		t.Fatalf("failed to create pristine chain: %v", err)
 	}
+	blockchain.chainConfig.PBFTBlock = big.NewInt(1000000)
 	defer blockchain.Stop()
 
 	// Insert an easy and a difficult chain afterwards
@@ -541,7 +543,7 @@ func testInsertNonceError(t *testing.T, full bool) {
 			t.Fatalf("failed to create pristine chain: %v", err)
 		}
 		defer blockchain.Stop()
-
+		blockchain.chainConfig.PBFTBlock = big.NewInt(0)
 		// Create and insert a chain with a failing nonce
 		var (
 			failAt  int
@@ -786,7 +788,7 @@ func TestLightVsFastVsFullChainHeads(t *testing.T) {
 	// Import the chain as a ancient-first node and ensure all pointers are updated
 	ancientDb, delfn := makeDb()
 	defer delfn()
-	ancient, _ := NewBlockChain(ancientDb, nil, gspec.Config, ethash.NewFaker(),ethash.NewFaker(), vm.Config{}, nil)
+	ancient, _ := NewBlockChain(ancientDb, nil, gspec.Config, ethash.NewFaker(), ethash.NewFaker(), vm.Config{}, nil)
 	defer ancient.Stop()
 
 	if n, err := ancient.InsertHeaderChain(headers, 1); err != nil {
@@ -1149,7 +1151,7 @@ func TestSideLogRebirth(t *testing.T) {
 	logsCh := make(chan []*types.Log)
 	blockchain.SubscribeLogsEvent(logsCh)
 
-	chain, _ := GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(),  db, 2, func(i int, gen *BlockGen) {
+	chain, _ := GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 2, func(i int, gen *BlockGen) {
 		if i == 1 {
 			// Higher block difficulty
 			gen.OffsetTime(-9)
@@ -1321,7 +1323,7 @@ func TestEIP155Transition(t *testing.T) {
 		funds      = big.NewInt(1000000000)
 		deleteAddr = common.Address{1}
 		gspec      = &Genesis{
-			Config: &params.ChainConfig{ChainID: big.NewInt(1), EIP150Block: big.NewInt(0), EIP155Block: big.NewInt(2), HomesteadBlock: new(big.Int), EIP158Block: big.NewInt(3), ByzantiumBlock: big.NewInt(3), ConstantinopleBlock: big.NewInt(3), PetersburgBlock:big.NewInt(3), IstanbulBlock:big.NewInt(3), PBFTBlock: big.NewInt(10000000), ChainIDBlock: big.NewInt(3)},
+			Config: &params.ChainConfig{ChainID: big.NewInt(1), EIP150Block: big.NewInt(0), EIP155Block: big.NewInt(2), HomesteadBlock: new(big.Int), EIP158Block: big.NewInt(3), ByzantiumBlock: big.NewInt(3), ConstantinopleBlock: big.NewInt(3), PetersburgBlock: big.NewInt(3), IstanbulBlock: big.NewInt(3), PBFTBlock: big.NewInt(10000000), ChainIDBlock: big.NewInt(3)},
 			Alloc:  GenesisAlloc{address: {Balance: funds}, deleteAddr: {Balance: new(big.Int)}},
 		}
 		genesis = gspec.MustCommit(db)
@@ -1392,7 +1394,7 @@ func TestEIP155Transition(t *testing.T) {
 	}
 
 	// generate an invalid chain id transaction
-	config := &params.ChainConfig{ChainID: big.NewInt(2), EIP150Block: big.NewInt(0), PBFTBlock: big.NewInt(0), ChainIDBlock:big.NewInt(0), EIP155Block: big.NewInt(2), HomesteadBlock: new(big.Int)}
+	config := &params.ChainConfig{ChainID: big.NewInt(2), EIP150Block: big.NewInt(0), PBFTBlock: big.NewInt(0), ChainIDBlock: big.NewInt(0), EIP155Block: big.NewInt(2), HomesteadBlock: new(big.Int)}
 	blocks, _ = GenerateChain(config, blocks[len(blocks)-1], ethash.NewFaker(), db, 4, func(i int, block *BlockGen) {
 		var (
 			tx      *types.Transaction
@@ -1619,9 +1621,11 @@ func TestLargeReorgTrieGC(t *testing.T) {
 	}
 	// Import the head of the competitor chain, triggering the reorg and ensure we
 	// successfully reprocess all the stashed away blocks.
+	chain.chainConfig.PBFTBlock = big.NewInt(10000000)
 	if _, err := chain.InsertChain(competitor[len(competitor)-2:]); err != nil {
 		t.Fatalf("failed to finalize competitor chain: %v", err)
 	}
+	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	for i, block := range competitor[:len(competitor)-TriesInMemory] {
 		if node, _ := chain.stateCache.TrieDB().Node(block.Root()); node != nil {
 			t.Fatalf("competitor %d: competing chain state missing", i)
@@ -1778,11 +1782,12 @@ func TestLowDiffLongChain(t *testing.T) {
 	fork, _ := GenerateChain(params.TestChainConfig, parent, engine, db, 8*TriesInMemory, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{2})
 	})
-
+	chain.chainConfig.PBFTBlock = big.NewInt(1000000)
 	// And now import the fork
 	if i, err := chain.InsertChain(fork); err != nil {
 		t.Fatalf("block %d: failed to insert into chain: %v", i, err)
 	}
+	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	head := chain.CurrentBlock()
 	if got := fork[len(fork)-1].Hash(); got != head.Hash() {
 		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
@@ -1848,11 +1853,13 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 	for i := numCanonBlocksInSidechain; i > 0; i-- {
 		sidechain = append(sidechain, blocks[parentIndex+1-i])
 	}
+	chain.chainConfig.PBFTBlock = big.NewInt(100000)
 	sidechain = append(sidechain, fork...)
 	_, err = chain.InsertChain(sidechain)
 	if err != nil {
 		t.Errorf("Got error, %v", err)
 	}
+	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	head := chain.CurrentBlock()
 	if got := fork[len(fork)-1].Hash(); got != head.Hash() {
 		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
@@ -1914,7 +1921,7 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}
-
+	chain.chainConfig.PBFTBlock = big.NewInt(10000000)
 	var (
 		inserter func(blocks []*types.Block, receipts []types.Receipts) error
 		asserter func(t *testing.T, block *types.Block)
@@ -1997,7 +2004,7 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 		t.Fatalf("failed to insert chain data: %v", err)
 	}
 	asserter(t, blocks3[len(blocks3)-1])
-
+	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	// Import a longer but lower total difficulty chain with some known data as prefix.
 	if err := inserter(append(blocks, blocks2...), append(receipts, receipts2...)); err != nil {
 		t.Fatalf("failed to insert chain data: %v", err)
@@ -2083,10 +2090,12 @@ func TestReorgToShorterRemovesCanonMapping(t *testing.T) {
 		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
 	}
 	canonNum := chain.CurrentBlock().NumberU64()
+	chain.chainConfig.PBFTBlock = big.NewInt(100000)
 	_, err = chain.InsertChain(sideblocks)
 	if err != nil {
 		t.Errorf("Got error, %v", err)
 	}
+	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	head := chain.CurrentBlock()
 	if got := sideblocks[len(sideblocks)-1].Hash(); got != head.Hash() {
 		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
@@ -2367,7 +2376,7 @@ func TestDeleteCreateRevert(t *testing.T) {
 	}
 }
 
-func TestToManySigners(t *testing.T)  {
+func TestToManySigners(t *testing.T) {
 	easy := make([]int64, 96)
 	for i := 0; i < len(easy); i++ {
 		easy[i] = 60
@@ -2385,6 +2394,9 @@ func testToManySigners(t *testing.T, first, second []int64) {
 	// Create a pristine chain and database
 	db, blockchain, err := newCanonical(ethash.NewFaker(), 0, true)
 	blockchain.chainConfig.PBFTBlock = big.NewInt(100000)
+	defer func() {
+		blockchain.chainConfig.PBFTBlock = big.NewInt(0)
+	}()
 	if err != nil {
 		t.Fatalf("failed to create pristine chain: %v", err)
 	}
@@ -2485,7 +2497,7 @@ func TestReorgToMany(t *testing.T) {
 	// Import the head of the competitor chain, triggering the reorg and ensure we
 	// successfully reprocess all the stashed away blocks.
 	if _, err := chain.InsertChain(competitor[len(competitor)-2:]); err != nil {
-		if err.Error() != "Dangerous new chain" {
+		if !strings.Contains(err.Error(), "final confirm chain") {
 			t.Fatalf("failed TestReorgToMany chain: %v", err)
 		}
 	} else {
