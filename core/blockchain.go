@@ -1422,7 +1422,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
 	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
 	reorg := externTd.Cmp(localTd) > 0
-	fmt.Println("writeBlockWithState 3333", "reorg", reorg)
 	currentBlock = bc.CurrentBlock()
 	if !reorg && externTd.Cmp(localTd) == 0 {
 		// Split same-difficulty blocks by number, then preferentially select
@@ -2104,7 +2103,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 			return fmt.Errorf("Dangerous new chain")
 		}
 	} else {
-		if len(oldChain) >= IrreversibleHeight {
+		if bc.engine.SignersCount() > 0 && len(oldChain) >= IrreversibleHeight {
 			defer func() {
 				bc.dangerousFeed.Send(DangerousChainSideEvent{})
 			}()

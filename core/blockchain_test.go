@@ -380,7 +380,6 @@ func testReorg(t *testing.T, first, second []int64, td int64, full bool) {
 	if err != nil {
 		t.Fatalf("failed to create pristine chain: %v", err)
 	}
-	blockchain.chainConfig.PBFTBlock = big.NewInt(1000000)
 	defer blockchain.Stop()
 
 	// Insert an easy and a difficult chain afterwards
@@ -543,7 +542,6 @@ func testInsertNonceError(t *testing.T, full bool) {
 			t.Fatalf("failed to create pristine chain: %v", err)
 		}
 		defer blockchain.Stop()
-		blockchain.chainConfig.PBFTBlock = big.NewInt(0)
 		// Create and insert a chain with a failing nonce
 		var (
 			failAt  int
@@ -1621,11 +1619,9 @@ func TestLargeReorgTrieGC(t *testing.T) {
 	}
 	// Import the head of the competitor chain, triggering the reorg and ensure we
 	// successfully reprocess all the stashed away blocks.
-	chain.chainConfig.PBFTBlock = big.NewInt(10000000)
 	if _, err := chain.InsertChain(competitor[len(competitor)-2:]); err != nil {
 		t.Fatalf("failed to finalize competitor chain: %v", err)
 	}
-	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	for i, block := range competitor[:len(competitor)-TriesInMemory] {
 		if node, _ := chain.stateCache.TrieDB().Node(block.Root()); node != nil {
 			t.Fatalf("competitor %d: competing chain state missing", i)
@@ -1782,12 +1778,10 @@ func TestLowDiffLongChain(t *testing.T) {
 	fork, _ := GenerateChain(params.TestChainConfig, parent, engine, db, 8*TriesInMemory, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{2})
 	})
-	chain.chainConfig.PBFTBlock = big.NewInt(1000000)
 	// And now import the fork
 	if i, err := chain.InsertChain(fork); err != nil {
 		t.Fatalf("block %d: failed to insert into chain: %v", i, err)
 	}
-	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	head := chain.CurrentBlock()
 	if got := fork[len(fork)-1].Hash(); got != head.Hash() {
 		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
@@ -1853,13 +1847,11 @@ func testSideImport(t *testing.T, numCanonBlocksInSidechain, blocksBetweenCommon
 	for i := numCanonBlocksInSidechain; i > 0; i-- {
 		sidechain = append(sidechain, blocks[parentIndex+1-i])
 	}
-	chain.chainConfig.PBFTBlock = big.NewInt(100000)
 	sidechain = append(sidechain, fork...)
 	_, err = chain.InsertChain(sidechain)
 	if err != nil {
 		t.Errorf("Got error, %v", err)
 	}
-	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	head := chain.CurrentBlock()
 	if got := fork[len(fork)-1].Hash(); got != head.Hash() {
 		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
@@ -1921,7 +1913,6 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}
-	chain.chainConfig.PBFTBlock = big.NewInt(10000000)
 	var (
 		inserter func(blocks []*types.Block, receipts []types.Receipts) error
 		asserter func(t *testing.T, block *types.Block)
@@ -2004,7 +1995,6 @@ func testInsertKnownChainData(t *testing.T, typ string) {
 		t.Fatalf("failed to insert chain data: %v", err)
 	}
 	asserter(t, blocks3[len(blocks3)-1])
-	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	// Import a longer but lower total difficulty chain with some known data as prefix.
 	if err := inserter(append(blocks, blocks2...), append(receipts, receipts2...)); err != nil {
 		t.Fatalf("failed to insert chain data: %v", err)
@@ -2090,12 +2080,10 @@ func TestReorgToShorterRemovesCanonMapping(t *testing.T) {
 		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
 	}
 	canonNum := chain.CurrentBlock().NumberU64()
-	chain.chainConfig.PBFTBlock = big.NewInt(100000)
 	_, err = chain.InsertChain(sideblocks)
 	if err != nil {
 		t.Errorf("Got error, %v", err)
 	}
-	chain.chainConfig.PBFTBlock = big.NewInt(0)
 	head := chain.CurrentBlock()
 	if got := sideblocks[len(sideblocks)-1].Hash(); got != head.Hash() {
 		t.Fatalf("head wrong, expected %x got %x", head.Hash(), got)
@@ -2441,6 +2429,7 @@ func testToManySigners(t *testing.T, first, second []int64) {
 func TestReorgToMany(t *testing.T) {
 	// Generate the original common chain segment and the two competing forks
 	engine := ethash.NewFaker()
+	engine.SetSignerCount(12)
 	blocksigner.GenRandSingersFromTest()
 	db := rawdb.NewMemoryDatabase()
 	genesis := new(Genesis).MustCommit(db)

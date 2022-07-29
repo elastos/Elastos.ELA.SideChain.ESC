@@ -546,13 +546,11 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	changeViewTime := p.dispatcher.GetConsensusView().GetChangeViewTime()
 	toleranceDelay := changeViewTime.Sub(p.dispatcher.GetNowTime())
 	log.Info("changeViewLeftTime", "toleranceDelay", toleranceDelay)
-	viewOffset := uint32(0)
 	select {
 	case confirm := <-p.confirmCh:
 		log.Info("Received confirmCh", "proposal", confirm.Proposal.Hash().String(), "block:", block.NumberU64())
 		p.addConfirmToBlock(header, confirm)
 		p.isSealOver = true
-		viewOffset = confirm.Proposal.ViewOffset
 		break
 	case <-p.unConfirmCh:
 		log.Warn("proposal is rejected")
@@ -568,9 +566,6 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		return nil
 	}
 	finalBlock := block.WithSeal(header)
-	if finalBlock.NumberU64() == 20 && viewOffset == 0 {
-		time.Sleep(10 * time.Second)
-	}
 	go func() {
 		select {
 		case results <- finalBlock:
