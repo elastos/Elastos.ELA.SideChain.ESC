@@ -586,7 +586,7 @@ func getActivePeerCount(engine *pbft.Pbft, arbiters [][]byte) int {
 		}
 		for _, peer := range peers {
 			if bytes.Equal(arb, peer.PID[:]) {
-				if peer.State == p2p.CS2WayConnection {
+				if peer.State == p2p.CS2WayConnection || peer.State == p2p.CSInboundOnly {
 					count++
 				}
 				if peer.State == p2p.CSNoneConnection {
