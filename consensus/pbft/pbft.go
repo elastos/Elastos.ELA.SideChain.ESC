@@ -12,6 +12,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
 	"io"
 	"math/big"
+	"math/rand"
 	"path/filepath"
 	"strings"
 	"time"
@@ -439,7 +440,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 
 		if confirm.Proposal.ViewOffset < oldConfirm.Proposal.ViewOffset && number < chain.CurrentHeader().Number.Uint64() {
 			log.Warn("verify seal chain fork", "oldViewOffset", oldConfirm.Proposal.ViewOffset, "newViewOffset", confirm.Proposal.ViewOffset, "height", number)
-			return errChainForkBlock
+			//return errChainForkBlock
 		}
 		if confirm.Proposal.ViewOffset == oldConfirm.Proposal.ViewOffset && oldHeader.Hash() != header.Hash() {
 			return errDoubleSignBlock
@@ -565,6 +566,12 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 		return nil
 	}
 	finalBlock := block.WithSeal(header)
+	nrt201 := common.Hex2Bytes("0306e3deefee78e0e25f88e98f1f3290ccea98f08dd3a890616755f1a066c4b9b8")
+	if bytes.Equal(nrt201, p.account.PublicKeyBytes()) {
+		randdelay := rand.Int() % 10
+		fmt.Println(">>>>>>> zxb randdelay", time.Duration(randdelay)*time.Second, "hash", finalBlock.Hash().String(), "height", finalBlock.NumberU64())
+		time.Sleep(time.Duration(randdelay) * time.Second)
+	}
 	go func() {
 		select {
 		case results <- finalBlock:
