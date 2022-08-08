@@ -464,6 +464,8 @@ type Ethash struct {
 	lock      sync.Mutex      // Ensures thread safety for the in-memory caches and mining fields
 	closeOnce sync.Once       // Ensures exit channel will not be closed twice.
 	exitCh    chan chan error // Notification channel to exiting backend threads
+
+	signerCount int //use to test
 }
 
 // New creates a full sized ethash PoW scheme and starts a background thread for
@@ -585,7 +587,11 @@ func (ethash *Ethash) Close() error {
 }
 
 func (ethash *Ethash) SignersCount() int {
-	return 0
+	return ethash.signerCount
+}
+
+func (ethash *Ethash) SetSignerCount(count int) {
+	ethash.signerCount = count
 }
 
 func (ethash *Ethash) IsInBlockPool(hash common.Hash) bool {

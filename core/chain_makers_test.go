@@ -16,6 +16,7 @@
 
 package core
 
+/*
 import (
 	"fmt"
 	"math/big"
@@ -97,4 +98,4 @@ func ExampleGenerateChain() {
 	// balance of addr1: 989000
 	// balance of addr2: 10000
 	// balance of addr3: 19687500000000001000
-}
+}*/
