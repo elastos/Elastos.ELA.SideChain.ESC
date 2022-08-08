@@ -109,6 +109,8 @@ const (
 	//  The following incompatible database changes were added:
 	//    * Use freezer as the ancient database to maintain all ancient data
 	BlockChainVersion uint64 = 7
+
+	IrreversibleHeight int = 6
 )
 
 // CacheConfig contains the configuration values for the trie caching/pruning
@@ -1713,6 +1715,7 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 			parent = bc.GetHeader(block.ParentHash(), block.NumberU64()-1)
 		}
 		statedb, err := state.New(parent.Root, bc.stateCache)
+
 		if err != nil {
 			return it.index, events, coalescedLogs, err
 		}
@@ -1725,7 +1728,7 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 				go func(start time.Time) {
 					throwaway, errmsg := state.New(parent.Root, bc.stateCache)
 					if errmsg != nil {
-						log.Error("state new db error", "root", parent.Root.String(), "err", errmsg)
+						log.Error("state new db error", "state.new", "errmsg", errmsg, "throwaway", throwaway, "parent.root", parent.Root.String(), "parent", parent.Hash().String())
 					}
 					bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, &followupInterrupt)
 
@@ -1740,7 +1743,6 @@ func (bc *BlockChain) insertBlockChain(chain types.Blocks, verifySeals bool, eng
 		substart := time.Now()
 		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 		if err != nil {
-			log.Error("reportBlock process error:", "error", err)
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
 			return it.index, events, coalescedLogs, err
@@ -2003,8 +2005,9 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		deletedTxs types.Transactions
 		addedTxs   types.Transactions
 
-		deletedLogs []*types.Log
-		rebirthLogs []*types.Log
+		deletedLogs   []*types.Log
+		rebirthLogs   []*types.Log
+		currentHeight = newBlock.Number()
 
 		// collectLogs collects the logs that were generated during the
 		// processing of the block that corresponds with the given hash.
@@ -2089,14 +2092,23 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "newnum", newBlock.Number(), "newhash", newBlock.Hash())
 	}
 	//elastos is clique
-	if blocksigner.GetBlockSignersCount() > 6 && len(oldChain) > blocksigner.GetBlockSignersCount()/2 {
-		msg := "danger chain detected, more than n/2 :"
-		log.Error(msg, "singerCount", blocksigner.GetBlockSignersCount()/2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
-			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
-		defer func() {
-			bc.dangerousFeed.Send(DangerousChainSideEvent{})
-		}()
-		return fmt.Errorf("Dangerous new chain")
+	if !bc.chainConfig.IsPBFTFork(currentHeight) {
+		if blocksigner.GetBlockSignersCount() > 6 && len(oldChain) > blocksigner.GetBlockSignersCount()/2 {
+			msg := "danger chain detected, more than n/2 :"
+			log.Error(msg, "singerCount", blocksigner.GetBlockSignersCount()/2, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
+				"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
+			defer func() {
+				bc.dangerousFeed.Send(DangerousChainSideEvent{})
+			}()
+			return fmt.Errorf("Dangerous new chain")
+		}
+	} else {
+		if bc.engine.SignersCount() > 0 && len(oldChain) >= IrreversibleHeight {
+			defer func() {
+				bc.dangerousFeed.Send(DangerousChainSideEvent{})
+			}()
+			return fmt.Errorf("final confirm chain , from:%d, to:%d", oldChain[0].NumberU64(), oldChain[len(oldChain)-1].NumberU64())
+		}
 	}
 
 	// Insert the new chain(except the head block(reverse order)),
@@ -2431,7 +2443,6 @@ func (bc *BlockChain) isToManyEvilSigners(header *types.Header) bool {
 		return false
 	}
 	if bc.chainConfig.IsPBFTFork(header.Number) {
-		//TODO dpos double sign verify
 		return false
 	}
 	return IsNeedStopChain(header, headerOld, bc.engine, bc.evilSigners, bc.journal)
