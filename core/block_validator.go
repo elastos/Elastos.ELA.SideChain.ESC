@@ -56,7 +56,8 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	if oldBlock != nil && v.bc.chainConfig.IsPBFTFork(block.Number()) {
 		current := v.bc.CurrentHeader()
 		if block.Number().Cmp(current.Number) < 0 {
-			return consensus.ErrInvalidNumber
+			//return consensus.ErrInvalidNumber
+			fmt.Println(">>>>>> zxb invalied number", "number", block.NumberU64(), "hash", block.Hash().String())
 		}
 	}
 	// Check whether the block's known, and if not, that it's linkable
