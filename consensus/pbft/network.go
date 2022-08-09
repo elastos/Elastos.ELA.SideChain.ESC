@@ -521,7 +521,9 @@ func (p *Pbft) OnChangeView() {
 		p.BroadMessage(m)
 
 		// record self
-		p.dispatcher.RecordViewRequest(m.Sponsor)
+		if !p.dispatcher.ResetViewRequestIsContain(m.Sponsor) {
+			p.OnResponseResetViewReceived(m)
+		}
 	}
 }
 
@@ -636,14 +638,17 @@ func (p *Pbft) OnResponseResetViewReceived(msg *msg.ResetView) {
 		log.Error(fmt.Sprintf("[OnResponseResetViewReceived] %s is not a procuer", common.Bytes2Hex(msg.Sponsor)))
 		return
 	}
-	if p.dispatcher.ResetViewRequestIsContain(msg.Sponsor) {
+	err := p.dispatcher.OnResponseResetViewReceived(msg)
+	log.Info("[OnResponseResetViewReceived]", "from", common.Bytes2Hex(msg.Sponsor), "error", err, "p.dispatcher.GetResetViewReqCount()", p.dispatcher.GetResetViewReqCount())
+	if err != nil {
 		return
 	}
-	p.dispatcher.OnResponseResetViewReceived(msg)
-	if p.dispatcher.GetResetViewReqCount() >= p.dispatcher.GetConsensusView().GetMajorityCount() && p.dispatcher.GetConsensusView().GetViewOffset() > maxViewOffset {
+	if p.dispatcher.GetResetViewReqCount() >= p.dispatcher.GetConsensusView().GetMajorityCount() {
 		// do reset
-		p.dispatcher.ResetConsensus()
-
+		header := p.chain.CurrentHeader()
+		p.dispatcher.ResetConsensus(header.Number.Uint64())
+		log.Info("[reset consensu] start mine")
+		p.StartMine()
 		log.Info("[end reset consensus]", "p.dispatcher.GetResetViewReqCount()", p.dispatcher.GetResetViewReqCount(), "p.dispatcher.GetConsensusView().GetViewOffset()", p.dispatcher.GetConsensusView().GetViewOffset())
 	}
 }

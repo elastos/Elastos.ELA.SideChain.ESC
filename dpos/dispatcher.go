@@ -205,7 +205,7 @@ func (d *Dispatcher) FinishedProposal(height uint64, sealHash common.Uint256,
 	d.resetViewMu.Unlock()
 }
 
-func (d *Dispatcher) ResetConsensus() {
+func (d *Dispatcher) ResetConsensus(height uint64) {
 	Info("[resetConsensus] start", "d.consensusView.IsRunning()", d.consensusView.IsRunning())
 	defer Info("[resetConsensus] end")
 
@@ -214,37 +214,35 @@ func (d *Dispatcher) ResetConsensus() {
 		d.consensusView.SetReady()
 		d.CleanProposals(false)
 		d.consensusView.resetViewOffset()
-		go func() {
-			time.Sleep(d.consensusView.signTolerance)
-			Info("[resetConsensus] reset delay to view setRunning")
-			d.consensusView.SetRunning()
-		}()
+		d.consensusView.UpdateDutyIndex(height)
+		d.consensusView.ChangeView(d.timeSource.AdjustedTime(), true, uint64(d.timeSource.AdjustedTime().Unix()))
 	}
 	d.resetViewMu.Lock()
 	d.resetViewRequests = make(map[string]struct{}, 0)
 	d.resetViewMu.Unlock()
 }
 
-func (d *Dispatcher) OnResponseResetViewReceived(msg *msg.ResetView) {
+func (d *Dispatcher) OnResponseResetViewReceived(msg *msg.ResetView) error {
 	signer := msg.Sponsor
 	sign := msg.Sign
 
 	data := new(bytes.Buffer)
 	if err := msg.SerializeUnsigned(
 		data); err != nil {
-		return
+		return err
 	}
 
 	pk, err := crypto.DecodePoint(signer)
 	if err != nil {
-		return
+		return err
 	}
 
 	if err := crypto.Verify(*pk, data.Bytes(), sign); err != nil {
 		Errorf("invalid message signature:", *msg)
-		return
+		return err
 	}
 	d.RecordViewRequest(signer)
+	return nil
 }
 
 func (d *Dispatcher) GetResetViewReqCount() int {
@@ -493,7 +491,7 @@ func (d *Dispatcher) RecoverFromConsensusStatus(status *dmsg.ConsensusStatus) er
 	if d.finishedHeight > 0 {
 		d.consensusView.UpdateDutyIndex(d.finishedHeight)
 	}
-	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime(), "WorkingHeight", status.WorkingHeight, "dutyIndex", d.GetConsensusView().GetDutyIndex(), "d.finishedHeight", d.finishedHeight)
+	Info("\n\n\n\n \n\n\n\n -------[End RecoverFromConsensusStatus]-------- startTime", d.consensusView.GetViewStartTime(), "WorkingHeight", status.WorkingHeight, "dutyIndex", d.GetConsensusView().GetDutyIndex(), "d.finishedHeight", d.finishedHeight, "status.ViewOffset", status.ViewOffset)
 	d.consensusView.DumpInfo()
 	Info("\n\n\n\n \n\n\n\n")
 	return nil
