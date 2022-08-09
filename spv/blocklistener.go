@@ -73,16 +73,19 @@ func (l *BlockListener) RegisterFunc(handleFunc func(block interface{}) error) {
 
 func (l *BlockListener) onBlockHandled(block interface{}) {
 	isWorkingHeight := SpvIsWorkingHeight()
+	isNexturnBlock := IsNexturnBlock(block)
 	if nextTurnDposInfo == nil {
 		InitNextTurnDposInfo()
 	} else if !isWorkingHeight {
-		if IsNexturnBlock(block) {
+		if isNexturnBlock {
 			log.Info("------------------ force change next turn arbiters-----------")
-			peers := DumpNextDposInfo()
-			events.Notify(dpos.ETNextProducers, peers)
 		} else {
 			InitNextTurnDposInfo()
 		}
+	}
+	if isNexturnBlock {
+		peers := DumpNextDposInfo()
+		events.Notify(dpos.ETNextProducers, peers)
 	}
 	if nextTurnDposInfo == nil {
 		return
@@ -99,11 +102,12 @@ func (l *BlockListener) onBlockHandled(block interface{}) {
 		InitNextTurnDposInfo()
 		events.Notify(dpos_msg.ETESCStateChanged, ChainState_POW)
 	}
-	if SpvIsWorkingHeight() && nowConsensus != spv.POW {
+	isWorkingHeight = SpvIsWorkingHeight()
+	if isWorkingHeight && nowConsensus != spv.POW {
 		SpvService.mux.Post(eevent.InitCurrentProducers{})
 	}
 	consensusMode = nowConsensus
-	log.Info("current consensus mode", "mode", consensusMode)
+	log.Info("current consensus mode", "mode", consensusMode, "isNexturnBlock", isNexturnBlock, "isWorkingHeight", isWorkingHeight)
 }
 
 func IsNexturnBlock(block interface{}) bool {
