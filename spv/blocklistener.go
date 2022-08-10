@@ -215,6 +215,13 @@ func DumpNextDposInfo() []peer.PID {
 	log.Info("-------------------CRPublicKeys---------------")
 	peers := make([]peer.PID, 0)
 	if nextTurnDposInfo == nil {
+		nextTurnDposInfo = &NextTurnDPOSInfo{
+			&payload.NextTurnDPOSInfo{
+				WorkingHeight:  0,
+				CRPublicKeys:   make([][]byte, 0),
+				DPOSPublicKeys: make([][]byte, 0),
+			},
+		}
 		return peers
 	}
 	for _, arbiter := range nextTurnDposInfo.CRPublicKeys {
