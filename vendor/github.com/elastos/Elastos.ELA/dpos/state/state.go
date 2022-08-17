@@ -120,7 +120,7 @@ type Producer struct {
 	dposV2Votes           common.Fixed64
 
 	// the detail information of DPoSV2 votes
-	//Uint168 key is  sVoteAddr
+	//Uint168 key is voter's sVoteAddr
 	//Uint256 key is DetailedVoteInfo's hash
 	detailedDPoSV2Votes map[common.Uint168]map[common.Uint256]payload.DetailedVoteInfo
 
@@ -504,7 +504,8 @@ type State struct {
 
 	// GetArbiters defines methods about get current arbiters
 	GetArbiters                   func() []*ArbiterInfo
-	getCRMembers                  func() []*state.CRMember
+	getCurrentCRMembers           func() []*state.CRMember
+	getNextCRMembers              func() []*state.CRMember
 	getCRMember                   func(key string) *state.CRMember
 	updateCRInactivePenalty       func(cid common.Uint168, height uint32)
 	revertUpdateCRInactivePenalty func(cid common.Uint168, height uint32)
@@ -691,13 +692,14 @@ func (s *State) GetDposV2Producers() []*Producer {
 }
 
 func (s *State) getDposV2Producers() []*Producer {
-	producers := make([]*Producer, 0)
-	for _, producer := range s.ActivityProducers {
+	dposV2Producers := make([]*Producer, 0)
+	allProducer := s.getAllProducers()
+	for _, producer := range allProducer {
 		if producer.info.StakeUntil != 0 {
-			producers = append(producers, producer)
+			dposV2Producers = append(dposV2Producers, producer)
 		}
 	}
-	return producers
+	return dposV2Producers
 }
 
 func (s *State) GetAllProducersPublicKey() []string {
@@ -1163,7 +1165,7 @@ func (s *State) IsDPOSTransaction(tx interfaces.Transaction) bool {
 
 // ProcessBlock takes a block and it's confirm to update producers state and
 // votes accordingly.
-func (s *State) ProcessBlock(block *types.Block, confirm *payload.Confirm, isDposV2Run bool, dutyIndex int) {
+func (s *State) ProcessBlock(block *types.Block, confirm *payload.Confirm, dutyIndex int) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -1176,7 +1178,7 @@ func (s *State) ProcessBlock(block *types.Block, confirm *payload.Confirm, isDpo
 	s.tryUpdateLastIrreversibleHeight(block.Height)
 
 	if confirm != nil {
-		if isDposV2Run {
+		if block.Height > s.DPoSV2ActiveHeight {
 			s.countArbitratorsInactivityV3(block.Height, confirm, dutyIndex)
 		} else if block.Height >= s.ChainParams.ChangeCommitteeNewCRHeight {
 			s.countArbitratorsInactivityV2(block.Height, confirm)
@@ -1297,7 +1299,7 @@ func (s *State) tryRevertToPOWByStateOfCRMember(height uint32) {
 		s.ConsensusAlgorithm == POW {
 		return
 	}
-	for _, m := range s.getCRMembers() {
+	for _, m := range s.getCurrentCRMembers() {
 		if m.MemberState == state.MemberElected {
 			return
 		}
@@ -1478,20 +1480,20 @@ func (s *State) processTransactions(txs []interfaces.Transaction, height uint32)
 		})
 	}
 
-	cleanExpiredDposV2Votes := func(key common.Uint256, stakeAddress *common.Uint168, detailVoteInfo payload.DetailedVoteInfo, producer *Producer) {
+	cleanExpiredDposV2Votes := func(key common.Uint256, stakeAddress common.Uint168, detailVoteInfo payload.DetailedVoteInfo, producer *Producer) {
 
 		for _, i := range detailVoteInfo.Info {
 			info := i
 			s.History.Append(height, func() {
-				s.UsedDposV2Votes[*stakeAddress] -= info.Votes
+				s.UsedDposV2Votes[stakeAddress] -= info.Votes
 			}, func() {
-				s.UsedDposV2Votes[*stakeAddress] += info.Votes
+				s.UsedDposV2Votes[stakeAddress] += info.Votes
 			})
 
 			voteRights := producer.GetTotalDPoSV2VoteRights()
 
 			s.History.Append(height, func() {
-				delete(producer.detailedDPoSV2Votes[*stakeAddress], key)
+				delete(producer.detailedDPoSV2Votes[stakeAddress], key)
 				producer.dposV2Votes -= info.Votes
 				if voteRights < float64(s.ChainParams.DPoSV2EffectiveVotes) {
 					delete(s.DposV2EffectedProducers, hex.EncodeToString(producer.OwnerPublicKey()))
@@ -1500,10 +1502,10 @@ func (s *State) processTransactions(txs []interfaces.Transaction, height uint32)
 				if producer.detailedDPoSV2Votes == nil {
 					producer.detailedDPoSV2Votes = make(map[common.Uint168]map[common.Uint256]payload.DetailedVoteInfo)
 				}
-				if _, ok := producer.detailedDPoSV2Votes[*stakeAddress]; !ok {
-					producer.detailedDPoSV2Votes[*stakeAddress] = make(map[common.Uint256]payload.DetailedVoteInfo)
+				if _, ok := producer.detailedDPoSV2Votes[stakeAddress]; !ok {
+					producer.detailedDPoSV2Votes[stakeAddress] = make(map[common.Uint256]payload.DetailedVoteInfo)
 				}
-				producer.detailedDPoSV2Votes[*stakeAddress][key] = detailVoteInfo
+				producer.detailedDPoSV2Votes[stakeAddress][key] = detailVoteInfo
 				producer.dposV2Votes += info.Votes
 				voteRights := producer.GetTotalDPoSV2VoteRights()
 				if voteRights >= float64(s.ChainParams.DPoSV2EffectiveVotes) {
@@ -1557,7 +1559,7 @@ func (s *State) processTransactions(txs []interfaces.Transaction, height uint32)
 				for refer, info := range detail {
 					ci := info
 					crefer := refer
-					cstake := &stake
+					cstake := stake
 					if info.Info[0].LockTime < height {
 						cleanExpiredDposV2Votes(crefer, cstake, ci, cp)
 					}
@@ -1927,7 +1929,6 @@ func (s *State) processVoting(tx interfaces.Transaction, height uint32) {
 //}
 
 func (s *State) processVotingContent(tx interfaces.Transaction, height uint32) {
-
 	// get stake address(program hash)
 	code := tx.Programs()[0].Code
 	signType, _ := crypto.GetScriptType(code)
@@ -2024,7 +2025,6 @@ func (s *State) processVotingContent(tx interfaces.Transaction, height uint32) {
 					voteRights := producer.GetTotalDPoSV2VoteRights()
 					if voteRights >= float64(s.ChainParams.DPoSV2EffectiveVotes) {
 						s.DposV2EffectedProducers[hex.EncodeToString(producer.OwnerPublicKey())] = producer
-
 					}
 				}, func() {
 					delete(producer.detailedDPoSV2Votes[*stakeAddress], dvi.ReferKey())
@@ -2045,6 +2045,13 @@ func (s *State) processRenewalVotingContent(tx interfaces.Transaction, height ui
 	code := tx.Programs()[0].Code
 	ct, _ := contract.CreateStakeContractByCode(code)
 	stakeAddress := ct.ToProgramHash()
+	signType, _ := crypto.GetScriptType(code)
+	var prefixType byte
+	if signType == vm.CHECKSIG {
+		prefixType = byte(contract.PrefixStandard)
+	} else if signType == vm.CHECKMULTISIG {
+		prefixType = byte(contract.PrefixMultiSig)
+	}
 
 	pld := tx.Payload().(*payload.Voting)
 	for _, cont := range pld.RenewalContents {
@@ -2065,6 +2072,7 @@ func (s *State) processRenewalVotingContent(tx interfaces.Transaction, height ui
 			PayloadVersion:   voteInfo.PayloadVersion,
 			VoteType:         outputpayload.DposV2,
 			Info:             []payload.VotesWithLockTime{content.VotesInfo},
+			PrefixType:       prefixType,
 		}
 
 		referKey := detailVoteInfo.ReferKey()
@@ -2313,8 +2321,13 @@ func (s *State) processNextTurnDPOSInfo(tx interfaces.Transaction, height uint32
 }
 
 func (s *State) getCRMembersOwnerPublicKey(CRCommitteeDID common.Uint168) []byte {
-	if s.getCRMembers != nil {
-		for _, cr := range s.getCRMembers() {
+	if s.getCurrentCRMembers != nil && s.getNextCRMembers != nil {
+		for _, cr := range s.getCurrentCRMembers() {
+			if cr.Info.DID.IsEqual(CRCommitteeDID) {
+				return cr.Info.Code[1 : len(cr.Info.Code)-1]
+			}
+		}
+		for _, cr := range s.getNextCRMembers() {
 			if cr.Info.DID.IsEqual(CRCommitteeDID) {
 				return cr.Info.Code[1 : len(cr.Info.Code)-1]
 			}
@@ -2347,6 +2360,7 @@ func (s *State) processCRCouncilMemberClaimNode(tx interfaces.Transaction, heigh
 
 	ownerPublicKey := s.getCRMembersOwnerPublicKey(claimNodePayload.CRCouncilCommitteeDID)
 	if ownerPublicKey == nil {
+		log.Error("processCRCouncilMemberClaimNode cr member is not exist")
 		return
 	}
 	strOwnerPubkey := common.BytesToHexString(ownerPublicKey)
@@ -2428,10 +2442,10 @@ func (s *State) updateVersion(tx interfaces.Transaction, height uint32) {
 
 func (s *State) getClaimedCRMembersMap() map[string]*state.CRMember {
 	crMembersMap := make(map[string]*state.CRMember)
-	if s.getCRMembers == nil {
+	if s.getCurrentCRMembers == nil {
 		return crMembersMap
 	}
-	crMembers := s.getCRMembers()
+	crMembers := s.getCurrentCRMembers()
 	for _, m := range crMembers {
 		if len(m.DPOSPublicKey) != 0 {
 			crMembersMap[hex.EncodeToString(m.Info.Code[1:len(m.Info.Code)-1])] = m
@@ -2441,40 +2455,52 @@ func (s *State) getClaimedCRMembersMap() map[string]*state.CRMember {
 }
 
 func (s *State) processUnstake(tx interfaces.Transaction, height uint32) {
-	payload := tx.Payload().(*payload.Unstake)
-	// check if unused vote rights enough
-	code := payload.Code
+	pld := tx.Payload().(*payload.Unstake)
+	var code []byte
+	if tx.PayloadVersion() == payload.DposV2ClaimRewardVersionV0 {
+		code = pld.Code
+	} else {
+		code = tx.Programs()[0].Code
+	}
+
 	//1. get stake address
 	ct, _ := contract.CreateStakeContractByCode(code)
-	receipt := ct.ToProgramHash()
+	addr := ct.ToProgramHash()
+
 	s.History.Append(height, func() {
-		s.DposV2VoteRights[*receipt] -= payload.Value
+		s.DposV2VoteRights[*addr] -= pld.Value
 		s.VotesWithdrawableTxInfo[tx.Hash()] = common2.OutputInfo{
-			Recipient: payload.ToAddr,
-			Amount:    payload.Value,
+			Recipient: pld.ToAddr,
+			Amount:    pld.Value,
 		}
 	}, func() {
-		s.DposV2VoteRights[*receipt] += payload.Value
+		s.DposV2VoteRights[*addr] += pld.Value
 		delete(s.VotesWithdrawableTxInfo, tx.Hash())
 	})
 }
 
 func (s *State) processDposV2ClaimReward(tx interfaces.Transaction, height uint32) {
-	oriDposV2RewardInfo := s.DposV2RewardInfo
-	oriDposV2RewardClaimingInfo := s.DposV2RewardClaimingInfo
-	payload := tx.Payload().(*payload.DPoSV2ClaimReward)
-	programHash, _ := utils.GetProgramHashByCode(tx.Programs()[0].Code)
+	pld := tx.Payload().(*payload.DPoSV2ClaimReward)
+	var code []byte
+	if tx.PayloadVersion() == payload.DposV2ClaimRewardVersionV0 {
+		code = pld.Code
+	} else {
+		code = tx.Programs()[0].Code
+	}
+
+	programHash, _ := utils.GetProgramHashByCode(code)
 	addr, _ := programHash.ToAddress()
+
 	s.History.Append(height, func() {
-		s.DposV2RewardInfo[addr] -= payload.Amount
-		s.DposV2RewardClaimingInfo[addr] += payload.Amount
+		s.DposV2RewardInfo[addr] -= pld.Value
+		s.DposV2RewardClaimingInfo[addr] += pld.Value
 		s.WithdrawableTxInfo[tx.Hash()] = common2.OutputInfo{
-			Recipient: *programHash,
-			Amount:    payload.Amount,
+			Recipient: pld.ToAddr,
+			Amount:    pld.Value,
 		}
 	}, func() {
-		s.DposV2RewardInfo = oriDposV2RewardInfo
-		s.DposV2RewardClaimingInfo = oriDposV2RewardClaimingInfo
+		s.DposV2RewardInfo[addr] += pld.Value
+		s.DposV2RewardClaimingInfo[addr] -= pld.Value
 		delete(s.WithdrawableTxInfo, tx.Hash())
 	})
 }
@@ -2532,10 +2558,10 @@ func (s *State) processRevertToDPOS(Payload *payload.RevertToDPOS, height uint32
 
 func (s *State) getClaimedCRMemberDPOSPublicKeyMap() map[string]*state.CRMember {
 	crMembersMap := make(map[string]*state.CRMember)
-	if s.getCRMembers == nil {
+	if s.getCurrentCRMembers == nil {
 		return crMembersMap
 	}
-	crMembers := s.getCRMembers()
+	crMembers := s.getCurrentCRMembers()
 	for _, m := range crMembers {
 		if len(m.DPOSPublicKey) != 0 {
 			crMembersMap[hex.EncodeToString(m.DPOSPublicKey)] = m
@@ -2844,11 +2870,6 @@ func (s *State) countArbitratorsInactivityV3(height uint32,
 	}
 	currSponsor := s.getProducerKey(confirm.Proposal.Sponsor)
 	changingArbiters[currSponsor] = true
-	for _, vote := range confirm.Votes {
-		if _, ok := changingArbiters[s.getProducerKey(vote.Signer)]; ok {
-			changingArbiters[s.getProducerKey(vote.Signer)] = true
-		}
-	}
 	crMembersMap := s.getClaimedCRMembersMap()
 	// CRC producers are not in the ActivityProducers,
 	// so they will not be inactive
@@ -2907,7 +2928,7 @@ func (s *State) countArbitratorsInactivityV3(height uint32,
 			})
 		}
 
-		ms := s.getCRMembers()
+		ms := s.getCurrentCRMembers()
 		for _, m := range ms {
 			cm := m
 			// reset workedInRound value
@@ -3405,6 +3426,7 @@ func (s *State) handleEvents(event *events.Event) {
 // NewState returns a new State instance.
 func NewState(chainParams *config.Params, getArbiters func() []*ArbiterInfo,
 	getCRMembers func() []*state.CRMember,
+	getNextCRMembers func() []*state.CRMember,
 	isInElectionPeriod func() bool,
 	getProducerDepositAmount func(common.Uint168) (common.Fixed64, error),
 	tryUpdateCRMemberInactivity func(did common.Uint168, needReset bool, height uint32),
@@ -3417,7 +3439,8 @@ func NewState(chainParams *config.Params, getArbiters func() []*ArbiterInfo,
 	state := State{
 		ChainParams:                   chainParams,
 		GetArbiters:                   getArbiters,
-		getCRMembers:                  getCRMembers,
+		getCurrentCRMembers:           getCRMembers,
+		getNextCRMembers:              getNextCRMembers,
 		isInElectionPeriod:            isInElectionPeriod,
 		GetProducerDepositAmount:      getProducerDepositAmount,
 		History:                       utils.NewHistory(maxHistoryCapacity),

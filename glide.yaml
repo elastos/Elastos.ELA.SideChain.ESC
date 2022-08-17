@@ -123,12 +123,12 @@ import:
 - package: gopkg.in/urfave/cli.v1
   version: ~1.20.0
 - package: github.com/AlexpanXX/fsnotify
-#- package: github.com/elastos/Elastos.ELA.SideChain
-#  version: 17fab30a51c0a45b0b5e65778bf3dd2d4e3f3361 #release_v0.3.0
+- package: github.com/elastos/Elastos.ELA.SideChain
+  version: e5b1a973249be81af6e998e1ec714a43549edf71 #release_v0.3.0
 - package: github.com/elastos/Elastos.ELA.SPV
-  version: 9c1f7325f7faf148f30931bd676390b4e56805fc #elatsos release_v0.1.0
+  version: 4060b656d074f4537610312f8f8fafb10490b583 #elatsos release_v0.1.0
 - package: github.com/elastos/Elastos.ELA
-  version: 41245cbdfab650cdaeece69566046b1aed7919c6 #feature_refactor
+  version: 41245cbdfab650cdaeece69566046b1aed7919c6 #release_v0.9.0
 - package: github.com/gorilla/websocket
 - package: github.com/mattn/go-sqlite3
 - package: github.com/btcsuite/btcd/wire
