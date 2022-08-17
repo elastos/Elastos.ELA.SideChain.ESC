@@ -635,7 +635,7 @@ func GetVoteRights(params Params) map[string]interface{} {
 			}
 		}
 		// cr Impeachment
-		if uciv := crstate.UsdedCRImpeachmentVotes[stakeProgramHash]; uciv != nil {
+		if uciv := crstate.UsedCRImpeachmentVotes[stakeProgramHash]; uciv != nil {
 			for _, v := range uciv {
 				c, _ := common.Uint168FromBytes(v.Candidate)
 				candidate, _ := c.ToAddress()
@@ -732,7 +732,7 @@ func GetUsedVoteRight(voteType outputpayload.VoteType, stakeProgramHash *common.
 			usedDposVote = maxVotes
 		}
 	case outputpayload.CRCImpeachment:
-		if usedCRImpeachmentVoteRights, ok := crstate.UsdedCRImpeachmentVotes[*stakeProgramHash]; !ok {
+		if usedCRImpeachmentVoteRights, ok := crstate.UsedCRImpeachmentVotes[*stakeProgramHash]; !ok {
 			usedDposVote = 0
 		} else {
 			for _, votesInfo := range usedCRImpeachmentVoteRights {
@@ -2442,7 +2442,55 @@ func ListCurrentCRs(param Params) map[string]interface{} {
 	cm := Chain.GetCRCommittee()
 	var crMembers []*crstate.CRMember
 	if cm.IsInElectionPeriod() {
-		crMembers = cm.GetAllMembers()
+		crMembers = cm.GetCurrentMembers()
+		sort.Slice(crMembers, func(i, j int) bool {
+			return crMembers[i].Info.GetCodeHash().Compare(
+				crMembers[j].Info.GetCodeHash()) < 0
+		})
+	}
+
+	var rsCRMemberInfoSlice []RPCCRMemberInfo
+	for i, cr := range crMembers {
+		cidAddress, _ := cr.Info.CID.ToAddress()
+		var didAddress string
+		if !cr.Info.DID.IsEqual(emptyHash) {
+			didAddress, _ = cr.Info.DID.ToAddress()
+		}
+		depositAddr, _ := cr.DepositHash.ToAddress()
+		memberInfo := RPCCRMemberInfo{
+			Code:             hex.EncodeToString(cr.Info.Code),
+			CID:              cidAddress,
+			DID:              didAddress,
+			DPOSPublicKey:    hex.EncodeToString(cr.DPOSPublicKey),
+			NickName:         cr.Info.NickName,
+			Url:              cr.Info.Url,
+			Location:         cr.Info.Location,
+			ImpeachmentVotes: cr.ImpeachmentVotes.String(),
+			DepositAmount:    cm.GetAvailableDepositAmount(cr.Info.CID).String(),
+			DepositAddress:   depositAddr,
+			Penalty:          cm.GetPenalty(cr.Info.CID).String(),
+			Index:            uint64(i),
+			State:            cr.MemberState.String(),
+		}
+		rsCRMemberInfoSlice = append(rsCRMemberInfoSlice, memberInfo)
+	}
+
+	count := int64(len(crMembers))
+
+	result := &RPCCRMembersInfo{
+		CRMemberInfoSlice: rsCRMemberInfoSlice,
+		TotalCounts:       uint64(count),
+	}
+
+	return ResponsePack(Success, result)
+}
+
+//list next crs according to (state)
+func ListNextCRs(param Params) map[string]interface{} {
+	cm := Chain.GetCRCommittee()
+	var crMembers []*crstate.CRMember
+	if cm.IsInElectionPeriod() {
+		crMembers = cm.GetNextMembers()
 		sort.Slice(crMembers, func(i, j int) bool {
 			return crMembers[i].Info.GetCodeHash().Compare(
 				crMembers[j].Info.GetCodeHash()) < 0
@@ -3473,9 +3521,9 @@ func getPayloadInfo(p interfaces.Payload, payloadVersion byte) PayloadInfo {
 			ToAddr: address,
 			// code
 			Code: common.BytesToHexString(object.Code),
-			//unstake value
+			// unstake value
 			Value: object.Value.String(),
-			//signature
+			// signature
 			Signature: common.BytesToHexString(object.Signature),
 		}
 		return obj
@@ -3494,8 +3542,14 @@ func getPayloadInfo(p interfaces.Payload, payloadVersion byte) PayloadInfo {
 		}
 		return obj
 	case *payload.DPoSV2ClaimReward:
+		address, _ := object.ToAddr.ToAddress()
 		obj := &DposV2ClaimRewardInfo{
-			Amount:    object.Amount.String(),
+			ToAddr: address,
+			// code
+			Code: common.BytesToHexString(object.Code),
+			// reward value
+			Value: object.Value.String(),
+			// signature
 			Signature: common.BytesToHexString(object.Signature),
 		}
 		return obj

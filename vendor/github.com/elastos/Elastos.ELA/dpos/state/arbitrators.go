@@ -182,7 +182,7 @@ func (a *Arbiters) recoverFromCheckPoints(point *CheckPoint) {
 }
 
 func (a *Arbiters) ProcessBlock(block *types.Block, confirm *payload.Confirm) {
-	a.State.ProcessBlock(block, confirm, a.IsDPoSV2Run(block.Height), a.DutyIndex)
+	a.State.ProcessBlock(block, confirm, a.DutyIndex)
 	a.IncreaseChainHeight(block, confirm)
 }
 
@@ -768,8 +768,11 @@ func (a *Arbiters) accumulateReward(block *types.Block, confirm *payload.Confirm
 		log.Debugf("accumulateReward dposReward %v", dposReward)
 		oriDutyIndex := a.DutyIndex
 		oriForceChanged := a.forceChanged
-		oriDposV2RewardInfo := a.DposV2RewardInfo
-		rewards := a.getDPoSV2Rewards(dposReward, confirm.Proposal.Sponsor)
+
+		var rewards map[string]common.Fixed64
+		if confirm != nil {
+			rewards = a.getDPoSV2Rewards(dposReward, confirm.Proposal.Sponsor)
+		}
 
 		a.History.Append(block.Height, func() {
 			for k, v := range rewards {
@@ -778,7 +781,9 @@ func (a *Arbiters) accumulateReward(block *types.Block, confirm *payload.Confirm
 			a.forceChanged = false
 			a.DutyIndex = oriDutyIndex + 1
 		}, func() {
-			a.DposV2RewardInfo = oriDposV2RewardInfo
+			for k, v := range rewards {
+				a.DposV2RewardInfo[k] -= v
+			}
 			a.forceChanged = oriForceChanged
 			a.DutyIndex = oriDutyIndex
 		})
@@ -1997,7 +2002,7 @@ func (a *Arbiters) getSortedProducersWithRandom(height uint32, unclaimedCount in
 	return newProducers, nil
 }
 
-func (a *Arbiters) getRandomDposV2Producers(height uint32, unclaimedCount int, choosingArbiters map[common.Uint168]ArbiterMember) ([]string, error) {
+func (a *Arbiters) getRandomDposV2Producers(height uint32, unclaimedCount int, choosingCRArbiters map[common.Uint168]ArbiterMember) ([]string, error) {
 	block, _ := a.getBlockByHeight(height - 1)
 	if block == nil {
 		return nil, errors.New("block is not found")
@@ -2014,8 +2019,10 @@ func (a *Arbiters) getRandomDposV2Producers(height uint32, unclaimedCount int, c
 	votedProducers := a.getSortedProducersDposV2()
 	// crc also need to be random selected
 	var producerKeys []string
-	for _, crc := range choosingArbiters {
-		producerKeys = append(producerKeys, hex.EncodeToString(crc.GetOwnerPublicKey()))
+	for _, crc := range choosingCRArbiters {
+		if crc.IsNormal() {
+			producerKeys = append(producerKeys, hex.EncodeToString(crc.GetOwnerPublicKey()))
+		}
 	}
 	sort.Slice(producerKeys, func(i, j int) bool {
 		return strings.Compare(producerKeys[i], producerKeys[j]) < 0
@@ -2096,7 +2103,7 @@ func (a *Arbiters) UpdateNextArbitrators(versionHeight, height uint32) error {
 		})
 	}
 
-	unclaimed, choosingArbiters, err := a.resetNextArbiterByCRC(versionHeight, height)
+	unclaimed, choosingCRArbiters, err := a.resetNextArbiterByCRC(versionHeight, height)
 	if err != nil {
 		return err
 	}
@@ -2105,9 +2112,9 @@ func (a *Arbiters) UpdateNextArbitrators(versionHeight, height uint32) error {
 
 		count := a.ChainParams.GeneralArbiters
 		var votedProducers []*Producer
-		var votedProducersStr []string
+		var crAndVotedProducersStr []string
 		if a.isDposV2Active() {
-			votedProducersStr, err = a.getRandomDposV2Producers(height, unclaimed, choosingArbiters)
+			crAndVotedProducersStr, err = a.getRandomDposV2Producers(height, unclaimed, choosingCRArbiters)
 			if err != nil {
 				return err
 			}
@@ -2120,7 +2127,7 @@ func (a *Arbiters) UpdateNextArbitrators(versionHeight, height uint32) error {
 		var producers []ArbiterMember
 		var err error
 		if a.isDposV2Active() {
-			producers, err = a.GetDposV2NormalArbitratorsDesc(count+int(a.ChainParams.CRMemberCount), votedProducersStr, choosingArbiters)
+			producers, err = a.GetDposV2NormalArbitratorsDesc(count+int(a.ChainParams.CRMemberCount), crAndVotedProducersStr, choosingCRArbiters)
 		} else {
 			producers, err = a.GetNormalArbitratorsDesc(versionHeight, count,
 				votedProducers, unclaimed)
@@ -2198,7 +2205,7 @@ func (a *Arbiters) UpdateNextArbitrators(versionHeight, height uint32) error {
 					votedProducers)
 			} else {
 				candidates, err = a.GetDposV2CandidatesDesc(count+int(a.ChainParams.CRMemberCount),
-					votedProducersStr, choosingArbiters)
+					crAndVotedProducersStr, choosingCRArbiters)
 			}
 			if err != nil {
 				return err
@@ -2252,7 +2259,6 @@ func (a *Arbiters) resetNextArbiterByCRC(versionHeight uint32, height uint32) (i
 	} else if versionHeight >= a.ChainParams.ChangeCommitteeNewCRHeight {
 		var votedProducers []*Producer
 		if a.isDposV2Active() {
-			log.Info("change to DPoS 2.0 at height:", height)
 			votedProducers = a.State.GetDposV2ActiveProducers()
 		} else {
 			votedProducers = a.State.GetVotedProducers()
@@ -2906,8 +2912,8 @@ func NewArbitrators(chainParams *config.Params, committee *state.Committee,
 	if err := a.initArbitrators(chainParams); err != nil {
 		return nil, err
 	}
-	a.State = NewState(chainParams, a.GetArbitrators, a.CRCommittee.GetAllMembers,
-		a.CRCommittee.IsInElectionPeriod,
+	a.State = NewState(chainParams, a.GetArbitrators, a.CRCommittee.GetCurrentMembers,
+		a.CRCommittee.GetNextMembers, a.CRCommittee.IsInElectionPeriod,
 		getProducerDepositAmount, tryUpdateCRMemberInactivity, tryRevertCRMemberInactivityfunc,
 		tryUpdateCRMemberIllegal, tryRevertCRMemberIllegal,
 		updateCRInactivePenalty,
