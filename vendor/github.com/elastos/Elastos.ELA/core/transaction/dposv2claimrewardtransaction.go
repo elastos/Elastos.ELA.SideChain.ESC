@@ -9,13 +9,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA/utils"
 
 	"github.com/elastos/Elastos.ELA/blockchain"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 	"github.com/elastos/Elastos.ELA/crypto"
 	elaerr "github.com/elastos/Elastos.ELA/errors"
-	"github.com/elastos/Elastos.ELA/utils"
 	"github.com/elastos/Elastos.ELA/vm"
 )
 
@@ -63,7 +63,17 @@ func (t *DPoSV2ClaimRewardTransaction) SpecialContextCheck() (elaerr.ELAError, b
 	if !ok {
 		return elaerr.Simple(elaerr.ErrTxPayload, errors.New("invalid payload for dposV2claimReward")), true
 	}
-	code := t.Programs()[0].Code
+
+	version := t.PayloadVersion()
+	var code []byte
+	if version == payload.UnstakeVersionV0 {
+		code = claimReward.Code
+	} else if version == payload.UnstakeVersionV1 {
+		code = t.Programs()[0].Code
+	} else {
+		return elaerr.Simple(elaerr.ErrTxPayload, errors.New("invalid payload version")), true
+	}
+
 	addr, err := utils.GetAddressByCode(code)
 	if err != nil {
 		return elaerr.Simple(elaerr.ErrTxPayload, errors.New("Programs code to address error")), true
@@ -73,22 +83,26 @@ func (t *DPoSV2ClaimRewardTransaction) SpecialContextCheck() (elaerr.ELAError, b
 		return elaerr.Simple(elaerr.ErrTxPayload, errors.New("no reward to claim for such address")), true
 	}
 
-	if claimAmount < claimReward.Amount {
+	if claimAmount < claimReward.Value {
 		return elaerr.Simple(elaerr.ErrTxPayload, errors.New("claim reward exceeded , max claim reward "+claimAmount.String())), true
 	}
 
-	if claimReward.Amount <= t.parameters.Config.RealWithdrawSingleFee {
+	if claimReward.Value <= t.parameters.Config.RealWithdrawSingleFee {
 		return elaerr.Simple(elaerr.ErrTxPayload, errors.New("claim reward should be bigger than RealWithdrawSingleFee")), true
 	}
-	signedBuf := new(bytes.Buffer)
-	err = claimReward.SerializeUnsigned(signedBuf, payload.DposV2ClaimRewardVersion)
-	if err != nil {
-		return elaerr.Simple(elaerr.ErrTxPayload, errors.New("claimReward Serialize error")), true
+
+	if version == payload.UnstakeVersionV0 {
+		signedBuf := new(bytes.Buffer)
+		err = claimReward.SerializeUnsigned(signedBuf, payload.DposV2ClaimRewardVersionV0)
+		if err != nil {
+			return elaerr.Simple(elaerr.ErrTxPayload, errors.New("claimReward Serialize error")), true
+		}
+		err = t.checkClaimRewardSignature(code, claimReward.Signature, signedBuf.Bytes())
+		if err != nil {
+			return elaerr.Simple(elaerr.ErrTxPayload, err), true
+		}
 	}
-	err = t.checkClaimRewardSignature(code, claimReward.Signature, signedBuf.Bytes())
-	if err != nil {
-		return elaerr.Simple(elaerr.ErrTxPayload, err), true
-	}
+
 	return nil, false
 }
 
