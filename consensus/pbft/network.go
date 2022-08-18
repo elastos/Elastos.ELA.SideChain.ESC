@@ -474,11 +474,12 @@ func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 		log.Info("not have proposal, get it and push vote into pending vote", "proposal", vote.ProposalHash.String())
 		p.dispatcher.AddPendingVote(vote)
 	} else if currentProposal.IsEqual(vote.ProposalHash) {
-		if p.dispatcher.GetProcessingProposal() == nil {
+		processingProposal := p.dispatcher.GetProcessingProposal()
+		if processingProposal == nil {
 			log.Info("GetProcessingProposal is nil")
 			return
 		}
-		if _, ok := p.blockPool.GetConfirm(p.dispatcher.GetProcessingProposal().BlockHash); ok {
+		if _, ok := p.blockPool.GetConfirm(processingProposal.BlockHash); ok {
 			log.Warn("Has Confirm proposal")
 			return
 		}
