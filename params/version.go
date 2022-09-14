@@ -25,7 +25,7 @@ const (
 	VersionMinor = 9        // Minor version component of the current release
 	VersionPatch = 7        // Patch version component of the current release
 	VersionCross = 0        // Cross version component of the current release
-	VersionMeta  = "v0.2.0" // Version metadata to append to the version string
+	VersionMeta  = "v0.2.1" // Version metadata to append to the version string
 )
 
 // Version holds the textual version string.
