@@ -186,16 +186,17 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 	if account != nil {
 		accpubkey = account.PublicKeyBytes()
 		network, err := dpos.NewNetwork(&dpos.NetworkConfig{
-			IPAddress:        cfg.IPAddress,
-			Magic:            cfg.Magic,
-			DefaultPort:      cfg.DPoSPort,
-			Account:          account,
-			MedianTime:       medianTimeSouce,
-			MaxNodePerHost:   cfg.MaxNodePerHost,
-			Listener:         pbft,
-			DataPath:         dposPath,
-			PublicKey:        accpubkey,
-			GetCurrentHeight: pbft.GetMainChainHeight,
+			IPAddress:         cfg.IPAddress,
+			Magic:             cfg.Magic,
+			DefaultPort:       cfg.DPoSPort,
+			Account:           account,
+			MedianTime:        medianTimeSouce,
+			MaxNodePerHost:    cfg.MaxNodePerHost,
+			Listener:          pbft,
+			DataPath:          dposPath,
+			PublicKey:         accpubkey,
+			GetCurrentHeight:  pbft.GetMainChainHeight,
+			DPoSV2StartHeight: cfg.DPoSV2StartHeight,
 			AnnounceAddr: func() {
 				events.Notify(dpos.ETAnnounceAddr, nil)
 			},

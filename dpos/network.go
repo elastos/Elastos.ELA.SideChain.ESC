@@ -8,6 +8,7 @@ package dpos
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/dpos_msg"
 	dmsg "github.com/elastos/Elastos.ELA.SideChain.ESC/dpos/msg"
 	peer2 "github.com/elastos/Elastos.ELA/p2p/peer"
@@ -25,10 +26,11 @@ import (
 )
 
 type NetworkConfig struct {
-	IPAddress      string
-	Magic          uint32
-	DefaultPort    uint16
-	MaxNodePerHost uint32
+	IPAddress         string
+	Magic             uint32
+	DefaultPort       uint16
+	MaxNodePerHost    uint32
+	DPoSV2StartHeight uint32
 
 	Account    account.Account
 	MedianTime dtime.MedianTimeSource
@@ -341,9 +343,10 @@ func (n *Network) DumpPeersInfo() []*p2p.PeerInfo {
 
 func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 	network := &Network{
-		listener:     cfg.Listener,
-		publicKey:    cfg.PublicKey,
-		announceAddr: cfg.AnnounceAddr,
+		listener:         cfg.Listener,
+		publicKey:        cfg.PublicKey,
+		announceAddr:     cfg.AnnounceAddr,
+		GetCurrentHeight: cfg.GetCurrentHeight,
 
 		messageQueue:   make(chan *messageItem, 10000),
 		quit:           make(chan bool),
@@ -353,24 +356,25 @@ func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 	}
 
 	notifier := p2p.NewNotifier(p2p.NFNetStabled|p2p.NFBadNetwork, network.notifyFlag)
-
+	fmt.Println(">>>>>>> cfg.DPoSV2StartHeight <<<<<<<<", cfg.DPoSV2StartHeight)
 	var pid peer.PID
 	copy(pid[:], cfg.Account.PublicKeyBytes())
 	server, err := p2p.NewServer(&p2p.Config{
-		DataDir:        cfg.DataPath,
-		PID:            pid,
-		EnableHub:      true,
-		Localhost:      cfg.IPAddress,
-		MagicNumber:    cfg.Magic,
-		DefaultPort:    cfg.DefaultPort,
-		TimeSource:     cfg.MedianTime,
-		MaxNodePerHost: cfg.MaxNodePerHost,
-		CreateMessage:  createMessage,
-		HandleMessage:  network.handleMessage,
-		PingNonce:      network.GetCurrentHeight,
-		PongNonce:      network.GetCurrentHeight,
-		Sign:           cfg.Account.Sign,
-		StateNotifier:  notifier,
+		DataDir:           cfg.DataPath,
+		PID:               pid,
+		EnableHub:         true,
+		Localhost:         cfg.IPAddress,
+		MagicNumber:       cfg.Magic,
+		DefaultPort:       cfg.DefaultPort,
+		TimeSource:        cfg.MedianTime,
+		MaxNodePerHost:    cfg.MaxNodePerHost,
+		CreateMessage:     createMessage,
+		HandleMessage:     network.handleMessage,
+		PingNonce:         network.GetCurrentHeight,
+		PongNonce:         network.GetCurrentHeight,
+		Sign:              cfg.Account.Sign,
+		StateNotifier:     notifier,
+		DPoSV2StartHeight: cfg.DPoSV2StartHeight,
 	})
 	if err != nil {
 		return nil, err

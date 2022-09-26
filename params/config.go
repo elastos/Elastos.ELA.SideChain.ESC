@@ -447,14 +447,15 @@ func (c *CliqueConfig) String() string {
 }
 
 type PbftConfig struct {
-	Producers      []string `json:"producers"` // list of producers participating the pbft consensus.
-	Magic          uint32   `json:"magic"`     // Magic defines the magic number used in the DPoS network.
-	IPAddress      string   `json:"ip"`        // IPAddress defines the IP address for the DPoS network.
-	DPoSPort       uint16   `json:"dposport"`  // DPoSPort defines the default port for the DPoS network.
-	PrintLevel     uint8    `json:"printlevel"`
-	MaxLogsSize    int64    `json:"maxlogssize"`
-	MaxPerLogSize  int64    `json:"maxperlogsize"`
-	MaxNodePerHost uint32   `json:"maxnodeperhost"` //MaxNodePerHost defines max nodes that one host can establish.
+	Producers         []string `json:"producers"` // list of producers participating the pbft consensus.
+	Magic             uint32   `json:"magic"`     // Magic defines the magic number used in the DPoS network.
+	IPAddress         string   `json:"ip"`        // IPAddress defines the IP address for the DPoS network.
+	DPoSPort          uint16   `json:"dposport"`  // DPoSPort defines the default port for the DPoS network.
+	PrintLevel        uint8    `json:"printlevel"`
+	MaxLogsSize       int64    `json:"maxlogssize"`
+	MaxPerLogSize     int64    `json:"maxperlogsize"`
+	MaxNodePerHost    uint32   `json:"maxnodeperhost"` //MaxNodePerHost defines max nodes that one host can establish.
+	DPoSV2StartHeight uint32   `json:"dposv2startheight"`
 }
 
 func (p *PbftConfig) String() string {
