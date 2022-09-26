@@ -124,11 +124,11 @@ import:
   version: ~1.20.0
 - package: github.com/AlexpanXX/fsnotify
 - package: github.com/elastos/Elastos.ELA.SideChain
-  version: e5b1a973249be81af6e998e1ec714a43549edf71 #release_v0.3.0
+  version: fc42ad1bd82fadbb6d361eba5582924e9fecb13b #release_v0.3.0
 - package: github.com/elastos/Elastos.ELA.SPV
-  version: 4060b656d074f4537610312f8f8fafb10490b583 #elatsos release_v0.1.0
+  version: b4d766fb6affbd68f1d7e77000456897e1d1c3aa #elatsos release_v0.1.0
 - package: github.com/elastos/Elastos.ELA
-  version: 41245cbdfab650cdaeece69566046b1aed7919c6 #release_v0.9.0
+  version: 3c4d3be13d880204884954054068e7a7e00264b8 #release_v0.9.0
 - package: github.com/gorilla/websocket
 - package: github.com/mattn/go-sqlite3
 - package: github.com/btcsuite/btcd/wire

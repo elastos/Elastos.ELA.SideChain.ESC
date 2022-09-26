@@ -100,6 +100,7 @@ func setupNode() *cli.App {
 		cmdcom.InstantBlockFlag,
 		cmdcom.RPCPortFlag,
 		cmdcom.RPCIpFlag,
+		cmdcom.RPCUrlFlag,
 	}
 	app.Flags = append(app.Flags, appSettings.Flags()...)
 	app.Action = func(c *cli.Context) {
@@ -287,6 +288,7 @@ func startNode(c *cli.Context, st *settings.Settings) {
 			},
 			AnnounceAddr: route.AnnounceAddr,
 			NodeVersion:  nodePrefix + Version,
+			Addr:         routesCfg.Addr,
 		})
 		if err != nil {
 			printErrorAndExit(err)
