@@ -111,9 +111,10 @@ type Routes struct {
 	sign func([]byte) []byte
 
 	// The following variables must only be used atomically.
-	started int32
-	stopped int32
-	waiting int32
+	started   int32
+	stopped   int32
+	waiting   int32
+	crWaiting int32
 
 	addrMtx   sync.RWMutex
 	addrIndex map[dp.PID]map[dp.PID]common.Uint256
@@ -156,6 +157,10 @@ func (r *Routes) addrHandler() {
 	}
 
 	ciphers := make(map[string]map[dp.PID][]byte)
+	sentDPoSPeers := make(map[dp.PID]uint32)
+	sentCrPeers := make(map[dp.PID]uint32)
+	var roundDPoS uint32 = 1
+	var roundCr uint32 = 1
 
 out:
 	for {
@@ -213,10 +218,17 @@ out:
 
 			// Reset waiting state to 0(false).
 			atomic.StoreInt32(&r.waiting, 0)
+			// add round atomicly
+			atomic.AddUint32(&roundDPoS, 1)
 
 			for pid := range state.dposPeers {
 				// Do not create address for self.
 				if r.pid.Equal(pid) {
+					continue
+				}
+
+				// Do not create address when in DPoS peers
+				if sentCrPeers[pid] == roundCr {
 					continue
 				}
 
@@ -251,6 +263,7 @@ out:
 				}
 				addr.Signature = r.sign(addr.Data())
 
+				sentDPoSPeers[pid] = roundDPoS
 				// Append and relay the local address.
 				r.appendAddr(&addr)
 			}
@@ -263,7 +276,7 @@ out:
 			if !ok {
 				// Waiting status must reset here or the announce will never
 				// work again.
-				atomic.StoreInt32(&r.waiting, 0)
+				atomic.StoreInt32(&r.crWaiting, 0)
 				continue
 			}
 
@@ -287,11 +300,18 @@ out:
 			lastCRAnnounce = now
 
 			// Reset waiting state to 0(false).
-			atomic.StoreInt32(&r.waiting, 0)
+			atomic.StoreInt32(&r.crWaiting, 0)
+			// add round atomicly
+			atomic.AddUint32(&roundCr, 1)
 
 			for pid := range state.crPeers {
 				// Do not create address for self.
 				if r.pid.Equal(pid) {
+					continue
+				}
+
+				// Do not create address when in DPoS peers
+				if sentDPoSPeers[pid] == roundDPoS {
 					continue
 				}
 
@@ -314,6 +334,7 @@ out:
 				}
 				addr.Signature = r.sign(addr.Data())
 
+				sentCrPeers[pid] = roundCr
 				// Append and relay the local address.
 				r.appendAddr(&addr)
 			}
@@ -386,7 +407,7 @@ func (r *Routes) announceCRAddr() {
 
 	// Refuse new announce if a previous announce is waiting,
 	// this is to reduce unnecessary announce.
-	if !atomic.CompareAndSwapInt32(&r.waiting, 0, 1) {
+	if !atomic.CompareAndSwapInt32(&r.crWaiting, 0, 1) {
 		return
 	}
 	r.crAnnounce <- struct{}{}
@@ -419,18 +440,11 @@ func (r *Routes) handlePeersMsg(state *state, dposPeers []dp.PID, crPeers []dp.P
 	peers := append(dposPeers, crPeers...)
 	var newDPoSPeers = make(map[dp.PID]struct{})
 	var newCRPeers = make(map[dp.PID]struct{})
-	var hasNewCRPeers, hasNewDPoSPeers bool
 	for _, pid := range dposPeers {
 		newDPoSPeers[pid] = struct{}{}
-		if _, ok := state.dposPeers[pid]; !ok {
-			hasNewDPoSPeers = true
-		}
 	}
 	for _, pid := range crPeers {
 		newCRPeers[pid] = struct{}{}
-		if _, ok := state.crPeers[pid]; !ok {
-			hasNewCRPeers = true
-		}
 	}
 	var newPeers = make(map[dp.PID]struct{})
 	for _, pid := range peers {
@@ -492,18 +506,18 @@ func (r *Routes) handlePeersMsg(state *state, dposPeers []dp.PID, crPeers []dp.P
 			break
 		}
 	}
-	//_, wasArbiter := state.dposPeers[r.pid]
-	//_, wasCRArbiter := state.crPeers[r.pid]
+	_, wasArbiter := state.dposPeers[r.pid]
+	_, wasCRArbiter := state.crPeers[r.pid]
 
 	// Update peers list.
 	state.dposPeers = newDPoSPeers
 	state.crPeers = newCRPeers
 
 	// Announce address into P2P network if we become arbiter.
-	if isDPoSArbiter && hasNewDPoSPeers {
+	if isDPoSArbiter && !wasArbiter {
 		r.announceAddr()
 	}
-	if isCRArbiter && hasNewCRPeers {
+	if isCRArbiter && !wasCRArbiter {
 		r.announceCRAddr()
 	}
 }

@@ -116,12 +116,11 @@ func (t *UpdateProducerTransaction) SpecialContextCheck() (elaerr.ELAError, bool
 	case state.DPoSV1:
 		//if this producer want to be dposv2
 		if info.StakeUntil != 0 {
-
 			if producer.State() != state.Active {
 				return elaerr.Simple(elaerr.ErrTxPayload, errors.New("only active producer can update to DPoSV1V2")), true
 			}
-			if t.parameters.BlockHeight+t.parameters.Config.DPoSV2MinVotesLockTime >= info.StakeUntil {
-				return elaerr.Simple(elaerr.ErrTxPayload, errors.New("v2 producer StakeUntil less than BlockHeight")), true
+			if t.parameters.BlockHeight+t.parameters.Config.DPoSV2DepositCoinMinLockTime >= info.StakeUntil {
+				return elaerr.Simple(elaerr.ErrTxPayload, errors.New("v2 producer StakeUntil less than DPoSV2DepositCoinMinLockTime")), true
 			}
 		}
 	case state.DPoSV2:
@@ -172,11 +171,14 @@ func (t *UpdateProducerTransaction) SpecialContextCheck() (elaerr.ELAError, bool
 			common.BytesToHexString(info.NodePublicKey))), true
 	}
 
+	// It is not necessary to check if OwnerPublicKey is others' NodePublicKey since we can not change OwnerPublicKey
+
 	// check node public key duplication
 	if bytes.Equal(info.NodePublicKey, producer.Info().NodePublicKey) {
 		return nil, false
 	}
 
+	//if update producer tx change NodePublicKey
 	if t.parameters.BlockChain.GetHeight() < t.parameters.Config.PublicDPOSHeight {
 		if t.parameters.BlockChain.GetState().ProducerExists(info.NodePublicKey) {
 			return elaerr.Simple(elaerr.ErrTxPayload, fmt.Errorf("producer %s already exist",
@@ -187,6 +189,21 @@ func (t *UpdateProducerTransaction) SpecialContextCheck() (elaerr.ELAError, bool
 		if t.parameters.BlockChain.GetState().ProducerOrCRNodePublicKeyExists(info.NodePublicKey) {
 			return elaerr.Simple(elaerr.ErrTxPayload, fmt.Errorf("producer %s already exist",
 				hex.EncodeToString(info.NodePublicKey))), true
+		}
+
+		if t.parameters.BlockHeight > t.parameters.Config.DPoSV2StartHeight {
+			//check if NodePublicKey is others' ownerpublickey
+			if t.parameters.BlockChain.GetState().ProducerOwnerPublicKeyExists(info.NodePublicKey) {
+				return elaerr.Simple(elaerr.ErrTxPayload, fmt.Errorf("NodePublicKey %s can not be other producer's ownerPublicKey ",
+					hex.EncodeToString(info.NodePublicKey))), true
+			}
+			//NodePublicKey can not be change into  one producer's OwnerPublicKey only if it is the same producer.
+			producer := t.parameters.BlockChain.GetState().GetProducerByOwnerPublicKey(info.NodePublicKey)
+			if producer != nil && !bytes.Equal(info.OwnerPublicKey, producer.OwnerPublicKey()) {
+				return elaerr.Simple(elaerr.ErrTxPayload, fmt.Errorf("NodePublicKey %s can not be other producer's ownerPublicKey ",
+					hex.EncodeToString(info.NodePublicKey))), true
+			}
+
 		}
 	}
 
