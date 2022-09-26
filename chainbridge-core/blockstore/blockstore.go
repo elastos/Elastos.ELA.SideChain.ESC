@@ -32,7 +32,7 @@ var (
 
 func StoreBlock(db KeyValueWriter, block *big.Int, chainID uint64) error {
 	key := bytes.Buffer{}
-	keyS := fmt.Sprintf("chain:%s:block", string(chainID))
+	keyS := fmt.Sprintf("chain:%d:block", chainID)
 	key.WriteString(keyS)
 	err := db.SetByKey(key.Bytes(), block.Bytes())
 	if err != nil {
@@ -43,7 +43,7 @@ func StoreBlock(db KeyValueWriter, block *big.Int, chainID uint64) error {
 
 func GetLastStoredBlock(db KeyValueReader, chainID uint64) (*big.Int, error) {
 	key := bytes.Buffer{}
-	keyS := fmt.Sprintf("chain:%s:block", string(chainID))
+	keyS := fmt.Sprintf("chain:%d:block", chainID)
 	key.WriteString(keyS)
 	v, err := db.GetByKey(key.Bytes())
 	if err != nil {
