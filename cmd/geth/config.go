@@ -36,6 +36,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 	whisper "github.com/elastos/Elastos.ELA.SideChain.ESC/whisper/whisperv6"
 	"github.com/naoina/toml"
+
+	"github.com/elastos/Elastos.ELA/common/config"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
 )
 
 var (
@@ -82,6 +86,15 @@ type gethConfig struct {
 	Node      node.Config
 	Ethstats  ethstatsConfig
 	Dashboard dashboard.Config
+}
+
+func init() {
+	// Initialize functions
+	functions.GetTransactionByTxType = elatx.GetTransaction
+	functions.GetTransactionByBytes = elatx.GetTransactionByBytes
+	functions.CreateTransaction = elatx.CreateTransaction
+	functions.GetTransactionParameters = elatx.GetTransactionparameters
+	config.DefaultParams = config.GetDefaultParams()
 }
 
 func loadConfig(file string, cfg *gethConfig) error {
@@ -167,6 +180,18 @@ func makeFullNode(ctx *cli.Context) *node.Node {
 	default:
 		SpvDbDir = node.DefaultDataDir()
 	}
+
+	switch {
+	case ctx.GlobalBool(utils.TestnetFlag.Name):
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.TestNet().DPoSV2StartHeight
+	case ctx.GlobalBool(utils.RinkebyFlag.Name):
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.RegNet().DPoSV2StartHeight
+	case ctx.GlobalBool(utils.GoerliFlag.Name):
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.RegNet().DPoSV2StartHeight
+	default:
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.DPoSV2StartHeight
+	}
+
 	spv.SpvDbInit(SpvDbDir)
 	if ctx.GlobalIsSet(utils.OverrideIstanbulFlag.Name) {
 		cfg.Eth.OverrideIstanbul = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideIstanbulFlag.Name))

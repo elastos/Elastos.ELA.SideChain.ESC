@@ -34,7 +34,6 @@ import (
 	"github.com/elastos/Elastos.ELA/common/config"
 	elatx "github.com/elastos/Elastos.ELA/core/transaction"
 	elacom "github.com/elastos/Elastos.ELA/core/types/common"
-	"github.com/elastos/Elastos.ELA/core/types/functions"
 	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -137,13 +136,6 @@ func SpvDbInit(spvdataDir string) {
 		return
 	}
 	spvTransactiondb = db
-
-	// Initialize functions
-	functions.GetTransactionByTxType = elatx.GetTransaction
-	functions.GetTransactionByBytes = elatx.GetTransactionByBytes
-	functions.CreateTransaction = elatx.CreateTransaction
-	functions.GetTransactionParameters = elatx.GetTransactionparameters
-	config.DefaultParams = config.GetDefaultParams()
 }
 
 //Spv service initialization
