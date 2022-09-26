@@ -171,6 +171,7 @@ type Config struct {
 	PbftMinerAddress     string
 	PbftIPAddress        string
 	PbftDPosPort         uint16
+	DPoSV2StartHeight    uint32
 
 	DynamicArbiterHeight uint64
 	FrozenAccountList    []string
