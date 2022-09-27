@@ -17,8 +17,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/interface/store"
 	"github.com/elastos/Elastos.ELA.SPV/sdk"
 	"github.com/elastos/Elastos.ELA.SPV/util"
-	"github.com/elastos/Elastos.ELA.SPV/wallet/sutil"
-
 	"github.com/elastos/Elastos.ELA/common"
 	elatx "github.com/elastos/Elastos.ELA/core/transaction"
 	"github.com/elastos/Elastos.ELA/core/types"
@@ -683,7 +681,7 @@ func newBlockHeader() util.BlockHeader {
 
 func newTransaction(r io.Reader) util.Transaction {
 	tx, _ := elatx.GetTransactionByBytes(r)
-	return sutil.NewTx(tx)
+	return iutil.NewTx(tx)
 }
 
 // GenesisHeader creates a specific genesis header by the given
