@@ -17,8 +17,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SPV/interface/store"
 	"github.com/elastos/Elastos.ELA.SPV/sdk"
 	"github.com/elastos/Elastos.ELA.SPV/util"
-	"github.com/elastos/Elastos.ELA.SPV/wallet/sutil"
-
 	"github.com/elastos/Elastos.ELA/common"
 	elatx "github.com/elastos/Elastos.ELA/core/transaction"
 	"github.com/elastos/Elastos.ELA/core/types"
@@ -563,7 +561,11 @@ func (s *spvservice) BlockCommitted(block *util.Block) {
 		}
 
 		// Notify listeners
-		listener, ok := s.notifyTransaction(item.NotifyId, proof, tx, block.Height-item.Height)
+		var confirmCount uint32
+		if block.Height > item.Height {
+			confirmCount = block.Height - item.Height
+		}
+		listener, ok := s.notifyTransaction(item.NotifyId, proof, tx, confirmCount)
 		if ok {
 			item.LastNotify = time.Now()
 			s.db.Que().Put(item)
@@ -683,7 +685,7 @@ func newBlockHeader() util.BlockHeader {
 
 func newTransaction(r io.Reader) util.Transaction {
 	tx, _ := elatx.GetTransactionByBytes(r)
-	return sutil.NewTx(tx)
+	return iutil.NewTx(tx)
 }
 
 // GenesisHeader creates a specific genesis header by the given
