@@ -722,10 +722,10 @@ func (s *State) GetAllProducersPublicKey() []string {
 }
 
 // GetAllProducers returns all producers including pending, active, canceled, illegal and inactive producers.
-func (s *State) GetAllProducers() []*Producer {
+func (s *State) GetAllProducers() []Producer {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
-	return s.getAllProducers()
+	return s.getAllProducersByCopy()
 }
 
 func (s *State) GetDetailedDPoSV2Votes(stakeProgramHash *common.Uint168) []payload.DetailedVoteInfo {
@@ -745,6 +745,27 @@ func (s *State) GetDetailedDPoSV2Votes(stakeProgramHash *common.Uint168) []paylo
 		return result[i].ReferKey().Compare(result[j].ReferKey()) >= 0
 	})
 	return result
+}
+
+func (s *State) getAllProducersByCopy() []Producer {
+	producers := make([]Producer, 0, len(s.PendingProducers)+
+		len(s.ActivityProducers))
+	for _, producer := range s.PendingProducers {
+		producers = append(producers, *producer)
+	}
+	for _, producer := range s.ActivityProducers {
+		producers = append(producers, *producer)
+	}
+	for _, producer := range s.InactiveProducers {
+		producers = append(producers, *producer)
+	}
+	for _, producer := range s.CanceledProducers {
+		producers = append(producers, *producer)
+	}
+	for _, producer := range s.IllegalProducers {
+		producers = append(producers, *producer)
+	}
+	return producers
 }
 
 func (s *State) getAllProducers() []*Producer {
@@ -1056,6 +1077,14 @@ func (s *State) ProducerOwnerPublicKeyExists(publicKey []byte) bool {
 	producer := s.getProducerByOwnerPublicKey(key)
 	s.mtx.RUnlock()
 	return producer != nil
+}
+
+func (s *State) GetProducerByOwnerPublicKey(publicKey []byte) *Producer {
+	s.mtx.RLock()
+	key := hex.EncodeToString(publicKey)
+	producer := s.getProducerByOwnerPublicKey(key)
+	s.mtx.RUnlock()
+	return producer
 }
 
 // ProducerOrCRNodePublicKeyExists returns if a producer is exists by it's node public key.
@@ -2083,7 +2112,6 @@ func (s *State) processRenewalVotingContent(tx interfaces.Transaction, height ui
 			delete(producer.detailedDPoSV2Votes[*stakeAddress], referKey)
 			producer.detailedDPoSV2Votes[*stakeAddress][content.ReferKey] = voteInfo
 		})
-
 	}
 }
 
@@ -2457,7 +2485,7 @@ func (s *State) getClaimedCRMembersMap() map[string]*state.CRMember {
 func (s *State) processUnstake(tx interfaces.Transaction, height uint32) {
 	pld := tx.Payload().(*payload.Unstake)
 	var code []byte
-	if tx.PayloadVersion() == payload.DposV2ClaimRewardVersionV0 {
+	if tx.PayloadVersion() == payload.UnstakeVersionV0 {
 		code = pld.Code
 	} else {
 		code = tx.Programs()[0].Code
@@ -2490,7 +2518,6 @@ func (s *State) processDposV2ClaimReward(tx interfaces.Transaction, height uint3
 
 	programHash, _ := utils.GetProgramHashByCode(code)
 	addr, _ := programHash.ToAddress()
-
 	s.History.Append(height, func() {
 		s.DposV2RewardInfo[addr] -= pld.Value
 		s.DposV2RewardClaimingInfo[addr] += pld.Value
@@ -2498,10 +2525,13 @@ func (s *State) processDposV2ClaimReward(tx interfaces.Transaction, height uint3
 			Recipient: pld.ToAddr,
 			Amount:    pld.Value,
 		}
+		s.ClaimingRewardAddr[tx.Hash()] = *programHash
 	}, func() {
 		s.DposV2RewardInfo[addr] += pld.Value
 		s.DposV2RewardClaimingInfo[addr] -= pld.Value
 		delete(s.WithdrawableTxInfo, tx.Hash())
+		delete(s.ClaimingRewardAddr, tx.Hash())
+
 	})
 }
 
@@ -2525,22 +2555,28 @@ func (s *State) processDposV2ClaimRewardRealWithdraw(tx interfaces.Transaction, 
 	for k, v := range s.StateKeyFrame.WithdrawableTxInfo {
 		txs[k] = v
 	}
-	oriClaimingInfo := s.DposV2RewardClaimingInfo
-	oriClaimedInfo := s.DposV2RewardClaimedInfo
+
+	oriRewardClaimingAddr := copyRewardClaimingAddrMap(s.ClaimingRewardAddr)
+	oriClaimingInfo := copyFixed64Map(s.DposV2RewardClaimingInfo)
+	oriClaimedInfo := copyFixed64Map(s.DposV2RewardClaimedInfo)
+
 	withdrawPayload := tx.Payload().(*payload.DposV2ClaimRewardRealWithdraw)
 
 	s.History.Append(height, func() {
 		for _, hash := range withdrawPayload.WithdrawTransactionHashes {
 			info := s.StateKeyFrame.WithdrawableTxInfo[hash]
-			addr, _ := info.Recipient.ToAddress()
+			prgramHash := s.ClaimingRewardAddr[hash]
+			addr, _ := prgramHash.ToAddress()
 			s.DposV2RewardClaimingInfo[addr] -= info.Amount
 			s.DposV2RewardClaimedInfo[addr] += info.Amount
 			delete(s.StateKeyFrame.WithdrawableTxInfo, hash)
+			delete(s.StateKeyFrame.ClaimingRewardAddr, hash)
 		}
 	}, func() {
 		s.StateKeyFrame.WithdrawableTxInfo = txs
 		s.DposV2RewardClaimingInfo = oriClaimingInfo
 		s.DposV2RewardClaimedInfo = oriClaimedInfo
+		s.StateKeyFrame.ClaimingRewardAddr = oriRewardClaimingAddr
 	})
 }
 

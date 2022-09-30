@@ -541,7 +541,7 @@ func (c *Committee) updateCRInactiveStatus(history *utils.History, height uint32
 
 func (c *Committee) updateProposals(height uint32, inElectionPeriod bool) {
 	unusedAmount, results := c.manager.updateProposals(
-		height, c.CirculationAmount, inElectionPeriod)
+		c.state, height, c.CirculationAmount, inElectionPeriod)
 	oriLastCIDProposalResults := c.PartProposalResults
 	oriNeedCIDProposalResult := c.NeedRecordProposalResult
 	var needCIDProposalResult bool
@@ -566,18 +566,54 @@ func (c *Committee) updateCRMembers(
 		return
 	}
 	circulation := c.CirculationAmount
-	for _, v := range c.Members {
-		if v.MemberState != MemberElected && v.MemberState != MemberInactive &&
-			v.MemberState != MemberIllegal {
+	usedCRImpeachmentVotes := make(map[common.Uint168][]payload.VotesWithLockTime)
+	impeachedCRMembersCID := make(map[common.Uint168]struct{}, 0)
+	for _, member := range c.Members {
+		if member.MemberState != MemberElected && member.MemberState != MemberInactive &&
+			member.MemberState != MemberIllegal {
 			continue
 		}
 
-		if v.ImpeachmentVotes >= common.Fixed64(float64(circulation)*
+		if member.ImpeachmentVotes >= common.Fixed64(float64(circulation)*
 			c.Params.VoterRejectPercentage/100.0) {
-			c.transferCRMemberState(v, height)
+			c.transferCRMemberState(member, height)
 			newImpeachedCount++
+			impeachedCRMembersCID[member.Info.CID] = struct{}{}
 		}
 	}
+
+	if len(impeachedCRMembersCID) == 0 {
+		return
+	}
+
+	log.Info("### at height:", height, "impeachedCRMembersCID:", impeachedCRMembersCID)
+
+	// record new used CR impeachment votes information.
+	for stakeAddress, votes := range c.state.UsedCRImpeachmentVotes {
+		vts := make([]payload.VotesWithLockTime, 0)
+		for _, v := range votes {
+			votes := v
+			cid, err := common.Uint168FromBytes(votes.Candidate)
+			if err != nil {
+				continue
+			}
+			if _, ok := impeachedCRMembersCID[*cid]; ok {
+				continue
+			}
+			vts = append(vts, votes)
+		}
+		if len(vts) != 0 {
+			usedCRImpeachmentVotes[stakeAddress] = vts
+		}
+	}
+
+	// update used CR impeachment votes
+	oriUsedCRImpeachmentVotes := copyProgramHashVotesInfoSet(c.state.UsedCRImpeachmentVotes)
+	c.lastHistory.Append(height, func() {
+		c.state.UsedCRImpeachmentVotes = usedCRImpeachmentVotes
+	}, func() {
+		c.state.UsedCRImpeachmentVotes = oriUsedCRImpeachmentVotes
+	})
 	return
 }
 
@@ -924,7 +960,10 @@ func (c *Committee) tryStartVotingPeriod(height uint32) (inElection bool) {
 		c.Params.CRMemberCount-c.Params.CRAgreementCount {
 		lastVotingStartHeight := c.LastVotingStartHeight
 		inElectionPeriod := c.InElectionPeriod
+
+		oriUsedCRImpeachmentVotes := copyProgramHashVotesInfoSet(c.state.UsedCRImpeachmentVotes)
 		c.lastHistory.Append(height, func() {
+			c.state.UsedCRImpeachmentVotes = make(map[common.Uint168][]payload.VotesWithLockTime)
 			c.InElectionPeriod = false
 			if c.LastVotingStartHeight == 0 {
 				c.LastVotingStartHeight = height
@@ -932,6 +971,7 @@ func (c *Committee) tryStartVotingPeriod(height uint32) (inElection bool) {
 				c.LastVotingStartHeight = height
 			}
 		}, func() {
+			c.state.UsedCRImpeachmentVotes = oriUsedCRImpeachmentVotes
 			c.InElectionPeriod = inElectionPeriod
 			c.LastVotingStartHeight = lastVotingStartHeight
 		})
@@ -1094,103 +1134,40 @@ func getSignedPubKeys(m, n int, publicKeys [][]byte, signatures, data []byte) ([
 	return retKeys, nil
 }
 
-func (c *Committee) processsWithdrawFromSideChain(tx interfaces.Transaction,
-	height uint32, history *utils.History) {
-	log.Infof("currentWithdrawFromSideChainIndex is %d, CrossChainMonitorInterval is %d", c.CurrentWithdrawFromSideChainIndex, c.Params.CrossChainMonitorInterval)
-
-	originCurrentWithdrawFromSideChainIndex := c.CurrentWithdrawFromSideChainIndex
-	originCurrentSignedWithdrawFromSideChainKeys := c.CurrentSignedWithdrawFromSideChainKeys
-	tmpCurrentWithdrawFromSideChainIndex := c.CurrentWithdrawFromSideChainIndex
-	tmpCurrentSignedWithdrawFromSideChainKeys := c.CurrentSignedWithdrawFromSideChainKeys
-	reachTop := false
-	if tmpCurrentWithdrawFromSideChainIndex == c.Params.CrossChainMonitorInterval {
-		reachTop = true
-		tmpCurrentWithdrawFromSideChainIndex = 0
-	} else {
-		tmpCurrentWithdrawFromSideChainIndex += 1
-	}
-	log.Infof("CurrentSignedWithdrawFromSideChainKeys %v", tmpCurrentSignedWithdrawFromSideChainKeys)
-	electedMembers := getOriginElectedCRMembers(c.Members)
+// get public keys from withdraw from side chain transaction
+func (c *Committee) getSignersFromWithdrawFromSideChainTx(tx interfaces.Transaction, electedMembers []*CRMember) []string {
 	electedMemAll := make(map[string]*CRMember)
 	for _, elected := range electedMembers {
 		electedMemAll[hex.EncodeToString(elected.DPOSPublicKey)] = elected
 	}
-	var publicKeys [][]byte
+	publicKeys := make([]string, 0)
 	if tx.PayloadVersion() == payload.WithdrawFromSideChainVersionV2 {
 		allPulicKeys := c.getCurrentArbiters()
 		pld := tx.Payload().(*payload.WithdrawFromSideChain)
 		for _, index := range pld.Signers {
-			publicKeys = append(publicKeys, allPulicKeys[index])
+			publicKeys = append(publicKeys, hex.EncodeToString(allPulicKeys[index]))
 		}
 	} else {
 		buf := new(bytes.Buffer)
 		tx.SerializeUnsigned(buf)
 		data := buf.Bytes()
-		var err error
 		for _, p := range tx.Programs() {
-			publicKeys, err = getCrossChainSignedPubKeys(*p, data)
+			pks, err := getCrossChainSignedPubKeys(*p, data)
 			if err != nil {
-				return
+				log.Error("getSignersFromWithdrawFromSideChainTx error:", err)
+				return publicKeys
 			}
+			for _, pk := range pks {
+				publicKeys = append(publicKeys, hex.EncodeToString(pk))
+			}
+
 			if len(publicKeys) != 0 {
 				break
 			}
 		}
 	}
-	for _, pub := range publicKeys {
-		pubStr := hex.EncodeToString(pub)
-		if !isArbiterEixst(pubStr, tmpCurrentSignedWithdrawFromSideChainKeys) {
-			tmpCurrentSignedWithdrawFromSideChainKeys = append(tmpCurrentSignedWithdrawFromSideChainKeys, pubStr)
-		}
-	}
 
-	if reachTop {
-		log.Info("reach top")
-		for k, m := range electedMemAll {
-			tmp := k
-			tmpMem := m
-			if !isArbiterEixst(tmp, tmpCurrentSignedWithdrawFromSideChainKeys) {
-				if tmpMem != nil && tmpMem.MemberState == MemberElected {
-					history.Append(height, func() {
-						tmpMem.MemberState = MemberInactive
-						log.Info("Set to inactive", tmpMem.Info.NickName)
-						if height >= c.Params.ChangeCommitteeNewCRHeight {
-							c.state.UpdateCRInactivePenalty(tmpMem.Info.CID, height)
-						}
-					}, func() {
-						tmpMem.MemberState = MemberElected
-						if height >= c.Params.ChangeCommitteeNewCRHeight {
-							c.state.RevertUpdateCRInactivePenalty(tmpMem.Info.CID, height)
-						}
-					})
-				}
-			}
-		}
-		history.Append(height, func() {
-			c.CurrentSignedWithdrawFromSideChainKeys = make([]string, 0)
-			c.CurrentWithdrawFromSideChainIndex = tmpCurrentWithdrawFromSideChainIndex
-		}, func() {
-			c.CurrentSignedWithdrawFromSideChainKeys = originCurrentSignedWithdrawFromSideChainKeys
-			c.CurrentWithdrawFromSideChainIndex = originCurrentWithdrawFromSideChainIndex
-		})
-	} else {
-		history.Append(height, func() {
-			c.CurrentSignedWithdrawFromSideChainKeys = tmpCurrentSignedWithdrawFromSideChainKeys
-			c.CurrentWithdrawFromSideChainIndex = tmpCurrentWithdrawFromSideChainIndex
-		}, func() {
-			c.CurrentSignedWithdrawFromSideChainKeys = originCurrentSignedWithdrawFromSideChainKeys
-			c.CurrentWithdrawFromSideChainIndex = originCurrentWithdrawFromSideChainIndex
-		})
-	}
-}
-
-func isArbiterEixst(cmpK string, keys []string) bool {
-	for _, v := range keys {
-		if cmpK == v {
-			return true
-		}
-	}
-	return false
+	return publicKeys
 }
 
 func (c *Committee) activateProducer(tx interfaces.Transaction,
@@ -1479,7 +1456,15 @@ func (c *Committee) changeCommitteeMembers(height uint32) error {
 	candidates := c.getActiveAndExistDIDCRCandidatesDesc()
 	oriInElectionPeriod := c.InElectionPeriod
 	oriLastVotingStartHeight := c.LastVotingStartHeight
-	if uint32(len(candidates)) < c.Params.CRMemberCount {
+
+	var activeCandidatesCount uint32
+	for _, candidate := range candidates {
+		if candidate.Votes > 0 {
+			activeCandidatesCount++
+		}
+	}
+
+	if activeCandidatesCount < c.Params.CRMemberCount {
 		c.lastHistory.Append(height, func() {
 			c.InElectionPeriod = false
 			c.LastVotingStartHeight = height
@@ -1487,7 +1472,7 @@ func (c *Committee) changeCommitteeMembers(height uint32) error {
 			c.InElectionPeriod = oriInElectionPeriod
 			c.LastVotingStartHeight = oriLastVotingStartHeight
 		})
-		return errors.New("candidates count less than required count Height" + strconv.Itoa(int(height)))
+		return errors.New("candidates count less than required count, height" + strconv.Itoa(int(height)))
 	}
 	// GetProcessor current members.
 	newMembers := c.processCurrentMembersHistory(height, candidates)
@@ -1516,10 +1501,13 @@ func (c *Committee) processNextMembers(height uint32,
 		newMembers[activeCandidates[i].Info.DID] =
 			c.generateMember(activeCandidates[i])
 	}
+	oriUsedCRVotes := copyProgramHashVotesInfoSet(c.state.UsedCRVotes)
 	oriMembers := copyMembersMap(c.NextMembers)
 	c.lastHistory.Append(height, func() {
+		c.state.UsedCRVotes = make(map[common.Uint168][]payload.VotesWithLockTime)
 		c.NextMembers = newMembers
 	}, func() {
+		c.state.UsedCRVotes = oriUsedCRVotes
 		c.NextMembers = oriMembers
 	})
 	return newMembers
@@ -1549,9 +1537,12 @@ func (c *Committee) resetCurrentMembers(height uint32) {
 		}
 	}
 
+	oriUsedCRImpeachmentVotes := copyProgramHashVotesInfoSet(c.state.UsedCRImpeachmentVotes)
 	c.lastHistory.Append(height, func() {
+		c.state.UsedCRImpeachmentVotes = make(map[common.Uint168][]payload.VotesWithLockTime)
 		c.Members = make(map[common.Uint168]*CRMember)
 	}, func() {
+		c.state.UsedCRImpeachmentVotes = oriUsedCRImpeachmentVotes
 		c.Members = oriMembers
 	})
 
@@ -1586,14 +1577,12 @@ func (c *Committee) resetNextMembers(height uint32) {
 	oriVotes := utils.CopyStringSet(c.state.Votes)
 	oriClaimedDPoSKyes := copyClaimedDPoSKeysMap(c.ClaimedDPoSKeys)
 	oriNextClaimedDPoSKyes := copyClaimedDPoSKeysMap(c.NextClaimedDPoSKeys)
-	oriUsedCRVotes := copyProgramHashVotesInfoSet(c.state.UsedCRVotes)
 	oriUsedCRImpeachmentVotes := copyProgramHashVotesInfoSet(c.state.UsedCRImpeachmentVotes)
 	c.lastHistory.Append(height, func() {
 		c.Members = newMembers
 		c.NextMembers = make(map[common.Uint168]*CRMember)
 		c.state.Nicknames = make(map[string]struct{})
 		c.state.Votes = make(map[string]struct{})
-		c.state.UsedCRVotes = make(map[common.Uint168][]payload.VotesWithLockTime)
 		c.state.UsedCRImpeachmentVotes = make(map[common.Uint168][]payload.VotesWithLockTime)
 		c.ClaimedDPoSKeys = c.NextClaimedDPoSKeys
 		c.NextClaimedDPoSKeys = make(map[string]struct{})
@@ -1602,7 +1591,6 @@ func (c *Committee) resetNextMembers(height uint32) {
 		c.NextMembers = newMembers
 		c.state.Nicknames = oriNicknames
 		c.state.Votes = oriVotes
-		c.state.UsedCRVotes = oriUsedCRVotes
 		c.state.UsedCRImpeachmentVotes = oriUsedCRImpeachmentVotes
 		c.ClaimedDPoSKeys = oriClaimedDPoSKyes
 		c.NextClaimedDPoSKeys = oriNextClaimedDPoSKyes

@@ -473,6 +473,15 @@ func GetArbiterPeersInfo(params Params) map[string]interface{} {
 //if have params stakeAddress  get stakeAddress all dposv2 votes
 //else get all dposv2 votes
 func GetAllDetailedDPoSV2Votes(params Params) map[string]interface{} {
+	start, _ := params.Int("start")
+	if start < 0 {
+		start = 0
+	}
+	limit, ok := params.Int("limit")
+	if !ok {
+		limit = -1
+	}
+
 	stakeAddress, _ := params.String("stakeaddress")
 	type detailedVoteInfo struct {
 		ProducerOwnerKey string                `json:"producerownerkey"`
@@ -486,6 +495,7 @@ func GetAllDetailedDPoSV2Votes(params Params) map[string]interface{} {
 		Info             VotesWithLockTimeInfo `json:"info"`
 		DPoSV2VoteRights string                `json:"DPoSV2VoteRights"`
 	}
+
 	var result []*detailedVoteInfo
 	ps := Chain.GetState().GetAllProducers()
 	for _, p := range ps {
@@ -523,7 +533,23 @@ func GetAllDetailedDPoSV2Votes(params Params) map[string]interface{} {
 	sort.Slice(result, func(i, j int) bool {
 		return strings.Compare(result[i].ReferKey, result[j].ReferKey) >= 0
 	})
-	return ResponsePack(Success, result)
+
+	count := int64(len(result))
+	if limit < 0 {
+		limit = count
+	}
+	var dvi []*detailedVoteInfo
+	if start < count {
+		end := start
+		if start+limit <= count {
+			end = start + limit
+		} else {
+			end = count
+		}
+		dvi = append(dvi, result[start:end]...)
+	}
+
+	return ResponsePack(Success, dvi)
 }
 
 //GetProducerInfo
@@ -571,19 +597,22 @@ func GetVoteRights(params Params) map[string]interface{} {
 	if !ok {
 		return ResponsePack(InvalidParams, "need stakeaddresses in an array!")
 	}
+	currentHeight := Chain.GetHeight()
+	dposV2 := Arbiters.IsDPoSV2Run(currentHeight)
+
 	type usedVoteRightDetailInfo struct {
-		UsedDPoSV2Votes         []DetailedVoteInfo      `json:"useddposv2votes"`
 		UsedDPoSVotes           []VotesWithLockTimeInfo `json:"useddposvotes"`
 		UsedCRVotes             []VotesWithLockTimeInfo `json:"usedcrvotes"`
-		UsdedCRImpeachmentVotes []VotesWithLockTimeInfo `json:"usdedcrimpeachmentvotes"`
 		UsedCRCProposalVotes    []VotesWithLockTimeInfo `json:"usedcrcproposalvotes"`
+		UsdedCRImpeachmentVotes []VotesWithLockTimeInfo `json:"usdedcrimpeachmentvotes"`
+		UsedDPoSV2Votes         []DetailedVoteInfo      `json:"useddposv2votes"`
 	}
 
 	type detailedVoteRight struct {
 		StakeAddress    string                  `json:"stakeaddress"`
-		TotalVotesRight common.Fixed64          `json:"totalvotesright"`
+		TotalVotesRight string                  `json:"totalvotesright"`
 		UsedVotesInfo   usedVoteRightDetailInfo `json:"usedvotesinfo"`
-		RemainVoteRight []common.Fixed64        `json:"remainvoteright"` //index is same to VoteType
+		RemainVoteRight []string                `json:"remainvoteright"` //index is same to VoteType
 	}
 	var result []*detailedVoteRight
 	state := Chain.GetState()
@@ -602,7 +631,7 @@ func GetVoteRights(params Params) map[string]interface{} {
 		totalVotesRight := voteRights[stakeProgramHash]
 		vote := &detailedVoteRight{
 			StakeAddress:    address,
-			TotalVotesRight: totalVotesRight,
+			TotalVotesRight: totalVotesRight.String(),
 			UsedVotesInfo: usedVoteRightDetailInfo{
 				UsedDPoSV2Votes:         []DetailedVoteInfo{},
 				UsedDPoSVotes:           []VotesWithLockTimeInfo{},
@@ -610,10 +639,11 @@ func GetVoteRights(params Params) map[string]interface{} {
 				UsdedCRImpeachmentVotes: []VotesWithLockTimeInfo{},
 				UsedCRCProposalVotes:    []VotesWithLockTimeInfo{},
 			},
-			RemainVoteRight: make([]common.Fixed64, 5),
+			RemainVoteRight: make([]string, 5),
 		}
 		// dposv1
-		if udv := state.UsedDposVotes[stakeProgramHash]; udv != nil {
+
+		if udv := state.UsedDposVotes[stakeProgramHash]; !dposV2 && udv != nil {
 			for _, v := range udv {
 				vote.UsedVotesInfo.UsedDPoSVotes = append(vote.UsedVotesInfo.UsedDPoSVotes, VotesWithLockTimeInfo{
 					Candidate: hex.EncodeToString(v.Candidate),
@@ -687,7 +717,11 @@ func GetVoteRights(params Params) map[string]interface{} {
 		for i := outputpayload.Delegate; i <= outputpayload.DposV2; i++ {
 			usedVoteRight, _ := GetUsedVoteRight(i, &stakeProgramHash)
 			remainRoteRight := totalVotesRight - usedVoteRight
-			vote.RemainVoteRight[i] = remainRoteRight
+			if dposV2 && i == outputpayload.Delegate {
+				vote.RemainVoteRight[i] = common.Fixed64(0).String()
+			} else {
+				vote.RemainVoteRight[i] = remainRoteRight.String()
+			}
 		}
 		result = append(result, vote)
 	}
@@ -700,29 +734,27 @@ func GetUsedVoteRight(voteType outputpayload.VoteType, stakeProgramHash *common.
 	usedDposVote := common.Fixed64(0)
 	switch voteType {
 	case outputpayload.Delegate:
-		if dposVotes, ok := state.UsedDposVotes[*stakeProgramHash]; !ok {
+		if Chain.GetHeight() >= Chain.GetState().DPoSV2ActiveHeight {
 			usedDposVote = 0
 		} else {
-			maxVotes := common.Fixed64(0)
-			for _, votesInfo := range dposVotes {
-				if votesInfo.Votes > maxVotes {
-					maxVotes = votesInfo.Votes
+			if dposVotes, ok := state.UsedDposVotes[*stakeProgramHash]; ok {
+				maxVotes := common.Fixed64(0)
+				for _, votesInfo := range dposVotes {
+					if votesInfo.Votes > maxVotes {
+						maxVotes = votesInfo.Votes
+					}
+					usedDposVote = maxVotes
 				}
-				usedDposVote = maxVotes
 			}
 		}
 	case outputpayload.CRC:
-		if usedCRVoteRights, ok := crstate.UsedCRVotes[*stakeProgramHash]; !ok {
-			usedDposVote = 0
-		} else {
+		if usedCRVoteRights, ok := crstate.UsedCRVotes[*stakeProgramHash]; ok {
 			for _, votesInfo := range usedCRVoteRights {
 				usedDposVote += votesInfo.Votes
 			}
 		}
 	case outputpayload.CRCProposal:
-		if usedCRCProposalVoteRights, ok := crstate.UsedCRCProposalVotes[*stakeProgramHash]; !ok {
-			usedDposVote = 0
-		} else {
+		if usedCRCProposalVoteRights, ok := crstate.UsedCRCProposalVotes[*stakeProgramHash]; ok {
 			maxVotes := common.Fixed64(0)
 			for _, votesInfo := range usedCRCProposalVoteRights {
 				if votesInfo.Votes > maxVotes {
@@ -731,10 +763,9 @@ func GetUsedVoteRight(voteType outputpayload.VoteType, stakeProgramHash *common.
 			}
 			usedDposVote = maxVotes
 		}
+
 	case outputpayload.CRCImpeachment:
-		if usedCRImpeachmentVoteRights, ok := crstate.UsedCRImpeachmentVotes[*stakeProgramHash]; !ok {
-			usedDposVote = 0
-		} else {
+		if usedCRImpeachmentVoteRights, ok := crstate.UsedCRImpeachmentVotes[*stakeProgramHash]; ok {
 			for _, votesInfo := range usedCRImpeachmentVoteRights {
 				usedDposVote += votesInfo.Votes
 			}
@@ -2168,10 +2199,10 @@ type RPCCRProposalStateInfo struct {
 }
 
 type RPCDposV2RewardInfo struct {
-	Address   string         `json:"address"`
-	Claimable common.Fixed64 `json:"claimable"`
-	Claiming  common.Fixed64 `json:"claiming"`
-	Claimed   common.Fixed64 `json:"claimed"`
+	Address   string `json:"address"`
+	Claimable string `json:"claimable"`
+	Claiming  string `json:"claiming"`
+	Claimed   string `json:"claimed"`
 }
 
 type RPCDPosV2Info struct {
@@ -2188,9 +2219,9 @@ func DposV2RewardInfo(param Params) map[string]interface{} {
 		claimed := Chain.GetState().DposV2RewardClaimedInfo[addr]
 		result := RPCDposV2RewardInfo{
 			Address:   addr,
-			Claimable: claimable,
-			Claiming:  claiming,
-			Claimed:   claimed,
+			Claimable: claimable.String(),
+			Claiming:  claiming.String(),
+			Claimed:   claimed.String(),
 		}
 		return ResponsePack(Success, result)
 	} else {
@@ -2199,9 +2230,9 @@ func DposV2RewardInfo(param Params) map[string]interface{} {
 		for addr, value := range dposV2RewardInfo {
 			result = append(result, RPCDposV2RewardInfo{
 				Address:   addr,
-				Claimable: value,
-				Claiming:  Chain.GetState().DposV2RewardClaimingInfo[addr],
-				Claimed:   Chain.GetState().DposV2RewardClaimedInfo[addr],
+				Claimable: value.String(),
+				Claiming:  Chain.GetState().DposV2RewardClaimingInfo[addr].String(),
+				Claimed:   Chain.GetState().DposV2RewardClaimedInfo[addr].String(),
 			})
 		}
 
@@ -2220,6 +2251,9 @@ func GetDPosV2Info(param Params) map[string]interface{} {
 
 func ListProducers(param Params) map[string]interface{} {
 	start, _ := param.Int("start")
+	if start < 0 {
+		start = 0
+	}
 	limit, ok := param.Int("limit")
 	if !ok {
 		limit = -1
@@ -2231,7 +2265,10 @@ func ListProducers(param Params) map[string]interface{} {
 	var producers []*state.Producer
 	switch s {
 	case "all":
-		producers = Chain.GetState().GetAllProducers()
+		ps := Chain.GetState().GetAllProducers()
+		for i, _ := range ps {
+			producers = append(producers, &ps[i])
+		}
 	case "pending":
 		producers = Chain.GetState().GetPendingProducers()
 	case "active":
@@ -2354,6 +2391,9 @@ func GetCRRelatedStage(param Params) map[string]interface{} {
 //list cr candidates according to ( state , start and limit)
 func ListCRCandidates(param Params) map[string]interface{} {
 	start, _ := param.Int("start")
+	if start < 0 {
+		start = 0
+	}
 	limit, ok := param.Int("limit")
 	if !ok {
 		limit = -1
@@ -2489,13 +2529,11 @@ func ListCurrentCRs(param Params) map[string]interface{} {
 func ListNextCRs(param Params) map[string]interface{} {
 	cm := Chain.GetCRCommittee()
 	var crMembers []*crstate.CRMember
-	if cm.IsInElectionPeriod() {
-		crMembers = cm.GetNextMembers()
-		sort.Slice(crMembers, func(i, j int) bool {
-			return crMembers[i].Info.GetCodeHash().Compare(
-				crMembers[j].Info.GetCodeHash()) < 0
-		})
-	}
+	crMembers = cm.GetNextMembers()
+	sort.Slice(crMembers, func(i, j int) bool {
+		return crMembers[i].Info.GetCodeHash().Compare(
+			crMembers[j].Info.GetCodeHash()) < 0
+	})
 
 	var rsCRMemberInfoSlice []RPCCRMemberInfo
 	for i, cr := range crMembers {
@@ -2535,6 +2573,9 @@ func ListNextCRs(param Params) map[string]interface{} {
 
 func ListCRProposalBaseState(param Params) map[string]interface{} {
 	start, _ := param.Int("start")
+	if start < 0 {
+		start = 0
+	}
 	limit, ok := param.Int("limit")
 	if !ok {
 		limit = -1
@@ -3069,16 +3110,27 @@ func getPayloadInfo(p interfaces.Payload, payloadVersion byte) PayloadInfo {
 		obj.Signature = common.BytesToHexString(object.Signature)
 		return obj
 	case *payload.WithdrawFromSideChain:
-		if payloadVersion == payload.WithdrawFromSideChainVersionV1 {
+		switch payloadVersion {
+		case payload.WithdrawFromSideChainVersion:
+			obj := new(WithdrawFromSideChainInfo)
+			obj.BlockHeight = object.BlockHeight
+			obj.GenesisBlockAddress = object.GenesisBlockAddress
+			for _, hash := range object.SideChainTransactionHashes {
+				obj.SideChainTransactionHashes = append(obj.SideChainTransactionHashes, hash.String())
+			}
+			return obj
+		case payload.WithdrawFromSideChainVersionV1:
 			return nil
+		case payload.WithdrawFromSideChainVersionV2:
+			obj := new(SchnorrWithdrawFromSideChainInfo)
+			obj.Signers = make([]uint32, 0)
+			for _, s := range object.Signers {
+				obj.Signers = append(obj.Signers, uint32(s))
+			}
+			return obj
 		}
-		obj := new(WithdrawFromSideChainInfo)
-		obj.BlockHeight = object.BlockHeight
-		obj.GenesisBlockAddress = object.GenesisBlockAddress
-		for _, hash := range object.SideChainTransactionHashes {
-			obj.SideChainTransactionHashes = append(obj.SideChainTransactionHashes, hash.String())
-		}
-		return obj
+		return nil
+
 	case *payload.TransferCrossChainAsset:
 		if payloadVersion == payload.TransferCrossChainVersionV1 {
 			return nil
@@ -3517,13 +3569,17 @@ func getPayloadInfo(p interfaces.Payload, payloadVersion byte) PayloadInfo {
 		return obj
 	case *payload.Unstake:
 		address, _ := object.ToAddr.ToAddress()
+		if payloadVersion == payload.UnstakeVersionV1 {
+			obj := &UnstakeInfo{
+				ToAddr: address,
+				Value:  object.Value.String(),
+			}
+			return obj
+		}
 		obj := &UnstakeInfo{
-			ToAddr: address,
-			// code
-			Code: common.BytesToHexString(object.Code),
-			// unstake value
-			Value: object.Value.String(),
-			// signature
+			ToAddr:    address,
+			Code:      common.BytesToHexString(object.Code),
+			Value:     object.Value.String(),
 			Signature: common.BytesToHexString(object.Signature),
 		}
 		return obj
@@ -3543,13 +3599,17 @@ func getPayloadInfo(p interfaces.Payload, payloadVersion byte) PayloadInfo {
 		return obj
 	case *payload.DPoSV2ClaimReward:
 		address, _ := object.ToAddr.ToAddress()
+		if payloadVersion == payload.DposV2ClaimRewardVersionV1 {
+			obj := &DposV2ClaimRewardInfo{
+				ToAddr: address,
+				Value:  object.Value.String(),
+			}
+			return obj
+		}
 		obj := &DposV2ClaimRewardInfo{
-			ToAddr: address,
-			// code
-			Code: common.BytesToHexString(object.Code),
-			// reward value
-			Value: object.Value.String(),
-			// signature
+			ToAddr:    address,
+			Code:      common.BytesToHexString(object.Code),
+			Value:     object.Value.String(),
 			Signature: common.BytesToHexString(object.Signature),
 		}
 		return obj

@@ -51,10 +51,14 @@ var (
 		Name:  "amount",
 		Usage: "the transfer `<amount>` of the transaction",
 	}
-	TransactionClaimAmountFlag = cli.Int64Flag{
+	TransactionClaimAmountFlag = cli.StringFlag{
 		Name:  "claimamount",
 		Usage: "the amount to claim of dposv2 reward",
-		Value: 0,
+		Value: "",
+	}
+	TransactionReferKeysFlag = cli.StringFlag{
+		Name:  "referkeys",
+		Usage: "the refer key is the hash of detailed DPoS 2.0 node votes information",
 	}
 	TransactionFeeFlag = cli.StringFlag{
 		Name:  "fee",
@@ -83,6 +87,22 @@ var (
 	TransactionForFlag = cli.StringFlag{
 		Name:  "for",
 		Usage: "the `<file>` path that holds the list of candidates",
+	}
+	VoteTypeFlag = cli.Uint64Flag{
+		Name:  "votetype",
+		Usage: "the list of votes",
+	}
+	CandidatesFlag = cli.StringFlag{
+		Name:  "candidates",
+		Usage: "the list of candidates",
+	}
+	VotesFlag = cli.StringFlag{
+		Name:  "votes",
+		Usage: "the list of votes",
+	}
+	StakeUntilListFlag = cli.StringFlag{
+		Name:  "stakeuntils",
+		Usage: "the list of stake until",
 	}
 	TransactionSAddressFlag = cli.StringFlag{
 		Name:  "saddress",
@@ -261,6 +281,10 @@ var (
 	RPCIpFlag = cli.StringFlag{
 		Name:  "rpcip",
 		Usage: "JSON-RPC server listening ip `<string>`",
+	}
+	RPCUrlFlag = cli.StringFlag{
+		Name:  "rpcurl",
+		Usage: "JSON-RPC server listening url `<string>`",
 	}
 	EnableRPCFlag = cli.StringFlag{
 		Name:  "server",
@@ -736,6 +760,11 @@ var (
 		Name:  "crosschainmonitorinterval",
 		Usage: "defines the interval cross chain arbitration",
 	}
+	PayloadVersionFlag = cli.Int64Flag{
+		Name:  "payloadversion",
+		Usage: "payload version",
+		Value: 0,
+	}
 )
 
 // MoveRPCFlags finds the rpc argument and moves it to the front
@@ -746,6 +775,8 @@ func MoveRPCFlags(args []string) ([]string, error) {
 
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
+		case "--rpcurl":
+			fallthrough
 		case "--rpcip":
 			fallthrough
 		case "--rpcport":

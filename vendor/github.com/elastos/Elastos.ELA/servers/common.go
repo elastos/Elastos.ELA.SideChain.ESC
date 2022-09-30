@@ -208,6 +208,10 @@ type WithdrawFromSideChainInfo struct {
 	SideChainTransactionHashes []string `json:"sidechaintransactionhashes"`
 }
 
+type SchnorrWithdrawFromSideChainInfo struct {
+	Signers []uint32 `json:"Signers"`
+}
+
 type ProducerInfo struct {
 	OwnerPublicKey string `json:"ownerpublickey"`
 	NodePublicKey  string `json:"nodepublickey"`
@@ -557,11 +561,11 @@ type UnstakeInfo struct {
 	// target or to address
 	ToAddr string `json:"toaddr"`
 	// code
-	Code string `json:"code"`
+	Code string `json:"code,omitempty"`
 	// unstake value
 	Value string `json:"value"`
 	// signature
-	Signature string `json:"signature"`
+	Signature string `json:"signature,omitempty"`
 }
 
 type RealUnstakeInfo struct {
@@ -577,11 +581,11 @@ type DposV2ClaimRewardInfo struct {
 	// target or to address
 	ToAddr string `json:"toaddr"`
 	// code
-	Code string `json:"code"`
+	Code string `json:"code,omitempty"`
 	// reward value
 	Value string `json:"value"`
 	// signature
-	Signature string `json:"signature"`
+	Signature string `json:"signature,omitempty"`
 }
 
 type DposV2ClaimRewardRealWithdrawInfo struct {
