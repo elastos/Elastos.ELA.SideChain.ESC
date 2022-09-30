@@ -17,11 +17,14 @@
 package vm
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/big"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -53,32 +56,34 @@ var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
 // PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
 // contracts used in the Byzantium release.
 var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                        &ecrecover{},
-	common.BytesToAddress([]byte{2}):                        &sha256hash{},
-	common.BytesToAddress([]byte{3}):                        &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                        &dataCopy{},
-	common.BytesToAddress([]byte{5}):                        &bigModExp{},
-	common.BytesToAddress([]byte{6}):                        &bn256AddByzantium{},
-	common.BytesToAddress([]byte{7}):                        &bn256ScalarMulByzantium{},
-	common.BytesToAddress([]byte{8}):                        &bn256PairingByzantium{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):    &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()): &p256Verify{},
+	common.BytesToAddress([]byte{1}):                           &ecrecover{},
+	common.BytesToAddress([]byte{2}):                           &sha256hash{},
+	common.BytesToAddress([]byte{3}):                           &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                           &dataCopy{},
+	common.BytesToAddress([]byte{5}):                           &bigModExp{},
+	common.BytesToAddress([]byte{6}):                           &bn256AddByzantium{},
+	common.BytesToAddress([]byte{7}):                           &bn256ScalarMulByzantium{},
+	common.BytesToAddress([]byte{8}):                           &bn256PairingByzantium{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
 // contracts used in the Istanbul release.
 var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                        &ecrecover{},
-	common.BytesToAddress([]byte{2}):                        &sha256hash{},
-	common.BytesToAddress([]byte{3}):                        &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                        &dataCopy{},
-	common.BytesToAddress([]byte{5}):                        &bigModExp{},
-	common.BytesToAddress([]byte{6}):                        &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):                        &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):                        &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):                        &blake2F{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):    &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()): &p256Verify{},
+	common.BytesToAddress([]byte{1}):                           &ecrecover{},
+	common.BytesToAddress([]byte{2}):                           &sha256hash{},
+	common.BytesToAddress([]byte{3}):                           &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                           &dataCopy{},
+	common.BytesToAddress([]byte{5}):                           &bigModExp{},
+	common.BytesToAddress([]byte{6}):                           &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                           &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                           &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                           &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -564,4 +569,33 @@ func (c *p256Verify) Run(input []byte) ([]byte, error) {
 		return false32Byte, nil
 	}
 	return true32Byte, nil
+}
+
+type pbkVerifySignature struct{}
+
+func (b *pbkVerifySignature) RequiredGas(input []byte) uint64 {
+	return params.PbkVerifySignature
+}
+
+func (b *pbkVerifySignature) Run(input []byte) ([]byte, error) {
+	//length := getData(input, 0, 32)
+	pubkey := getData(input, 32, 33)
+	digest := getData(input, 65, 32)
+	sig := getData(input, 97, 65)
+	digest = accounts.TextHash(digest)
+
+	if sig[crypto.RecoveryIDOffset] >= 27 {
+		sig[crypto.RecoveryIDOffset] -= 27
+	}
+	signerPuk, err := crypto.SigToPub(digest, sig)
+	if err != nil {
+		fmt.Println("SigToPub error", signerPuk, err)
+		return false32Byte, err
+	}
+	pubkeyBytes := crypto.CompressPubkey(signerPuk)
+
+	if bytes.Equal(pubkeyBytes, pubkey) {
+		return true32Byte, nil
+	}
+	return false32Byte, nil
 }
