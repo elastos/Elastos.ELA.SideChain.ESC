@@ -65,12 +65,12 @@ func AzureBlobstoreUpload(path string, name string, config AzureBlobstoreConfig)
 	}
 	defer in.Close()
 
-	_, err = blockblob.Upload(context.Background(), in, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
+	_, err = blockblob.Upload(context.Background(), in, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{}, azblob.AccessTierArchive, nil, azblob.ClientProvidedKeyOptions{}, azblob.ImmutabilityPolicyOptions{})
 	return err
 }
 
 // AzureBlobstoreList lists all the files contained within an azure blobstore.
-func AzureBlobstoreList(config AzureBlobstoreConfig) ([]azblob.BlobItem, error) {
+func AzureBlobstoreList(config AzureBlobstoreConfig) ([]azblob.BlobItemInternal, error) {
 	credential, err := azblob.NewSharedKeyCredential(config.Account, config.Token)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func AzureBlobstoreList(config AzureBlobstoreConfig) ([]azblob.BlobItem, error) 
 
 // AzureBlobstoreDelete iterates over a list of files to delete and removes them
 // from the blobstore.
-func AzureBlobstoreDelete(config AzureBlobstoreConfig, blobs []azblob.BlobItem) error {
+func AzureBlobstoreDelete(config AzureBlobstoreConfig, blobs []azblob.BlobItemInternal) error {
 	if *DryRunFlag {
 		for _, blob := range blobs {
 			fmt.Printf("would delete %s (%s) from %s/%s\n", blob.Name, blob.Properties.LastModified, config.Account, config.Container)
