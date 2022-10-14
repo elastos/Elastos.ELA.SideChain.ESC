@@ -118,7 +118,9 @@ func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bo
 			}
 		}
 	}
+	d.mu.Lock()
 	d.pendingVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
+	d.mu.Unlock()
 	return false
 }
 
