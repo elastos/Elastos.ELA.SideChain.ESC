@@ -105,14 +105,16 @@ func (d *Dispatcher) GetFinishedProposal() common.Uint256 {
 func (d *Dispatcher) setProcessingProposal(p *payload.DPOSProposal) (finished bool) {
 	Info("setProcessingProposal start")
 	d.proposalMu.Lock()
+	d.processingProposal = p
+	d.proposalMu.Unlock()
+	d.mu.Lock()
 	defer func() {
-		d.proposalMu.Unlock()
+		d.mu.Unlock()
 		Info("setProcessingProposal end")
 	}()
-	d.processingProposal = p
 	for _, v := range d.pendingVotes {
 		if v.ProposalHash.IsEqual(p.Hash()) {
-			_, finished, _ := d.ProcessVote(v)
+			_, finished, _ := d.processVote(v)
 			if finished {
 				return finished
 			}
@@ -133,6 +135,10 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 	defer Info("[ProcessVote] end")
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.processVote(vote)
+}
+
+func (d *Dispatcher) processVote(vote *payload.DPOSProposalVote) (succeed bool, finished bool, err error) {
 	if d.processingProposal == nil {
 		err = errors.New("not proposal to process vote")
 		return false, false, err
