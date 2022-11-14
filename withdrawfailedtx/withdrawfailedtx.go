@@ -192,7 +192,7 @@ func GetRefundEventHash() common.Hash {
 	Uint256, _ := abi.NewType("uint256", "", nil)
 	String, _ := abi.NewType("string", "", nil)
 	refundEvent := abi.Event{Name: "Refund", RawName: "Refund", Inputs: abi.Arguments{{Name: "from", Type: String, Indexed: false}, {Name: "to", Type: String, Indexed: false}, {Name: "value", Type: Uint256, Indexed: false}}}
-	return refundEvent.ID()
+	return refundEvent.ID
 }
 
 func VerifySignatures(input []byte) bool {
@@ -282,7 +282,7 @@ func GetWithdrawTxValue(txid string) (string, *big.Int, error) {
 	}
 	abiJson := `[{"constant":false,"inputs":[{"name":"_addr","type":"string"},{"name":"_amount","type":"uint256"},{"name":"_fee","type":"uint256"}],"name":"receivePayload","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"payable":true,"stateMutability":"payable","type":"fallback"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_addr","type":"string"},{"indexed":false,"name":"_amount","type":"uint256"},{"indexed":false,"name":"_crosschainamount","type":"uint256"},{"indexed":true,"name":"_sender","type":"address"}],"name":"PayloadReceived","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"_sender","type":"address"},{"indexed":false,"name":"_amount","type":"uint256"},{"indexed":true,"name":"_black","type":"address"}],"name":"EtherDeposited","type":"event"}]`
 	contract, err := abi.JSON(strings.NewReader(abiJson))
-	evtId := contract.Events["PayloadReceived"].ID().String()
+	evtId := contract.Events["PayloadReceived"].ID.String()
 
 	type PayloadReceived struct {
 		Addr             string
@@ -294,7 +294,7 @@ func GetWithdrawTxValue(txid string) (string, *big.Int, error) {
 	for _, log := range receipt.Logs {
 		if log.Topics[0].String() == evtId {
 			fromAccount = log.Topics[1].String()
-			err := contract.Unpack(&ev, "PayloadReceived", log.Data)
+			err := contract.UnpackIntoInterface(&ev, "PayloadReceived", log.Data)
 			if err != nil {
 				return "", value, err
 			}
