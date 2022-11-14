@@ -17,10 +17,12 @@
 package bind
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"errors"
 	"io"
 	"io/ioutil"
+	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/external"
@@ -29,6 +31,12 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 )
+
+// ErrNoChainID is returned whenever the user failed to specify a chain id.
+var ErrNoChainID = errors.New("no chain id specified")
+
+// ErrNotAuthorized is returned when an account is not properly unlocked.
+var ErrNotAuthorized = errors.New("not authorized to sign this account")
 
 // NewTransactor is a utility method to easily create a transaction signer from
 // an encrypted json key stream and the associated passphrase.
@@ -93,4 +101,32 @@ func NewClefTransactor(clef *external.ExternalSigner, account accounts.Account) 
 			return clef.SignTx(account, transaction, nil) // Clef enforces its own chain id
 		},
 	}
+}
+
+// NewKeyedTransactorWithChainID is a utility method to easily create a transaction signer
+// from a single private key.
+func NewKeyedTransactorWithChainID(key *ecdsa.PrivateKey, chainID *big.Int) (*TransactOpts, error) {
+	keyAddr := crypto.PubkeyToAddress(key.PublicKey)
+	if chainID == nil {
+		return nil, ErrNoChainID
+	}
+	//types.Signer, common.Address, *types.Transaction
+	eip155Signer := types.NewEIP155Signer(chainID)
+	return &TransactOpts{
+		From: keyAddr,
+		Signer: func(signer types.Signer, address common.Address, transaction *types.Transaction) (*types.Transaction, error) {
+			if address != keyAddr {
+				return nil, ErrNotAuthorized
+			}
+			if signer == nil {
+				signer = eip155Signer
+			}
+			signature, err := crypto.Sign(signer.Hash(transaction).Bytes(), key)
+			if err != nil {
+				return nil, err
+			}
+			return transaction.WithSignature(signer, signature)
+		},
+		Context: context.Background(),
+	}, nil
 }

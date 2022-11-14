@@ -473,7 +473,7 @@ func (st *StateTransition) isSetArbiterListMethod() (bool, error) {
 		return false, errors.New("setArbiterList method not in abi json")
 	}
 
-	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
+	return bytes.HasPrefix(st.msg.Data(), method.ID), nil
 }
 
 func (st *StateTransition) isSetManualArbiterMethod() (bool, error) {
@@ -486,7 +486,7 @@ func (st *StateTransition) isSetManualArbiterMethod() (bool, error) {
 		return false, errors.New("setManualArbiter method not in abi json")
 	}
 
-	return bytes.HasPrefix(st.msg.Data(), method.ID()), nil
+	return bytes.HasPrefix(st.msg.Data(), method.ID), nil
 }
 
 func (st *StateTransition) refundGas() {
