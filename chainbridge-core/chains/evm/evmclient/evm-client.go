@@ -255,7 +255,7 @@ func (c *EVMClient) FetchUpdateArbitersLogs(ctx context.Context, contractAddress
 	depositLogs := make([]*relayer.SetArbiterListMsg, 0)
 	for _, l := range logs {
 		record := new(relayer.SetArbiterListMsg)
-		err = c.updateArbitersABI.Unpack(record, "SetArbiterList", l.Data)
+		err = c.updateArbitersABI.UnpackIntoInterface(record, "SetArbiterList", l.Data)
 		if err != nil {
 			return depositLogs, errors.New("SetAbiterList record resolved error:" + err.Error())
 		}
