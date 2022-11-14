@@ -1,4 +1,4 @@
-pragma solidity ^0.5.10;
+pragma solidity ^0.6.0;
 
 /**
  * @title CheckpointOracle
@@ -55,8 +55,8 @@ contract CheckpointOracle {
         uint8[] memory v,
         bytes32[] memory r,
         bytes32[] memory s)
-        public
-        returns (bool)
+    public
+    returns (bool)
     {
         // Ensure the sender is authorized.
         require(admins[msg.sender]);

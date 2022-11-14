@@ -142,7 +142,6 @@ func (t *VMTest) newEVM(statedb *state.StateDB, vmconfig vm.Config) *vm.EVM {
 		Difficulty:  t.json.Env.Difficulty,
 		GasPrice:    t.json.Exec.GasPrice,
 	}
-	vmconfig.NoRecursion = true
 	return vm.NewEVM(context, statedb, params.MainnetChainConfig, vmconfig)
 }
 
