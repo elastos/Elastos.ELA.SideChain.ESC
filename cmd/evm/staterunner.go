@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/tracers/logger"
 	"io/ioutil"
 	"os"
 
@@ -58,24 +59,24 @@ func stateTestCmd(ctx *cli.Context) error {
 	log.Root().SetHandler(glogger)
 
 	// Configure the EVM logger
-	config := &vm.LogConfig{
-		DisableMemory: ctx.GlobalBool(DisableMemoryFlag.Name),
-		DisableStack:  ctx.GlobalBool(DisableStackFlag.Name),
+	config := &logger.Config{
+		EnableMemory: !ctx.GlobalBool(DisableMemoryFlag.Name),
+		DisableStack: ctx.GlobalBool(DisableStackFlag.Name),
 	}
 	var (
-		tracer   vm.Tracer
-		debugger *vm.StructLogger
+		tracer   vm.EVMLogger
+		debugger *logger.StructLogger
 	)
 	switch {
 	case ctx.GlobalBool(MachineFlag.Name):
-		tracer = vm.NewJSONLogger(config, os.Stderr)
+		tracer = logger.NewJSONLogger(config, os.Stderr)
 
 	case ctx.GlobalBool(DebugFlag.Name):
-		debugger = vm.NewStructLogger(config)
+		debugger = logger.NewStructLogger(config)
 		tracer = debugger
 
 	default:
-		debugger = vm.NewStructLogger(config)
+		debugger = logger.NewStructLogger(config)
 	}
 	// Load the test content from the input file
 	src, err := ioutil.ReadFile(ctx.Args().First())
@@ -116,7 +117,7 @@ func stateTestCmd(ctx *cli.Context) error {
 			if ctx.GlobalBool(DebugFlag.Name) {
 				if debugger != nil {
 					fmt.Fprintln(os.Stderr, "#### TRACE ####")
-					vm.WriteTrace(os.Stderr, debugger.StructLogs())
+					logger.WriteTrace(os.Stderr, debugger.StructLogs())
 				}
 			}
 		}
