@@ -408,7 +408,7 @@ func testPrecompiled(addr string, test precompiledTest, t *testing.T) {
 	contract := NewContract(AccountRef(common.HexToAddress("1337")),
 		nil, new(big.Int), p.RequiredGas(in))
 	t.Run(fmt.Sprintf("%s-Gas=%d", test.name, contract.Gas), func(t *testing.T) {
-		if res, err := RunPrecompiledContract(p, in, contract); err != nil {
+		if res, _, err := RunPrecompiledContract(p, in, contract.Gas); err != nil {
 			t.Error(err)
 		} else if common.Bytes2Hex(res) != test.expected {
 			t.Errorf("Expected %v, got %v", test.expected, common.Bytes2Hex(res))
@@ -428,7 +428,7 @@ func testPrecompiledFailure(addr string, test precompiledFailureTest, t *testing
 		nil, new(big.Int), p.RequiredGas(in))
 
 	t.Run(test.name, func(t *testing.T) {
-		_, err := RunPrecompiledContract(p, in, contract)
+		_, _, err := RunPrecompiledContract(p, in, contract.Gas)
 		if !reflect.DeepEqual(err, test.expectedError) {
 			t.Errorf("Expected error [%v], got [%v]", test.expectedError, err)
 		}
@@ -461,7 +461,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 		for i := 0; i < bench.N; i++ {
 			contract.Gas = reqGas
 			copy(data, in)
-			res, err = RunPrecompiledContract(p, data, contract)
+			res, _, err = RunPrecompiledContract(p, data, contract.Gas)
 		}
 		bench.StopTimer()
 		//Check if it is correct
@@ -666,7 +666,7 @@ func TestP256Verify_Run(t *testing.T) {
 	convert := common.HexToAddress("0x5b4A755b609bca3CAFb48bA893973ef6Fa146554")
 	first := crypto.Keccak256(convert.Bytes())
 	second := crypto.Keccak256([]byte("asdfasfd"))
-	data := merge(first,second)
+	data := merge(first, second)
 
 	signature, err := elaCrypto.Sign(private, data)
 	assert.NoError(t, err)
@@ -690,23 +690,23 @@ func TestP256Verify_Run(t *testing.T) {
 	assert.Equal(t, true32Byte, r)
 }
 
-func getP256Keypair()  {
+func getP256Keypair() {
 	a, b, _ := elaCrypto.GenerateKeyPair()
 	fmt.Println(common.Bytes2Hex(a))
 	bb, _ := b.EncodePoint(true)
 	fmt.Println(common.Bytes2Hex(bb))
 }
 
-func merge(first , second []byte) []byte{
+func merge(first, second []byte) []byte {
 	var merged []byte
 	k := 0
 	for i := 0; i < len(first); i++ {
-		merged = append(merged ,first[i])
+		merged = append(merged, first[i])
 		k++
 	}
 
 	for i := 0; i < len(second); i++ {
-		merged = append(merged ,second[i])
+		merged = append(merged, second[i])
 		k++
 	}
 	return merged

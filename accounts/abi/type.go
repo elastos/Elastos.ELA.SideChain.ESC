@@ -23,6 +23,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 )
 
 // Type enumerator
@@ -45,17 +49,16 @@ const (
 // Type is the reflection of the supported argument type
 type Type struct {
 	Elem *Type
-	Kind reflect.Kind
-	Type reflect.Type
 	Size int
 	T    byte // Our own type checking
 
 	stringKind string // holds the unparsed string for deriving signatures
 
 	// Tuple relative fields
-	TupleRawName  string   // Raw struct name defined in source code, may be empty.
-	TupleElems    []*Type  // Type information of all tuple fields
-	TupleRawNames []string // Raw field name of all tuple fields
+	TupleRawName  string       // Raw struct name defined in source code, may be empty.
+	TupleElems    []*Type      // Type information of all tuple fields
+	TupleRawNames []string     // Raw field name of all tuple fields
+	TupleType     reflect.Type // Underlying struct of the tuple
 }
 
 var (
@@ -94,20 +97,16 @@ func NewType(t string, internalType string, components []ArgumentMarshaling) (ty
 		if len(intz) == 0 {
 			// is a slice
 			typ.T = SliceTy
-			typ.Kind = reflect.Slice
 			typ.Elem = &embeddedType
-			typ.Type = reflect.SliceOf(embeddedType.Type)
 			typ.stringKind = embeddedType.stringKind + sliced
 		} else if len(intz) == 1 {
-			// is a array
+			// is an array
 			typ.T = ArrayTy
-			typ.Kind = reflect.Array
 			typ.Elem = &embeddedType
 			typ.Size, err = strconv.Atoi(intz[0])
 			if err != nil {
 				return Type{}, fmt.Errorf("abi: error parsing variable size: %v", err)
 			}
-			typ.Type = reflect.ArrayOf(typ.Size, embeddedType.Type)
 			typ.stringKind = embeddedType.stringKind + sliced
 		} else {
 			return Type{}, fmt.Errorf("invalid formatting of array type")
@@ -139,36 +138,24 @@ func NewType(t string, internalType string, components []ArgumentMarshaling) (ty
 	// varType is the parsed abi type
 	switch varType := parsedType[1]; varType {
 	case "int":
-		typ.Kind, typ.Type = reflectIntKindAndType(false, varSize)
 		typ.Size = varSize
 		typ.T = IntTy
 	case "uint":
-		typ.Kind, typ.Type = reflectIntKindAndType(true, varSize)
 		typ.Size = varSize
 		typ.T = UintTy
 	case "bool":
-		typ.Kind = reflect.Bool
 		typ.T = BoolTy
-		typ.Type = reflect.TypeOf(bool(false))
 	case "address":
-		typ.Kind = reflect.Array
-		typ.Type = addressT
 		typ.Size = 20
 		typ.T = AddressTy
 	case "string":
-		typ.Kind = reflect.String
-		typ.Type = reflect.TypeOf("")
 		typ.T = StringTy
 	case "bytes":
 		if varSize == 0 {
 			typ.T = BytesTy
-			typ.Kind = reflect.Slice
-			typ.Type = reflect.SliceOf(reflect.TypeOf(byte(0)))
 		} else {
 			typ.T = FixedBytesTy
-			typ.Kind = reflect.Array
 			typ.Size = varSize
-			typ.Type = reflect.ArrayOf(varSize, reflect.TypeOf(byte(0)))
 		}
 	case "tuple":
 		var (
@@ -176,6 +163,7 @@ func NewType(t string, internalType string, components []ArgumentMarshaling) (ty
 			elems      []*Type
 			names      []string
 			expression string // canonical parameter expression
+			used       = make(map[string]bool)
 		)
 		expression += "("
 		for idx, c := range components {
@@ -183,12 +171,21 @@ func NewType(t string, internalType string, components []ArgumentMarshaling) (ty
 			if err != nil {
 				return Type{}, err
 			}
-			if ToCamelCase(c.Name) == "" {
+			name := ToCamelCase(c.Name)
+			if name == "" {
 				return Type{}, errors.New("abi: purely anonymous or underscored field is not supported")
 			}
+			fieldName := ResolveNameConflict(name, func(s string) bool { return used[s] })
+			if err != nil {
+				return Type{}, err
+			}
+			used[fieldName] = true
+			if !isValidFieldName(fieldName) {
+				return Type{}, fmt.Errorf("field %d has invalid name", idx)
+			}
 			fields = append(fields, reflect.StructField{
-				Name: ToCamelCase(c.Name), // reflect.StructOf will panic for any exported field.
-				Type: cType.Type,
+				Name: fieldName, // reflect.StructOf will panic for any exported field.
+				Type: cType.GetType(),
 				Tag:  reflect.StructTag("json:\"" + c.Name + "\""),
 			})
 			elems = append(elems, &cType)
@@ -199,8 +196,8 @@ func NewType(t string, internalType string, components []ArgumentMarshaling) (ty
 			}
 		}
 		expression += ")"
-		typ.Kind = reflect.Struct
-		typ.Type = reflect.StructOf(fields)
+
+		typ.TupleType = reflect.StructOf(fields)
 		typ.TupleElems = elems
 		typ.TupleRawNames = names
 		typ.T = TupleTy
@@ -213,14 +210,12 @@ func NewType(t string, internalType string, components []ArgumentMarshaling) (ty
 		if internalType != "" && strings.HasPrefix(internalType, structPrefix) {
 			// Foo.Bar type definition is not allowed in golang,
 			// convert the format to FooBar
-			typ.TupleRawName = strings.Replace(internalType[len(structPrefix):], ".", "", -1)
+			typ.TupleRawName = strings.ReplaceAll(internalType[len(structPrefix):], ".", "")
 		}
 
 	case "function":
-		typ.Kind = reflect.Array
 		typ.T = FunctionTy
 		typ.Size = 24
-		typ.Type = reflect.ArrayOf(24, reflect.TypeOf(byte(0)))
 	default:
 		return Type{}, fmt.Errorf("unsupported arg type: %s", t)
 	}
@@ -228,7 +223,43 @@ func NewType(t string, internalType string, components []ArgumentMarshaling) (ty
 	return
 }
 
-// String implements Stringer
+// GetType returns the reflection type of the ABI type.
+func (t Type) GetType() reflect.Type {
+	switch t.T {
+	case IntTy:
+		return reflectIntType(false, t.Size)
+	case UintTy:
+		return reflectIntType(true, t.Size)
+	case BoolTy:
+		return reflect.TypeOf(false)
+	case StringTy:
+		return reflect.TypeOf("")
+	case SliceTy:
+		return reflect.SliceOf(t.Elem.GetType())
+	case ArrayTy:
+		return reflect.ArrayOf(t.Size, t.Elem.GetType())
+	case TupleTy:
+		return t.TupleType
+	case AddressTy:
+		return reflect.TypeOf(common.Address{})
+	case FixedBytesTy:
+		return reflect.ArrayOf(t.Size, reflect.TypeOf(byte(0)))
+	case BytesTy:
+		return reflect.SliceOf(reflect.TypeOf(byte(0)))
+	case HashTy:
+		// hashtype currently not used
+		return reflect.ArrayOf(32, reflect.TypeOf(byte(0)))
+	case FixedPointTy:
+		// fixedpoint type currently not used
+		return reflect.ArrayOf(32, reflect.TypeOf(byte(0)))
+	case FunctionTy:
+		return reflect.ArrayOf(24, reflect.TypeOf(byte(0)))
+	default:
+		panic("Invalid type")
+	}
+}
+
+// String implements Stringer.
 func (t Type) String() (out string) {
 	return t.stringKind
 }
@@ -310,7 +341,7 @@ func (t Type) pack(v reflect.Value) ([]byte, error) {
 		return append(ret, tail...), nil
 
 	default:
-		return packElement(t, v), nil
+		return packElement(t, v)
 	}
 }
 
@@ -350,7 +381,7 @@ func isDynamicType(t Type) bool {
 func getTypeSize(t Type) int {
 	if t.T == ArrayTy && !isDynamicType(*t.Elem) {
 		// Recursively calculate type size if it is a nested array
-		if t.Elem.T == ArrayTy {
+		if t.Elem.T == ArrayTy || t.Elem.T == TupleTy {
 			return t.Size * getTypeSize(*t.Elem)
 		}
 		return t.Size * 32
@@ -362,4 +393,31 @@ func getTypeSize(t Type) int {
 		return total
 	}
 	return 32
+}
+
+// isLetter reports whether a given 'rune' is classified as a Letter.
+// This method is copied from reflect/type.go
+func isLetter(ch rune) bool {
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_' || ch >= utf8.RuneSelf && unicode.IsLetter(ch)
+}
+
+// isValidFieldName checks if a string is a valid (struct) field name or not.
+//
+// According to the language spec, a field name should be an identifier.
+//
+// identifier = letter { letter | unicode_digit } .
+// letter = unicode_letter | "_" .
+// This method is copied from reflect/type.go
+func isValidFieldName(fieldName string) bool {
+	for i, c := range fieldName {
+		if i == 0 && !isLetter(c) {
+			return false
+		}
+
+		if !(isLetter(c) || unicode.IsDigit(c)) {
+			return false
+		}
+	}
+
+	return len(fieldName) > 0
 }

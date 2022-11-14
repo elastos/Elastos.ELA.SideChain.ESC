@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"github.com/holiman/uint256"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
@@ -25,7 +26,7 @@ import (
 
 // calcMemSize64 calculates the required memory size, and returns
 // the size and whether the result overflowed uint64
-func calcMemSize64(off, l *big.Int) (uint64, bool) {
+func calcMemSize64(off, l *uint256.Int) (uint64, bool) {
 	if !l.IsUint64() {
 		return 0, true
 	}
@@ -35,7 +36,7 @@ func calcMemSize64(off, l *big.Int) (uint64, bool) {
 // calcMemSize64WithUint calculates the required memory size, and returns
 // the size and whether the result overflowed uint64
 // Identical to calcMemSize64, but length is a uint64
-func calcMemSize64WithUint(off *big.Int, length64 uint64) (uint64, bool) {
+func calcMemSize64WithUint(off *uint256.Int, length64 uint64) (uint64, bool) {
 	// if length is zero, memsize is always zero, regardless of offset
 	if length64 == 0 {
 		return 0, false
@@ -76,7 +77,7 @@ func getDataBig(data []byte, start *big.Int, size *big.Int) []byte {
 
 // bigUint64 returns the integer casted to a uint64 and returns whether it
 // overflowed in the process.
-func bigUint64(v *big.Int) (uint64, bool) {
+func bigUint64(v *uint256.Int) (uint64, bool) {
 	return v.Uint64(), !v.IsUint64()
 }
 
