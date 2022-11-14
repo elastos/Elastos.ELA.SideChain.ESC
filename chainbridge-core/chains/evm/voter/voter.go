@@ -137,7 +137,7 @@ func (w *EVMVoter) GetArbiterList(bridgeAddress string) ([]common.Address, error
 	log.Info("getArbiterList", "error", err, "out", out)
 
 	out0 := make([]common.Address, 0)
-	err = a.Unpack(&out0, "getArbiterList", out)
+	err = a.UnpackIntoInterface(&out0, "getArbiterList", out)
 	if err != nil {
 		return []common.Address{}, err
 	}
@@ -251,7 +251,7 @@ func (w *EVMVoter) GetSignatures(bridgeAddress string) ([][crypto.SignatureLengt
 	log.Info("getArbiterSigs", "error", err, "out", out)
 
 	out0 := make([][crypto.SignatureLength]byte, 0)
-	err = a.Unpack(&out0, "getArbiterSigs", out)
+	err = a.UnpackIntoInterface(&out0, "getArbiterSigs", out)
 	if err != nil {
 		return [][crypto.SignatureLength]byte{}, err
 	}
@@ -273,7 +273,7 @@ func (w *EVMVoter) GetTotalCount(bridgeAddress string) (uint64, error) {
 	log.Info("getArbiterCount", "error", err, "out", out)
 
 	out0 := big.NewInt(0).SetBytes(out)
-	err = a.Unpack(&out0, "getArbiterCount", out)
+	err = a.UnpackIntoInterface(&out0, "getArbiterCount", out)
 	if err != nil {
 		return 0, err
 	}

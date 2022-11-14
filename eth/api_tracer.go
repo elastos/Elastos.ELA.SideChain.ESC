@@ -20,8 +20,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/ethapi"
 	"io/ioutil"
 	"os"
 	"runtime"
@@ -36,7 +38,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/tracers"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/ethapi"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth/tracers/logger"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
@@ -56,15 +58,19 @@ const (
 
 // TraceConfig holds extra parameters to trace functions.
 type TraceConfig struct {
-	*vm.LogConfig
+	*logger.Config
 	Tracer  *string
 	Timeout *string
 	Reexec  *uint64
+
+	// Config specific to given tracer. Note struct logger
+	// config are historically embedded in main object.
+	TracerConfig json.RawMessage
 }
 
 // StdTraceConfig holds extra parameters to standard-json trace functions.
 type StdTraceConfig struct {
-	*vm.LogConfig
+	*logger.Config
 	Reexec *uint64
 	TxHash common.Hash
 }
@@ -207,8 +213,12 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				for i, tx := range task.block.Transactions() {
 					msg, _ := tx.AsMessage(signer)
 					vmctx := core.NewEVMContext(msg, task.block.Header(), api.eth.blockchain, nil)
-
-					res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
+					txCtx := &tracers.Context{
+						BlockHash: task.block.Header().Hash(),
+						TxIndex:   i,
+						TxHash:    tx.Hash(),
+					}
+					res, err := api.traceTx(ctx, msg, txCtx, vmctx, task.statedb, config)
 					if err != nil {
 						task.results[i] = &txTraceResult{Error: err.Error()}
 						log.Warn("Tracing failed", "hash", tx.Hash(), "block", task.block.NumberU64(), "err", err)
@@ -481,8 +491,12 @@ func (api *PrivateDebugAPI) traceBlock(ctx context.Context, block *types.Block, 
 			for task := range jobs {
 				msg, _ := txs[task.index].AsMessage(signer)
 				vmctx := core.NewEVMContext(msg, block.Header(), api.eth.blockchain, nil)
-
-				res, err := api.traceTx(ctx, msg, vmctx, task.statedb, config)
+				txCtx := &tracers.Context{
+					BlockHash: block.Hash(),
+					TxIndex:   task.index,
+					TxHash:    txs[task.index].Hash(),
+				}
+				res, err := api.traceTx(ctx, msg, txCtx, vmctx, task.statedb, config)
 				if err != nil {
 					results[task.index] = &txTraceResult{Error: err.Error()}
 					continue
@@ -548,12 +562,12 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 	}
 	// Retrieve the tracing configurations, or use default values
 	var (
-		logConfig vm.LogConfig
+		logConfig logger.Config
 		txHash    common.Hash
 	)
 	if config != nil {
-		if config.LogConfig != nil {
-			logConfig = *config.LogConfig
+		if config.Config != nil {
+			logConfig = *config.Config
 		}
 		txHash = config.TxHash
 	}
@@ -590,7 +604,7 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 			writer = bufio.NewWriter(dump)
 			vmConf = vm.Config{
 				Debug:                   true,
-				Tracer:                  vm.NewJSONLogger(&logConfig, writer),
+				Tracer:                  logger.NewJSONLogger(&logConfig, writer),
 				EnablePreimageRecording: true,
 			}
 		}
@@ -715,17 +729,21 @@ func (api *PrivateDebugAPI) TraceTransaction(ctx context.Context, hash common.Ha
 	if err != nil {
 		return nil, err
 	}
+	txContext := &tracers.Context{
+		BlockHash: blockHash,
+		TxIndex:   int(index),
+		TxHash:    hash,
+	}
 	// Trace the transaction and return
-	return api.traceTx(ctx, msg, vmctx, statedb, config)
+	return api.traceTx(ctx, msg, txContext, vmctx, statedb, config)
 }
 
 // traceTx configures a new tracer according to the provided configuration, and
 // executes the given message in the provided environment. The return value will
 // be tracer dependent.
-func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, vmctx vm.Context, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
-	// Assemble the structured logger or the JavaScript tracer
+func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, txContext *tracers.Context, blockCtx vm.Context, statedb *state.StateDB, config *TraceConfig) (interface{}, error) {
 	var (
-		tracer vm.Tracer
+		tracer tracers.Tracer
 		err    error
 	)
 	switch {
@@ -738,25 +756,26 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 			}
 		}
 		// Constuct the JavaScript tracer to execute with
-		if tracer, err = tracers.New(*config.Tracer); err != nil {
+		if tracer, err = tracers.New(*config.Tracer, txContext, config.TracerConfig); err != nil {
 			return nil, err
 		}
 		// Handle timeouts and RPC cancellations
 		deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
 		go func() {
 			<-deadlineCtx.Done()
-			tracer.(*tracers.Tracer).Stop(errors.New("execution timeout"))
+			tracer.Stop(errors.New("execution timeout"))
 		}()
 		defer cancel()
 
 	case config == nil:
-		tracer = vm.NewStructLogger(nil)
+		config = &TraceConfig{}
+		tracer = logger.NewStructLogger(config.Config)
 
 	default:
-		tracer = vm.NewStructLogger(config.LogConfig)
+		tracer = logger.NewStructLogger(config.Config)
 	}
 	// Run the transaction with tracing enabled.
-	vmenv := vm.NewEVM(vmctx, statedb, api.eth.blockchain.Config(), vm.Config{Debug: true, Tracer: tracer})
+	vmenv := vm.NewEVM(blockCtx, statedb, api.eth.blockchain.Config(), vm.Config{Debug: true, Tracer: tracer})
 
 	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()))
 	if err != nil {
@@ -764,7 +783,7 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 	}
 	// Depending on the tracer type, format and return the output
 	switch tracer := tracer.(type) {
-	case *vm.StructLogger:
+	case *logger.StructLogger:
 		return &ethapi.ExecutionResult{
 			Gas:         gas,
 			Failed:      failed,
@@ -772,7 +791,7 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 			StructLogs:  ethapi.FormatLogs(tracer.StructLogs()),
 		}, nil
 
-	case *tracers.Tracer:
+	case tracers.Tracer:
 		return tracer.GetResult()
 
 	default:
