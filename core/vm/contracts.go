@@ -22,6 +22,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
+	"github.com/elastos/Elastos.ELA/core/contract"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
@@ -67,6 +70,8 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
 	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
 	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
 }
 
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
@@ -84,6 +89,8 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
 	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
 	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -598,4 +605,69 @@ func (b *pbkVerifySignature) Run(input []byte) ([]byte, error) {
 		return true32Byte, nil
 	}
 	return false32Byte, nil
+}
+
+type pledgeBillVerify struct{}
+
+func (b *pledgeBillVerify) RequiredGas(input []byte) uint64 {
+	return params.PledgeBillVerifyGas
+}
+
+func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
+	//length := getData(input, 0, 32)
+	elaHash := getData(input, 32, 32)
+	signature := getData(input, 64, 64)
+	publicKey := getData(input, 128, 33)
+
+	pubKey, err := elaCrypto.DecodePoint(publicKey)
+	if err != nil {
+		return false32Byte, errors.New("publicKey decode error")
+	}
+
+	err = elaCrypto.Verify(*pubKey, elaHash, signature)
+	if err != nil {
+		log.Error("signature verify failed", "error", err)
+		return false32Byte, err
+	}
+
+	redeemScript, err := contract.CreateStandardRedeemScript(pubKey)
+	if err != nil {
+		return false32Byte, err
+	}
+	ct, err := contract.CreateStakeContractByCode(redeemScript[:])
+	if err != nil {
+		return false32Byte, err
+	}
+	stakeAddress, err := ct.ToProgramHash().ToAddress()
+
+	sAddress, _, err := pledgeBill.GetPledgeBillData(common.BytesToHash(elaHash).String())
+	if err != nil {
+		return false32Byte, err
+	}
+	if sAddress != stakeAddress {
+		log.Error("stakeAddress is error", "spv saddress", sAddress, "call saddress", stakeAddress)
+		return false32Byte, errors.New("stakeAddress is error")
+	}
+	return true32Byte, nil
+}
+
+type pledgeBillTokenID struct{}
+
+func (b *pledgeBillTokenID) RequiredGas(input []byte) uint64 {
+	return params.GetPledgeBillTokenID
+}
+
+func (b *pledgeBillTokenID) Run(input []byte) ([]byte, error) {
+	fmt.Println(">>>>>>>>>>>>>>>>> pledgeBillTokenID <<<<<<<<<<<<<<<<<", input, "inputSize", len(input))
+	//length := getData(input, 0, 32)
+	elaHash := getData(input, 32, 32)
+	fmt.Println(">>>>>>>>>>>>>>>>> elaHash<<<<<<<<<<<<<<<<", elaHash, "hash", common.BytesToHash(elaHash).String())
+
+	_, tokenID, err := pledgeBill.GetPledgeBillData(common.BytesToHash(elaHash).String())
+	fmt.Println(">>>>>> tokenID", tokenID)
+	if err != nil {
+		return false32Byte, err
+	}
+
+	return tokenID.Bytes(), nil
 }

@@ -17,7 +17,7 @@ require (
 	github.com/elastic/gosigar v0.14.2
 	github.com/elastos/Elastos.ELA v0.8.4-0.20220926040747-3c4d3be13d88
 	github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20220930094506-721074bc256d
-	github.com/elastos/Elastos.ELA.SideChain v0.2.2-0.20220930094905-0ca5dbe27cfa
+	github.com/elastos/Elastos.ELA.SideChain v0.2.2-0.20220930094905-0ca5dbe27cfa // indirect
 	github.com/fatih/color v1.13.0
 	github.com/fjl/memsize v0.0.1
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08
@@ -65,3 +65,7 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools/v3 v3.4.0 // indirect
 )
+
+replace github.com/elastos/Elastos.ELA v0.8.4-0.20220926040747-3c4d3be13d88 => github.com/RainFallsSilent/Elastos.ELA v0.2.2-0.20221123073219-546ad8b6b231
+
+replace github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20220930094506-721074bc256d => github.com/RainFallsSilent/Elastos.ELA.SPV v0.0.0-20221122030330-8f01c99883d8
