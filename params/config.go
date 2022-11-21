@@ -425,6 +425,7 @@ type ChainConfig struct {
 	DynamicArbiterHeight  uint64 `json:"dynamicArbiterHeight,omitempty"`
 	FrozeAccountList      []string
 	BridgeContractAddr    string
+	PledgeBillContract    string
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.

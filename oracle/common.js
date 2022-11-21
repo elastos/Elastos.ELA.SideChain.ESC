@@ -3,6 +3,7 @@
 const Web3 = require("web3");
 const web3 = new Web3("http://127.0.0.1:20636");
 const ctrt = require("./ctrt");
+const pledgeBillContract = require("./pledgeBillContract");
 
 
 web3.extend({
@@ -39,6 +40,7 @@ web3.extend({
     ]
 });
 const contract = new web3.eth.Contract(ctrt.abi);
+const pledgeBill = new web3.eth.Contract(pledgeBillContract.abi)
 console.log(JSON.stringify(process.env.env));
 switch (process.env.env) {
     case "rinkeby":
@@ -56,6 +58,8 @@ switch (process.env.env) {
     default:
         console.log("config address");
         contract.options.address = ctrt.address;
+        pledgeBill.options.address = pledgeBillContract.address
+        console.log("pledgeBill.options.address", pledgeBill.options.address);
 }
 const payloadReceived = {name: null, inputs: null, signature: null};
 const blackAdr = "0x0000000000000000000000000000000000000000";
@@ -70,10 +74,14 @@ for (const event of ctrt.abi) {
     }
 }
 
+const pledgeBillBurnEvent = pledgeBillContract.abi[0]
+
 module.exports = {
     web3: web3,
     contract: contract,
     payloadReceived: payloadReceived,
+    pledgeBillBurnEvent:pledgeBillBurnEvent,
+    pledgeBillContract:pledgeBill,
     blackAdr: blackAdr,
     latest: latest,
     zeroHash64: zeroHash64,
