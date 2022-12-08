@@ -11,9 +11,9 @@ import (
 
 func TestSmallCrossTx_Deserialize(t *testing.T) {
 	tx := &SmallCrossTx{
-		RawTxID: "215c669bf8fd2a7d8ebf9d2689428c1ed1e2a85c8292e6ee0032ae7732619606",
-		RawTx: "3e1b0efac4212580f1014ed68f8c432ed886b4888065e26dad8023feecc9c468",
-		Signatures: []string{"123","456"},
+		RawTxID:     "215c669bf8fd2a7d8ebf9d2689428c1ed1e2a85c8292e6ee0032ae7732619606",
+		RawTx:       "3e1b0efac4212580f1014ed68f8c432ed886b4888065e26dad8023feecc9c468",
+		Signatures:  []string{"123", "456"},
 		BlockHeight: 889898,
 	}
 
@@ -32,7 +32,7 @@ func TestSmallCrossTx_Deserialize(t *testing.T) {
 
 	byteData, err := common.HexStringToBytes(hexString)
 	assert.NoError(t, err)
-	data = bytes.NewBuffer(byteData[:len(byteData) - 2])
+	data = bytes.NewBuffer(byteData[:len(byteData)-2])
 	tx3 := &SmallCrossTx{}
 	err = tx3.Deserialize(data)
 	assert.Error(t, err)
