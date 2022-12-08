@@ -38,6 +38,7 @@ func (gp *GasPool) AddGas(amount uint64) *GasPool {
 // available and returns an error otherwise.
 func (gp *GasPool) SubGas(amount uint64) error {
 	if uint64(*gp) < amount {
+		fmt.Println("1111111111 ")
 		return ErrGasLimitReached
 	}
 	*(*uint64)(gp) -= amount
