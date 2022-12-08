@@ -213,6 +213,8 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	sender := vm.AccountRef(msg.From())
 	contractCreation := msg.To() == nil
 	isRefundWithdrawTx := false
+	var recharges spv.RechargeDatas
+	var totalFee *big.Int
 
 	//recharge tx and widthdraw refund
 	if msg.To() != nil && *msg.To() == blackaddr {
@@ -272,46 +274,52 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 				txhash = hexutil.Encode(msg.Data())
 			}
 			if len(msg.Data()) == 32 || isSmallRechargeTx {
-				fee, toaddr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
-				if toaddr != blackaddr {
-					completetxhash := evm.StateDB.GetState(blackaddr, common.HexToHash(txhash))
-					if (completetxhash == emptyHash) && output.Cmp(fee) > 0 {
-						st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
-						defer func() {
-							ethfee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
-							if fee.Cmp(new(big.Int)) <= 0 || fee.Cmp(ethfee) < 0 || st.state.GetBalance(toaddr).Uint64() < 0 || vmerr != nil {
-								ret = nil
-								usedGas = 0
-								failed = false
-								if err == nil {
-									log.Error("fee is not enough ：", "fee", fee.String(), "need", ethfee.String(), "vmerr", vmerr)
-									err = ErrGasLimitReached
-								}
-								evm.StateDB.RevertToSnapshot(snapshot)
-								return
-							} else {
-								st.state.AddBalance(st.msg.From(), fee)
-							}
-
-							if st.state.GetBalance(st.msg.From()).Cmp(new(big.Int).SetUint64(evm.ChainConfig().PassBalance)) < 0 {
-								ret = nil
-								usedGas = 0
-								failed = false
-								if err == nil {
-									err = ErrGasLimitReached
-								}
-								evm.StateDB.RevertToSnapshot(snapshot)
-							} else {
-								st.state.SubBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
-							}
-						}()
-					} else {
-						return nil, 0, false, ErrMainTxHashPresence
-					}
-				} else {
-					log.Info("recharge failed ", "fee", fee.String(), "toaddr", toaddr, "output", output, "isSmallRechargeTx", isSmallRechargeTx)
+				recharges, totalFee, err = spv.GetRechargeDataByTxhash(txhash)
+				if err != nil || len(recharges) <= 0 {
+					log.Error("recharge data error", "error", err)
 					return nil, 0, false, ErrElaToEthAddress
 				}
+				completetxhash := evm.StateDB.GetState(blackaddr, common.HexToHash(txhash))
+				if completetxhash != emptyHash {
+					return nil, 0, false, ErrMainTxHashPresence
+				}
+				for _, recharge := range recharges {
+					if recharge.TargetAddress == blackaddr || recharge.TargetAmount.Cmp(recharge.Fee) < 0 {
+						log.Error("recharge data error ", "fee", recharge.Fee.String(), "TargetAddress", recharge.TargetAddress.String(), "TargetAmount", recharge.TargetAmount.String(), "isSmallRechargeTx", isSmallRechargeTx)
+						return nil, 0, false, ErrElaToEthAddress
+					}
+				}
+
+				st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
+				defer func() {
+					ethfee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
+					for _, recharge := range recharges {
+						if recharge.Fee.Cmp(new(big.Int)) <= 0 || st.state.GetBalance(recharge.TargetAddress).Uint64() < 0 {
+							ret = nil
+							usedGas = 0
+							failed = false
+							if err == nil {
+								log.Error("ErrGasLimitReached 1111", "totalFee", totalFee.String(), "ethFee", ethfee.String(), " st.state.GetBalance(recharge.TargetAddress).Uint64()", st.state.GetBalance(recharge.TargetAddress).Uint64(), "targetAddress", recharge.TargetAddress)
+								err = ErrGasLimitReached
+							}
+							evm.StateDB.RevertToSnapshot(snapshot)
+							return
+						}
+					}
+					st.state.AddBalance(st.msg.From(), totalFee)
+					if st.state.GetBalance(st.msg.From()).Cmp(new(big.Int).SetUint64(evm.ChainConfig().PassBalance)) < 0 || totalFee.Cmp(ethfee) < 0 {
+						ret = nil
+						usedGas = 0
+						failed = false
+						if err == nil {
+							log.Error("ErrGasLimitReached 22222", "totalFee", totalFee.String(), "ethFee", ethfee.String(), " st.state.GetBalance(st.msg.From())", st.state.GetBalance(st.msg.From()))
+							err = ErrGasLimitReached
+						}
+						evm.StateDB.RevertToSnapshot(snapshot)
+					} else {
+						st.state.SubBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
+					}
+				}()
 			}
 		}
 	} else if contractCreation { //deploy contract
@@ -356,7 +364,14 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	} else {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
-		ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value)
+		if len(recharges) > 0 {
+			for _, recharge := range recharges {
+				ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value, recharge)
+			}
+		} else {
+			ret, st.gas, vmerr = evm.Call(sender, st.to(), st.data, st.gas, st.value, nil)
+		}
+
 	}
 	if vmerr != nil {
 		log.Info("VM returned with error", "err", vmerr, "ret", string(ret))
