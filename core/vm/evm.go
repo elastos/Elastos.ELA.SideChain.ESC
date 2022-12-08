@@ -190,7 +190,7 @@ func (evm *EVM) Interpreter() Interpreter {
 // parameters. It also handles any necessary value transfer required and takes
 // the necessary steps to create accounts and reverses the state in case of an
 // execution error or failed value transfer.
-func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int, recharge *spv.RechargeData) (ret []byte, leftOverGas uint64, err error) {
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
@@ -207,6 +207,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		txHash    string
 	)
 	isRechargeTx := false
+	var targetMemoData []byte
 	//this is recharge tx
 	if blackAddr == addr {
 		emptyHash := common.Hash{}
@@ -229,10 +230,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 				topics[3] = common.HexToHash(from)
 				topics[4] = common.BigToHash(amount)
 				evm.StateDB.AddLog(&types.Log{
-					Address: common.HexToAddress(evm.chainConfig.BlackContractAddr),
-					Topics:topics,
-					Data:nil,
-					BlockNumber:evm.BlockNumber.Uint64(),
+					Address:     common.HexToAddress(evm.chainConfig.BlackContractAddr),
+					Topics:      topics,
+					Data:        nil,
+					BlockNumber: evm.BlockNumber.Uint64(),
 				})
 				//first give caller, then caller transfer to target behind
 				evm.StateDB.AddBalance(caller.Address(), amount)
@@ -240,7 +241,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			} else {
 				return nil, gas, ErrWithdawrefundCallFailed
 			}
-		} else {
+		} else if recharge != nil {
 			isSmallRechargeTx := false
 			if len(input) > 32 {
 				rawTxid, _, _, _ := spv.IsSmallCrossTxByData(input)
@@ -250,27 +251,33 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			if len(input) == 32 {
 				txHash = hexutil.Encode(input)
 			}
+
 			if len(input) == 32 || isSmallRechargeTx {
 				completeTxHash := evm.StateDB.GetState(blackAddr, common.HexToHash(txHash))
-				fee, address, output :=  spv.FindOutputFeeAndaddressByTxHash(txHash)
-				addr = address
-				if completeTxHash == emptyHash && addr != blackAddr && output.Cmp(fee) > 0 {
+				if completeTxHash != emptyHash {
+					return nil, gas, spv.ErrMainTxHashPresence
+				}
+				addr = recharge.TargetAddress
+				if recharge.TargetAddress != blackAddr && recharge.TargetAmount.Cmp(recharge.Fee) >= 0 {
 					isRechargeTx = true
-					to = AccountRef(addr)
-					value = new(big.Int).Sub(output, fee)
+					to = AccountRef(recharge.TargetAddress)
+					if len(recharge.TargetData) > 0 {
+						targetMemoData = recharge.TargetData
+					}
+					value = new(big.Int).Sub(recharge.TargetAmount, recharge.Fee)
 					topics := make([]common.Hash, 5)
 					topics[0] = common.HexToHash("0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a")
 					topics[1] = common.HexToHash(caller.Address().String())
 					topics[2] = common.HexToHash(txHash)
-					topics[3] = common.HexToHash(addr.String())
+					topics[3] = common.HexToHash(recharge.TargetAddress.String())
 					topics[4] = common.BigToHash(value)
 					evm.StateDB.AddLog(&types.Log{
-						Address:blackAddr,
-						Topics:topics,
-						Data:nil,
+						Address: blackAddr,
+						Topics:  topics,
+						Data:    nil,
 						// This is a non-consensus field, but assigned here because
 						// core/state doesn't know the current block number.
-						BlockNumber:evm.BlockNumber.Uint64(),
+						BlockNumber: evm.BlockNumber.Uint64(),
 					})
 					evm.StateDB.AddBalance(caller.Address(), value)
 				}
@@ -319,8 +326,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}()
 	}
 	if isRechargeTx {
-		inputData := spv.FindOutRechargeInput(txHash)
-		ret, err = run(evm, contract, inputData, false)
+		ret, err = run(evm, contract, targetMemoData, false)
 	} else {
 		ret, err = run(evm, contract, input, false)
 	}
