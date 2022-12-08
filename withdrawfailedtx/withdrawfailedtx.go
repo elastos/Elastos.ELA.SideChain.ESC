@@ -24,11 +24,11 @@ import (
 )
 
 var (
-	mulFailedMux sync.RWMutex
-	failedTxList = make(map[string][]string)
+	mulFailedMux    sync.RWMutex
+	failedTxList    = make(map[string][]string)
 	verifiedArbiter = make(map[string][]string)
 
-	eventMux   *event.TypeMux
+	eventMux *event.TypeMux
 
 	FailedTxPre = "Failed_pre"
 
@@ -191,7 +191,7 @@ func getTxData(txid common.Hash) ([]byte, error) {
 func GetRefundEventHash() common.Hash {
 	Uint256, _ := abi.NewType("uint256", "", nil)
 	String, _ := abi.NewType("string", "", nil)
-	refundEvent := abi.Event{Name: "Refund", RawName: "Refund", Inputs: abi.Arguments{{Name: "from", Type: String, Indexed: false},{Name: "to", Type: String, Indexed: false}, {Name: "value", Type: Uint256, Indexed: false}}}
+	refundEvent := abi.Event{Name: "Refund", RawName: "Refund", Inputs: abi.Arguments{{Name: "from", Type: String, Indexed: false}, {Name: "to", Type: String, Indexed: false}, {Name: "value", Type: Uint256, Indexed: false}}}
 	return refundEvent.ID()
 }
 
@@ -219,14 +219,14 @@ func VerifySignatures(input []byte) bool {
 	}
 
 	data := input[32:]
-	if len(data) % 64 != 0 {
+	if len(data)%64 != 0 {
 		log.Error("tx payload data is error")
 		return false
 	}
 	signatures := make([]string, 0)
 	size := len(data) / 64
 	for i := 0; i < size; i++ {
-		sig := data[i * 64 : i * 64 + 64]
+		sig := data[i*64 : i*64+64]
 		signatures = append(signatures, common.Bytes2Hex(sig))
 	}
 
@@ -255,7 +255,7 @@ func VerifySignatures(input []byte) bool {
 			}
 			err = elaCrypto.Verify(*pubKey, buff, sig)
 			if err == nil {
-				count ++
+				count++
 				break
 			}
 		}
@@ -285,7 +285,7 @@ func GetWithdrawTxValue(txid string) (string, *big.Int, error) {
 	evtId := contract.Events["PayloadReceived"].ID().String()
 
 	type PayloadReceived struct {
-		Addr           string
+		Addr             string
 		Amount           *big.Int
 		Crosschainamount *big.Int
 	}
@@ -347,7 +347,6 @@ func IsArbiterVerified(txid, arbiter string) bool {
 	return false
 }
 
-
 func getMaxArbitersSign(total int) int {
 	return total*2/3 + 1
 }
@@ -378,7 +377,6 @@ func IsWithdawFailedTx(input []byte, withdrawAddress string) (bool, string) {
 
 	tx, _, err := client.TransactionByHash(context.Background(), common.HexToHash(txid))
 	if err != nil {
-		log.Error("[IsWithdawFailedTx]", "error", err)
 		return false, txid
 	}
 	if tx != nil && tx.To().String() == withdrawAddress {

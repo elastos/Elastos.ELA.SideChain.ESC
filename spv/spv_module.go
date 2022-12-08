@@ -6,12 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
-	"path/filepath"
-	"strings"
-	"sync"
-	"sync/atomic"
-
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
@@ -27,6 +21,11 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
+	"math/big"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
 
 	"golang.org/x/net/context"
 
@@ -381,7 +380,7 @@ func saveOutputPayload(outputs []*elacom.Output, txHash string) error {
 	var fees []string
 	var address []string
 	var amounts []string
-	var memos [][]byte
+	var memos []string
 	for _, output := range outputs {
 		op, ok := output.Payload.(*outputpayload.CrossChainOutput)
 		if !ok {
@@ -390,7 +389,7 @@ func saveOutputPayload(outputs []*elacom.Output, txHash string) error {
 		fees = append(fees, (output.Value - op.TargetAmount).String())
 		amounts = append(amounts, output.Value.String())
 		address = append(address, op.TargetAddress)
-		memos = append(memos, op.TargetData)
+		memos = append(memos, string(op.TargetData))
 	}
 	addr := strings.Join(address, ",")
 	fee := strings.Join(fees, ",")
@@ -398,6 +397,7 @@ func saveOutputPayload(outputs []*elacom.Output, txHash string) error {
 	if spvTxhash == txHash {
 		return nil
 	}
+	fmt.Println(">>>>>> saveOutputPayload", "addr", addr, "fee", fee, "output", output)
 	transactionDBMutex.Lock()
 	spvTxhash = txHash
 	err := spvTransactiondb.Put([]byte(txHash+"Fee"), []byte(fee))
@@ -414,8 +414,8 @@ func saveOutputPayload(outputs []*elacom.Output, txHash string) error {
 		log.Error("saveOutputPayload Put Output: ", "err", err, "elaHash", txHash)
 	}
 
-	input := memos[0]
-	err = spvTransactiondb.Put([]byte(txHash+"Input"), input)
+	input := strings.Join(memos, ",")
+	err = spvTransactiondb.Put([]byte(txHash+"Input"), []byte(input))
 	if err != nil {
 		log.Error("saveOutputPayload Put Input: ", "err", err, "elaHash", txHash)
 	}
@@ -447,6 +447,7 @@ func saveOutputPayload(outputs []*elacom.Output, txHash string) error {
 //
 //savePayloadInfo save and send spv perception
 func savePayloadInfo(elaTx it.Transaction, l *listener) {
+	fmt.Println("savePayloadInfo", "elaTx.PayloadVersion()", elaTx.PayloadVersion())
 	if elaTx.PayloadVersion() >= payload.TransferCrossChainVersionV1 {
 		err := OnReceivedRechargeTx(elaTx)
 		if err != nil {
@@ -587,9 +588,10 @@ func IteratorUnTransaction(from ethCommon.Address) {
 				setNextSeek(seek)
 				break
 			}
-			fee, _, _ := FindOutputFeeAndaddressByTxHash(string(txHash))
-			if fee.Uint64() <= 0 {
-				log.Error("FindOutputFeeAndaddressByTxHash fee is 0")
+			//fee, _, _ := FindOutputFeeAndaddressByTxHash(string(txHash))
+			recharges, fee, err := GetRechargeDataByTxhash(string(txHash))
+			if err != nil || len(recharges) == 0 {
+				log.Error("GetRechargeDataByTxhash failed ", "err", err)
 				res, err := IsFailedElaTx(string(txHash))
 				if err != nil {
 					log.Error("IsFailedElaTx error", "err", err)
@@ -963,7 +965,7 @@ func IsFailedElaTx(elaTx string) (bool, error) {
 		return false, errors.New("SpvService is not initialized")
 	}
 	res := SpvService.HaveRetSideChainDepositCoinTx(*hash)
-	log.Info("HaveRetSideChainDepositCoinTx", "res", res)
+	log.Debug("HaveRetSideChainDepositCoinTx", "res", res)
 	return res, nil
 }
 
