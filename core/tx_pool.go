@@ -889,22 +889,42 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) ([]error,
 					} else {
 						txhash, _, _, _ = spv.IsSmallCrossTxByData(tx.Data())
 					}
-					fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
-					if addr != blackAddr {
-						if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 {
-							ethFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
-							completeTxHash := pool.currentState.GetState(blackAddr, common.HexToHash(txhash))
-							if fee.Cmp(ethFee) < 0 {
-								errs[i] = ErrGasLimitReached
-							} else if (completeTxHash != common.Hash{}) {
-								errs[i] = ErrMainTxHashPresence
-							}
-						} else {
-							errs[i] = ErrGasLimitReached
-						}
-					} else {
-						errs[i] = ErrElaToEthAddress
+					//fee, addr, output := spv.FindOutputFeeAndaddressByTxHash(txhash)
+					recharges, fee, err := spv.GetRechargeDataByTxhash(txhash)
+					if err != nil {
+						errs[i] = err
 					}
+					ethFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
+					completeTxHash := pool.currentState.GetState(blackAddr, common.HexToHash(txhash))
+					if (completeTxHash != common.Hash{}) {
+						errs[i] = ErrMainTxHashPresence
+					}
+					for _, recharge := range recharges {
+						if recharge.TargetAddress != blackAddr {
+							if recharge.Fee.Cmp(new(big.Int)) <= 0 && recharge.TargetAmount.Cmp(new(big.Int)) <= 0 {
+								errs[i] = ErrGasLimitReached
+								break
+							}
+						}
+					}
+					if fee.Cmp(ethFee) < 0 {
+						errs[i] = ErrGasLimitReached
+					}
+					//if addr != blackAddr {
+					//	if fee.Cmp(new(big.Int)) > 0 && output.Cmp(new(big.Int)) > 0 {
+					//		ethFee := new(big.Int).Mul(new(big.Int).SetUint64(tx.Gas()), tx.GasPrice())
+					//		completeTxHash := pool.currentState.GetState(blackAddr, common.HexToHash(txhash))
+					//		if fee.Cmp(ethFee) < 0 {
+					//			errs[i] = ErrGasLimitReached
+					//		} else if (completeTxHash != common.Hash{}) {
+					//			errs[i] = ErrMainTxHashPresence
+					//		}
+					//	} else {
+					//		errs[i] = ErrGasLimitReached
+					//	}
+					//} else {
+					//	errs[i] = ErrElaToEthAddress
+					//}
 				}
 			}
 		}
