@@ -151,10 +151,7 @@ func GetPledgeBillData(txHash string) (sAddress string, tokenID *big.Int, err er
 	if txHash[0:2] == "0x" {
 		txHash = txHash[2:]
 	}
-	//todo test case ,need to delete
-	if txHash == "78c1645758228af7255c596cdc276d95ce47b52533b0bf14bd0136cf61560f01" {
-		return "ScAmYC5goPTMrNTi6V1b1zLohpbAFbuDRB", big.NewInt(0).SetBytes(common.Hex2Bytes(txHash)), nil
-	}
+
 	key := getTxKey(txHash)
 	v, err := getData(key)
 	if err != nil {
