@@ -15,9 +15,8 @@ require (
 	github.com/docker/docker v20.10.18+incompatible
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/elastic/gosigar v0.14.2
-	github.com/elastos/Elastos.ELA v0.8.4-0.20220926040747-3c4d3be13d88
-	github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20220930094506-721074bc256d
-	github.com/elastos/Elastos.ELA.SideChain v0.2.2-0.20220930094905-0ca5dbe27cfa // indirect
+	github.com/elastos/Elastos.ELA v0.8.6-0.20221223092505-ea0e8bb2349c
+	github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221226040715-835afbebef69
 	github.com/fatih/color v1.13.0
 	github.com/fjl/memsize v0.0.1
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08
@@ -66,6 +65,4 @@ require (
 	gotest.tools/v3 v3.4.0 // indirect
 )
 
-replace github.com/elastos/Elastos.ELA v0.8.4-0.20220926040747-3c4d3be13d88 => github.com/RainFallsSilent/Elastos.ELA v0.2.2-0.20221123073219-546ad8b6b231
-
-replace github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20220930094506-721074bc256d => github.com/RainFallsSilent/Elastos.ELA.SPV v0.0.0-20221122030330-8f01c99883d8
+replace github.com/elastos/Elastos.ELA v0.8.4-0.20220926040747-3c4d3be13d88 => github.com/RainFallsSilent/Elastos.ELA v0.2.2-0.20221222083835-27c1a7ee6f73
