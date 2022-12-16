@@ -16,7 +16,7 @@ require (
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/elastic/gosigar v0.14.2
 	github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d
-	github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5
+    github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5
 	github.com/elastos/Elastos.ELA.SideChain v0.2.2-0.20220930094905-0ca5dbe27cfa // indirect
 	github.com/fatih/color v1.13.0
 	github.com/fjl/memsize v0.0.1
@@ -65,5 +65,3 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools/v3 v3.4.0 // indirect
 )
-
-replace github.com/RainFallsSilent/Elastos.ELA v0.2.2-0.20221123073219-546ad8b6b231 => github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d

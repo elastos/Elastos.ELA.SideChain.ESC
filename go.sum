@@ -217,13 +217,14 @@ github.com/edsrzf/mmap-go v1.1.0 h1:6EUwBLQ/Mcr1EYLE4Tn1VdW1A4ckqCQWZBw8Hr0kjpQ=
 github.com/edsrzf/mmap-go v1.1.0/go.mod h1:19H/e8pUPLicwkyNgOykDXkJ9F0MHE+Z52B8EIth78Q=
 github.com/elastic/gosigar v0.14.2 h1:Dg80n8cr90OZ7x+bAax/QjoW/XqTI11RmA79ZwIm9/4=
 github.com/elastic/gosigar v0.14.2/go.mod h1:iXRIGg2tLnu7LBdpqzyQfGDEidKCfWcCMS0WKyPWoMs=
-github.com/elastos/Elastos.ELA v0.8.4-0.20220926040747-3c4d3be13d88/go.mod h1:eeK2REPCE1+ZdwPG6G5gOcIkxJEhGUcNpdoD+nyh7yg=
-github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d h1:cwkQjqy28Z8+Mlkf7fwL87wQ8TTiI94Y3yYd3nliras=
-github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d/go.mod h1:MYBwiclusRWPyolkOt3Avr57BPr7ujaUyuM2V7p512c=
-github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20220930094506-721074bc256d/go.mod h1:DjYx2LCMfWEdcb4Bcsql0EtZDiLJ0aePjZeRAx2jiVk=
-github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5 h1:CT3DueQP/BDG8wuxD/jwdermYK05gzRveVXPWN7ukwU=
-github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5/go.mod h1:suIcj0djw6rOqyxSAblE8d35fDOmdFH49X02kBX2nQs=
-github.com/elastos/Elastos.ELA.SideChain v0.2.2-0.20220930094905-0ca5dbe27cfa/go.mod h1:qOSXq0Zobk9Me4tfV3amHK6b71vg5IuvPx/YP38SR9A=
+github.com/elastos/Elastos.ELA v0.8.4-0.20221124023506-1b5b8f3d39b7 h1:OBgEzms/HopLNE6FIqecM5m+XwQiQZCZnQ6aa5xT+Zo=
+github.com/elastos/Elastos.ELA v0.8.4-0.20221124023506-1b5b8f3d39b7/go.mod h1:MYBwiclusRWPyolkOt3Avr57BPr7ujaUyuM2V7p512c=
+github.com/elastos/Elastos.ELA v0.8.6-0.20221223092505-ea0e8bb2349c h1:N2i43V5qkXVAuuMJD2jmsfr5vYATYaiH316vVuV8FUs=
+github.com/elastos/Elastos.ELA v0.8.6-0.20221223092505-ea0e8bb2349c/go.mod h1:MYBwiclusRWPyolkOt3Avr57BPr7ujaUyuM2V7p512c=
+github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221214065156-fd8cb150f975 h1:2c4uaFxcQzPvC0wgK6SoB7YYiGFoe3ej75juXPpOqXc=
+github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221214065156-fd8cb150f975/go.mod h1:HzF6W2zs7WAsZ1HOjrLfK+YEzf751kj+q6oxY4nCvEI=
+github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221226040715-835afbebef69 h1:RTC9uTyeQxnewWSQIHC6gkUKusbeUBEncWPBIhHdQmw=
+github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221226040715-835afbebef69/go.mod h1:zIw7MVwlJfOtaPNSNbE9UeKRtZ5PEaleS03HMPgJz/Y=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
@@ -556,6 +557,10 @@ github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m
 github.com/mattn/go-runewidth v0.0.13 h1:lTGmDsbAYt5DmK6OnoV7EuIF1wEIFAcxld6ypU4OSgU=
 github.com/mattn/go-runewidth v0.0.13/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
 github.com/mattn/go-sqlite3 v1.11.0/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
+<<<<<<< HEAD
+=======
+github.com/mattn/go-sqlite3 v1.14.16 h1:yOQRA0RpS5PFz/oikGwBEqvAWhWg5ufRz4ETLjwpU1Y=
+>>>>>>> b3f6dcae1 (modify version to v0.2.3)
 github.com/mattn/go-sqlite3 v1.14.16/go.mod h1:2eHXhiwb8IkHr+BDWZGa96P6+rkvnG63S2DGjv9HUNg=
 github.com/mattn/go-sqlite3 v2.0.3+incompatible h1:gXHsfypPkaMZrKbD5209QV9jbUTJKjyR5WD3HYQSd+U=
 github.com/mattn/go-sqlite3 v2.0.3+incompatible/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
@@ -809,7 +814,6 @@ golang.org/x/crypto v0.0.0-20201012173705-84dcc777aaee/go.mod h1:LzIPMQfyMNhhGPh
 golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2/go.mod h1:T9bdIzuCu7OtxOm1hfPfRQxPLYneinmdGuTeoZ9dtd4=
 golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b/go.mod h1:T9bdIzuCu7OtxOm1hfPfRQxPLYneinmdGuTeoZ9dtd4=
-golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
@@ -1050,7 +1054,6 @@ golang.org/x/sys v0.0.0-20220114195835-da31bd327af9/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220209214540-3681064d5158/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220328115105-d36c6a25d886/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220412211240-33da011f77ad/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220502124256-b6088ccd6cba/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
