@@ -64,5 +64,3 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools/v3 v3.4.0 // indirect
 )
-
-replace github.com/RainFallsSilent/Elastos.ELA v0.2.2-0.20221123073219-546ad8b6b231 => github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d
