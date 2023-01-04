@@ -71,7 +71,22 @@ func getTxIndexKey(index uint64) string {
 
 func ProcessPledgedBill(elaTx it.Transaction) {
 	payLoadData := elaTx.Payload().Data(elaTx.PayloadVersion())
-
+	var createNft payload.CreateNFT
+	var reader = bytes.NewReader(payLoadData)
+	err := createNft.Deserialize(reader, 0)
+	if err != nil {
+		log.Error("ProcessPledgedBill failed", "deserialize error", err)
+		return
+	}
+	genesis, err := escClient.BlockByNumber(context.Background(), big.NewInt(0))
+	if err != nil {
+		log.Error("ProcessPledgedBill failed", "get genesis block error", err)
+		return
+	}
+	if createNft.GenesisBlockHash.String() != genesis.GetHash().String() {
+		log.Error("error genesis", "spv.GenesisHash", genesis.GetHash().String(), "createNFT SideChain", createNft.GenesisBlockHash.String())
+		return
+	}
 	key := getTxKey(elaTx.Hash().String())
 	v, err := getData(key)
 	if err != nil && err.Error() != smallcrosstx.ErrNotFound {
