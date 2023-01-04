@@ -222,10 +222,14 @@ github.com/elastos/Elastos.ELA v0.8.4-0.20221124023506-1b5b8f3d39b7 h1:OBgEzms/H
 github.com/elastos/Elastos.ELA v0.8.4-0.20221124023506-1b5b8f3d39b7/go.mod h1:MYBwiclusRWPyolkOt3Avr57BPr7ujaUyuM2V7p512c=
 github.com/elastos/Elastos.ELA v0.8.6-0.20221223092505-ea0e8bb2349c h1:N2i43V5qkXVAuuMJD2jmsfr5vYATYaiH316vVuV8FUs=
 github.com/elastos/Elastos.ELA v0.8.6-0.20221223092505-ea0e8bb2349c/go.mod h1:MYBwiclusRWPyolkOt3Avr57BPr7ujaUyuM2V7p512c=
+github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d h1:cwkQjqy28Z8+Mlkf7fwL87wQ8TTiI94Y3yYd3nliras=
+github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d/go.mod h1:MYBwiclusRWPyolkOt3Avr57BPr7ujaUyuM2V7p512c=
 github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221214065156-fd8cb150f975 h1:2c4uaFxcQzPvC0wgK6SoB7YYiGFoe3ej75juXPpOqXc=
 github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221214065156-fd8cb150f975/go.mod h1:HzF6W2zs7WAsZ1HOjrLfK+YEzf751kj+q6oxY4nCvEI=
 github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221226040715-835afbebef69 h1:RTC9uTyeQxnewWSQIHC6gkUKusbeUBEncWPBIhHdQmw=
 github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20221226040715-835afbebef69/go.mod h1:zIw7MVwlJfOtaPNSNbE9UeKRtZ5PEaleS03HMPgJz/Y=
+github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5 h1:CT3DueQP/BDG8wuxD/jwdermYK05gzRveVXPWN7ukwU=
+github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5/go.mod h1:suIcj0djw6rOqyxSAblE8d35fDOmdFH49X02kBX2nQs=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
