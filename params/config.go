@@ -457,6 +457,7 @@ type PbftConfig struct {
 	MaxPerLogSize     int64    `json:"maxperlogsize"`
 	MaxNodePerHost    uint32   `json:"maxnodeperhost"` //MaxNodePerHost defines max nodes that one host can establish.
 	DPoSV2StartHeight uint32   `json:"dposv2startheight"`
+	NodeVersion       string
 }
 
 func (p *PbftConfig) String() string {

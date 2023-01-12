@@ -36,13 +36,13 @@ func (a *API) GetAllPeersInfo() []peerInfo {
 		pid := peer.PID[:]
 		result = append(result, peerInfo{
 			NodePublicKey: common.Bytes2Hex(pid),
-			IP:       peer.Addr,
-			ConnState: peer.State.String(),
+			IP:            peer.Addr,
+			ConnState:     peer.State.String(),
+			NodeVersion:   peer.NodeVersion,
 		})
 	}
 	return result
 }
-
 
 func (a *API) Dispatcher() *dpos.Dispatcher {
 	return a.pbft.dispatcher
