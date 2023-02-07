@@ -197,6 +197,7 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 			PublicKey:         accpubkey,
 			GetCurrentHeight:  pbft.GetMainChainHeight,
 			DPoSV2StartHeight: cfg.DPoSV2StartHeight,
+			NodeVersion:       cfg.NodeVersion,
 			AnnounceAddr: func() {
 				events.Notify(dpos.ETAnnounceAddr, nil)
 			},

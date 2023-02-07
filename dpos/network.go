@@ -37,6 +37,7 @@ type NetworkConfig struct {
 	Listener   NetworkEventListener
 	DataPath   string
 
+	NodeVersion        string
 	GetCurrentHeight   func(pid peer.PID) uint64
 	ProposalDispatcher *Dispatcher
 	PublicKey          []byte
@@ -375,6 +376,7 @@ func NewNetwork(cfg *NetworkConfig) (*Network, error) {
 		Sign:              cfg.Account.Sign,
 		StateNotifier:     notifier,
 		DPoSV2StartHeight: cfg.DPoSV2StartHeight,
+		NodeVersion:       cfg.NodeVersion,
 	})
 	if err != nil {
 		return nil, err
