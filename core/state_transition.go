@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 
@@ -194,7 +195,7 @@ func (st *StateTransition) to() common.Address {
 
 func (st *StateTransition) useGas(amount uint64) error {
 	if st.gas < amount {
-		return vm.ErrOutOfGas
+		return fmt.Errorf("%w: have %d, want %d", ErrIntrinsicGas, st.gas, amount)
 	}
 	st.gas -= amount
 
