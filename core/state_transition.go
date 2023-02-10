@@ -84,6 +84,41 @@ type Message interface {
 	Data() []byte
 }
 
+// ExecutionResult includes all output after executing given evm
+// message no matter the execution itself is successful or not.
+type ExecutionResult struct {
+	UsedGas    uint64 // Total used gas but include the refunded gas
+	Err        error  // Any error encountered during the execution(listed in core/vm/errors.go)
+	ReturnData []byte // Returned data from evm(function result or data supplied with revert opcode)
+}
+
+// Unwrap returns the internal evm error which allows us for further
+// analysis outside.
+func (result *ExecutionResult) Unwrap() error {
+	return result.Err
+}
+
+// Failed returns the indicator whether the execution is successful or not
+func (result *ExecutionResult) Failed() bool { return result.Err != nil }
+
+// Return is a helper function to help caller distinguish between revert reason
+// and function return. Return returns the data after execution if no error occurs.
+func (result *ExecutionResult) Return() []byte {
+	if result.Err != nil {
+		return nil
+	}
+	return common.CopyBytes(result.ReturnData)
+}
+
+// Revert returns the concrete revert reason if the execution is aborted by `REVERT`
+// opcode. Note the reason can be nil if no data supplied with revert opcode.
+func (result *ExecutionResult) Revert() []byte {
+	if result.Err != vm.ErrExecutionReverted {
+		return nil
+	}
+	return common.CopyBytes(result.ReturnData)
+}
+
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
 func IntrinsicGas(data []byte, contractCreation, isEIP155 bool, isEIP2028 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
@@ -145,7 +180,7 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // the gas used (which includes gas refunds) and an error if it failed. An error always
 // indicates a core error meaning that the message would always fail for that particular
 // state and would never be accepted within a block.
-func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
+func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) (*ExecutionResult, error) {
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
 
@@ -197,18 +232,19 @@ func (st *StateTransition) preCheck() error {
 // TransitionDb will transition the state by applying the current message and
 // returning the result including the used gas. It returns an error if failed.
 // An error indicates a consensus issue.
-func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
+func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 	var (
 		evm = st.evm
 		// vm errors do not effect consensus and are therefor
 		// not assigned to err, except for insufficient balance
 		// error.
+		ret           []byte
 		vmerr         error
 		snapshot      = evm.StateDB.Snapshot()
 		blackaddr     common.Address
 		blackcontract common.Address
 	)
-
+	result = &ExecutionResult{0, nil, nil}
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	contractCreation := msg.To() == nil
@@ -223,7 +259,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		if isWithdrawTx {
 			completetxhash := evm.StateDB.GetState(blackaddr, common.HexToHash(txhash))
 			if completetxhash != emptyHash {
-				return nil, 0, false, ErrRefunded
+				return &ExecutionResult{0, nil, nil}, ErrRefunded
 			} else {
 				st.state.AddBalance(st.msg.From(), new(big.Int).SetUint64(evm.ChainConfig().PassBalance))
 				defer func() {
@@ -231,19 +267,21 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 					nowBalance := st.state.GetBalance(msg.From())
 					if nowBalance.Cmp(usedFee) < 0 || vmerr != nil {
 						ret = nil
-						usedGas = 0
-						failed = true
+						result.UsedGas = 0
+						result.ReturnData = ret
 						if err == nil {
 							log.Error("fee is not enough ：", "nowBalance", nowBalance.String(), "need", usedFee.String(), "vmerr", vmerr)
 							err = ErrGasLimitReached
 						}
+						result.Err = err
 						evm.StateDB.RevertToSnapshot(snapshot)
 						return
 					}
 					if nowBalance.Cmp(new(big.Int).SetUint64(evm.ChainConfig().PassBalance)) < 0 {
 						ret = nil
-						usedGas = 0
-						failed = false
+						result.UsedGas = 0
+						result.Err = nil
+						result.ReturnData = ret
 						if err == nil {
 							err = ErrGasLimitReached
 						}
@@ -262,11 +300,11 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 				isSmallRechargeTx, verified, rawTxID, err = st.dealSmallCrossTx()
 				if err != nil && isSmallRechargeTx {
 					log.Warn("TransitionDb dealSmallCrossTx >>", "isSmallRechargeTx", isSmallRechargeTx, "verified", verified, "rawTxID", rawTxID, "err", err)
-					return nil, 0, false, err
+					return &ExecutionResult{0, nil, nil}, err
 				}
 				if isSmallRechargeTx && verified == false {
 					log.Warn("TransitionDb dealSmallCrossTx >>", "isSmallRechargeTx", isSmallRechargeTx, "verified", verified, "rawTxID", rawTxID, "err", err)
-					return nil, 0, false, ErrSmallCrossTxVerify
+					return &ExecutionResult{0, nil, nil}, ErrSmallCrossTxVerify
 				}
 				txhash = rawTxID
 			}
@@ -277,16 +315,16 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 				recharges, totalFee, err = spv.GetRechargeDataByTxhash(txhash)
 				if err != nil || len(recharges) <= 0 {
 					log.Error("recharge data error", "error", err)
-					return nil, 0, false, ErrElaToEthAddress
+					return &ExecutionResult{0, nil, nil}, ErrElaToEthAddress
 				}
 				completetxhash := evm.StateDB.GetState(blackaddr, common.HexToHash(txhash))
 				if completetxhash != emptyHash {
-					return nil, 0, false, ErrMainTxHashPresence
+					return &ExecutionResult{0, nil, nil}, ErrMainTxHashPresence
 				}
 				for _, recharge := range recharges {
 					if recharge.TargetAddress == blackaddr || recharge.TargetAmount.Cmp(recharge.Fee) < 0 {
 						log.Error("recharge data error ", "fee", recharge.Fee.String(), "TargetAddress", recharge.TargetAddress.String(), "TargetAmount", recharge.TargetAmount.String(), "isSmallRechargeTx", isSmallRechargeTx)
-						return nil, 0, false, ErrElaToEthAddress
+						return &ExecutionResult{0, nil, nil}, ErrElaToEthAddress
 					}
 				}
 
@@ -296,8 +334,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 					for _, recharge := range recharges {
 						if recharge.Fee.Cmp(new(big.Int)) <= 0 || st.state.GetBalance(recharge.TargetAddress).Uint64() < 0 {
 							ret = nil
-							usedGas = 0
-							failed = false
+							result.UsedGas = 0
+							result.Err = nil
+							result.ReturnData = ret
 							if err == nil {
 								log.Error("ErrGasLimitReached 1111", "totalFee", totalFee.String(), "ethFee", ethfee.String(), " st.state.GetBalance(recharge.TargetAddress).Uint64()", st.state.GetBalance(recharge.TargetAddress).Uint64(), "targetAddress", recharge.TargetAddress)
 								err = ErrGasLimitReached
@@ -309,8 +348,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 					st.state.AddBalance(st.msg.From(), totalFee)
 					if st.state.GetBalance(st.msg.From()).Cmp(new(big.Int).SetUint64(evm.ChainConfig().PassBalance)) < 0 || totalFee.Cmp(ethfee) < 0 {
 						ret = nil
-						usedGas = 0
-						failed = false
+						result.UsedGas = 0
+						result.Err = nil
+						result.ReturnData = ret
 						if err == nil {
 							log.Error("ErrGasLimitReached 22222", "totalFee", totalFee.String(), "ethFee", ethfee.String(), " st.state.GetBalance(st.msg.From())", st.state.GetBalance(st.msg.From()))
 							err = ErrGasLimitReached
@@ -331,8 +371,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 				passValue := new(big.Int).SetUint64(evm.ChainConfig().PassBalance)
 				if fromValue.Cmp(passValue) < 0 {
 					ret = nil
-					usedGas = 0
-					failed = false
+					result.UsedGas = 0
+					result.Err = nil
+					result.ReturnData = ret
 					if err == nil {
 						err = ErrGasLimitReached
 					}
@@ -353,10 +394,10 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	// Pay intrinsic gas
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead, istanbul)
 	if err != nil {
-		return nil, 0, false, err
+		return &ExecutionResult{0, nil, nil}, err
 	}
 	if err = st.useGas(gas); err != nil {
-		return nil, 0, false, err
+		return &ExecutionResult{0, nil, nil}, err
 	}
 
 	if contractCreation {
@@ -375,14 +416,14 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	}
 	if vmerr != nil {
 		log.Info("VM returned with error", "err", vmerr, "ret", string(ret))
-		// The only possible consensus-error would be if there wasn't
-		// sufficient balance to make the transfer happen. The first
-		// balance transfer may never fail.
-		if vmerr == vm.ErrInsufficientBalance {
-			return nil, 0, false, vmerr
-		}
+		//// The only possible consensus-error would be if there wasn't
+		//// sufficient balance to make the transfer happen. The first
+		//// balance transfer may never fail.
+		//if vmerr == vm.ErrInsufficientBalance {
+		//	return nil, 0, false, vmerr
+		//}
 		if vmerr == vm.ErrWithdawrefundCallFailed {
-			return nil, 0, true, vmerr
+			return &ExecutionResult{0, vmerr, ret}, vmerr
 		}
 	}
 
@@ -421,8 +462,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 	} else {
 		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
 	}
-
-	return ret, st.gasUsed(), vmerr != nil, err
+	return &ExecutionResult{st.gasUsed(), vmerr, ret}, err
 }
 
 func (st *StateTransition) dealSmallCrossTx() (isSmallCrossTx, verifyed bool, txHash string, err error) {
