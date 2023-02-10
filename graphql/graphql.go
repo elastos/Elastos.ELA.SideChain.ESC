@@ -20,6 +20,8 @@ package graphql
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
@@ -38,6 +40,39 @@ import (
 var (
 	errBlockInvariant = errors.New("block objects must be instantiated with at least one of num or hash")
 )
+
+type Long int64
+
+// ImplementsGraphQLType returns true if Long implements the provided GraphQL type.
+func (b Long) ImplementsGraphQLType(name string) bool { return name == "Long" }
+
+// UnmarshalGraphQL unmarshals the provided GraphQL query data.
+func (b *Long) UnmarshalGraphQL(input interface{}) error {
+	var err error
+	switch input := input.(type) {
+	case string:
+		// uncomment to support hex values
+		//if strings.HasPrefix(input, "0x") {
+		//	// apply leniency and support hex representations of longs.
+		//	value, err := hexutil.DecodeUint64(input)
+		//	*b = Long(value)
+		//	return err
+		//} else {
+		value, err := strconv.ParseInt(input, 10, 64)
+		*b = Long(value)
+		return err
+		//}
+	case int32:
+		*b = Long(input)
+	case int64:
+		*b = Long(input)
+	case float64:
+		*b = Long(input)
+	default:
+		err = fmt.Errorf("unexpected type %T for Long", input)
+	}
+	return err
+}
 
 // Account represents an Ethereum account at a particular block.
 type Account struct {
@@ -776,14 +811,17 @@ func (b *Block) Call(ctx context.Context, args struct {
 			return nil, err
 		}
 	}
-	result, gas, failed, err := ethapi.DoCall(ctx, b.backend, args.Data, *b.numberOrHash, nil, vm.Config{}, 5*time.Second, b.backend.RPCGasCap())
+	result, err := ethapi.DoCall(ctx, b.backend, args.Data, *b.numberOrHash, nil, vm.Config{}, 5*time.Second, b.backend.RPCGasCap())
+	if err != nil {
+		return nil, err
+	}
 	status := hexutil.Uint64(1)
-	if failed {
+	if result.Failed() {
 		status = 0
 	}
 	return &CallResult{
-		data:    hexutil.Bytes(result),
-		gasUsed: hexutil.Uint64(gas),
+		data:    result.ReturnData,
+		gasUsed: hexutil.Uint64(result.UsedGas),
 		status:  status,
 	}, err
 }
@@ -842,14 +880,17 @@ func (p *Pending) Call(ctx context.Context, args struct {
 	Data ethapi.CallArgs
 }) (*CallResult, error) {
 	pendingBlockNr := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
-	result, gas, failed, err := ethapi.DoCall(ctx, p.backend, args.Data, pendingBlockNr, nil, vm.Config{}, 5*time.Second, p.backend.RPCGasCap())
+	result, err := ethapi.DoCall(ctx, p.backend, args.Data, pendingBlockNr, nil, vm.Config{}, 5*time.Second, p.backend.RPCGasCap())
+	if err != nil {
+		return nil, err
+	}
 	status := hexutil.Uint64(1)
-	if failed {
+	if result.Failed() {
 		status = 0
 	}
 	return &CallResult{
-		data:    hexutil.Bytes(result),
-		gasUsed: hexutil.Uint64(gas),
+		data:    result.ReturnData,
+		gasUsed: hexutil.Uint64(result.UsedGas),
 		status:  status,
 	}, err
 }
