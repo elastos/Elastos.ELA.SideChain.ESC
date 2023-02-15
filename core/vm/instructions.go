@@ -479,7 +479,10 @@ func opDifficulty(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) 
 }
 
 func opRandom(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	v := new(uint256.Int).SetBytes(interpreter.evm.Context.Random.Bytes())
+	v := new(uint256.Int).SetUint64(0)
+	if interpreter.evm.Context.Random != nil {
+		v = new(uint256.Int).SetBytes(interpreter.evm.Context.Random.Bytes())
+	}
 	scope.Stack.push(v)
 	return nil, nil
 }
