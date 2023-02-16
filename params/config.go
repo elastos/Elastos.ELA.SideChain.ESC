@@ -22,6 +22,7 @@ import (
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 )
 
@@ -68,6 +69,8 @@ var (
 		ConstantinopleBlock: big.NewInt(2426880),
 		PetersburgBlock:     big.NewInt(2426880),
 		IstanbulBlock:       big.NewInt(2426880),
+		BerlinBlock:         big.NewInt(math.MaxInt64),
+		LondonBlock:         big.NewInt(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -136,6 +139,8 @@ var (
 		ConstantinopleBlock: big.NewInt(2333460),
 		PetersburgBlock:     big.NewInt(2333460),
 		IstanbulBlock:       big.NewInt(2333460),
+		BerlinBlock:         big.NewInt(math.MaxInt64),
+		LondonBlock:         big.NewInt(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -204,6 +209,8 @@ var (
 		PetersburgBlock:     big.NewInt(2208900),
 		IstanbulBlock:       big.NewInt(2208900),
 		ChainIDBlock:        big.NewInt(2337660),
+		BerlinBlock:         big.NewInt(math.MaxInt64),
+		LondonBlock:         big.NewInt(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -270,6 +277,8 @@ var (
 		PetersburgBlock:     big.NewInt(184110),
 		IstanbulBlock:       big.NewInt(184110),
 		ChainIDBlock:        big.NewInt(184110),
+		BerlinBlock:         big.NewInt(math.MaxInt64),
+		LondonBlock:         big.NewInt(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,

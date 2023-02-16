@@ -815,12 +815,13 @@ func (s *PublicBlockChainAPI) GetFrozenAccounts(ctx context.Context) ([]string, 
 
 // CallArgs represents the arguments for a call.
 type CallArgs struct {
-	From     *common.Address `json:"from"`
-	To       *common.Address `json:"to"`
-	Gas      *hexutil.Uint64 `json:"gas"`
-	GasPrice *hexutil.Big    `json:"gasPrice"`
-	Value    *hexutil.Big    `json:"value"`
-	Data     *hexutil.Bytes  `json:"data"`
+	From       *common.Address   `json:"from"`
+	To         *common.Address   `json:"to"`
+	Gas        *hexutil.Uint64   `json:"gas"`
+	GasPrice   *hexutil.Big      `json:"gasPrice"`
+	Value      *hexutil.Big      `json:"value"`
+	Data       *hexutil.Bytes    `json:"data"`
+	AccessList *types.AccessList `json:"accessList,omitempty"`
 }
 
 // account indicates the overriding fields of account during the execution of
@@ -906,9 +907,13 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	if args.Data != nil {
 		data = []byte(*args.Data)
 	}
+	var accessList types.AccessList
+	if args.AccessList != nil {
+		accessList = *args.AccessList
+	}
 
 	// Create new call message
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false)
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, data, false, accessList)
 
 	// Setup context so it may be cancelled the call has completed
 	// or, in case of unmetered gas, setup a context with a timeout.
