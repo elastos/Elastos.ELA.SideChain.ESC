@@ -27,6 +27,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge_abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/hexutil"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
@@ -83,6 +84,7 @@ type Message interface {
 	Nonce() uint64
 	CheckNonce() bool
 	Data() []byte
+	AccessList() types.AccessList
 }
 
 // ExecutionResult includes all output after executing given evm
@@ -244,6 +246,7 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 		snapshot      = evm.StateDB.Snapshot()
 		blackaddr     common.Address
 		blackcontract common.Address
+		rules         = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil)
 	)
 	result = &ExecutionResult{0, nil, nil}
 	msg := st.msg
@@ -400,7 +403,10 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 	if err = st.useGas(gas); err != nil {
 		return &ExecutionResult{0, nil, nil}, err
 	}
-
+	// Set up the initial access list.
+	if rules.IsBerlin {
+		st.state.PrepareAccessList(msg.From(), msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
+	}
 	if contractCreation {
 		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
 	} else {
@@ -416,7 +422,9 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 
 	}
 	if vmerr != nil {
-		log.Info("VM returned with error", "err", vmerr, "ret", string(ret))
+		if vmerr != vm.ErrCodeStoreOutOfGas {
+			log.Info("VM returned with error", "err", vmerr, "ret", string(ret))
+		}
 		//// The only possible consensus-error would be if there wasn't
 		//// sufficient balance to make the transfer happen. The first
 		//// balance transfer may never fail.
