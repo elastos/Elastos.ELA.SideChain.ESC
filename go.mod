@@ -1,6 +1,6 @@
 module github.com/elastos/Elastos.ELA.SideChain.ESC
 
-go 1.17
+go 1.18
 
 require (
 	github.com/Azure/azure-storage-blob-go v0.15.0
@@ -8,6 +8,7 @@ require (
 	github.com/apilayer/freegeoip v3.5.0+incompatible
 	github.com/aristanetworks/goarista v0.0.0-20221010155517-65572eb1a1f2
 	github.com/btcsuite/btcd v0.22.0-beta
+	github.com/btcsuite/btcd/btcec/v2 v2.2.0
 	github.com/cespare/cp v1.1.1
 	github.com/cloudflare/cloudflare-go v0.52.0
 	github.com/davecgh/go-spew v1.1.1
@@ -18,13 +19,13 @@ require (
 	github.com/elastic/gosigar v0.14.2
 	github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d
 	github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5
-	github.com/elastos/Elastos.ELA.SideChain v0.2.2-0.20220930094905-0ca5dbe27cfa // indirect
 	github.com/fatih/color v1.13.0
 	github.com/fjl/memsize v0.0.1
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08
 	github.com/go-stack/stack v1.8.1
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4
+	github.com/google/gofuzz v1.1.1-0.20200604201612-c04b05f3adfa
 	github.com/gorilla/websocket v1.4.2
 	github.com/graph-gophers/graphql-go v0.0.0-20201113091052-beb923fada29
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
@@ -56,7 +57,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b
 	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde
-	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
+	golang.org/x/sys v0.2.0
 	golang.org/x/text v0.3.7
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
@@ -65,29 +66,28 @@ require (
 
 require (
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
-	github.com/VictoriaMetrics/fastcache v1.12.0 // indirect
-	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cevaris/ordered_map v0.0.0-20220813181356-34664b69742b // indirect
+	github.com/consensys/bavard v0.1.13 // indirect
+	github.com/consensys/gnark-crypto v0.9.1
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91 // indirect
 	github.com/go-echarts/go-echarts/v2 v2.2.3 // indirect
 	github.com/go-echarts/statsview v0.3.4 // indirect
-	github.com/go-kit/kit v0.9.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.1 // indirect
-	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/howeyc/fsnotify v0.9.0 // indirect
 	github.com/howeyc/gopass v0.0.0-20190910152052-7cb4b85ec19c // indirect
 	github.com/itchyny/base58-go v0.1.0 // indirect
-	github.com/karalabe/xgo v0.0.0-20191115072854-c5ccff8648a7 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/naoina/go-stringutil v0.1.0 // indirect
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.10.0 // indirect
@@ -96,6 +96,7 @@ require (
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/steakknife/hamming v0.0.0-20180906055917-c99c65617cd3 // indirect
+	github.com/supranational/blst v0.3.10
 	github.com/urfave/cli v1.22.5 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
@@ -103,4 +104,5 @@ require (
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
+	rsc.io/tmplfunc v0.0.3 // indirect
 )
