@@ -43,6 +43,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/p2p/enode"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 )
 
 type LightEthereum struct {
@@ -192,7 +193,6 @@ func New(ctx *node.ServiceContext, config *eth.Config, node *node.Node) (*LightE
 	return leth, nil
 }
 
-
 func (s *LightEthereum) SetEngine(engine consensus.Engine) {
 	log.Info("-----------------[LIGHT CHAIN SWITCH ENGINE TO DPOS!]-----------------")
 	s.engine = engine
@@ -296,6 +296,7 @@ func (s *LightEthereum) Start(srvr *p2p.Server) error {
 // Stop implements node.Service, terminating all internal goroutines used by the
 // Ethereum protocol.
 func (s *LightEthereum) Stop() error {
+	spv.Close()
 	close(s.closeCh)
 	s.peers.Close()
 	s.reqDist.close()
