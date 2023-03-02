@@ -1,5 +1,5 @@
 // Copyright 2016  Elastos.ELA.SideChain.ESC Authors
-// This file is part of the go-ethereum library.
+// This file is part of the Elastos.ELA.SideChain.ESC library.
 //
 // The  Elastos.ELA.SideChain.ESC library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -12,7 +12,7 @@
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// along with the Elastos.ELA.SideChain.ESC library. If not, see <http://www.gnu.org/licenses/>.
 
 package abi
 

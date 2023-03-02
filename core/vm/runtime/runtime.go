@@ -52,14 +52,21 @@ type Config struct {
 func setDefaults(cfg *Config) {
 	if cfg.ChainConfig == nil {
 		cfg.ChainConfig = &params.ChainConfig{
-			OldChainID:     big.NewInt(1),
-			ChainID:        big.NewInt(20),
-			HomesteadBlock: new(big.Int),
-			DAOForkBlock:   new(big.Int),
-			DAOForkSupport: false,
-			EIP150Block:    new(big.Int),
-			EIP155Block:    new(big.Int),
-			EIP158Block:    new(big.Int),
+			OldChainID:          big.NewInt(1),
+			ChainID:             big.NewInt(20),
+			HomesteadBlock:      new(big.Int),
+			DAOForkBlock:        new(big.Int),
+			DAOForkSupport:      false,
+			EIP150Block:         new(big.Int),
+			EIP155Block:         new(big.Int),
+			EIP158Block:         new(big.Int),
+			ByzantiumBlock:      new(big.Int),
+			ConstantinopleBlock: new(big.Int),
+			PetersburgBlock:     new(big.Int),
+			IstanbulBlock:       new(big.Int),
+			MuirGlacierBlock:    new(big.Int),
+			BerlinBlock:         new(big.Int),
+			LondonBlock:         new(big.Int),
 		}
 	}
 
@@ -107,6 +114,9 @@ func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
 		vmenv   = NewEnv(cfg)
 		sender  = vm.AccountRef(cfg.Origin)
 	)
+	if rules := cfg.ChainConfig.Rules(vmenv.Context.BlockNumber, vmenv.Context.Random != nil); rules.IsBerlin {
+		cfg.State.PrepareAccessList(cfg.Origin, &address, vm.ActivePrecompiles(rules), nil)
+	}
 	cfg.State.CreateAccount(address)
 	// set the receiver's (the executing contract) code for execution.
 	cfg.State.SetCode(address, code)
@@ -137,7 +147,9 @@ func Create(input []byte, cfg *Config) ([]byte, common.Address, uint64, error) {
 		vmenv  = NewEnv(cfg)
 		sender = vm.AccountRef(cfg.Origin)
 	)
-
+	if rules := cfg.ChainConfig.Rules(vmenv.Context.BlockNumber, vmenv.Context.Random != nil); rules.IsBerlin {
+		cfg.State.PrepareAccessList(cfg.Origin, nil, vm.ActivePrecompiles(rules), nil)
+	}
 	// Call the code with the given configuration.
 	code, address, leftOverGas, err := vmenv.Create(
 		sender,
@@ -159,6 +171,12 @@ func Call(address common.Address, input []byte, cfg *Config) ([]byte, uint64, er
 	vmenv := NewEnv(cfg)
 
 	sender := cfg.State.GetOrNewStateObject(cfg.Origin)
+	statedb := cfg.State
+
+	if rules := cfg.ChainConfig.Rules(vmenv.Context.BlockNumber, vmenv.Context.Random != nil); rules.IsBerlin {
+		statedb.PrepareAccessList(cfg.Origin, &address, vm.ActivePrecompiles(rules), nil)
+	}
+
 	// Call the code with the given configuration.
 	ret, leftOverGas, err := vmenv.Call(
 		sender,

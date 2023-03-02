@@ -17,7 +17,6 @@
 package runtime
 
 import (
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 )
@@ -26,7 +25,7 @@ func NewEnv(cfg *Config) *vm.EVM {
 	context := vm.Context{
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
-		GetHash:     func(uint64) common.Hash { return common.Hash{} },
+		GetHash:     cfg.GetHashFn,
 
 		Origin:      cfg.Origin,
 		Coinbase:    cfg.Coinbase,
