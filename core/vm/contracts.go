@@ -111,20 +111,27 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
 	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
 	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
 }
 
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
 // contracts used in the Berlin release.
 var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
+	common.BytesToAddress([]byte{1}):                           &ecrecover{},
+	common.BytesToAddress([]byte{2}):                           &sha256hash{},
+	common.BytesToAddress([]byte{3}):                           &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                           &dataCopy{},
+	common.BytesToAddress([]byte{5}):                           &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):                           &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                           &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                           &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                           &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
 }
 
 var (
@@ -813,8 +820,7 @@ func checkStandardSignature(pubKey *elaCrypto.PublicKey, elaHash []byte, toAddre
 		return err
 	}
 	if sAddress != stakeAddress {
-		log.Error("stakeAddress is error", "spv saddress", sAddress, "call saddress", stakeAddress)
-		return errors.New("stakeAddress is error")
+		return errors.New(fmt.Sprintf("stakeAddress is not correct, spv sAddress%s, callSaddress:%s", sAddress, stakeAddress))
 	}
 	return nil
 }
@@ -840,8 +846,7 @@ func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures [
 	}
 	sAddress, _, err := pledgeBill.GetPledgeBillData(common.BytesToHash(elaHash).String())
 	if sAddress != stakeAddress {
-		log.Error("checkMultiSignatures stakeAddress is error", "spv saddress", sAddress, "call saddress", stakeAddress)
-		return errors.New("checkMultiSignatures stakeAddress is error")
+		return errors.New(fmt.Sprintf("stakeAddress is not correct, spv sAddress%s, callSaddress:%s", sAddress, stakeAddress))
 	}
 	return nil
 }
