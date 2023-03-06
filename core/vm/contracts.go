@@ -22,9 +22,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
-	"github.com/elastos/Elastos.ELA/core/contract"
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
@@ -33,8 +30,13 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto/blake2b"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto/bn256"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
+	"github.com/elastos/Elastos.ELA/blockchain"
+	"github.com/elastos/Elastos.ELA/core/contract"
+	"github.com/elastos/Elastos.ELA/core/contract/program"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -614,41 +616,107 @@ func (b *pledgeBillVerify) RequiredGas(input []byte) uint64 {
 }
 
 func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
-	//length := getData(input, 0, 32)
 	elaHash := getData(input, 32, 32)
-	signature := getData(input, 64, 64)
-	publicKey := getData(input, 128, 33)
+	multiN := getData(input, 64, 32)
+	multiM := getData(input, 96, 32)
+	var i int64
+	n := big.NewInt(0).SetBytes(multiN)
+	m := big.NewInt(0).SetBytes(multiM)
+	publickeys := make([]*elaCrypto.PublicKey, 0)
+	var point uint64
+	for i = 0; i < n.Int64(); i++ {
+		point = uint64(128 + (i * 33))
+		pub := getData(input, point, 33)
+		pbk, err := elaCrypto.DecodePoint(pub)
+		if err != nil {
+			return false32Byte, errors.New("publicKey decode error")
+		}
+		publickeys = append(publickeys, pbk)
 
-	pubKey, err := elaCrypto.DecodePoint(publicKey)
-	if err != nil {
-		return false32Byte, errors.New("publicKey decode error")
 	}
+	point = point + 33
+	signatures := make([]byte, 0)
 
-	err = elaCrypto.Verify(*pubKey, elaHash, signature)
-	if err != nil {
-		log.Error("signature verify failed", "error", err)
-		return false32Byte, err
+	if n.Int64() == 1 {
+		signature := getData(input, point, 64)
+		err := checkStandardSignature(publickeys[0], elaHash, signature)
+		if err != nil {
+			log.Error("checkStandardSignature failed", "err", err)
+			return false32Byte, err
+		}
+	} else if m.Uint64() > 1 && n.Uint64() > 1 {
+		for i = 0; i < m.Int64(); i++ {
+			c := point + (uint64(i) * 64)
+			signature := getData(input, c, 64)
+			signatures = append(signatures, getParameterBySignature(signature)...)
+		}
+		err := checkMultiSignatures(int(m.Int64()), publickeys, signatures, elaHash)
+		if err != nil {
+			log.Error("checkMultiSignatures failed", "err", err)
+			return false32Byte, err
+		}
 	}
+	return true32Byte, nil
+}
 
+func getParameterBySignature(signature []byte) []byte {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(len(signature)))
+	buf.Write(signature)
+	return buf.Bytes()
+}
+
+func checkStandardSignature(pubKey *elaCrypto.PublicKey, elaHash []byte, signature []byte) error {
+	err := elaCrypto.Verify(*pubKey, elaHash, signature)
+	if err != nil {
+		return err
+	}
 	redeemScript, err := contract.CreateStandardRedeemScript(pubKey)
 	if err != nil {
-		return false32Byte, err
+		return err
 	}
 	ct, err := contract.CreateStakeContractByCode(redeemScript[:])
 	if err != nil {
-		return false32Byte, err
+		return err
 	}
 	stakeAddress, err := ct.ToProgramHash().ToAddress()
 
 	sAddress, _, err := pledgeBill.GetPledgeBillData(common.BytesToHash(elaHash).String())
 	if err != nil {
-		return false32Byte, err
+		log.Info("general stakeAddress", "", stakeAddress)
+		return err
 	}
 	if sAddress != stakeAddress {
 		log.Error("stakeAddress is error", "spv saddress", sAddress, "call saddress", stakeAddress)
-		return false32Byte, errors.New("stakeAddress is error")
+		return errors.New("stakeAddress is error")
 	}
-	return true32Byte, nil
+	return nil
+}
+
+func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures []byte, elaHash []byte) error {
+	ct, err := contract.CreateMultiSigContract(m, publickeys)
+	if err != nil {
+		return err
+	}
+	pro := program.Program{
+		Code:      ct.Code,
+		Parameter: signatures,
+	}
+	err = blockchain.CheckMultiSigSignatures(pro, elaHash)
+	if err != nil {
+		return err
+	}
+	ct.Prefix = contract.PrefixDPoSV2
+	stakeAddress, err := ct.ToProgramHash().ToAddress()
+	if err != nil {
+		return err
+	}
+	sAddress, _, err := pledgeBill.GetPledgeBillData(common.BytesToHash(elaHash).String())
+	if sAddress != stakeAddress {
+		log.Error("checkMultiSignatures stakeAddress is error", "spv saddress", sAddress, "call saddress", stakeAddress)
+		return errors.New("checkMultiSignatures stakeAddress is error")
+	}
+	return nil
 }
 
 type pledgeBillTokenID struct{}
