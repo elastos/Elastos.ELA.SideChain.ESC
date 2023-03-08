@@ -650,6 +650,9 @@ func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
 			signature := getData(input, c, 64)
 			signatures = append(signatures, getParameterBySignature(signature)...)
 		}
+		if n.Cmp(m) < 0 {
+			return false32Byte, errors.New("n is smaller than m")
+		}
 		err := checkMultiSignatures(int(m.Int64()), publickeys, signatures, elaHash)
 		if err != nil {
 			log.Error("checkMultiSignatures failed", "err", err)
