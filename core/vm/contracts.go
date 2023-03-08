@@ -655,6 +655,8 @@ func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
 			log.Error("checkMultiSignatures failed", "err", err)
 			return false32Byte, err
 		}
+	} else {
+		return false32Byte, errors.New("error signature params")
 	}
 	return true32Byte, nil
 }
