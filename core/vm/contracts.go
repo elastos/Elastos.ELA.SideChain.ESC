@@ -619,13 +619,14 @@ func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
 	elaHash := getData(input, 32, 32)
 	multiN := getData(input, 64, 32)
 	multiM := getData(input, 96, 32)
+	sigLen := getData(input, 128, 32)
 	var i int64
 	n := big.NewInt(0).SetBytes(multiN)
 	m := big.NewInt(0).SetBytes(multiM)
 	publickeys := make([]*elaCrypto.PublicKey, 0)
 	var point uint64
 	for i = 0; i < n.Int64(); i++ {
-		point = uint64(128 + (i * 33))
+		point = uint64(160 + (i * 33))
 		pub := getData(input, point, 33)
 		pbk, err := elaCrypto.DecodePoint(pub)
 		if err != nil {
@@ -645,7 +646,8 @@ func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
 			return false32Byte, err
 		}
 	} else if m.Uint64() > 1 && n.Uint64() > 1 {
-		for i = 0; i < m.Int64(); i++ {
+		sigCount := big.NewInt(0).SetBytes(sigLen)
+		for i = 0; i < sigCount.Int64(); i++ {
 			c := point + (uint64(i) * 64)
 			signature := getData(input, c, 64)
 			signatures = append(signatures, getParameterBySignature(signature)...)
