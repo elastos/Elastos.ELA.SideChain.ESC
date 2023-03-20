@@ -94,6 +94,8 @@ github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/RainFallsSilent/screw v1.0.0/go.mod h1:6shtlnTF41iV82u6YQvag1odnqtalIPZZZL8GUfptbo=
+github.com/RainFallsSilent/Elastos.ELA v0.2.2-0.20230317095850-14c6fbe13fc3 h1:7npz/Sh07Gdw6iDEKx2YMcxopkiqOmsNtk4N+V8OxQA=
+github.com/RainFallsSilent/Elastos.ELA v0.2.2-0.20230317095850-14c6fbe13fc3/go.mod h1:MYBwiclusRWPyolkOt3Avr57BPr7ujaUyuM2V7p512c=
 github.com/Shopify/sarama v1.36.0/go.mod h1:9glG3eX83tgVYJ5aVtrjVUnEsOPqQIBGx1BWfN+X51I=
 github.com/Shopify/toxiproxy/v2 v2.4.0/go.mod h1:3ilnjng821bkozDRxNoo64oI/DKqM+rOyJzb564+bvg=
 github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
