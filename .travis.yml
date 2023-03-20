@@ -13,6 +13,7 @@ jobs:
       git:
         submodules: false # avoid cloning ethereum/tests
       script:
+        - go mod tidy
         - go run build/ci.go lint
 
     # - stage: build
