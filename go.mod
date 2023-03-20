@@ -15,7 +15,7 @@ require (
 	github.com/docker/docker v20.10.18+incompatible
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/elastic/gosigar v0.14.2
-	github.com/elastos/Elastos.ELA v0.8.6-0.20230103094049-f19cfde54b6d
+	github.com/elastos/Elastos.ELA v0.8.6-0.20230321024111-06bf7333ebf5
 	github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5
 	github.com/fatih/color v1.13.0
 	github.com/fjl/memsize v0.0.1

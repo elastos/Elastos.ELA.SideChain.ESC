@@ -5,15 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	ethereum "github.com/elastos/Elastos.ELA.SideChain.ESC"
+
 	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	elaCom "github.com/elastos/Elastos.ELA/common"
 	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
 
+	ethereum "github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethclient"
@@ -78,6 +80,8 @@ func ProcessPledgedBill(elaTx it.Transaction) {
 		log.Error("ProcessPledgedBill failed", "deserialize error", err)
 		return
 	}
+	nftID := elaCom.GetNFTID(createNft.ReferKey, elaTx.Hash())
+	log.Info("Get CreateNFT tx", "ReferKey", createNft.ReferKey.String(), "nftIDHexString", nftID.String(), "tokenID", big.NewInt(0).SetBytes(nftID.Bytes()).String())
 	genesis, err := escClient.BlockByNumber(context.Background(), big.NewInt(0))
 	if err != nil {
 		log.Error("ProcessPledgedBill failed", "get genesis block error", err)
@@ -178,7 +182,12 @@ func GetPledgeBillData(txHash string) (sAddress string, tokenID *big.Int, err er
 	p.Deserialize(nr, 1)
 
 	sAddress = p.StakeAddress
-	tokenID = big.NewInt(0).SetBytes(p.ID.Bytes())
+	elaHash, err := elaCom.Uint256FromHexString(txHash)
+	if err != nil {
+		return p.StakeAddress, tokenID, err
+	}
+	nftID := elaCom.GetNFTID(p.ReferKey, *elaHash)
+	tokenID = big.NewInt(0).SetBytes(nftID.Bytes())
 	return sAddress, tokenID, nil
 }
 
