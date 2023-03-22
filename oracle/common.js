@@ -46,7 +46,7 @@ switch (process.env.env) {
     case "rinkeby":
         console.log("0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A");
         contract.options.address = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A";
-        pledgeBill.options.address = ""
+        pledgeBill.options.address = "0x922913aa6e7AC047621FCAa785eA784924f7dC14"
         break;
     case "testnet":
         console.log("0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A");
