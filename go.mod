@@ -16,7 +16,7 @@ require (
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/elastic/gosigar v0.14.2
 	github.com/elastos/Elastos.ELA v0.9.0
-	github.com/elastos/Elastos.ELA.SPV v0.0.10-0.20230103100505-3deb0dd500a5
+	github.com/elastos/Elastos.ELA.SPV v0.1.0
 	github.com/fatih/color v1.13.0
 	github.com/fjl/memsize v0.0.1
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08
