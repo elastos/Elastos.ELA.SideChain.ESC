@@ -617,16 +617,19 @@ func (b *pledgeBillVerify) RequiredGas(input []byte) uint64 {
 
 func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
 	elaHash := getData(input, 32, 32)
-	multiN := getData(input, 64, 32)
-	multiM := getData(input, 96, 32)
-	sigLen := getData(input, 128, 32)
+	toAddress := getData(input, 64, 20)
+	toAddress = toAddress[:common.AddressLength]
+	multiN := getData(input, 84, 32)
+	multiM := getData(input, 116, 32)
+	sigLen := getData(input, 148, 32)
+	var startPoint int64 = 180
 	var i int64
 	n := big.NewInt(0).SetBytes(multiN)
 	m := big.NewInt(0).SetBytes(multiM)
 	publickeys := make([]*elaCrypto.PublicKey, 0)
 	var point uint64
 	for i = 0; i < n.Int64(); i++ {
-		point = uint64(160 + (i * 33))
+		point = uint64(startPoint + (i * 33))
 		pub := getData(input, point, 33)
 		pbk, err := elaCrypto.DecodePoint(pub)
 		if err != nil {
@@ -640,7 +643,7 @@ func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
 
 	if n.Int64() == 1 {
 		signature := getData(input, point, 64)
-		err := checkStandardSignature(publickeys[0], elaHash, signature)
+		err := checkStandardSignature(publickeys[0], elaHash, toAddress, signature)
 		if err != nil {
 			log.Error("checkStandardSignature failed", "err", err)
 			return false32Byte, err
@@ -655,7 +658,7 @@ func (b *pledgeBillVerify) Run(input []byte) ([]byte, error) {
 		if n.Cmp(m) < 0 {
 			return false32Byte, errors.New("n is smaller than m")
 		}
-		err := checkMultiSignatures(int(m.Int64()), publickeys, signatures, elaHash)
+		err := checkMultiSignatures(int(m.Int64()), publickeys, signatures, elaHash, toAddress)
 		if err != nil {
 			log.Error("checkMultiSignatures failed", "err", err)
 			return false32Byte, err
@@ -673,8 +676,9 @@ func getParameterBySignature(signature []byte) []byte {
 	return buf.Bytes()
 }
 
-func checkStandardSignature(pubKey *elaCrypto.PublicKey, elaHash []byte, signature []byte) error {
-	err := elaCrypto.Verify(*pubKey, elaHash, signature)
+func checkStandardSignature(pubKey *elaCrypto.PublicKey, elaHash []byte, toAddress []byte, signature []byte) error {
+	data := append(elaHash, toAddress...)
+	err := elaCrypto.Verify(*pubKey, data, signature)
 	if err != nil {
 		return err
 	}
@@ -700,7 +704,7 @@ func checkStandardSignature(pubKey *elaCrypto.PublicKey, elaHash []byte, signatu
 	return nil
 }
 
-func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures []byte, elaHash []byte) error {
+func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures []byte, elaHash []byte, toAddress []byte) error {
 	ct, err := contract.CreateMultiSigContract(m, publickeys)
 	if err != nil {
 		return err
@@ -709,7 +713,8 @@ func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures [
 		Code:      ct.Code,
 		Parameter: signatures,
 	}
-	err = blockchain.CheckMultiSigSignatures(pro, elaHash)
+	data := append(elaHash, toAddress...)
+	err = blockchain.CheckMultiSigSignatures(pro, data)
 	if err != nil {
 		return err
 	}
