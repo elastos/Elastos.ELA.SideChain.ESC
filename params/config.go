@@ -101,10 +101,10 @@ var (
 
 	// MainnetTrustedCheckpoint contains the light client trusted checkpoint for the main network.
 	MainnetTrustedCheckpoint = &TrustedCheckpoint{
-		SectionIndex: 456,
-		SectionHead:  common.HexToHash("0xaff9f84ba30d1bd9e8a1e19e01247cd4b9b9dd92c3b1e1e865e08d5e8d4dce4b"),
-		CHTRoot:      common.HexToHash("0x188cc809032847f1f4c88e5576708d4dcb82984ce231aef06322b16c6bccb1e6"),
-		BloomRoot:    common.HexToHash("0xa0d72dbd022c6efd2b966505934b6420c21573b352c0aef131c499ef52f1e908"),
+		SectionIndex: 546,
+		SectionHead:  common.HexToHash("0x3ae62bce86c0e57c0f1f121d1c59d87d82f2420481564c92242ed75318158354"),
+		CHTRoot:      common.HexToHash("0x1409d0dee719792d5f0dc645332c30190251cc7556520982cb3f68522ff71939"),
+		BloomRoot:    common.HexToHash("0x05650f19cd3eefce2214f5759d005a275743fa0049e04591dd40f5b2578402a1"),
 	}
 
 	// MainnetCheckpointOracle contains a set of configs for the main network oracle.
@@ -169,10 +169,10 @@ var (
 
 	// TestnetTrustedCheckpoint contains the light client trusted checkpoint for the Ropsten test network.
 	TestnetTrustedCheckpoint = &TrustedCheckpoint{
-		SectionIndex: 396,
-		SectionHead:  common.HexToHash("0xf8d4b22804de5b48c068024893174408163b7fdd8db89873a7c0f0dc4859ad65"),
-		CHTRoot:      common.HexToHash("0x39c2b89d8a1b5cd9c0addf8471d0cd35351393561402bd460bf47134be0b8c4d"),
-		BloomRoot:    common.HexToHash("0x2166cd2b9e2249375327dc4fe6ceb9dc80e60ac2483d791ea1cc1c86e1515855"),
+		SectionIndex: 525,
+		SectionHead:  common.HexToHash("0x6c70a82bba327e624b465f4e7eb2ce4ba82c79c00d16b083052d99d8b6af3943"),
+		CHTRoot:      common.HexToHash("0x1eaff058d449df124fc7781e389df06e40bcc040d25d849eadae079bffe53fad"),
+		BloomRoot:    common.HexToHash("0xb5cc77d870941328fd546fcd03c55bb9945292e1c08d5be9d25ac2bc3d17792e"),
 	}
 
 	// TestnetCheckpointOracle contains a set of configs for the Ropsten test network oracle.

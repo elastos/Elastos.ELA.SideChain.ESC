@@ -146,29 +146,13 @@ func NewService(cfg *Config, tmux *event.TypeMux, dynamicArbiterHeight uint64) (
 	switch strings.ToLower(cfg.ActiveNet) {
 	case "testnet", "test", "t":
 		chainParams = config.DefaultParams.TestNet()
-		chainParams.DNSSeeds = []string{
-			"13.234.24.155:21338",
-			"15.206.198.252:21338",
-			"13.234.249.168:21338",
-		}
-		chainParams.Magic = 2018111
 	case "regnet", "reg", "r":
 		chainParams = config.DefaultParams.RegNet()
-		chainParams.DNSSeeds = []string{
-			"15.206.236.124:22338",
-			"3.111.241.201:22338",
-			"65.0.164.47:22338",
-		}
 	case "goreli", "g":
 		chainParams = config.DefaultParams.RegNet()
-		chainParams.Magic = 2018211
 	default:
 		chainParams = &config.DefaultParams
-		chainParams.DNSSeeds = []string{
-			"52.62.113.83:20338",
-			"35.156.51.127:20338",
-			"35.177.89.244:20338",
-		}
+
 	}
 	spvCfg := &spv.Config{
 		DataDir:             cfg.DataDir,
