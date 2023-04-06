@@ -46,12 +46,12 @@ switch (process.env.env) {
     case "rinkeby":
         console.log("0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A");
         contract.options.address = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A";
-        pledgeBill.options.address = "0xB6eeaa781A8403bF9C7ef412B33d32E5b5619408"
+        pledgeBill.options.address = "0x6E543Bb812D88eeDD07E4217cCF9635Da2a00Ddb"
         break;
     case "testnet":
         console.log("0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A");
         contract.options.address = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A";
-        pledgeBill.options.address = "0x6E543Bb812D88eeDD07E4217cCF9635Da2a00Ddb"
+        pledgeBill.options.address = "0x95c87f9c2381d43fc7019A2F7A2EA1dd8CA47230"
         break;
     case "mainnet":
         console.log("0xC445f9487bF570fF508eA9Ac320b59730e81e503");
