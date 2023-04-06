@@ -56,7 +56,7 @@ switch (process.env.env) {
     case "mainnet":
         console.log("0xC445f9487bF570fF508eA9Ac320b59730e81e503");
         contract.options.address = "0xC445f9487bF570fF508eA9Ac320b59730e81e503";
-        pledgeBill.options.address = "0xa01BC737e235CEAB6Db535A0376A16F8262910c4"
+        pledgeBill.options.address = "0x06D49BB1F338420E1d8577829C079DCB4cb5eF25"
         break;
     default:
         console.log("config address");
