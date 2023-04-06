@@ -24,17 +24,16 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/ethdb/leveldb"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/event"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
 
-	"github.com/elastos/Elastos.ELA.SideChain/types"
 	"golang.org/x/net/context"
 
 	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	elatx "github.com/elastos/Elastos.ELA/core/transaction"
 	elacom "github.com/elastos/Elastos.ELA/core/types/common"
-	"github.com/elastos/Elastos.ELA/core/types/functions"
 	it "github.com/elastos/Elastos.ELA/core/types/interfaces"
 	"github.com/elastos/Elastos.ELA/core/types/outputpayload"
 	"github.com/elastos/Elastos.ELA/core/types/payload"
@@ -130,34 +129,27 @@ type Service struct {
 }
 
 //Spv database initialization
-func SpvDbInit(spvdataDir string) {
+func SpvDbInit(spvdataDir string, pledgeBillContract string, signer ethCommon.Address, client *rpc.Client) {
 	db, err := leveldb.New(filepath.Join(spvdataDir, "spv_transaction_info.db"), databaseCache, handles, "eth/db/ela/")
 	if err != nil {
 		log.Error("spv Open db", "err", err)
 		return
 	}
 	spvTransactiondb = db
-
-	// Initialize functions
-	functions.GetTransactionByTxType = elatx.GetTransaction
-	functions.GetTransactionByBytes = elatx.GetTransactionByBytes
-	functions.CreateTransaction = elatx.CreateTransaction
-	functions.GetTransactionParameters = elatx.GetTransactionparameters
-	config.DefaultParams = config.GetDefaultParams()
+	ipcClient = ethclient.NewClient(client)
+	pledgeBill.Init(db, &transactionDBMutex, pledgeBillContract, signer, ipcClient)
 }
 
 //Spv service initialization
-func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux, dynamicArbiterHeight uint64) (*Service, error) {
-	var chainParams *config.Params
+func NewService(cfg *Config, tmux *event.TypeMux, dynamicArbiterHeight uint64) (*Service, error) {
+	var chainParams *config.Configuration
 	switch strings.ToLower(cfg.ActiveNet) {
 	case "testnet", "test", "t":
 		chainParams = config.DefaultParams.TestNet()
-		chainParams.Magic = 2018111
 	case "regnet", "reg", "r":
 		chainParams = config.DefaultParams.RegNet()
 	case "goreli", "g":
 		chainParams = config.DefaultParams.RegNet()
-		chainParams.Magic = 2018211
 	default:
 		chainParams = &config.DefaultParams
 
@@ -168,9 +160,10 @@ func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux, dynamicArb
 		OnRollback:          nil, // Not implemented yet
 		GenesisBlockAddress: cfg.GenesisAddress,
 	}
-	//chainParams, spvCfg = ResetConfig(chainParams, spvCfg)
 	ResetConfigWithReflect(chainParams, spvCfg)
+	chainParams.Sterilize()
 	spvCfg.ChainParams = chainParams
+
 	spvCfg.PermanentPeers = chainParams.PermanentPeers
 	dataDir = cfg.DataDir
 	spvCfg.NodeVersion = "ESC_1.9.7"
@@ -197,8 +190,14 @@ func NewService(cfg *Config, client *rpc.Client, tmux *event.TypeMux, dynamicArb
 	if err != nil {
 		return nil, err
 	}
+	err = service.RegisterTransactionListener(&pledgeBill.PledgeBillListener{
+		Service: service,
+	})
+	if err != nil {
+		log.Error("Spv Register Transaction PledgeBillListener: ", "err", err)
+		return nil, err
+	}
 
-	ipcClient = ethclient.NewClient(client)
 	genesis, err := ipcClient.HeaderByNumber(context.Background(), new(big.Int).SetInt64(0))
 	if err != nil {
 		log.Error("IpcClient: ", "err", err)
@@ -249,7 +248,7 @@ func MinedBroadcastLoop(minedBlockSub *event.TypeMuxSubscription,
 				log.Info("receive onduty event")
 				atomic.StoreInt32(&candSend, 0)
 			}
-			accessFailedRechargeTx()
+			go accessFailedRechargeTx()
 			go eevents.Notify(dpos.ETOnDutyEvent, nil)
 		case obj := <-smallCrossTxSub.Chan():
 			if evt, ok := obj.Data.(events.CmallCrossTx); ok {
@@ -286,46 +285,6 @@ func accessFailedRechargeTx() {
 
 func (s *Service) GetDatabase() *leveldb.Database {
 	return spvTransactiondb
-}
-
-func (s *Service) VerifyTransaction(tx *types.Transaction) error {
-	payload, ok := tx.Payload.(*types.PayloadRechargeToSideChain)
-	if !ok {
-		return errors.New("[VerifyTransaction] Invalid payload core.PayloadRechargeToSideChain")
-	}
-
-	switch tx.PayloadVersion {
-	case types.RechargeToSideChainPayloadVersion0:
-
-		proof := new(bloom.MerkleProof)
-		mainChainTransaction := new(elatx.BaseTransaction)
-
-		reader := bytes.NewReader(payload.MerkleProof)
-		if err := proof.Deserialize(reader); err != nil {
-			return errors.New("[VerifyTransaction] RechargeToSideChain payload deserialize failed")
-		}
-
-		reader = bytes.NewReader(payload.MainChainTransaction)
-		if err := mainChainTransaction.Deserialize(reader); err != nil {
-			return errors.New("[VerifyTransaction] RechargeToSideChain mainChainTransaction deserialize failed")
-		}
-
-		if err := s.SPVService.VerifyTransaction(*proof, mainChainTransaction); err != nil {
-			return errors.New("[VerifyTransaction] SPV module verify transaction failed.")
-		}
-
-	case types.RechargeToSideChainPayloadVersion1:
-
-		_, err := s.GetTransaction(&payload.MainChainTransactionHash)
-		if err != nil {
-			return errors.New("[VerifyTransaction] Main chain transaction not found")
-		}
-
-	default:
-		return errors.New("[VerifyTransaction] invalid payload version.")
-	}
-
-	return nil
 }
 
 func (s *Service) VerifyElaHeader(hash *common.Uint256) error {

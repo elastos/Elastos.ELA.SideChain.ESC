@@ -178,6 +178,7 @@ var (
 		utils.DynamicArbiter,
 		utils.FrozenAccount,
 		utils.UpdateArbiterListToLayer1Flag,
+		utils.PledgedBillContract,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -429,6 +430,7 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 	// if no --spvmoniaddr commandline parameter is provided, use the sidechain genesis block hash
 	// to generate the corresponding ELA mainchain address for the SPV module to monitor on
 	var dynamicArbiterHeight uint64
+	var pledgedBillContract string
 	if ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name) != "" {
 		// --spvmoniaddr parameter is provided, set the SPV monitor address accordingly
 		log.Info("SPV Start Monitoring... ", "SpvMonitoringAddr", ctx.GlobalString(utils.SpvMonitoringAddrFlag.Name))
@@ -447,12 +449,14 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 			}
 			ghash = lightnode.BlockChain().Genesis().Hash()
 			dynamicArbiterHeight = lightnode.BlockChain().Config().DynamicArbiterHeight
+			pledgedBillContract = lightnode.BlockChain().Config().PledgeBillContract
 		} else {
 			if err := stack.Service(&fullnode); err != nil {
 				utils.Fatalf("Blockchain not running: %v", err)
 			}
 			ghash = fullnode.BlockChain().Genesis().Hash()
 			dynamicArbiterHeight = fullnode.BlockChain().Config().DynamicArbiterHeight
+			pledgedBillContract = fullnode.BlockChain().Config().PledgeBillContract
 		}
 
 		// calculate ELA mainchain address from the genesis block hash and set the SPV monitor address accordingly
@@ -464,7 +468,10 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 			spvCfg.GenesisAddress = gaddr
 		}
 	}
-
+	client, err := stack.Attach()
+	if err != nil {
+		log.Error("makeFullNode Attach client: ", "err", err)
+	}
 	spv.GetDefaultSingerAddr = func() common.Address {
 		var addr common.Address
 		if wallets := stack.AccountManager().Wallets(); len(wallets) > 0 {
@@ -475,12 +482,8 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 
 		return addr
 	}
-
-	client, err := stack.Attach()
-	if err != nil {
-		log.Error("Attach client: ", "err", err)
-	}
-	if spvService, err := spv.NewService(spvCfg, client, stack.EventMux(), dynamicArbiterHeight); err != nil {
+	spv.SpvDbInit(SpvDataDir, pledgedBillContract, spv.GetDefaultSingerAddr(), client)
+	if spvService, err := spv.NewService(spvCfg, stack.EventMux(), dynamicArbiterHeight); err != nil {
 		utils.Fatalf("SPV service init error: %v", err)
 	} else {
 		MinedBlockSub := stack.EventMux().Subscribe(events.MinedBlockEvent{})

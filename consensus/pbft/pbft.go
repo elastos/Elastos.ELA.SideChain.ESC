@@ -186,16 +186,18 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 	if account != nil {
 		accpubkey = account.PublicKeyBytes()
 		network, err := dpos.NewNetwork(&dpos.NetworkConfig{
-			IPAddress:        cfg.IPAddress,
-			Magic:            cfg.Magic,
-			DefaultPort:      cfg.DPoSPort,
-			Account:          account,
-			MedianTime:       medianTimeSouce,
-			MaxNodePerHost:   cfg.MaxNodePerHost,
-			Listener:         pbft,
-			DataPath:         dposPath,
-			PublicKey:        accpubkey,
-			GetCurrentHeight: pbft.GetMainChainHeight,
+			IPAddress:         cfg.IPAddress,
+			Magic:             cfg.Magic,
+			DefaultPort:       cfg.DPoSPort,
+			Account:           account,
+			MedianTime:        medianTimeSouce,
+			MaxNodePerHost:    cfg.MaxNodePerHost,
+			Listener:          pbft,
+			DataPath:          dposPath,
+			PublicKey:         accpubkey,
+			GetCurrentHeight:  pbft.GetMainChainHeight,
+			DPoSV2StartHeight: cfg.DPoSV2StartHeight,
+			NodeVersion:       cfg.NodeVersion,
 			AnnounceAddr: func() {
 				events.Notify(dpos.ETAnnounceAddr, nil)
 			},
@@ -442,6 +444,7 @@ func (p *Pbft) verifySeal(chain consensus.ChainReader, header *types.Header, par
 			//return errChainForkBlock
 		}
 		if confirm.Proposal.ViewOffset == oldConfirm.Proposal.ViewOffset && oldHeader.Hash() != header.Hash() {
+			log.Error("double sign block", "oldHeader.Hash()", oldHeader.Hash().String(), "header.Hash()", header.Hash().String(), "old.miner", oldHeader.Coinbase.String(), "newHeader.Miner", header.Coinbase.String(), "current best height", p.CurrentBlock().NumberU64())
 			return errDoubleSignBlock
 		}
 	}

@@ -25,17 +25,18 @@ import (
 	"reflect"
 	"unicode"
 
-	cli "gopkg.in/urfave/cli.v1"
-	"path/filepath"
-
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/cmd/utils"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/dashboard"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/eth"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/node"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 	whisper "github.com/elastos/Elastos.ELA.SideChain.ESC/whisper/whisperv6"
 	"github.com/naoina/toml"
+	cli "gopkg.in/urfave/cli.v1"
+
+	"github.com/elastos/Elastos.ELA/common/config"
+	elatx "github.com/elastos/Elastos.ELA/core/transaction"
+	"github.com/elastos/Elastos.ELA/core/types/functions"
 )
 
 var (
@@ -82,6 +83,15 @@ type gethConfig struct {
 	Node      node.Config
 	Ethstats  ethstatsConfig
 	Dashboard dashboard.Config
+}
+
+func init() {
+	// Initialize functions
+	functions.GetTransactionByTxType = elatx.GetTransaction
+	functions.GetTransactionByBytes = elatx.GetTransactionByBytes
+	functions.CreateTransaction = elatx.CreateTransaction
+	functions.GetTransactionParameters = elatx.GetTransactionparameters
+	config.DefaultParams = *config.GetDefaultParams()
 }
 
 func loadConfig(file string, cfg *gethConfig) error {
@@ -154,20 +164,17 @@ func enableWhisper(ctx *cli.Context) bool {
 func makeFullNode(ctx *cli.Context) *node.Node {
 	stack, cfg := makeConfigNode(ctx)
 
-	var SpvDbDir string
 	switch {
-	case ctx.GlobalIsSet(utils.DataDirFlag.Name):
-		SpvDbDir = ctx.GlobalString(utils.DataDirFlag.Name)
-	case ctx.GlobalBool(utils.DeveloperFlag.Name):
-		SpvDbDir = "" // unless explicitly requested, use memory databases
 	case ctx.GlobalBool(utils.TestnetFlag.Name):
-		SpvDbDir = filepath.Join(node.DefaultDataDir(), "testnet")
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.TestNet().DPoSV2StartHeight
 	case ctx.GlobalBool(utils.RinkebyFlag.Name):
-		SpvDbDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.RegNet().DPoSV2StartHeight
+	case ctx.GlobalBool(utils.GoerliFlag.Name):
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.RegNet().DPoSV2StartHeight
 	default:
-		SpvDbDir = node.DefaultDataDir()
+		cfg.Eth.DPoSV2StartHeight = config.DefaultParams.DPoSV2StartHeight
 	}
-	spv.SpvDbInit(SpvDbDir)
+
 	if ctx.GlobalIsSet(utils.OverrideIstanbulFlag.Name) {
 		cfg.Eth.OverrideIstanbul = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideIstanbulFlag.Name))
 	}

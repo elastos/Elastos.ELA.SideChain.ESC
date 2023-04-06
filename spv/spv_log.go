@@ -31,7 +31,7 @@ func initLog(dataDir string) {
 			PreferConfig.Config.MaxPerLogSize,
 			PreferConfig.Config.MaxLogsSize,
 		)
-		level   = elalog.Level(PreferConfig.Config.SpvPrintLevel)
+		level   = elalog.Level(PreferConfig.Config.PrintLevel)
 		backend = elalog.NewBackend(io.MultiWriter(os.Stdout, fileWriter),
 			elalog.Llongfile)
 

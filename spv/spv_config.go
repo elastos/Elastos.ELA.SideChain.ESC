@@ -5,17 +5,14 @@ import (
 	"encoding/json"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
-	"github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/common/config"
 	"io/ioutil"
-	"math/big"
 	"reflect"
-	"time"
 )
 
 const (
 	DefaultConfigFilename = "./spvconfig.json"
-	Foundation            = "Foundation"
+	Foundation            = "FoundationAddress"
 	CRCAddress            = "CRCAddress"
 	GenesisBlock          = "GenesisBlock"
 	PowLimit              = "PowLimit"
@@ -23,51 +20,12 @@ const (
 
 var PreferConfig PreferParams
 
-type Configuration struct {
-	// Exegesis in file Elastos.ELA/common/config/params.go
-	Magic                    uint32         `json:"Magic"`
-	DefaultPort              uint16         `json:"DefaultPort"`
-	DNSSeeds                 []string       `json:"DNSSeeds"`
-	ListenAddrs              []string       `json:"ListenAddrs"`
-	Foundation               string         `json:"Foundation"`
-	CRCAddress               string         `json:"CRCAddress"`
-	PowLimit                 *big.Int       `json:"PowLimit"`
-	PowLimitBits             uint32         `json:"PowLimitBits"`
-	TargetTimespan           time.Duration  `json:"TargetTimespan"`
-	TargetTimePerBlock       time.Duration  `json:"TargetTimePerBlock"`
-	AdjustmentFactor         int64          `json:"AdjustmentFactor"`
-	RewardPerBlock           common.Fixed64 `json:"RewardPerBlock"`
-	CoinbaseMaturity         uint32         `json:"CoinbaseMaturity"`
-	DisableTxFilters         bool           `json:"DisableTxFilters"`
-	MinTransactionFee        common.Fixed64 `json:"MinTransactionFee"`
-	MinCrossChainTxFee       common.Fixed64 `json:"MinCrossChainTxFee"`
-	OriginArbiters           []string       `json:"OriginArbiters"`
-	CheckAddressHeight       uint32         `json:"CheckAddressHeight"`
-	VoteStartHeight          uint32         `json:"VoteStartHeight"`
-	CRCOnlyDPOSHeight        uint32         `json:"CRCOnlyDPOSHeight"`
-	PublicDPOSHeight         uint32         `json:"PublicDPOSHeight"`
-	CRCArbiters              []string       `json:"CRCArbiters"`
-	DPoSMagic                uint32         `json:"DPoSMagic"`
-	DPoSDefaultPort          uint16         `json:"DPoSDefaultPort"`
-	PreConnectOffset         uint32         `json:"PreConnectOffset"`
-	GeneralArbiters          int            `json:"GeneralArbiters"`
-	CandidateArbiters        int            `json:"CandidateArbiters"`
-	ToleranceDuration        time.Duration  `json:"ToleranceDuration"`
-	MaxInactiveRounds        uint32         `json:"MaxInactiveRounds"`
-	InactivePenalty          common.Fixed64 `json:"InactivePenalty"`
-	EmergencyInactivePenalty common.Fixed64 `json:"EmergencyInactivePenalty"`
-	MaxLogsSize              int64          `json:"MaxLogsSize"`
-	MaxPerLogSize            int64          `json:"MaxPerLogSize"`
-	SpvPrintLevel            uint32         `json:"SpvPrintLevel"`
-	PermanentPeers           []string       `json:"PermanentPeers"`
-}
-
 type PreferParams struct {
-	Config Configuration `json:"Configuration"`
+	Config config.Configuration `json:"Configuration"`
 }
 
 func init() {
-	PreferConfig = PreferParams{Config: Configuration{MaxLogsSize: 0, MaxPerLogSize: 0, SpvPrintLevel: 1}}
+	PreferConfig = PreferParams{Config: config.Configuration{MaxLogsSize: 0, MaxPerLogSize: 0, PrintLevel: 1}}
 	file, err := ioutil.ReadFile(DefaultConfigFilename)
 	if err != nil {
 		log.Warn("Read Spv_config file  error", "error", err)
@@ -81,7 +39,7 @@ func init() {
 	}
 }
 
-func ResetConfigWithReflect(params *config.Params, spvConfig *spv.Config) {
+func ResetConfigWithReflect(params *config.Configuration, spvConfig *spv.Config) {
 	paramsType := reflect.TypeOf(*params)
 	paramsValue := reflect.ValueOf(params).Elem()
 	configType := reflect.TypeOf(PreferConfig.Config)
@@ -123,23 +81,23 @@ func ResetConfigWithReflect(params *config.Params, spvConfig *spv.Config) {
 			if len(v) == 0 {
 				break
 			}
-			if name == Foundation || name == CRCAddress {
-				t, err := common.Uint168FromAddress(v)
-				if err == nil {
-					arrayValue := reflect.ValueOf(t).Elem()
-					destField.Set(arrayValue)
-					if name == Foundation {
-						block := config.GenesisBlock(t)
-						if _, ok := paramsType.FieldByName(GenesisBlock); ok {
-							blockValue := reflect.ValueOf(block)
-							destField = paramsValue.FieldByName(GenesisBlock)
-							destField.Set(blockValue)
-						}
-					}
-
-				}
-				break
-			}
+			//if name == Foundation || name == CRCAddress {
+			//	t, err := common.Uint168FromAddress(v)
+			//	if err == nil {
+			//		arrayValue := reflect.ValueOf(t).Elem()
+			//		destField.Set(arrayValue)
+			//		if name == Foundation {
+			//			block := core.GenesisBlock(*t)
+			//			if _, ok := paramsType.FieldByName(GenesisBlock); ok {
+			//				blockValue := reflect.ValueOf(block)
+			//				destField = paramsValue.FieldByName(GenesisBlock)
+			//				destField.Set(blockValue)
+			//			}
+			//		}
+			//
+			//	}
+			//	break
+			//}
 			destField.Set(value)
 		case reflect.Slice:
 			if !value.IsNil() {
@@ -153,4 +111,3 @@ func ResetConfigWithReflect(params *config.Params, spvConfig *spv.Config) {
 
 	}
 }
-

@@ -15,6 +15,7 @@ const FailedDepositTransactions=require("./faileddeposittransactions");
 const GetFailedDepositTxByHash=require("./getfaileddeposittransactionbyhash");
 const FailedWithdrawTxByHash=require("./receivedInvaliedwithrawtx");
 const ProcessedFailedWithdrawTxs=require("./processedinvalidwithdrawtx");
+const GetPledgeBillBurnLogsByHeight=require("./getPledgeBillBurnLogsByHeight")
 
 const app = express();
 
@@ -75,6 +76,10 @@ app.post("/", async function(req, res) {
         }
         if (json_data["method"] === "getprocessedinvalidwithdrawtransactions") {
             await  ProcessedFailedWithdrawTxs(json_data, res)
+            return;
+        }
+        if (json_data["method"] === "getPledgeBillBurnTransactionByHeight") {
+            await GetPledgeBillBurnLogsByHeight(json_data,res)
             return;
         }
     } catch (err) {

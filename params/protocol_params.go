@@ -130,8 +130,11 @@ const (
 	Bn256PairingPerPointGasByzantium uint64 = 80000  // Byzantium per-point price for an elliptic curve pairing check
 	Bn256PairingPerPointGasIstanbul  uint64 = 34000  // Per-point price for an elliptic curve pairing check
 
-	ArbitersBaseGas   uint64 = 1000 // Gas needed for getting DPos arbiters
-	P256VerifyBaseGas uint64 = 1000 // Gas needed for verifying P256 signature
+	ArbitersBaseGas      uint64 = 1000 // Gas needed for getting DPos arbiters
+	P256VerifyBaseGas    uint64 = 1000 // Gas needed for verifying P256 signature
+	PbkVerifySignature   uint64 = 1000 // Gas needed for verifying P256 signature
+	PledgeBillVerifyGas  uint64 = 1000 // Gas needed for verifying P256 signature
+	GetPledgeBillTokenID uint64 = 0    // Gas needed for verifying P256 signature
 )
 
 var (
@@ -140,6 +143,9 @@ var (
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
 
-	ArbiterAddress    = big.NewInt(1000)
-	P256VerifyAddress = big.NewInt(1001)
+	ArbiterAddress       = big.NewInt(1000)
+	P256VerifyAddress    = big.NewInt(1001)
+	SignatureVerifyByPbk = big.NewInt(1002)
+	PledgeBillVerify     = big.NewInt(1003)
+	PledgeBillTokenID    = big.NewInt(1004)
 )

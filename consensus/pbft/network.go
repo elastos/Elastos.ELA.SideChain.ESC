@@ -93,6 +93,7 @@ type peerInfo struct {
 	NodePublicKey  string `json:"nodepublickey"`
 	IP             string `json:"ip"`
 	ConnState      string `json:"connstate"`
+	NodeVersion    string `json:"nodeversion"`
 }
 
 func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
@@ -113,6 +114,7 @@ func (p *Pbft) GetAtbiterPeersInfo() []peerInfo {
 			NodePublicKey: common.Bytes2Hex(pid),
 			IP:            peer.Addr,
 			ConnState:     peer.State.String(),
+			NodeVersion:   peer.NodeVersion,
 		})
 	}
 	return result
@@ -394,7 +396,10 @@ func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
 	if _, ok := p.requestedProposals[proposal.Hash()]; ok {
 		delete(p.requestedProposals, proposal.Hash())
 	}
-	if p.dispatcher.GetProcessingProposal() != nil && p.dispatcher.GetProcessingProposal().Hash().IsEqual(proposal.Hash()) {
+	processingProposal := p.dispatcher.GetProcessingProposal()
+	if processingProposal != nil {
+		processingHash := processingProposal.Hash()
+		processingHash.IsEqual(proposal.Hash())
 		log.Info("is processing this proposal")
 		return
 	}
