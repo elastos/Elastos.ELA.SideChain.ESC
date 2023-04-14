@@ -174,7 +174,7 @@ func GetPledgeBillData(txHash string) (sAddress string, tokenID *big.Int, err er
 	key := getTxKey(txHash)
 	v, err := getData(key)
 	if err != nil {
-		return sAddress, tokenID, errors.New("callPledgeBillContract getData error" + err.Error())
+		return sAddress, tokenID, errors.New("callPledgeBillContract getData error" + err.Error() + "hash " + txHash)
 	}
 
 	nr := bytes.NewReader([]byte(v))

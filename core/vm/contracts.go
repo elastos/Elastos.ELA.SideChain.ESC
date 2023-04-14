@@ -738,14 +738,12 @@ func (b *pledgeBillTokenID) RequiredGas(input []byte) uint64 {
 }
 
 func (b *pledgeBillTokenID) Run(input []byte) ([]byte, error) {
-	fmt.Println(">>>>>>>>>>>>>>>>> pledgeBillTokenID <<<<<<<<<<<<<<<<<", input, "inputSize", len(input))
 	//length := getData(input, 0, 32)
 	elaHash := getData(input, 32, 32)
-	fmt.Println(">>>>>>>>>>>>>>>>> elaHash<<<<<<<<<<<<<<<<", elaHash, "hash", common.BytesToHash(elaHash).String())
 
 	_, tokenID, err := pledgeBill.GetPledgeBillData(common.BytesToHash(elaHash).String())
-	fmt.Println(">>>>>> tokenID", tokenID)
 	if err != nil {
+		log.Info("pledgeBillTokenID", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String(), "tokenID", tokenID)
 		return false32Byte, err
 	}
 
