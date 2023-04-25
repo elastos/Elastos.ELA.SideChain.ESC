@@ -342,12 +342,15 @@ func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big
 
 // DefaultGenesisBlock returns the Ethereum main net genesis block.
 func DefaultGenesisBlock() *Genesis {
+	ga := make(GenesisAlloc, 1)
+	acc1 := common.BytesToAddress(hexutil.MustDecode("0x7b718a4ae42c64dfcb5860dce1ce9da32d6476a9"))
+	ga[acc1] = GenesisAccount{Balance: big.NewInt(0).SetUint64(250000000 * 1e18)}
 	genesis := &Genesis{
-		Config:     params.MainnetChainConfig,
-		Timestamp:  0x1,
-		GasLimit:   0x2068F7700,
+		Config:     params.RinkebyChainConfig,
+		Timestamp:  0x6448D6C8,
+		GasLimit:   30000000,
 		Difficulty: big.NewInt(1),
-		Alloc:      nil,
+		Alloc:      ga,
 	}
 	extra := make([]byte, 0)
 	extra = append(extra, bytes.Repeat([]byte{0x00}, 32)...)
@@ -382,12 +385,15 @@ func DefaultGenesisBlock() *Genesis {
 
 // DefaultTestnetGenesisBlock returns the Ropsten network genesis block.
 func DefaultTestnetGenesisBlock() *Genesis {
+	ga := make(GenesisAlloc, 1)
+	acc1 := common.BytesToAddress(hexutil.MustDecode("0x7b718a4ae42c64dfcb5860dce1ce9da32d6476a9"))
+	ga[acc1] = GenesisAccount{Balance: big.NewInt(0).SetUint64(250000000 * 1e18)}
 	genesis := &Genesis{
-		Config:     params.TestnetChainConfig,
-		Timestamp:  0x5bda9da0,
-		GasLimit:   0x2068F7700,
+		Config:     params.RinkebyChainConfig,
+		Timestamp:  0x6448D6C8,
+		GasLimit:   30000000,
 		Difficulty: big.NewInt(1),
-		Alloc:      nil,
+		Alloc:      ga,
 	}
 	extra := make([]byte, 0)
 	extra = append(extra, bytes.Repeat([]byte{0x00}, 32)...)
@@ -423,12 +429,15 @@ func DefaultTestnetGenesisBlock() *Genesis {
 
 // DefaultRinkebyGenesisBlock returns the Rinkeby network genesis block.
 func DefaultRinkebyGenesisBlock() *Genesis {
+	ga := make(GenesisAlloc, 1)
+	acc1 := common.BytesToAddress(hexutil.MustDecode("0x7b718a4ae42c64dfcb5860dce1ce9da32d6476a9"))
+	ga[acc1] = GenesisAccount{Balance: big.NewInt(0).SetUint64(250000000 * 1e18)}
 	genesis := &Genesis{
 		Config:     params.RinkebyChainConfig,
-		Timestamp:  0x5bda9da8,
-		GasLimit:   0x2068F7700,
+		Timestamp:  0x6448D6C8,
+		GasLimit:   30000000,
 		Difficulty: big.NewInt(1),
-		Alloc:      nil,
+		Alloc:      ga,
 	}
 	extra := make([]byte, 0)
 	extra = append(extra, bytes.Repeat([]byte{0x00}, 32)...)

@@ -623,7 +623,7 @@ var (
 	ListenPortFlag = cli.IntFlag{
 		Name:  "port",
 		Usage: "Network listening port",
-		Value: 20638,
+		Value: 20658,
 	}
 	BootnodesFlag = cli.StringFlag{
 		Name:  "bootnodes",
@@ -796,7 +796,7 @@ var (
 	PbftDposPort = cli.StringFlag{
 		Name:  "pbft.net.port",
 		Usage: "connect dpos direct net port",
-		Value: "20639",
+		Value: "20659",
 	}
 	PbftMinerAddress = cli.StringFlag{
 		Name:  "pbft.miner.address",
@@ -1610,7 +1610,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 	switch {
 	case ctx.GlobalBool(TestnetFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 21
+			cfg.NetworkId = 20230426
 		}
 		cfg.Genesis = core.DefaultTestnetGenesisBlock()
 		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
@@ -1626,7 +1626,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.ArbiterListContract = "0xcEAA743AA3D1E771600e34c7F18c9e30AB63EEb2"
 	case ctx.GlobalBool(RinkebyFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 22
+			cfg.NetworkId = 20230427
 		}
 		cfg.Genesis = core.DefaultRinkebyGenesisBlock()
 		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
@@ -1639,7 +1639,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 		cfg.ArbiterListContract = "0xcEAA743AA3D1E771600e34c7F18c9e30AB63EEb2"
 	case ctx.GlobalBool(GoerliFlag.Name):
 		if !ctx.GlobalIsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 23
+			cfg.NetworkId = 20230428
 		}
 		cfg.Genesis = core.DefaultGoerliGenesisBlock()
 		cfg.BlackContractAddr = "0x491bC043672B9286fA02FA7e0d6A3E5A0384A31A"
