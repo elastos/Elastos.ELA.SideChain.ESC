@@ -22,7 +22,6 @@ import (
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
 )
 
@@ -55,8 +54,8 @@ var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(1),
-		ChainID:             big.NewInt(20),
+		OldChainID:          big.NewInt(20230425),
+		ChainID:             big.NewInt(20230425),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -65,17 +64,17 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:        big.NewInt(2687340),
-		ConstantinopleBlock: big.NewInt(2426880),
-		PetersburgBlock:     big.NewInt(2426880),
-		IstanbulBlock:       big.NewInt(2426880),
-		BerlinBlock:         big.NewInt(math.MaxInt64),
-		LondonBlock:         big.NewInt(math.MaxInt64),
+		ChainIDBlock:        big.NewInt(4),
+		ConstantinopleBlock: big.NewInt(4),
+		PetersburgBlock:     big.NewInt(4),
+		IstanbulBlock:       big.NewInt(4),
+		BerlinBlock:         big.NewInt(4),
+		LondonBlock:         big.NewInt(4),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock:        big.NewInt(2426880),
+		PBFTBlock:        big.NewInt(1),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -125,8 +124,8 @@ var (
 
 	// TestnetChainConfig contains the chain parameters to run a node on the Ropsten test network.
 	TestnetChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(3),
-		ChainID:             big.NewInt(21),
+		OldChainID:          big.NewInt(20230426),
+		ChainID:             big.NewInt(20230426),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -135,17 +134,17 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ChainIDBlock:        big.NewInt(2556480),
-		ConstantinopleBlock: big.NewInt(2333460),
-		PetersburgBlock:     big.NewInt(2333460),
-		IstanbulBlock:       big.NewInt(2333460),
-		BerlinBlock:         big.NewInt(math.MaxInt64),
-		LondonBlock:         big.NewInt(math.MaxInt64),
+		ChainIDBlock:        big.NewInt(4),
+		ConstantinopleBlock: big.NewInt(4),
+		PetersburgBlock:     big.NewInt(4),
+		IstanbulBlock:       big.NewInt(4),
+		BerlinBlock:         big.NewInt(4),
+		LondonBlock:         big.NewInt(4),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock:        big.NewInt(2333460),
+		PBFTBlock:        big.NewInt(1),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
@@ -195,8 +194,8 @@ var (
 
 	// RinkebyChainConfig contains the chain parameters to run a node on the Rinkeby test network.
 	RinkebyChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(4),
-		ChainID:             big.NewInt(22),
+		OldChainID:          big.NewInt(20230427),
+		ChainID:             big.NewInt(20230427),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -205,32 +204,32 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ConstantinopleBlock: big.NewInt(2208900),
-		PetersburgBlock:     big.NewInt(2208900),
-		IstanbulBlock:       big.NewInt(2208900),
-		ChainIDBlock:        big.NewInt(2337660),
-		BerlinBlock:         big.NewInt(math.MaxInt64),
-		LondonBlock:         big.NewInt(math.MaxInt64),
+		ConstantinopleBlock: big.NewInt(4),
+		PetersburgBlock:     big.NewInt(4),
+		IstanbulBlock:       big.NewInt(4),
+		ChainIDBlock:        big.NewInt(4),
+		BerlinBlock:         big.NewInt(4),
+		LondonBlock:         big.NewInt(4),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
 		},
-		PBFTBlock:        big.NewInt(2208900),
+		PBFTBlock:        big.NewInt(1),
 		PreConnectOffset: 20,
 		Pbft: &PbftConfig{
 			Producers: []string{
-				"0306e3deefee78e0e25f88e98f1f3290ccea98f08dd3a890616755f1a066c4b9b8",
-				"02b56a669d713db863c60171001a2eb155679cad186e9542486b93fa31ace78303",
-				"0250c5019a00f8bb4fd59bb6d613c70a39bb3026b87cfa247fd26f59fd04987855",
-				"02e00112e3e9defe0f38f33aaa55551c8fcad6aea79ab2b0f1ec41517fdd05950a",
-				"020aa2d111866b59c70c5acc60110ef81208dcdc6f17f570e90d5c65b83349134f",
-				"03cd41a8ed6104c1170332b02810237713369d0934282ca9885948960ae483a06d",
-				"02939f638f3923e6d990a70a2126590d5b31a825a0f506958b99e0a42b731670ca",
-				"032ade27506951c25127b0d2cb61d164e0bad8aec3f9c2e6785725a6ab6f4ad493",
-				"03f716b21d7ae9c62789a5d48aefb16ba1e797b04a2ec1424cd6d3e2e0b43db8cb",
-				"03488b0aace5fe5ee5a1564555819074b96cee1db5e7be1d74625240ef82ddd295",
-				"03c559769d5f7bb64c28f11760cb36a2933596ca8a966bc36a09d50c24c48cc3e8",
-				"03b5d90257ad24caf22fa8a11ce270ea57f3c2597e52322b453d4919ebec4e6300",
+				"03e435ccd6073813917c2d841a0815d21301ec3286bc1412bb5b099178c68a10b6",
+				"038a1829b4b2bee784a99bebabbfecfec53f33dadeeeff21b460f8b4fc7c2ca771",
+				"02435df9a4728e6250283cfa8215f16b48948d71936c4600b3a5b1c6fde70503ae",
+				"027d44ee7e7a6c6ff13a130d15b18c75a3b47494c3e54fcffe5f4b10e225351e09",
+				"02ad972fbfce4aaa797425138e4f3b22bcfa765ffad88b8a5af0ab515161c0a365",
+				"0373eeae2bac0f5f14373ca603fe2c9caa9c7a79c7793246cec415d005e2fe53c0",
+				"03503011cc4e44b94f73ed2c76c73182a75b4863f23d1e7083025eead945a8e764",
+				"0270b6880e7fab8d02bea7d22639d7b5e07279dd6477baa713dacf99bb1d65de69",
+				"030eed9f9c1d70307beba52ddb72a24a02582c0ee626ec93ee1dcef2eb308852dd",
+				"026bba43feb19ce5859ffcf0ce9dd8b9d625130b686221da8b445fa9b8f978d7b9",
+				"02bf9e37b3db0cbe86acf76a76578c6b17b4146df101ec934a00045f7d201f06dd",
+				"03111f1247c66755d369a8c8b3a736dfd5cf464ca6735b659533cbe1268cd102a9",
 			},
 			PrintLevel:     0,
 			MaxLogsSize:    0,
@@ -263,8 +262,8 @@ var (
 	}
 	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
 	GoerliChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(23),
-		ChainID:             big.NewInt(24),
+		OldChainID:          big.NewInt(20230428),
+		ChainID:             big.NewInt(20230428),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -273,12 +272,12 @@ var (
 		EIP155Block:         big.NewInt(3),
 		EIP158Block:         big.NewInt(3),
 		ByzantiumBlock:      big.NewInt(4),
-		ConstantinopleBlock: big.NewInt(184110),
-		PetersburgBlock:     big.NewInt(184110),
-		IstanbulBlock:       big.NewInt(184110),
-		ChainIDBlock:        big.NewInt(184110),
-		BerlinBlock:         big.NewInt(math.MaxInt64),
-		LondonBlock:         big.NewInt(math.MaxInt64),
+		ConstantinopleBlock: big.NewInt(4),
+		PetersburgBlock:     big.NewInt(4),
+		IstanbulBlock:       big.NewInt(4),
+		ChainIDBlock:        big.NewInt(4),
+		BerlinBlock:         big.NewInt(4),
+		LondonBlock:         big.NewInt(4),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
