@@ -62,7 +62,7 @@ func MustParseV4(rawurl string) *Node {
 // query parameter "discport".
 //
 // In the following example, the node URL describes
-// a node with IP address 10.3.58.6, TCP listening port 20638
+// a node with IP address 10.3.58.6, TCP listening port 20658
 // and UDP discovery port 20630.
 //
 //    enode://<hex node id>@10.3.58.6:30303?discport=20630

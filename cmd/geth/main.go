@@ -513,12 +513,12 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 		if err := stack.Service(&ethereum); err != nil {
 			utils.Fatalf("Ethereum service not running: %v", err)
 		}
-		initChainBridge(ctx, stack, ethereum.BlockChain())
+		//initChainBridge(ctx, stack, ethereum.BlockChain())
 	}
 	//start the SPV service
 	//log.Info(fmt.Sprintf("Starting SPV service with config: %+v \n", *spvCfg))
-	startSpv(ctx, stack)
-	startSmallCrossTx(ctx, stack)
+	//startSpv(ctx, stack)
+	//startSmallCrossTx(ctx, stack)
 
 	// Register wallet event handlers to open and auto-derive wallets
 	evts := make(chan accounts.WalletEvent, 16)
@@ -629,16 +629,16 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				utils.Fatalf("Failed to start mining: %v", err)
 			}
 		}
-		go startLayer2(ethereum.BlockChain())
+		//go startLayer2(ethereum.BlockChain())
 	}
 
 	//xxl add update Arbiter List To Layer1 get param
-	isUpdateAbiterToLayer1 := ctx.GlobalBool(utils.UpdateArbiterListToLayer1Flag.Name)
-	log.Info("xxl isUpdateAbiterToLayer1 flag is ", "isUpdateAbiterToLayer1", isUpdateAbiterToLayer1)
-	if isUpdateAbiterToLayer1 {
-		log.Info("xxl StartUpdateNode ")
-		chainbridge_core.StartUpdateNode()
-	}
+	//isUpdateAbiterToLayer1 := ctx.GlobalBool(utils.UpdateArbiterListToLayer1Flag.Name)
+	//log.Info("xxl isUpdateAbiterToLayer1 flag is ", "isUpdateAbiterToLayer1", isUpdateAbiterToLayer1)
+	//if isUpdateAbiterToLayer1 {
+	//	log.Info("xxl StartUpdateNode ")
+	//	chainbridge_core.StartUpdateNode()
+	//}
 }
 
 func initChainBridge(ctx *cli.Context, stack *node.Node, blockChain *core.BlockChain) {

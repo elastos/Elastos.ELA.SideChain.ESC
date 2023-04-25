@@ -78,6 +78,7 @@ require (
 	github.com/howeyc/fsnotify v0.9.0 // indirect
 	github.com/howeyc/gopass v0.0.0-20190910152052-7cb4b85ec19c // indirect
 	github.com/itchyny/base58-go v0.1.0 // indirect
+	github.com/karalabe/xgo v0.0.0-20191115072854-c5ccff8648a7 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
