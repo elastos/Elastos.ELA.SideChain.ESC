@@ -55,8 +55,8 @@ var CheckpointOracles = map[common.Hash]*CheckpointOracleConfig{
 var (
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(1),
-		ChainID:             big.NewInt(20),
+		OldChainID:          big.NewInt(20230425),
+		ChainID:             big.NewInt(20230425),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -125,8 +125,8 @@ var (
 
 	// TestnetChainConfig contains the chain parameters to run a node on the Ropsten test network.
 	TestnetChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(3),
-		ChainID:             big.NewInt(21),
+		OldChainID:          big.NewInt(20230426),
+		ChainID:             big.NewInt(20230426),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -195,8 +195,8 @@ var (
 
 	// RinkebyChainConfig contains the chain parameters to run a node on the Rinkeby test network.
 	RinkebyChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(4),
-		ChainID:             big.NewInt(22),
+		OldChainID:          big.NewInt(20230427),
+		ChainID:             big.NewInt(20230427),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,
@@ -263,8 +263,8 @@ var (
 	}
 	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
 	GoerliChainConfig = &ChainConfig{
-		OldChainID:          big.NewInt(23),
-		ChainID:             big.NewInt(24),
+		OldChainID:          big.NewInt(20230428),
+		ChainID:             big.NewInt(20230428),
 		HomesteadBlock:      big.NewInt(1),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      true,

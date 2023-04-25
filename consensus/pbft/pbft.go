@@ -53,6 +53,7 @@ const (
 	// maxRequestedBlocks is the maximum number of requested block
 	// hashes to store in memory.
 	maxRequestedBlocks = msg.MaxInvPerMsg
+	sealDelay          = 2
 )
 
 var (
@@ -176,7 +177,7 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 		requestedProposals: make(map[ecom.Uint256]struct{}),
 		statusMap:          make(map[uint32]map[string]*dmsg.ConsensusStatus),
 		notHandledProposal: make(map[string]struct{}),
-		period:             5,
+		period:             sealDelay,
 		timeSource:         medianTimeSouce,
 	}
 	blockPool := dpos.NewBlockPool(pbft.verifyConfirm, pbft.verifyBlock, DBlockSealHash)
@@ -210,7 +211,7 @@ func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
 		pbft.subscribeEvent()
 	}
 	pbft.dispatcher = dpos.NewDispatcher(producers, pbft.onConfirm, pbft.onUnConfirm,
-		10*time.Second, accpubkey, medianTimeSouce, pbft, chainConfig.GetPbftBlock())
+		sealDelay*2*time.Second, accpubkey, medianTimeSouce, pbft, chainConfig.GetPbftBlock())
 	return pbft
 }
 
