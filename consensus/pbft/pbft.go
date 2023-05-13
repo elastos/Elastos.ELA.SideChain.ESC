@@ -597,7 +597,8 @@ func (p *Pbft) addConfirmToBlock(header *types.Header, confirm *payload.Confirm)
 
 func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 	log.Info("--------[onConfirm]------", "proposal:", confirm.Proposal.Hash())
-	if p.isSealOver && p.IsOnduty() {
+	duty := p.IsOnDuty()
+	if p.isSealOver && duty {
 		log.Warn("seal block is over, can't confirm")
 		return errors.New("seal block is over, can't confirm")
 	}
@@ -606,8 +607,12 @@ func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 		log.Error("Received confirm", "proposal", confirm.Proposal.Hash().String(), "err:", err)
 		return err
 	}
-	if p.IsOnduty() {
+	if duty {
 		log.Info("on duty, set confirm block")
+		curProposal := p.dispatcher.GetProcessingProposal()
+		if curProposal == nil || !curProposal.BlockHash.IsEqual(confirm.Proposal.BlockHash) {
+			return errors.New("is not confirm current proposal")
+		}
 		p.confirmCh <- confirm
 	} else {
 		log.Info("not on duty, not broad confirm block")
