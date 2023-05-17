@@ -25,6 +25,7 @@ import (
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -34,9 +35,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
-	"github.com/elastos/Elastos.ELA/blockchain"
+
 	"github.com/elastos/Elastos.ELA/core/contract"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -79,20 +81,21 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
 // contracts used in the Istanbul release.
 var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                           &ecrecover{},
-	common.BytesToAddress([]byte{2}):                           &sha256hash{},
-	common.BytesToAddress([]byte{3}):                           &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                           &dataCopy{},
-	common.BytesToAddress([]byte{5}):                           &bigModExp{},
-	common.BytesToAddress([]byte{6}):                           &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):                           &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):                           &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):                           &blake2F{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
-	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
-	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
-	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
+	common.BytesToAddress([]byte{1}):                            &ecrecover{},
+	common.BytesToAddress([]byte{2}):                            &sha256hash{},
+	common.BytesToAddress([]byte{3}):                            &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                            &dataCopy{},
+	common.BytesToAddress([]byte{5}):                            &bigModExp{},
+	common.BytesToAddress([]byte{6}):                            &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                            &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                            &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                            &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):        &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):     &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):  &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):      &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):     &pledgeBillTokenID{},
+	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()): &pledgeBillTokenDetail{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -714,7 +717,7 @@ func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures [
 		Parameter: signatures,
 	}
 	data := append(elaHash, toAddress...)
-	err = blockchain.CheckMultiSigSignatures(pro, data)
+	err = elaCrypto.CheckMultiSigSignatures(pro, data)
 	if err != nil {
 		return err
 	}
@@ -748,4 +751,66 @@ func (b *pledgeBillTokenID) Run(input []byte) ([]byte, error) {
 	}
 
 	return tokenID.Bytes(), nil
+}
+
+type pledgeBillTokenDetail struct{}
+
+func (p *pledgeBillTokenDetail) RequiredGas(input []byte) uint64 {
+	return params.GetPledgeBillTokenDetail
+}
+
+func (p *pledgeBillTokenDetail) Run(input []byte) ([]byte, error) {
+	//length := getData(input, 0, 32)
+	elaHash := getData(input, 32, 32)
+
+	nftPayload, payloadVersion, err := pledgeBill.GetCreateNFTPayload(common.BytesToHash(elaHash).String())
+	if err != nil {
+		log.Info("pledgeBillTokenDetail", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String())
+		return false32Byte, err
+	}
+
+	if payloadVersion == payload.CreateNFTVersion {
+		nftPayload.StartHeight = 0
+		nftPayload.EndHeight = 0
+		nftPayload.Votes = 0
+		nftPayload.VoteRights = 0
+		nftPayload.TargetOwnerKey = []byte{}
+	}
+	arguments := make([]abi.Argument, 0)
+	Bytes32, _ := abi.NewType("bytes32", "bytes32", nil)
+	UInt32, _ := abi.NewType("uint32", "uint32", nil)
+	Int64, _ := abi.NewType("int64", "int64", nil)
+	String, _ := abi.NewType("string", "string", nil)
+	Bytes, _ := abi.NewType("bytes", "bytes", nil)
+
+	Referkey := abi.Argument{Name: "referKey", Type: Bytes32}
+	arguments = append(arguments, Referkey)
+
+	StakeAddress := abi.Argument{Name: "stakeAddress", Type: String}
+	arguments = append(arguments, StakeAddress)
+
+	GenesisBlockHash := abi.Argument{Name: "genesisBlockHash", Type: Bytes32}
+	arguments = append(arguments, GenesisBlockHash)
+
+	StartHeight := abi.Argument{Name: "startHeight", Type: UInt32}
+	arguments = append(arguments, StartHeight)
+
+	EndHeight := abi.Argument{Name: "endHeight", Type: UInt32}
+	arguments = append(arguments, EndHeight)
+
+	Votes := abi.Argument{Name: "votes", Type: Int64}
+	arguments = append(arguments, Votes)
+
+	VotesRight := abi.Argument{Name: "votesRight", Type: Int64}
+	arguments = append(arguments, VotesRight)
+
+	Owner := abi.Argument{Name: "targetOwner", Type: Bytes}
+	arguments = append(arguments, Owner)
+
+	m := abi.Method{Inputs: arguments}
+	ret, err := m.Inputs.Pack(common.BytesToHash(nftPayload.ReferKey.Bytes()), nftPayload.StakeAddress, common.BytesToHash(nftPayload.GenesisBlockHash.Bytes()), nftPayload.StartHeight, nftPayload.EndHeight, nftPayload.Votes, nftPayload.VoteRights, nftPayload.TargetOwnerKey[:])
+	if err != nil {
+		return ret, err
+	}
+	return ret, nil
 }
