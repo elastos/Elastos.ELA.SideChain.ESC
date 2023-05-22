@@ -174,10 +174,11 @@ var (
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
 
-	ArbiterAddress        = big.NewInt(1000)
-	P256VerifyAddress     = big.NewInt(1001)
-	SignatureVerifyByPbk  = big.NewInt(1002)
-	PledgeBillVerify      = big.NewInt(1003)
-	PledgeBillTokenID     = big.NewInt(1004)
-	PledgeBillTokenDetail = big.NewInt(1005)
+	ArbiterAddress         = big.NewInt(1000)
+	P256VerifyAddress      = big.NewInt(1001)
+	SignatureVerifyByPbk   = big.NewInt(1002)
+	PledgeBillVerify       = big.NewInt(1003)
+	PledgeBillTokenID      = big.NewInt(1004)
+	PledgeBillTokenDetail  = big.NewInt(1005)
+	PledgeBillTokenVersion = big.NewInt(1006)
 )

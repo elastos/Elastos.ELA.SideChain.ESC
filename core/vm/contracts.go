@@ -81,59 +81,63 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 // PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
 // contracts used in the Istanbul release.
 var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                            &ecrecover{},
-	common.BytesToAddress([]byte{2}):                            &sha256hash{},
-	common.BytesToAddress([]byte{3}):                            &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                            &dataCopy{},
-	common.BytesToAddress([]byte{5}):                            &bigModExp{},
-	common.BytesToAddress([]byte{6}):                            &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):                            &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):                            &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):                            &blake2F{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):        &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()):     &p256Verify{},
-	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):  &pbkVerifySignature{},
-	common.BytesToAddress(params.PledgeBillVerify.Bytes()):      &pledgeBillVerify{},
-	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):     &pledgeBillTokenID{},
-	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()): &pledgeBillTokenDetail{},
+	common.BytesToAddress([]byte{1}):                             &ecrecover{},
+	common.BytesToAddress([]byte{2}):                             &sha256hash{},
+	common.BytesToAddress([]byte{3}):                             &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                             &dataCopy{},
+	common.BytesToAddress([]byte{5}):                             &bigModExp{},
+	common.BytesToAddress([]byte{6}):                             &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                             &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                             &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                             &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):         &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):      &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):   &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):       &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):      &pledgeBillTokenID{},
+	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
+	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
 }
 
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
 // contracts specified in EIP-2537. These are exported for testing purposes.
 var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{10}):                          &bls12381G1Add{},
-	common.BytesToAddress([]byte{11}):                          &bls12381G1Mul{},
-	common.BytesToAddress([]byte{12}):                          &bls12381G1MultiExp{},
-	common.BytesToAddress([]byte{13}):                          &bls12381G2Add{},
-	common.BytesToAddress([]byte{14}):                          &bls12381G2Mul{},
-	common.BytesToAddress([]byte{15}):                          &bls12381G2MultiExp{},
-	common.BytesToAddress([]byte{16}):                          &bls12381Pairing{},
-	common.BytesToAddress([]byte{17}):                          &bls12381MapG1{},
-	common.BytesToAddress([]byte{18}):                          &bls12381MapG2{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
-	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
-	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
-	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
+	common.BytesToAddress([]byte{10}):                            &bls12381G1Add{},
+	common.BytesToAddress([]byte{11}):                            &bls12381G1Mul{},
+	common.BytesToAddress([]byte{12}):                            &bls12381G1MultiExp{},
+	common.BytesToAddress([]byte{13}):                            &bls12381G2Add{},
+	common.BytesToAddress([]byte{14}):                            &bls12381G2Mul{},
+	common.BytesToAddress([]byte{15}):                            &bls12381G2MultiExp{},
+	common.BytesToAddress([]byte{16}):                            &bls12381Pairing{},
+	common.BytesToAddress([]byte{17}):                            &bls12381MapG1{},
+	common.BytesToAddress([]byte{18}):                            &bls12381MapG2{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):         &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):      &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):   &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):       &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):      &pledgeBillTokenID{},
+	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
+	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
 }
 
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
 // contracts used in the Berlin release.
 var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                           &ecrecover{},
-	common.BytesToAddress([]byte{2}):                           &sha256hash{},
-	common.BytesToAddress([]byte{3}):                           &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                           &dataCopy{},
-	common.BytesToAddress([]byte{5}):                           &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}):                           &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):                           &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):                           &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):                           &blake2F{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
-	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
-	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
-	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
+	common.BytesToAddress([]byte{1}):                             &ecrecover{},
+	common.BytesToAddress([]byte{2}):                             &sha256hash{},
+	common.BytesToAddress([]byte{3}):                             &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                             &dataCopy{},
+	common.BytesToAddress([]byte{5}):                             &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):                             &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                             &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                             &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                             &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):         &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):      &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):   &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):       &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
+	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
 }
 
 var (
@@ -879,59 +883,76 @@ func (p *pledgeBillTokenDetail) RequiredGas(input []byte) uint64 {
 }
 
 func (p *pledgeBillTokenDetail) Run(input []byte) ([]byte, error) {
-	return false32Byte, errors.New("not open")
-	//elaHash := getData(input, 32, 32)
-	//
-	//nftPayload, payloadVersion, err := pledgeBill.GetCreateNFTPayload(common.BytesToHash(elaHash).String())
-	//if err != nil {
-	//	log.Info("pledgeBillTokenDetail", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String())
-	//	return false32Byte, err
-	//}
-	//
-	//if payloadVersion == payload.CreateNFTVersion {
-	//	nftPayload.StartHeight = 0
-	//	nftPayload.EndHeight = 0
-	//	nftPayload.Votes = 0
-	//	nftPayload.VoteRights = 0
-	//	nftPayload.TargetOwnerKey = []byte{}
-	//}
-	//arguments := make([]abi.Argument, 0)
-	//Bytes32, _ := abi.NewType("bytes32", "bytes32", nil)
-	//UInt32, _ := abi.NewType("uint32", "uint32", nil)
-	//Int64, _ := abi.NewType("int64", "int64", nil)
-	//String, _ := abi.NewType("string", "string", nil)
-	//Bytes, _ := abi.NewType("bytes", "bytes", nil)
-	//
-	//Referkey := abi.Argument{Name: "referKey", Type: Bytes32}
-	//arguments = append(arguments, Referkey)
-	//
-	//StakeAddress := abi.Argument{Name: "stakeAddress", Type: String}
-	//arguments = append(arguments, StakeAddress)
-	//
-	//GenesisBlockHash := abi.Argument{Name: "genesisBlockHash", Type: Bytes32}
-	//arguments = append(arguments, GenesisBlockHash)
-	//
-	//StartHeight := abi.Argument{Name: "startHeight", Type: UInt32}
-	//arguments = append(arguments, StartHeight)
-	//
-	//EndHeight := abi.Argument{Name: "endHeight", Type: UInt32}
-	//arguments = append(arguments, EndHeight)
-	//
-	//Votes := abi.Argument{Name: "votes", Type: Int64}
-	//arguments = append(arguments, Votes)
-	//
-	//VotesRight := abi.Argument{Name: "votesRight", Type: Int64}
-	//arguments = append(arguments, VotesRight)
-	//
-	//Owner := abi.Argument{Name: "targetOwner", Type: Bytes}
-	//arguments = append(arguments, Owner)
-	//
-	//m := abi.Method{Inputs: arguments}
-	//ret, err := m.Inputs.Pack(common.BytesToHash(nftPayload.ReferKey.Bytes()), nftPayload.StakeAddress, common.BytesToHash(nftPayload.GenesisBlockHash.Bytes()), nftPayload.StartHeight, nftPayload.EndHeight, nftPayload.Votes, nftPayload.VoteRights, nftPayload.TargetOwnerKey[:])
-	//if err != nil {
-	//	return ret, err
-	//}
-	//return ret, nil
+	//length := getData(input, 0, 32)
+	elaHash := getData(input, 32, 32)
+
+	nftPayload, payloadVersion, err := pledgeBill.GetCreateNFTPayload(common.BytesToHash(elaHash).String())
+	if err != nil {
+		log.Info("pledgeBillTokenDetail", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String())
+		return false32Byte, err
+	}
+
+	if payloadVersion == payload.CreateNFTVersion {
+		nftPayload.StartHeight = 0
+		nftPayload.EndHeight = 0
+		nftPayload.Votes = 0
+		nftPayload.VoteRights = 0
+		nftPayload.TargetOwnerKey = []byte{}
+	}
+	arguments := make([]abi.Argument, 0)
+	Bytes32, _ := abi.NewType("bytes32", "bytes32", nil)
+	UInt32, _ := abi.NewType("uint32", "uint32", nil)
+	Int64, _ := abi.NewType("int64", "int64", nil)
+	String, _ := abi.NewType("string", "string", nil)
+	Bytes, _ := abi.NewType("bytes", "bytes", nil)
+
+	Referkey := abi.Argument{Name: "referKey", Type: Bytes32}
+	arguments = append(arguments, Referkey)
+
+	StakeAddress := abi.Argument{Name: "stakeAddress", Type: String}
+	arguments = append(arguments, StakeAddress)
+
+	GenesisBlockHash := abi.Argument{Name: "genesisBlockHash", Type: Bytes32}
+	arguments = append(arguments, GenesisBlockHash)
+
+	StartHeight := abi.Argument{Name: "startHeight", Type: UInt32}
+	arguments = append(arguments, StartHeight)
+
+	EndHeight := abi.Argument{Name: "endHeight", Type: UInt32}
+	arguments = append(arguments, EndHeight)
+
+	Votes := abi.Argument{Name: "votes", Type: Int64}
+	arguments = append(arguments, Votes)
+
+	VotesRight := abi.Argument{Name: "votesRight", Type: Int64}
+	arguments = append(arguments, VotesRight)
+
+	Owner := abi.Argument{Name: "targetOwner", Type: Bytes}
+	arguments = append(arguments, Owner)
+
+	m := abi.Method{Inputs: arguments}
+	ret, err := m.Inputs.Pack(nftPayload.ReferKey, nftPayload.StakeAddress, nftPayload.GenesisBlockHash, nftPayload.StartHeight, nftPayload.EndHeight, nftPayload.Votes, nftPayload.VoteRights, nftPayload.TargetOwnerKey[:])
+	if err != nil {
+		log.Error("pledgeBillTokenDetail ailed ", "error ", err)
+		return ret, err
+	}
+	return ret, nil
+}
+
+type pledgeBillPayloadVersion struct{}
+
+func (p *pledgeBillPayloadVersion) RequiredGas(input []byte) uint64 {
+	return params.GetPledgeBillTokenID
+}
+
+func (p *pledgeBillPayloadVersion) Run(input []byte) ([]byte, error) {
+	elaHash := getData(input, 32, 32)
+	v, err := pledgeBill.GetBPosNftPayloadVersion(common.BytesToHash(elaHash).String())
+	version := big.NewInt(int64(v))
+	if err != nil {
+		log.Warn("GetBPosNftPayloadVerson failed", "error", err)
+	}
+	return common.LeftPadBytes(version.Bytes(), 32), err
 }
 
 var (
