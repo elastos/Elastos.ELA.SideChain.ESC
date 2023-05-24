@@ -1,6 +1,6 @@
 module github.com/elastos/Elastos.ELA.SideChain.ESC
 
-go 1.16
+go 1.20
 
 require (
 	github.com/Azure/azure-storage-blob-go v0.15.0
