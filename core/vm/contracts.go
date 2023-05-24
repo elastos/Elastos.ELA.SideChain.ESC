@@ -25,7 +25,6 @@ import (
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -37,9 +36,9 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 
+	"github.com/elastos/Elastos.ELA/blockchain"
 	"github.com/elastos/Elastos.ELA/core/contract"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
-	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -838,7 +837,7 @@ func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures [
 		Parameter: signatures,
 	}
 	data := append(elaHash, toAddress...)
-	err = elaCrypto.CheckMultiSigSignatures(pro, data)
+	err = blockchain.CheckMultiSigSignatures(pro, data)
 	if err != nil {
 		return err
 	}
@@ -880,59 +879,59 @@ func (p *pledgeBillTokenDetail) RequiredGas(input []byte) uint64 {
 }
 
 func (p *pledgeBillTokenDetail) Run(input []byte) ([]byte, error) {
-	//length := getData(input, 0, 32)
-	elaHash := getData(input, 32, 32)
-
-	nftPayload, payloadVersion, err := pledgeBill.GetCreateNFTPayload(common.BytesToHash(elaHash).String())
-	if err != nil {
-		log.Info("pledgeBillTokenDetail", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String())
-		return false32Byte, err
-	}
-
-	if payloadVersion == payload.CreateNFTVersion {
-		nftPayload.StartHeight = 0
-		nftPayload.EndHeight = 0
-		nftPayload.Votes = 0
-		nftPayload.VoteRights = 0
-		nftPayload.TargetOwnerKey = []byte{}
-	}
-	arguments := make([]abi.Argument, 0)
-	Bytes32, _ := abi.NewType("bytes32", "bytes32", nil)
-	UInt32, _ := abi.NewType("uint32", "uint32", nil)
-	Int64, _ := abi.NewType("int64", "int64", nil)
-	String, _ := abi.NewType("string", "string", nil)
-	Bytes, _ := abi.NewType("bytes", "bytes", nil)
-
-	Referkey := abi.Argument{Name: "referKey", Type: Bytes32}
-	arguments = append(arguments, Referkey)
-
-	StakeAddress := abi.Argument{Name: "stakeAddress", Type: String}
-	arguments = append(arguments, StakeAddress)
-
-	GenesisBlockHash := abi.Argument{Name: "genesisBlockHash", Type: Bytes32}
-	arguments = append(arguments, GenesisBlockHash)
-
-	StartHeight := abi.Argument{Name: "startHeight", Type: UInt32}
-	arguments = append(arguments, StartHeight)
-
-	EndHeight := abi.Argument{Name: "endHeight", Type: UInt32}
-	arguments = append(arguments, EndHeight)
-
-	Votes := abi.Argument{Name: "votes", Type: Int64}
-	arguments = append(arguments, Votes)
-
-	VotesRight := abi.Argument{Name: "votesRight", Type: Int64}
-	arguments = append(arguments, VotesRight)
-
-	Owner := abi.Argument{Name: "targetOwner", Type: Bytes}
-	arguments = append(arguments, Owner)
-
-	m := abi.Method{Inputs: arguments}
-	ret, err := m.Inputs.Pack(common.BytesToHash(nftPayload.ReferKey.Bytes()), nftPayload.StakeAddress, common.BytesToHash(nftPayload.GenesisBlockHash.Bytes()), nftPayload.StartHeight, nftPayload.EndHeight, nftPayload.Votes, nftPayload.VoteRights, nftPayload.TargetOwnerKey[:])
-	if err != nil {
-		return ret, err
-	}
-	return ret, nil
+	return false32Byte, errors.New("not open")
+	//elaHash := getData(input, 32, 32)
+	//
+	//nftPayload, payloadVersion, err := pledgeBill.GetCreateNFTPayload(common.BytesToHash(elaHash).String())
+	//if err != nil {
+	//	log.Info("pledgeBillTokenDetail", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String())
+	//	return false32Byte, err
+	//}
+	//
+	//if payloadVersion == payload.CreateNFTVersion {
+	//	nftPayload.StartHeight = 0
+	//	nftPayload.EndHeight = 0
+	//	nftPayload.Votes = 0
+	//	nftPayload.VoteRights = 0
+	//	nftPayload.TargetOwnerKey = []byte{}
+	//}
+	//arguments := make([]abi.Argument, 0)
+	//Bytes32, _ := abi.NewType("bytes32", "bytes32", nil)
+	//UInt32, _ := abi.NewType("uint32", "uint32", nil)
+	//Int64, _ := abi.NewType("int64", "int64", nil)
+	//String, _ := abi.NewType("string", "string", nil)
+	//Bytes, _ := abi.NewType("bytes", "bytes", nil)
+	//
+	//Referkey := abi.Argument{Name: "referKey", Type: Bytes32}
+	//arguments = append(arguments, Referkey)
+	//
+	//StakeAddress := abi.Argument{Name: "stakeAddress", Type: String}
+	//arguments = append(arguments, StakeAddress)
+	//
+	//GenesisBlockHash := abi.Argument{Name: "genesisBlockHash", Type: Bytes32}
+	//arguments = append(arguments, GenesisBlockHash)
+	//
+	//StartHeight := abi.Argument{Name: "startHeight", Type: UInt32}
+	//arguments = append(arguments, StartHeight)
+	//
+	//EndHeight := abi.Argument{Name: "endHeight", Type: UInt32}
+	//arguments = append(arguments, EndHeight)
+	//
+	//Votes := abi.Argument{Name: "votes", Type: Int64}
+	//arguments = append(arguments, Votes)
+	//
+	//VotesRight := abi.Argument{Name: "votesRight", Type: Int64}
+	//arguments = append(arguments, VotesRight)
+	//
+	//Owner := abi.Argument{Name: "targetOwner", Type: Bytes}
+	//arguments = append(arguments, Owner)
+	//
+	//m := abi.Method{Inputs: arguments}
+	//ret, err := m.Inputs.Pack(common.BytesToHash(nftPayload.ReferKey.Bytes()), nftPayload.StakeAddress, common.BytesToHash(nftPayload.GenesisBlockHash.Bytes()), nftPayload.StartHeight, nftPayload.EndHeight, nftPayload.Votes, nftPayload.VoteRights, nftPayload.TargetOwnerKey[:])
+	//if err != nil {
+	//	return ret, err
+	//}
+	//return ret, nil
 }
 
 var (

@@ -68,3 +68,7 @@ func VersionWithCommit(gitCommit, gitDate string) string {
 	}
 	return vsn
 }
+
+func VersionWithESC() string {
+	return fmt.Sprintf("%s", VersionMeta)
+}
