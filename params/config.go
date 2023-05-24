@@ -139,8 +139,9 @@ var (
 		ConstantinopleBlock: big.NewInt(2333460),
 		PetersburgBlock:     big.NewInt(2333460),
 		IstanbulBlock:       big.NewInt(2333460),
-		BerlinBlock:         big.NewInt(1802200),
-		LondonBlock:         big.NewInt(1802200),
+		BerlinBlock:         big.NewInt(18022200),
+		LondonBlock:         big.NewInt(18022200),
+
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
