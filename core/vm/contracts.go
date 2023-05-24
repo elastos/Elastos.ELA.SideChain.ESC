@@ -25,6 +25,7 @@ import (
 	"math/big"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts/abi"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/crypto"
@@ -36,9 +37,9 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 
-	"github.com/elastos/Elastos.ELA/blockchain"
 	"github.com/elastos/Elastos.ELA/core/contract"
 	"github.com/elastos/Elastos.ELA/core/contract/program"
+	"github.com/elastos/Elastos.ELA/core/types/payload"
 	elaCrypto "github.com/elastos/Elastos.ELA/crypto"
 	"golang.org/x/crypto/ripemd160"
 )
@@ -841,7 +842,7 @@ func checkMultiSignatures(m int, publickeys []*elaCrypto.PublicKey, signatures [
 		Parameter: signatures,
 	}
 	data := append(elaHash, toAddress...)
-	err = blockchain.CheckMultiSigSignatures(pro, data)
+	err = elaCrypto.CheckMultiSigSignatures(pro, data)
 	if err != nil {
 		return err
 	}
