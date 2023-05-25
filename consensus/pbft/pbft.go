@@ -472,6 +472,9 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	if !p.isRecoved {
 		return ErrWaitRecoverStatus
 	}
+	if header.Number.Uint64() <= p.dispatcher.GetFinishedHeight() {
+		return ErrAlreadyConfirmedBlock
+	}
 	if p.dispatcher.GetConsensusView().IsRunning() && p.enableViewLoop {
 		return ErrConsensusIsRunning
 	}
@@ -483,9 +486,6 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	}
 	if !p.IsOnduty() {
 		return ErrSignerNotOnduty
-	}
-	if header.Number.Uint64() <= p.dispatcher.GetFinishedHeight() {
-		return ErrAlreadyConfirmedBlock
 	}
 	return nil
 }
