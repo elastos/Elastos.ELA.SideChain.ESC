@@ -50,6 +50,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/withdrawfailedtx"
 
+	// Force-load the tracer engines to trigger registration
+	_ "github.com/elastos/Elastos.ELA.SideChain.ESC/eth/tracers/js"
+	_ "github.com/elastos/Elastos.ELA.SideChain.ESC/eth/tracers/native"
+
 	elacom "github.com/elastos/Elastos.ELA/common"
 	"github.com/elastos/Elastos.ELA/core/contract"
 
