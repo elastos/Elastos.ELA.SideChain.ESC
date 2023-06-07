@@ -139,12 +139,13 @@ func (d *Dispatcher) ProcessVote(vote *payload.DPOSProposalVote) (succeed bool, 
 }
 
 func (d *Dispatcher) processVote(vote *payload.DPOSProposalVote) (succeed bool, finished bool, err error) {
-	if d.processingProposal == nil {
+	proposal := d.GetProcessingProposal()
+	if proposal == nil {
 		err = errors.New("not proposal to process vote")
 		return false, false, err
 	}
 
-	if !vote.ProposalHash.IsEqual(d.processingProposal.Hash()) {
+	if !vote.ProposalHash.IsEqual(proposal.Hash()) {
 		err = errors.New("vote proposal is not processing proposal")
 		return false, false, err
 	}
@@ -171,10 +172,10 @@ func (d *Dispatcher) processVote(vote *payload.DPOSProposalVote) (succeed bool, 
 			Info("Collect majority signs. Proposal confirmed.")
 			confirm := d.createConfirm()
 			if confirm != nil {
-				d.onConfirm(confirm)
+				err = d.onConfirm(confirm)
 			}
-			Info("Block confirmed.")
-			return true, true, nil
+			Info("Block confirmed.", "error", err)
+			return true, true, err
 		}
 	} else {
 		d.rejectedVotes[vote.Hash()] = vote

@@ -1,4 +1,4 @@
-// Copyright 2017 The Elastos.ELA.SideChain.ESC Authors
+// Copyright 2021 The Elastos.ELA.SideChain.ESC Authors
 // This file is part of the Elastos.ELA.SideChain.ESC library.
 //
 // The Elastos.ELA.SideChain.ESC library is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the Elastos.ELA.SideChain.ESC library. If not, see <http://www.gnu.org/licenses/>.
 
-package vm
+package logger
 
 import (
 	"encoding/json"
@@ -24,64 +24,81 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/vm"
 )
 
 type JSONLogger struct {
 	encoder *json.Encoder
-	cfg     *LogConfig
+	cfg     *Config
+	env     *vm.EVM
 }
 
 // NewJSONLogger creates a new EVM tracer that prints execution steps as JSON objects
 // into the provided stream.
-func NewJSONLogger(cfg *LogConfig, writer io.Writer) *JSONLogger {
-	l := &JSONLogger{json.NewEncoder(writer), cfg}
+func NewJSONLogger(cfg *Config, writer io.Writer) *JSONLogger {
+	l := &JSONLogger{encoder: json.NewEncoder(writer), cfg: cfg}
 	if l.cfg == nil {
-		l.cfg = &LogConfig{}
+		l.cfg = &Config{}
 	}
 	return l
 }
 
-func (l *JSONLogger) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) error {
-	return nil
+func (l *JSONLogger) CaptureStart(env *vm.EVM, from, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+	l.env = env
+}
+
+func (l *JSONLogger) CaptureFault(pc uint64, op vm.OpCode, gas uint64, cost uint64, scope *vm.ScopeContext, depth int, err error) {
+	// TODO: Add rData to this interface as well
+	l.CaptureState(pc, op, gas, cost, scope, nil, depth, err)
 }
 
 // CaptureState outputs state information on the logger.
-func (l *JSONLogger) CaptureState(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, contract *Contract, depth int, err error) error {
+func (l *JSONLogger) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
+	memory := scope.Memory
+	stack := scope.Stack
+
 	log := StructLog{
 		Pc:            pc,
 		Op:            op,
 		Gas:           gas,
 		GasCost:       cost,
 		MemorySize:    memory.Len(),
-		Storage:       nil,
 		Depth:         depth,
-		RefundCounter: env.StateDB.GetRefund(),
+		RefundCounter: l.env.StateDB.GetRefund(),
 		Err:           err,
 	}
-	if !l.cfg.DisableMemory {
+	if l.cfg.EnableMemory {
 		log.Memory = memory.Data()
 	}
 	if !l.cfg.DisableStack {
 		log.Stack = stack.Data()
 	}
-	return l.encoder.Encode(log)
-}
-
-// CaptureFault outputs state information on the logger.
-func (l *JSONLogger) CaptureFault(env *EVM, pc uint64, op OpCode, gas, cost uint64, memory *Memory, stack *Stack, contract *Contract, depth int, err error) error {
-	return nil
+	if l.cfg.EnableReturnData {
+		log.ReturnData = rData
+	}
+	l.encoder.Encode(log)
 }
 
 // CaptureEnd is triggered at end of execution.
-func (l *JSONLogger) CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error) error {
+func (l *JSONLogger) CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error) {
 	type endLog struct {
 		Output  string              `json:"output"`
 		GasUsed math.HexOrDecimal64 `json:"gasUsed"`
 		Time    time.Duration       `json:"time"`
 		Err     string              `json:"error,omitempty"`
 	}
+	var errMsg string
 	if err != nil {
-		return l.encoder.Encode(endLog{common.Bytes2Hex(output), math.HexOrDecimal64(gasUsed), t, err.Error()})
+		errMsg = err.Error()
 	}
-	return l.encoder.Encode(endLog{common.Bytes2Hex(output), math.HexOrDecimal64(gasUsed), t, ""})
+	l.encoder.Encode(endLog{common.Bytes2Hex(output), math.HexOrDecimal64(gasUsed), t, errMsg})
 }
+
+func (l *JSONLogger) CaptureEnter(typ vm.OpCode, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
+}
+
+func (l *JSONLogger) CaptureExit(output []byte, gasUsed uint64, err error) {}
+
+func (l *JSONLogger) CaptureTxStart(gasLimit uint64) {}
+
+func (l *JSONLogger) CaptureTxEnd(restGas uint64) {}

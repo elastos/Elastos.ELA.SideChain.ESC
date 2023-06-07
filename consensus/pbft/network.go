@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
@@ -33,18 +34,18 @@ import (
 
 const maxViewOffset = 100
 
-func (p *Pbft) StartProposal(block *types.Block) error {
+func (p *Pbft) StartProposal(block *types.Block) (*payload.DPOSProposal, error) {
 	sealHash := p.SealHash(block.Header())
 	log.Info("StartProposal", "block hash:", sealHash.String())
 
 	hash, err := elacom.Uint256FromBytes(sealHash.Bytes())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	proposal, err := dpos.StartProposal(p.account, *hash, p.dispatcher.GetConsensusView().GetViewOffset())
 	if err != nil {
 		log.Error("Start proposal error", "err", err)
-		return err
+		return nil, err
 	}
 
 	var id peer.PID
@@ -58,13 +59,8 @@ func (p *Pbft) StartProposal(block *types.Block) error {
 	}
 	log.Info("[StartProposal] send proposal message", "proposal", msg.GetMessageHash(m))
 	p.BroadMessage(m)
-	// Broadcast vote
-	voteMsg := p.dispatcher.AcceptProposal(proposal, p.account)
-	if voteMsg != nil {
-		go p.OnVoteAccepted(id, &voteMsg.Vote)
-		p.BroadMessage(voteMsg)
-	}
-	return nil
+
+	return proposal, nil
 }
 
 func (p *Pbft) BroadMessage(msg elap2p.Message) {
@@ -471,14 +467,18 @@ func (p *Pbft) OnVoteAccepted(id peer.PID, vote *payload.DPOSProposalVote) {
 		return
 	}
 	if vote.Accept == true {
-		log.Info("OnVoteAccepted:", "hash:", vote.Hash().String())
+		dpos.Info("OnVoteAccepted:", "hash:", vote.Hash().String())
 	}
 	if p.dispatcher.GetFinishedProposal().IsEqual(vote.ProposalHash) {
-		log.Info("all ready finished proposal, no need vote")
+		dpos.Info("all ready finished proposal, no need vote")
 		return
 	}
 	if _, ok := p.blockPool.GetConfirm(vote.ProposalHash); ok {
-		log.Info("all ready confim proposal, no need vote")
+		dpos.Info("all ready confim proposal, no need vote")
+		return
+	}
+	if atomic.LoadInt32(&p.isSealing) == 0 && p.IsOnDuty() {
+		dpos.Info("is not wait sealing, no need vote")
 		return
 	}
 	currentProposal, ok := p.tryGetCurrentProposal(id, vote)
@@ -671,7 +671,7 @@ func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
 	}
 
 	delay := time.Unix(int64(block.Time()), 0).Sub(p.dispatcher.GetNowTime())
-	log.Info("wait seal time", "delay", delay)
+	log.Info("[OnBlockReceived] wait seal time", "delay", delay)
 	time.Sleep(delay)
 
 	parent := p.chain.GetBlock(block.ParentHash(), block.NumberU64()-1)

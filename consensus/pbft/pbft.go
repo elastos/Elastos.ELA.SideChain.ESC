@@ -9,13 +9,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
 	"io"
 	"math/big"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/chainbridge-core/crypto"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
@@ -123,6 +124,7 @@ type Pbft struct {
 	period         uint64
 	isSealOver     bool
 	isRecovering   bool
+	isSealing      int32
 }
 
 func New(chainConfig *params.ChainConfig, dataDir string) *Pbft {
@@ -470,6 +472,9 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	if !p.isRecoved {
 		return ErrWaitRecoverStatus
 	}
+	if header.Number.Uint64() <= p.dispatcher.GetFinishedHeight() {
+		return ErrAlreadyConfirmedBlock
+	}
 	if p.dispatcher.GetConsensusView().IsRunning() && p.enableViewLoop {
 		return ErrConsensusIsRunning
 	}
@@ -481,9 +486,6 @@ func (p *Pbft) Prepare(chain consensus.ChainReader, header *types.Header) error 
 	}
 	if !p.IsOnduty() {
 		return ErrSignerNotOnduty
-	}
-	if header.Number.Uint64() <= p.dispatcher.GetFinishedHeight() {
-		return ErrAlreadyConfirmedBlock
 	}
 	return nil
 }
@@ -536,10 +538,22 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	}
 	p.BroadBlockMsg(block)
 
-	if err := p.StartProposal(block); err != nil {
+	proposal, err := p.StartProposal(block)
+	if err != nil {
 		return err
 	}
 	p.isSealOver = false
+	atomic.StoreInt32(&p.isSealing, 1)
+	// Broadcast vote
+	voteMsg := p.dispatcher.AcceptProposal(proposal, p.account)
+	if voteMsg != nil {
+		var id peer.PID
+		copy(id[:], p.account.PublicKeyBytes()[:])
+		go p.OnVoteAccepted(id, &voteMsg.Vote)
+		p.BroadMessage(voteMsg)
+	}
+
+	defer func() { atomic.StoreInt32(&p.isSealing, 0) }()
 	header := block.Header()
 	//Waiting for statistics of voting results
 	delay := time.Unix(int64(header.Time), 0).Sub(p.dispatcher.GetNowTime())
@@ -550,19 +564,23 @@ func (p *Pbft) Seal(chain consensus.ChainReader, block *types.Block, results cha
 	log.Info("changeViewLeftTime", "toleranceDelay", toleranceDelay)
 	select {
 	case confirm := <-p.confirmCh:
+		atomic.StoreInt32(&p.isSealing, 0)
 		log.Info("Received confirmCh", "proposal", confirm.Proposal.Hash().String(), "block:", block.NumberU64())
 		p.addConfirmToBlock(header, confirm)
 		p.isSealOver = true
 		break
 	case <-p.unConfirmCh:
+		atomic.StoreInt32(&p.isSealing, 0)
 		log.Warn("proposal is rejected")
 		p.isSealOver = true
 		return nil
 	case <-time.After(toleranceDelay):
+		atomic.StoreInt32(&p.isSealing, 0)
 		log.Warn("seal time out stop mine")
 		p.isSealOver = true
 		return nil
 	case <-stop:
+		atomic.StoreInt32(&p.isSealing, 0)
 		log.Warn("pbft seal is stop")
 		p.isSealOver = true
 		return nil
@@ -597,18 +615,26 @@ func (p *Pbft) addConfirmToBlock(header *types.Header, confirm *payload.Confirm)
 
 func (p *Pbft) onConfirm(confirm *payload.Confirm) error {
 	log.Info("--------[onConfirm]------", "proposal:", confirm.Proposal.Hash())
-	if p.isSealOver && p.IsOnduty() {
-		log.Warn("seal block is over, can't confirm")
-		return errors.New("seal block is over, can't confirm")
-	}
 	err := p.blockPool.AppendConfirm(confirm)
 	if err != nil {
 		log.Error("Received confirm", "proposal", confirm.Proposal.Hash().String(), "err:", err)
 		return err
 	}
-	if p.IsOnduty() {
+	duty := p.IsOnDuty()
+	if p.isSealOver && duty {
+		return errors.New("seal block is over, can't confirm")
+	}
+	if duty {
 		log.Info("on duty, set confirm block")
-		p.confirmCh <- confirm
+		curProposal := p.dispatcher.GetProcessingProposal()
+		if curProposal == nil || !curProposal.BlockHash.IsEqual(confirm.Proposal.BlockHash) {
+			return errors.New("is not confirm current proposal")
+		}
+		if atomic.LoadInt32(&p.isSealing) == 1 {
+			p.confirmCh <- confirm
+		} else {
+			dpos.Info("on duty, now is not sealing")
+		}
 	} else {
 		log.Info("not on duty, not broad confirm block")
 	}
@@ -622,7 +648,9 @@ func (p *Pbft) onUnConfirm(unconfirm *payload.Confirm) error {
 		return errors.New("seal block is over, can't unconfirm")
 	}
 	if p.IsOnduty() {
-		p.unConfirmCh <- unconfirm
+		if atomic.LoadInt32(&p.isSealing) == 1 {
+			p.unConfirmCh <- unconfirm
+		}
 	}
 	return nil
 }

@@ -187,7 +187,7 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 			chainConfig.Pbft.DPoSV2StartHeight = config.DPoSV2StartHeight
 		}
 		msg2.SetPayloadVersion(msg2.DPoSV2Version)
-		chainConfig.Pbft.NodeVersion = node.Config().Version
+		chainConfig.Pbft.NodeVersion = params.VersionWithESC()
 	}
 
 	if len(chainConfig.PbftKeyStore) > 0 {
@@ -262,8 +262,6 @@ func New(ctx *node.ServiceContext, config *Config, node *node.Node) (*Ethereum, 
 	var (
 		vmConfig = vm.Config{
 			EnablePreimageRecording: config.EnablePreimageRecording,
-			EWASMInterpreter:        config.EWASMInterpreter,
-			EVMInterpreter:          config.EVMInterpreter,
 		}
 		cacheConfig = &core.CacheConfig{
 			TrieCleanLimit:      config.TrieCleanCache,

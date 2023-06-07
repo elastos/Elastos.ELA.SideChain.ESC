@@ -36,6 +36,8 @@ import (
 type mockCaller struct {
 	codeAtBlockNumber       *big.Int
 	callContractBlockNumber *big.Int
+
+	codeAtBytes []byte
 }
 
 func (mc *mockCaller) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error) {
@@ -47,9 +49,35 @@ func (mc *mockCaller) CallContract(ctx context.Context, call ethereum.CallMsg, b
 	mc.callContractBlockNumber = blockNumber
 	return nil, nil
 }
+
+type mockPendingCaller struct {
+	*mockCaller
+	pendingCodeAtBytes        []byte
+	pendingCodeAtErr          error
+	pendingCodeAtCalled       bool
+	pendingCallContractCalled bool
+	pendingCallContractBytes  []byte
+	pendingCallContractErr    error
+}
+
+func (mc *mockPendingCaller) PendingCodeAt(ctx context.Context, contract common.Address) ([]byte, error) {
+	mc.pendingCodeAtCalled = true
+	return mc.pendingCodeAtBytes, mc.pendingCodeAtErr
+}
+
+func (mc *mockPendingCaller) PendingCallContract(ctx context.Context, call ethereum.CallMsg) ([]byte, error) {
+	mc.pendingCallContractCalled = true
+	return mc.pendingCallContractBytes, mc.pendingCallContractErr
+}
+
 func TestPassingBlockNumber(t *testing.T) {
 
-	mc := &mockCaller{}
+	//mc := &mockCaller{}
+	mc := &mockPendingCaller{
+		mockCaller: &mockCaller{
+			codeAtBytes: []byte{1, 2, 3},
+		},
+	}
 
 	bc := bind.NewBoundContract(common.HexToAddress("0x0"), abi.ABI{
 		Methods: map[string]abi.Method{
@@ -59,11 +87,10 @@ func TestPassingBlockNumber(t *testing.T) {
 			},
 		},
 	}, mc, nil, nil)
-	var ret string
 
 	blockNumber := big.NewInt(42)
 
-	bc.Call(&bind.CallOpts{BlockNumber: blockNumber}, &ret, "something")
+	bc.Call(&bind.CallOpts{BlockNumber: blockNumber}, nil, "something")
 
 	if mc.callContractBlockNumber != blockNumber {
 		t.Fatalf("CallContract() was not passed the block number")
@@ -73,7 +100,7 @@ func TestPassingBlockNumber(t *testing.T) {
 		t.Fatalf("CodeAt() was not passed the block number")
 	}
 
-	bc.Call(&bind.CallOpts{}, &ret, "something")
+	bc.Call(&bind.CallOpts{}, nil, "something")
 
 	if mc.callContractBlockNumber != nil {
 		t.Fatalf("CallContract() was passed a block number when it should not have been")
@@ -82,6 +109,16 @@ func TestPassingBlockNumber(t *testing.T) {
 	if mc.codeAtBlockNumber != nil {
 		t.Fatalf("CodeAt() was passed a block number when it should not have been")
 	}
+	bc.Call(&bind.CallOpts{BlockNumber: blockNumber, Pending: true}, nil, "something")
+
+	if !mc.pendingCallContractCalled {
+		t.Fatalf("CallContract() was not passed the block number")
+	}
+
+	if !mc.pendingCodeAtCalled {
+		t.Fatalf("CodeAt() was not passed the block number")
+	}
+
 }
 
 const hexData = "0x000000000000000000000000376c47978271565f56deb45495afa69e59c16ab200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000158"
@@ -91,7 +128,7 @@ func TestUnpackIndexedStringTyLogIntoMap(t *testing.T) {
 	mockLog := types.Log{
 		Address: common.HexToAddress("0x0"),
 		Topics: []common.Hash{
-			common.HexToHash("0x0"),
+			crypto.Keccak256Hash([]byte("received(string,address,uint256,bytes)")),
 			hash,
 		},
 		Data:        hexutil.MustDecode(hexData),
@@ -144,7 +181,7 @@ func TestUnpackIndexedSliceTyLogIntoMap(t *testing.T) {
 	mockLog := types.Log{
 		Address: common.HexToAddress("0x0"),
 		Topics: []common.Hash{
-			common.HexToHash("0x0"),
+			crypto.Keccak256Hash([]byte("received(string[],address,uint256,bytes)")),
 			hash,
 		},
 		Data:        hexutil.MustDecode(hexData),
@@ -197,7 +234,7 @@ func TestUnpackIndexedArrayTyLogIntoMap(t *testing.T) {
 	mockLog := types.Log{
 		Address: common.HexToAddress("0x0"),
 		Topics: []common.Hash{
-			common.HexToHash("0x0"),
+			crypto.Keccak256Hash([]byte("received(address[2],address,uint256,bytes)")),
 			hash,
 		},
 		Data:        hexutil.MustDecode(hexData),
@@ -252,7 +289,7 @@ func TestUnpackIndexedFuncTyLogIntoMap(t *testing.T) {
 	mockLog := types.Log{
 		Address: common.HexToAddress("0x0"),
 		Topics: []common.Hash{
-			common.HexToHash("0x99b5620489b6ef926d4518936cfec15d305452712b88bd59da2d9c10fb0953e8"),
+			crypto.Keccak256Hash([]byte("received(function,address,uint256,bytes)")),
 			common.BytesToHash(functionTyBytes),
 		},
 		Data:        hexutil.MustDecode(hexData),
@@ -302,7 +339,7 @@ func TestUnpackIndexedBytesTyLogIntoMap(t *testing.T) {
 	mockLog := types.Log{
 		Address: common.HexToAddress("0x0"),
 		Topics: []common.Hash{
-			common.HexToHash("0x99b5620489b6ef926d4518936cfec15d305452712b88bd59da2d9c10fb0953e8"),
+			crypto.Keccak256Hash([]byte("received(bytes,address,uint256,bytes)")),
 			hash,
 		},
 		Data:        hexutil.MustDecode(hexData),
