@@ -33,14 +33,14 @@ type journalEntry interface {
 }
 
 // journal contains the list of state modifications applied since the last state
-// commit. These are tracked to be able to be reverted in case of an execution
-// exception or revertal request.
+// commit. These are tracked to be able to be reverted in the case of an execution
+// exception or request for reversal.
 type journal struct {
 	entries []journalEntry         // Current changes tracked by the journal
 	dirties map[common.Address]int // Dirty accounts and the number of changes
 }
 
-// newJournal create a new initialized journal.
+// newJournal creates a new initialized journal.
 func newJournal() *journal {
 	return &journal{
 		dirties: make(map[common.Address]int),
@@ -90,7 +90,8 @@ type (
 		account *common.Address
 	}
 	resetObjectChange struct {
-		prev *stateObject
+		prev         *stateObject
+		prevdestruct bool
 	}
 	suicideChange struct {
 		account     *common.Address
@@ -127,9 +128,7 @@ type (
 		hash common.Hash
 	}
 	touchChange struct {
-		account   *common.Address
-		prev      bool
-		prevDirty bool
+		account *common.Address
 	}
 	// Changes to the access list
 	accessListAddAccountChange struct {
@@ -138,6 +137,11 @@ type (
 	accessListAddSlotChange struct {
 		address *common.Address
 		slot    *common.Hash
+	}
+
+	transientStorageChange struct {
+		account       *common.Address
+		key, prevalue common.Hash
 	}
 )
 
@@ -152,6 +156,9 @@ func (ch createObjectChange) dirtied() *common.Address {
 
 func (ch resetObjectChange) revert(s *StateDB) {
 	s.setStateObject(ch.prev)
+	if !ch.prevdestruct {
+		delete(s.stateObjectsDestruct, ch.prev.address)
+	}
 }
 
 func (ch resetObjectChange) dirtied() *common.Address {
@@ -209,6 +216,14 @@ func (ch storageChange) revert(s *StateDB) {
 
 func (ch storageChange) dirtied() *common.Address {
 	return ch.account
+}
+
+func (ch transientStorageChange) revert(s *StateDB) {
+	s.setTransientState(*ch.account, ch.key, ch.prevalue)
+}
+
+func (ch transientStorageChange) dirtied() *common.Address {
+	return nil
 }
 
 func (ch refundChange) revert(s *StateDB) {

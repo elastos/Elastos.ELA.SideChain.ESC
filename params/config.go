@@ -347,7 +347,7 @@ var (
 	AllCliqueProtocolChanges = &ChainConfig{OldChainID: big.NewInt(1337), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
 
 	TestChainConfig = &ChainConfig{OldChainID: big.NewInt(1), ChainID: big.NewInt(20), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ChainIDBlock: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), EWASMBlock: nil, PBFTBlock: big.NewInt(0), Ethash: new(EthashConfig), Clique: nil, Pbft: nil, BlackContractAddr: "", PassBalance: 0, EvilSignersJournalDir: "", PreConnectOffset: 0, PbftKeyStore: "", PbftKeyStorePassWord: ""}
-	TestRules       = TestChainConfig.Rules(new(big.Int), false)
+	TestRules       = TestChainConfig.Rules(new(big.Int), false, 0)
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -426,8 +426,12 @@ type ChainConfig struct {
 	ArrowGlacierBlock   *big.Int `json:"arrowGlacierBlock,omitempty"`   // Eip-4345 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	GrayGlacierBlock    *big.Int `json:"grayGlacierBlock,omitempty"`    // Eip-5133 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	MergeNetsplitBlock  *big.Int `json:"mergeNetsplitBlock,omitempty"`  // Virtual fork after The Merge to use as a network splitter
-	ShanghaiBlock       *big.Int `json:"shanghaiBlock,omitempty"`       // Shanghai switch block (nil = no fork, 0 = already on shanghai)
-	CancunBlock         *big.Int `json:"cancunBlock,omitempty"`         // Cancun switch block (nil = no fork, 0 = already on cancun)
+
+	// Fork scheduling was switched from blocks to timestamps here
+
+	ShanghaiTime *uint64 `json:"shanghaiTime,omitempty"` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
+	CancunTime   *uint64 `json:"cancunTime,omitempty"`   // Cancun switch time (nil = no fork, 0 = already on cancun)
+	PragueTime   *uint64 `json:"pragueTime,omitempty"`   // Prague switch time (nil = no fork, 0 = already on prague)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
@@ -604,14 +608,19 @@ func (c *ChainConfig) IsTerminalPoWBlock(parentTotalDiff *big.Int, totalDiff *bi
 	return parentTotalDiff.Cmp(c.TerminalTotalDifficulty) < 0 && totalDiff.Cmp(c.TerminalTotalDifficulty) >= 0
 }
 
-// IsShanghai returns whether num is either equal to the Shanghai fork block or greater.
-func (c *ChainConfig) IsShanghai(num *big.Int) bool {
-	return isForked(c.ShanghaiBlock, num)
+// IsShanghai returns whether time is either equal to the Shanghai fork time or greater.
+func (c *ChainConfig) IsShanghai(time uint64) bool {
+	return isTimestampForked(c.ShanghaiTime, time)
 }
 
-// IsCancun returns whether num is either equal to the Cancun fork block or greater.
-func (c *ChainConfig) IsCancun(num *big.Int) bool {
-	return isForked(c.CancunBlock, num)
+// IsCancun returns whether num is either equal to the Cancun fork time or greater.
+func (c *ChainConfig) IsCancun(time uint64) bool {
+	return isTimestampForked(c.CancunTime, time)
+}
+
+// IsPrague returns whether num is either equal to the Prague fork time or greater.
+func (c *ChainConfig) IsPrague(time uint64) bool {
+	return isTimestampForked(c.PragueTime, time)
 }
 
 // IsChainIDFork returns whether num represents a block number after the ChainID fork
@@ -766,6 +775,32 @@ func configNumEqual(x, y *big.Int) bool {
 	return x.Cmp(y) == 0
 }
 
+// isForkTimestampIncompatible returns true if a fork scheduled at timestamp s1
+// cannot be rescheduled to timestamp s2 because head is already past the fork.
+func isForkTimestampIncompatible(s1, s2 *uint64, head uint64) bool {
+	return (isTimestampForked(s1, head) || isTimestampForked(s2, head)) && !configTimestampEqual(s1, s2)
+}
+
+// isTimestampForked returns whether a fork scheduled at timestamp s is active
+// at the given head timestamp. Whilst this method is the same as isBlockForked,
+// they are explicitly separate for clearer reading.
+func isTimestampForked(s *uint64, head uint64) bool {
+	if s == nil {
+		return false
+	}
+	return *s <= head
+}
+
+func configTimestampEqual(x, y *uint64) bool {
+	if x == nil {
+		return y == nil
+	}
+	if y == nil {
+		return x == nil
+	}
+	return *x == *y
+}
+
 // ConfigCompatError is raised if the locally-stored blockchain is initialised with a
 // ChainConfig that would alter the past.
 type ConfigCompatError struct {
@@ -808,11 +843,11 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158                              bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul, IsChainIDFork bool
 	IsBerlin, IsLondon                                                     bool
-	IsMerge, IsShanghai, isCancun                                          bool
+	IsMerge, IsShanghai, IsCancun, IsPrague                                bool
 }
 
 // Rules ensures c's ChainID is not nil.
-func (c *ChainConfig) Rules(num *big.Int, isMerge bool) Rules {
+func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules {
 	chainID := c.ChainID
 	if chainID == nil {
 		chainID = new(big.Int)
@@ -836,7 +871,8 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool) Rules {
 		IsBerlin:         c.IsBerlin(num),
 		IsLondon:         c.IsLondon(num),
 		IsMerge:          isMerge,
-		IsShanghai:       c.IsShanghai(num),
-		isCancun:         c.IsCancun(num),
+		IsShanghai:       c.IsShanghai(timestamp),
+		IsCancun:         c.IsCancun(timestamp),
+		IsPrague:         c.IsPrague(timestamp),
 	}
 }

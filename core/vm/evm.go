@@ -136,7 +136,7 @@ func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmCon
 		StateDB:     statedb,
 		Config:      vmConfig,
 		chainConfig: chainConfig,
-		chainRules:  chainConfig.Rules(ctx.BlockNumber, ctx.Random != nil),
+		chainRules:  chainConfig.Rules(ctx.BlockNumber, ctx.Random != nil, ctx.Time.Uint64()),
 	}
 	evm.interpreter = NewEVMInterpreter(evm, vmConfig)
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
