@@ -24,7 +24,7 @@ module.exports = async function (json_data, res) {
                 console.log("log", log)
                 let tkID = log["returnValues"]["tokenId"];
                 result.push({
-                    "tokenID": BigInt(tkID).toString(16),
+                    "tokenID": tkID,
                     "saddress": log["returnValues"]["elaAddress"]
                 });
             }
