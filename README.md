@@ -319,6 +319,105 @@ proceedings to the account specified by `--etherbase`. You can further tune the 
 by changing the default gas limit blocks converge to (`--targetgaslimit`) and the price
 transactions are accepted at (`--gasprice`).
 
+
+## Upgrade EVM to london version
+This section highlights the main breaking changes introduced in Solidity
+version 0.8.19.
+For the full list check [the release changelog](https://github.com/ethereum/solidity/releases/tag/v0.8.19)
+
+### Silent Changes of the Semantics
+
+This section lists changes where existing code changes its behaviour without
+the compiler notifying you about it.
+
+* Arithmetic operations revert on underflow and overflow. You can use ``unchecked { ... }`` to use
+  the previous wrapping behaviour.
+
+  Checks for overflow are very common, so we made them the default to increase readability of code,
+  even if it comes at a slight increase of gas costs.
+
+* ABI coder v2 is activated by default.
+
+  You can choose to use the old behaviour using ``pragma abicoder v1;``.
+  The pragma ``pragma experimental ABIEncoderV2;`` is still valid, but it is deprecated and has no effect.
+  If you want to be explicit, please use ``pragma abicoder v2;`` instead.
+
+  Note that ABI coder v2 supports more types than v1 and performs more sanity checks on the inputs.
+  ABI coder v2 makes some function calls more expensive and it can also make contract calls
+  revert that did not revert with ABI coder v1 when they contain data that does not conform to the
+  parameter types.
+
+* Exponentiation is right associative, i.e., the expression ``a**b**c`` is parsed as ``a**(b**c)``.
+  Before 0.8.0, it was parsed as ``(a**b)**c``.
+
+  This is the common way to parse the exponentiation operator.
+
+* Failing assertions and other internal checks like division by zero or arithmetic overflow do
+  not use the invalid opcode but instead the revert opcode.
+  More specifically, they will use error data equal to a function call to ``Panic(uint256)`` with an error code specific
+  to the circumstances.
+
+  This will save gas on errors while it still allows static analysis tools to distinguish
+  these situations from a revert on invalid input, like a failing ``require``.
+
+* If a byte array in storage is accessed whose length is encoded incorrectly, a panic is caused.
+  A contract cannot get into this situation unless inline assembly is used to modify the raw representation of storage byte arrays.
+
+* If constants are used in array length expressions, previous versions of Solidity would use arbitrary precision
+  in all branches of the evaluation tree. Now, if constant variables are used as intermediate expressions,
+  their values will be properly rounded in the same way as when they are used in run-time expressions.
+
+* The type ``byte`` has been removed. It was an alias of ``bytes1``.
+
+
+### Examples of New Restrictions
+This section lists changes that might cause existing contracts to not compile anymore.
+* There are new restrictions related to explicit conversions of literals. The previous behaviour in
+  the following cases was likely ambiguous:
+
+  1. Explicit conversions from negative literals and literals larger than ``type(uint160).max`` to
+     ``address`` are disallowed.
+  2. Explicit conversions between literals and an integer type ``T`` are only allowed if the literal
+     lies between ``type(T).min`` and ``type(T).max``. In particular, replace usages of ``uint(-1)``
+     with ``type(uint).max``.
+  3. Explicit conversions between literals and enums are only allowed if the literal can
+     represent a value in the enum.
+  4. Explicit conversions between literals and ``address`` type (e.g. ``address(literal)``) have the
+     type ``address`` instead of ``address payable``. One can get a payable address type by using an
+     explicit conversion, i.e., ``payable(literal)``.
+
+* There are new restrictions on explicit type conversions. The conversion is only allowed when there
+  is at most one change in sign, width or type-category (``int``, ``address``, ``bytesNN``, etc.).
+  To perform multiple changes, use multiple conversions.
+
+* The ``chainid`` builtin in inline assembly is now considered ``view`` instead of ``pure``.
+
+* Unary negation cannot be used on unsigned integers anymore, only on signed integers.
+
+
+### Interface Changes
+* The output of ``--combined-json`` has changed: JSON fields ``abi``, ``devdoc``, ``userdoc`` and
+  ``storage-layout`` are sub-objects now. Before 0.8.0 they used to be serialised as strings.
+
+* The "legacy AST" has been removed (``--ast-json`` on the commandline interface and ``legacyAST`` for standard JSON).
+  Use the "compact AST" (``--ast-compact--json`` resp. ``AST``) as replacement.
+
+* The old error reporter (``--old-reporter``) has been removed.
+
+### How to update your code
+- If you rely on wrapping arithmetic, surround each operation with ``unchecked { ... }``.
+- Optional: If you use SafeMath or a similar library, change ``x.add(y)`` to ``x + y``, ``x.mul(y)`` to ``x * y`` etc.
+- Add ``pragma abicoder v1;`` if you want to stay with the old ABI coder.
+- Optionally remove ``pragma experimental ABIEncoderV2`` or ``pragma abicoder v2`` since it is redundant.
+- Change ``byte`` to ``bytes1``.
+- Add intermediate explicit type conversions if required.
+- Combine ``c.f{gas: 10000}{value: 1}()`` to ``c.f{gas: 10000, value: 1}()``.
+- Change ``msg.sender.transfer(x)`` to ``payable(msg.sender).transfer(x)`` or use a stored variable of ``address payable`` type.
+- Change ``x**y**z`` to ``(x**y)**z``.
+- Use inline assembly as a replacement for ``log0``, ..., ``log4``.
+- Negate unsigned integers by subtracting them from the maximum value of the type and adding 1 (e.g. ``type(uint256).max - x + 1``, while ensuring that `x` is not zero)
+
+
 ## Contribution
 
 Thank you for considering to help out with the source code! We welcome contributions
