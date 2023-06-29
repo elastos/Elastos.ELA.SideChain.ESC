@@ -23,8 +23,13 @@ module.exports = async function (json_data, res) {
                 }
                 console.log("log", log)
                 let tkID = log["returnValues"]["tokenId"];
+                let tkIDHex = BigInt(tkID).toString(16);
+                let idSize = tkIDHex.length;
+                for (let i = 0; i < 64 - idSize; i++) {
+                    tkIDHex = "0" + tkIDHex;
+                }
                 result.push({
-                    "tokenID": tkID,
+                    "tokenID": tkIDHex,
                     "saddress": log["returnValues"]["elaAddress"]
                 });
             }
