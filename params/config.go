@@ -34,6 +34,8 @@ var (
 	GoerliGenesisHash  = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 )
 
+func newUint64(val uint64) *uint64 { return &val }
+
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
 // the chain it belongs to.
 var TrustedCheckpoints = map[common.Hash]*TrustedCheckpoint{
@@ -71,6 +73,7 @@ var (
 		IstanbulBlock:       big.NewInt(2426880),
 		BerlinBlock:         big.NewInt(19166000),
 		LondonBlock:         big.NewInt(19166000),
+		ShanghaiTime:        newUint64(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -141,6 +144,7 @@ var (
 		IstanbulBlock:       big.NewInt(2333460),
 		BerlinBlock:         big.NewInt(18022200),
 		LondonBlock:         big.NewInt(18022200),
+		ShanghaiTime:        newUint64(math.MaxInt64),
 
 		Clique: &CliqueConfig{
 			Period: 15,
@@ -212,6 +216,7 @@ var (
 		ChainIDBlock:        big.NewInt(2337660),
 		BerlinBlock:         big.NewInt(math.MaxInt64),
 		LondonBlock:         big.NewInt(math.MaxInt64),
+		ShanghaiTime:        newUint64(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
