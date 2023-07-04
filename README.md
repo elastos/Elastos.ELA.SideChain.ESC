@@ -319,13 +319,9 @@ proceedings to the account specified by `--etherbase`. You can further tune the 
 by changing the default gas limit blocks converge to (`--targetgaslimit`) and the price
 transactions are accepted at (`--gasprice`).
 
-
-## Upgrade EVM to support Solidity 0.8.19
-This section highlights the main breaking changes introduced in Solidity
-version 0.8.19.
+## Upgrade EVM version to London
+This section highlights the main breaking changes introduced in Solidity version 0.8.19.
 For the full list check [the release changelog](https://github.com/ethereum/solidity/releases/tag/v0.8.19)
-
-
 
 ## Contribution
 

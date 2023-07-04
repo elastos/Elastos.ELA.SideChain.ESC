@@ -25,7 +25,7 @@ const (
 	VersionMinor = 9 // Minor version component of the current release
 	VersionPatch = 7 // Patch version component of the current release
 	VersionCross = 0 // Cross version component of the current release
-	VersionEVM   = "v1.10.26"
+	VersionEVM   = "v1.12.0"
 	VersionMeta  = "v0.2.4" // Version metadata to append to the version string
 )
 
