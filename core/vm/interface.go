@@ -21,6 +21,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 )
 
 // StateDB is an EVM database for full state querying.
@@ -47,6 +48,9 @@ type StateDB interface {
 	GetState(common.Address, common.Hash) common.Hash
 	SetState(common.Address, common.Hash, common.Hash)
 
+	GetTransientState(addr common.Address, key common.Hash) common.Hash
+	SetTransientState(addr common.Address, key, value common.Hash)
+
 	Suicide(common.Address) bool
 	HasSuicided(common.Address) bool
 
@@ -57,7 +61,7 @@ type StateDB interface {
 	// is defined according to EIP161 (balance = nonce = code = 0).
 	Empty(common.Address) bool
 
-	PrepareAccessList(sender common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList)
+	PrepareAccessList(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList)
 	AddressInAccessList(addr common.Address) bool
 	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
 	// AddAddressToAccessList adds the given address to the access list. This operation is safe to perform

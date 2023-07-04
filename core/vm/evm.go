@@ -131,12 +131,15 @@ type EVM struct {
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
+	if ctx.Time == nil {
+		ctx.Time = big.NewInt(0)
+	}
 	evm := &EVM{
 		Context:     ctx,
 		StateDB:     statedb,
 		Config:      vmConfig,
 		chainConfig: chainConfig,
-		chainRules:  chainConfig.Rules(ctx.BlockNumber, ctx.Random != nil),
+		chainRules:  chainConfig.Rules(ctx.BlockNumber, ctx.Random != nil, ctx.Time.Uint64()),
 	}
 	evm.interpreter = NewEVMInterpreter(evm, vmConfig)
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
