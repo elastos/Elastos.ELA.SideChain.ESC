@@ -817,6 +817,9 @@ func (self *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	if len(self.stateObjectsDirty) > 0 {
 		self.stateObjectsDirty = make(map[common.Address]struct{})
 	}
+	if len(self.stateObjectsDestruct) > 0 {
+		self.stateObjectsDestruct = make(map[common.Address]struct{})
+	}
 	// Write the account trie changes, measuing the amount of wasted time
 	if metrics.EnabledExpensive {
 		defer func(start time.Time) { self.AccountCommits += time.Since(start) }(time.Now())
