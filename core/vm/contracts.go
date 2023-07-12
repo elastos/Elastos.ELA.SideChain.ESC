@@ -141,7 +141,27 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
 }
 
+var PrecompiledContractsShangHai = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}):                             &ecrecover{},
+	common.BytesToAddress([]byte{2}):                             &sha256hash{},
+	common.BytesToAddress([]byte{3}):                             &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                             &dataCopy{},
+	common.BytesToAddress([]byte{5}):                             &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):                             &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                             &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                             &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                             &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):         &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):      &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):   &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):       &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):      &pledgeBillTokenID{},
+	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
+	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
+}
+
 var (
+	PrecompiledAddressesShangHai  []common.Address
 	PrecompiledAddressesBerlin    []common.Address
 	PrecompiledAddressesIstanbul  []common.Address
 	PrecompiledAddressesByzantium []common.Address
@@ -161,11 +181,16 @@ func init() {
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
 	}
+	for k := range PrecompiledContractsShangHai {
+		PrecompiledAddressesShangHai = append(PrecompiledAddressesShangHai, k)
+	}
 }
 
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
+	case rules.IsShanghai:
+		return PrecompiledAddressesShangHai
 	case rules.IsBerlin:
 		return PrecompiledAddressesBerlin
 	case rules.IsIstanbul:
@@ -297,9 +322,10 @@ var (
 // modexpMultComplexity implements bigModexp multComplexity formula, as defined in EIP-198
 //
 // def mult_complexity(x):
-//    if x <= 64: return x ** 2
-//    elif x <= 1024: return x ** 2 // 4 + 96 * x - 3072
-//    else: return x ** 2 // 16 + 480 * x - 199680
+//
+//	if x <= 64: return x ** 2
+//	elif x <= 1024: return x ** 2 // 4 + 96 * x - 3072
+//	else: return x ** 2 // 16 + 480 * x - 199680
 //
 // where is x is max(length_of_MODULUS, length_of_BASE)
 func modexpMultComplexity(x *big.Int) *big.Int {
