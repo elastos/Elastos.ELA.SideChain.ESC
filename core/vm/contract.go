@@ -60,6 +60,8 @@ type Contract struct {
 
 	Gas   uint64
 	value *big.Int
+
+	internalCallTable []*InternalCall
 }
 
 // NewContract returns a new contract environment for the execution of EVM.
@@ -78,6 +80,8 @@ func NewContract(caller ContractRef, object ContractRef, value *big.Int, gas uin
 	c.Gas = gas
 	// ensures a value is set
 	c.value = value
+
+	c.internalCallTable = make([]*InternalCall, 0)
 
 	return c
 }
