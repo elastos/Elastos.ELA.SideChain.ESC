@@ -83,6 +83,8 @@ var (
 	ErrOversizedData = errors.New("oversized data")
 
 	ErrFrozenAccount = errors.New("is frozen account")
+
+	ErrLowGasPrice = errors.New("gasPrice too low")
 )
 
 var (
@@ -547,6 +549,18 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if !local && pool.gasPrice.Cmp(tx.GasPrice()) > 0 {
 		return ErrUnderpriced
 	}
+
+	spvHeight := uint32(pool.chain.CurrentBlock().Nonce())
+	minGasPrice, err := spv.GetMinGasPrice(spvHeight)
+	if spvHeight > 0 {
+		if err != nil {
+			return err
+		}
+		if minGasPrice.Cmp(tx.GasPrice()) > 0 {
+			return ErrLowGasPrice
+		}
+	}
+
 	// Ensure the transaction adheres to nonce ordering
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
