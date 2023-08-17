@@ -176,6 +176,7 @@ type Config struct {
 	DynamicArbiterHeight uint64
 	FrozenAccountList    []string
 
-	ArbiterListContract string
-	PledgedBillContract string
+	ArbiterListContract  string
+	PledgedBillContract  string
+	DeveloperFeeContract string
 }

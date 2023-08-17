@@ -74,6 +74,7 @@ var (
 		BerlinBlock:         big.NewInt(19166000),
 		LondonBlock:         big.NewInt(19166000),
 		ShanghaiTime:        newUint64(math.MaxInt64),
+		DeveloperFeeTime:    newUint64(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -145,6 +146,7 @@ var (
 		BerlinBlock:         big.NewInt(18022200),
 		LondonBlock:         big.NewInt(18022200),
 		ShanghaiTime:        newUint64(1689154397),
+		DeveloperFeeTime:    newUint64(math.MaxInt64),
 
 		Clique: &CliqueConfig{
 			Period: 15,
@@ -217,6 +219,7 @@ var (
 		BerlinBlock:         big.NewInt(math.MaxInt64),
 		LondonBlock:         big.NewInt(math.MaxInt64),
 		ShanghaiTime:        newUint64(math.MaxInt64),
+		DeveloperFeeTime:    newUint64(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -285,6 +288,7 @@ var (
 		ChainIDBlock:        big.NewInt(184110),
 		BerlinBlock:         big.NewInt(math.MaxInt64),
 		LondonBlock:         big.NewInt(math.MaxInt64),
+		DeveloperFeeTime:    newUint64(math.MaxInt64),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -434,10 +438,10 @@ type ChainConfig struct {
 
 	// Fork scheduling was switched from blocks to timestamps here
 
-	ShanghaiTime *uint64 `json:"shanghaiTime,omitempty"` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
-	CancunTime   *uint64 `json:"cancunTime,omitempty"`   // Cancun switch time (nil = no fork, 0 = already on cancun)
-	PragueTime   *uint64 `json:"pragueTime,omitempty"`   // Prague switch time (nil = no fork, 0 = already on prague)
-
+	ShanghaiTime     *uint64 `json:"shanghaiTime,omitempty"` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
+	CancunTime       *uint64 `json:"cancunTime,omitempty"`   // Cancun switch time (nil = no fork, 0 = already on cancun)
+	PragueTime       *uint64 `json:"pragueTime,omitempty"`   // Prague switch time (nil = no fork, 0 = already on prague)
+	DeveloperFeeTime *uint64 `json:"developerFeeTime,omitempty"`
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
 	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`
@@ -462,6 +466,7 @@ type ChainConfig struct {
 	FrozeAccountList      []string
 	BridgeContractAddr    string
 	PledgeBillContract    string
+	DeveloperContract     string
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -513,7 +518,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v PBFTBlock:%v Engine: %v DynamicArbiterHeight: %v}",
+	return fmt.Sprintf("{ChainID: %v OldChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v ChainIDBlock:%v PBFTBlock:%v Engine: %v DynamicArbiterHeight: %v BerlinBlock: %v ShanghaiTime:%v DeveloperContract:%v, DeveloperFeeTime:%v }",
 		c.ChainID,
 		c.OldChainID,
 		c.HomesteadBlock,
@@ -530,6 +535,10 @@ func (c *ChainConfig) String() string {
 		c.PBFTBlock,
 		engine,
 		c.DynamicArbiterHeight,
+		c.BerlinBlock,
+		*c.ShanghaiTime,
+		c.DeveloperContract,
+		*c.DeveloperFeeTime,
 	)
 }
 
@@ -626,6 +635,10 @@ func (c *ChainConfig) IsCancun(time uint64) bool {
 // IsPrague returns whether num is either equal to the Prague fork time or greater.
 func (c *ChainConfig) IsPrague(time uint64) bool {
 	return isTimestampForked(c.PragueTime, time)
+}
+
+func (c *ChainConfig) IsdeveloperSplitfeeTime(time uint64) bool {
+	return isTimestampForked(c.DeveloperFeeTime, time)
 }
 
 // IsChainIDFork returns whether num represents a block number after the ChainID fork
