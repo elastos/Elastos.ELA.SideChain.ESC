@@ -824,6 +824,12 @@ var (
 		Usage: "configue pledged bill address",
 		Value: "",
 	}
+
+	DeveloperFeeContract = cli.StringFlag{
+		Name:  "developer.fee.contract",
+		Usage: "configue developer fee contract address",
+		Value: "",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1163,6 +1169,27 @@ func MakePasswordList(ctx *cli.Context) []string {
 		lines[i] = strings.TrimRight(lines[i], "\r")
 	}
 	return lines
+}
+
+func MakeDeveloperFeeContractAddress(ctx *cli.Context) string {
+	path := ctx.GlobalString(DeveloperFeeContract.Name)
+	if path == "" {
+		return ""
+	}
+	if common.IsHexAddress(path) {
+		return path
+	}
+	text, err := ioutil.ReadFile(path)
+	if err != nil {
+		Fatalf("Failed to read %s file: %v", DeveloperFeeContract.Name, err)
+	}
+	address := strings.TrimRight(string(text), "\r")
+	address = strings.TrimRight(string(address), "\n")
+	if !common.IsHexAddress(address) {
+		panic(fmt.Sprintf("%s is not esc format:%s", DeveloperFeeContract.Name, address))
+	}
+
+	return address
 }
 
 func MakeMinerCoinbaseAddress(ctx *cli.Context) string {
@@ -1604,6 +1631,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
 	cfg.PledgedBillContract = ctx.GlobalString(PledgedBillContract.Name)
+	cfg.DeveloperFeeContract = MakeDeveloperFeeContractAddress(ctx)
 
 	cfg.FrozenAccountList = make([]string, 0)
 	// Override any default configs for hard coded networks.

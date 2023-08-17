@@ -471,7 +471,13 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 	if contractCreation && blackcontract.String() == evm.ChainConfig().BlackContractAddr || isRefundWithdrawTx {
 		st.state.AddBalance(st.msg.From(), new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)) // Refund the cost
 	} else {
-		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+		minerFee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
+		if common.IsHexAddress(st.evm.ChainConfig().DeveloperContract) && st.evm.ChainConfig().IsdeveloperSplitfeeTime(st.evm.Time.Uint64()) {
+			minerFee = big.NewInt(0).Div(minerFee, big.NewInt(2))
+			developerAddress := common.HexToAddress(st.evm.ChainConfig().DeveloperContract)
+			st.state.AddBalance(developerAddress, minerFee)
+		}
+		st.state.AddBalance(st.evm.Coinbase, minerFee)
 	}
 	return &ExecutionResult{st.gasUsed(), vmerr, ret}, err
 }
