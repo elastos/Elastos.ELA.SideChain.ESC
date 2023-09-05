@@ -178,5 +178,5 @@ type Config struct {
 
 	ArbiterListContract  string
 	PledgedBillContract  string
-	DeveloperFeeContract string
+	DeveloperFeeContract []string
 }
