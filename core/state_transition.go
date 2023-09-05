@@ -472,10 +472,14 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 		st.state.AddBalance(st.msg.From(), new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)) // Refund the cost
 	} else {
 		minerFee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
-		if common.IsHexAddress(st.evm.ChainConfig().DeveloperContract) && st.evm.ChainConfig().IsdeveloperSplitfeeTime(st.evm.Time.Uint64()) {
+		num := len(st.evm.ChainConfig().DeveloperContract)
+		if num > 0 && st.evm.ChainConfig().IsdeveloperSplitfeeTime(st.evm.Time.Uint64()) {
 			minerFee = big.NewInt(0).Div(minerFee, big.NewInt(2))
-			developerAddress := common.HexToAddress(st.evm.ChainConfig().DeveloperContract)
-			st.state.AddBalance(developerAddress, minerFee)
+			subFee := minerFee.Div(minerFee, big.NewInt(int64(num)))
+			for _, account := range st.evm.ChainConfig().DeveloperContract {
+				developerAddress := common.HexToAddress(account)
+				st.state.AddBalance(developerAddress, subFee)
+			}
 		}
 		st.state.AddBalance(st.evm.Coinbase, minerFee)
 	}
