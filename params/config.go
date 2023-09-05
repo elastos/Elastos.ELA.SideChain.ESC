@@ -466,7 +466,7 @@ type ChainConfig struct {
 	FrozeAccountList      []string
 	BridgeContractAddr    string
 	PledgeBillContract    string
-	DeveloperContract     string
+	DeveloperContract     []string
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
