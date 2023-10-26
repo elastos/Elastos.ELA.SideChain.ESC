@@ -16,7 +16,7 @@ require (
 	github.com/dop251/goja v0.0.0-20220405120441-9037c2b61cbf
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/elastic/gosigar v0.14.2
-	github.com/elastos/Elastos.ELA v0.9.8-0.20230616040136-d11565a5f40d
+	github.com/elastos/Elastos.ELA v0.9.8-0.20230925112422-c885420f389e
 	github.com/elastos/Elastos.ELA.SPV v0.1.1-0.20230710092856-d29888d3d769
 	github.com/fatih/color v1.13.0
 	github.com/fjl/memsize v0.0.1
