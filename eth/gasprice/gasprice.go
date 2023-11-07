@@ -142,7 +142,7 @@ func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 		price = new(big.Int).Set(maxPrice)
 	}
 
-	minPrice, err := spv.GetMinGasPrice(uint32(head.Nonce.Uint64()))
+	minPrice, err := spv.GetMinGasPrice(uint32(head.Number.Uint64()))
 	if err == nil && price.Cmp(minPrice) < 0 {
 		price = minPrice
 	} else {
