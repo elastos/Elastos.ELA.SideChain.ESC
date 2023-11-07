@@ -550,10 +550,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrUnderpriced
 	}
 
-	spvHeight := uint32(pool.chain.CurrentBlock().Nonce())
-	minGasPrice, err := spv.GetMinGasPrice(spvHeight)
-	fmt.Println(">>>>>>>>>>> spv.GetMinGasPrice", minGasPrice)
-	if spvHeight > 0 {
+	height := pool.chain.CurrentBlock().Number().Uint64()
+	minGasPrice, err := spv.GetMinGasPrice(uint32(height))
+	fmt.Println(">>>>>>>>>>> spv.GetMinGasPrice", minGasPrice, "currentHeight", uint32(height))
+	if height > 0 {
 		if err != nil {
 			return err
 		}
