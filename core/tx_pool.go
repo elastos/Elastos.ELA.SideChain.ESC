@@ -552,14 +552,9 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	height := pool.chain.CurrentBlock().Number().Uint64()
 	minGasPrice, err := spv.GetMinGasPrice(uint32(height))
-	fmt.Println(">>>>>>>>>>> spv.GetMinGasPrice", minGasPrice, "currentHeight", uint32(height))
-	if height > 0 {
-		if err != nil {
-			return err
-		}
-		if minGasPrice.Cmp(tx.GasPrice()) > 0 {
-			return ErrLowGasPrice
-		}
+	log.Info(">>>>>>>>>>> spv.GetMinGasPrice", "minGasPrice", minGasPrice, "currentHeight", uint32(height), "error", err)
+	if err == nil && minGasPrice.Cmp(tx.GasPrice()) > 0 {
+		return ErrLowGasPrice
 	}
 
 	// Ensure the transaction adheres to nonce ordering
