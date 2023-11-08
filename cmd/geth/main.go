@@ -465,8 +465,12 @@ func startSpv(ctx *cli.Context, stack *node.Node) {
 		}
 
 		// calculate ELA mainchain address from the genesis block hash and set the SPV monitor address accordingly
-		spvCfg.GenesisHash = elacom.Hash(ghash.Bytes())
-		log.Info(fmt.Sprintf("Genesis block hash: %v", ghash.String()))
+		genesisU256, err := elacom.Uint256FromBytes(ghash.Bytes())
+		if err != nil {
+			utils.Fatalf("Blockchain not running: %v", err)
+		}
+		spvCfg.GenesisHash = *genesisU256
+		log.Info(fmt.Sprintf("Genesis block hash: %v uint256 fromat:%v", ghash.String(), genesisU256.String()))
 		if gaddr, err := calculateGenesisAddress(ghash.String()); err != nil {
 			utils.Fatalf("Cannot calculate: %v", err)
 		} else {
