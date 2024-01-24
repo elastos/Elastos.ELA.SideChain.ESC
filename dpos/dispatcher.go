@@ -64,8 +64,8 @@ func (d *Dispatcher) ProcessProposal(id peer.PID, proposal *payload.DPOSProposal
 	if !d.consensusView.ProducerIsOnDuty(proposal.Sponsor) {
 		return errors.New("current signer is not onDuty"), false, !self
 	}
-
-	if d.processingProposal != nil && d.processingProposal.Hash().IsEqual(proposal.Hash()) {
+	processingProposal := d.GetProcessingProposal()
+	if processingProposal != nil && processingProposal.Hash().IsEqual(proposal.Hash()) {
 		return errors.New("already processing this proposal:" + proposal.Hash().String()), false, true
 	}
 
@@ -279,7 +279,7 @@ func (d *Dispatcher) RecordViewRequest(sponsor []byte) {
 
 func (d *Dispatcher) CleanProposals(changeView bool) {
 	Info("Clean proposals")
-	d.processingProposal = nil
+	d.setProcessingProsalNil()
 	d.acceptVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.rejectedVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
 	d.pendingVotes = make(map[common.Uint256]*payload.DPOSProposalVote)
@@ -295,6 +295,12 @@ func (d *Dispatcher) CleanProposals(changeView bool) {
 			}
 		}
 	}
+}
+
+func (d *Dispatcher) setProcessingProsalNil() {
+	d.proposalMu.Lock()
+	d.processingProposal = nil
+	d.proposalMu.Unlock()
 }
 
 func (d *Dispatcher) ResetAcceptVotes() {
@@ -353,12 +359,13 @@ func (d *Dispatcher) RejectProposal(proposal *payload.DPOSProposal, ac account.A
 }
 
 func (d *Dispatcher) createConfirm() *payload.Confirm {
-	if d.processingProposal == nil {
+	processingProposal := d.GetProcessingProposal()
+	if processingProposal == nil {
 		Warn("processingProposal is nil, can't create confirm")
 		return nil
 	}
 	confirm := &payload.Confirm{
-		Proposal: *d.processingProposal,
+		Proposal: *processingProposal,
 		Votes:    make([]payload.DPOSProposalVote, 0),
 	}
 	for _, vote := range d.acceptVotes {
@@ -480,7 +487,7 @@ func (d *Dispatcher) RecoverFromConsensusStatus(status *dmsg.ConsensusStatus) er
 	//	vote := v
 	//	d.rejectedVotes[v.Hash()] = &vote
 	//}
-	d.processingProposal = nil
+	d.setProcessingProsalNil()
 	//for _, v := range status.PendingProposals {
 	//	d.setProcessingProposal(&v)
 	//}
