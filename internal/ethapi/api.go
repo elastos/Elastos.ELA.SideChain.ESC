@@ -1215,7 +1215,17 @@ func RPCMarshalBlock(block *types.Block, inclTx bool, fullTx bool) (map[string]i
 // rpcMarshalHeader uses the generalized output filler, then adds the total difficulty field, which requires
 // a `PublicBlockchainAPI`.
 func (s *PublicBlockChainAPI) rpcMarshalHeader(header *types.Header) map[string]interface{} {
+	log.Info("rpcMarshalHeader ", "header ", header.Number)
 	fields := RPCMarshalHeader(header)
+	var zeroAddress common.Address
+	if header.Coinbase == zeroAddress {
+		coinbase, err := s.b.Engine().Author(header)
+		if err == nil {
+			fields["miner"] = coinbase
+		} else {
+			log.Error("rpcMarshalHeader get coinbase failed ", "error ", err)
+		}
+	}
 	fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(header.Hash()))
 	return fields
 }
@@ -1227,7 +1237,17 @@ func (s *PublicBlockChainAPI) rpcMarshalBlock(b *types.Block, inclTx bool, fullT
 	if err != nil {
 		return nil, err
 	}
+	log.Info("rpcMarshalBlock ", "b ", b.Coinbase().String(), "b.number ", b.NumberU64())
 	fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(b.Hash()))
+	var zeroAddress common.Address
+	if b.Coinbase() == zeroAddress {
+		coinbase, err := s.b.Engine().Author(b.Header())
+		if err == nil {
+			fields["miner"] = coinbase
+		} else {
+			log.Error("get coinbase failed ", "error ", err)
+		}
+	}
 	return fields, err
 }
 
