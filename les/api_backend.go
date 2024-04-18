@@ -46,8 +46,11 @@ type LesApiBackend struct {
 	gpo           *gasprice.Oracle
 }
 
-func (b *LesApiBackend) Engine() consensus.Engine {
-	return b.eth.engine
+func (b *LesApiBackend) Engine(number *big.Int) consensus.Engine {
+	if b.ChainConfig().IsPBFTFork(number) {
+		return b.eth.BlockChain().GetDposEngine()
+	}
+	return b.eth.BlockChain().GetPOAEngine()
 }
 
 func (b *LesApiBackend) ChainConfig() *params.ChainConfig {

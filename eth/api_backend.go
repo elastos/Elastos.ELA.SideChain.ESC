@@ -46,8 +46,11 @@ type EthAPIBackend struct {
 	gpo           *gasprice.Oracle
 }
 
-func (b *EthAPIBackend) Engine() consensus.Engine {
-	return b.eth.engine
+func (b *EthAPIBackend) Engine(number *big.Int) consensus.Engine {
+	if b.ChainConfig().IsPBFTFork(number) {
+		return b.eth.BlockChain().GetDposEngine()
+	}
+	return b.eth.BlockChain().GetPoAEngine()
 }
 
 // ChainConfig returns the active chain configuration.

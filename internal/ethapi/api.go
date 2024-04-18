@@ -1219,7 +1219,7 @@ func (s *PublicBlockChainAPI) rpcMarshalHeader(header *types.Header) map[string]
 	fields := RPCMarshalHeader(header)
 	var zeroAddress common.Address
 	if header.Coinbase == zeroAddress {
-		coinbase, err := s.b.Engine().Author(header)
+		coinbase, err := s.b.Engine(header.Number).Author(header)
 		if err == nil {
 			fields["miner"] = coinbase
 		} else {
@@ -1241,7 +1241,7 @@ func (s *PublicBlockChainAPI) rpcMarshalBlock(b *types.Block, inclTx bool, fullT
 	fields["totalDifficulty"] = (*hexutil.Big)(s.b.GetTd(b.Hash()))
 	var zeroAddress common.Address
 	if b.Coinbase() == zeroAddress {
-		coinbase, err := s.b.Engine().Author(b.Header())
+		coinbase, err := s.b.Engine(b.Number()).Author(b.Header())
 		if err == nil {
 			fields["miner"] = coinbase
 		} else {
