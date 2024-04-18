@@ -24,6 +24,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common/math"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/bloombits"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/rawdb"
@@ -43,6 +44,10 @@ type EthAPIBackend struct {
 	extRPCEnabled bool
 	eth           *Ethereum
 	gpo           *gasprice.Oracle
+}
+
+func (b *EthAPIBackend) Engine() consensus.Engine {
+	return b.eth.engine
 }
 
 // ChainConfig returns the active chain configuration.
