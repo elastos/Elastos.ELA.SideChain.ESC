@@ -69,9 +69,10 @@ type HeaderChain struct {
 }
 
 // NewHeaderChain creates a new HeaderChain structure.
-//  getValidator should return the parent's validator
-//  procInterrupt points to the parent's interrupt semaphore
-//  wg points to the parent's shutdown wait group
+//
+//	getValidator should return the parent's validator
+//	procInterrupt points to the parent's interrupt semaphore
+//	wg points to the parent's shutdown wait group
 func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine consensus.Engine, procInterrupt func() bool) (*HeaderChain, error) {
 	headerCache, _ := lru.New(headerCacheLimit)
 	tdCache, _ := lru.New(tdCacheLimit)
@@ -121,6 +122,14 @@ func (hc *HeaderChain) SetPOAEngine(engine consensus.Engine) {
 
 func (hc *HeaderChain) SetDposChain(engine consensus.Engine) {
 	hc.pbftEngine = engine
+}
+
+func (hc *HeaderChain) GetPOAEngine() consensus.Engine {
+	return hc.poaEngine
+}
+
+func (hc *HeaderChain) GetDposChain() consensus.Engine {
+	return hc.pbftEngine
 }
 
 // GetBlockNumber retrieves the block number belonging to the given hash

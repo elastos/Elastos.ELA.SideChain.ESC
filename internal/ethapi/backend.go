@@ -85,7 +85,7 @@ type Backend interface {
 
 	ChainConfig() *params.ChainConfig
 	CurrentBlock() *types.Block
-	Engine() consensus.Engine
+	Engine(number *big.Int) consensus.Engine
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

@@ -56,11 +56,11 @@ const (
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
 
-	extraVanity = 32                     // Fixed number of extra-data prefix bytes reserved for signer vanity
-	extraSeal   = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraVanity    = 32                     // Fixed number of extra-data prefix bytes reserved for signer vanity
+	extraSeal      = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for signer seal
 	extraElaHeight = 8
-	nonceAuthVote = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
-	nonceDropVote = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
+	nonceAuthVote  = hexutil.MustDecode("0xffffffffffffffff") // Magic nonce number to vote on adding a new signer
+	nonceDropVote  = hexutil.MustDecode("0x0000000000000000") // Magic nonce number to vote on removing a signer.
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
@@ -162,7 +162,6 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 	}
 	var signer common.Address
 	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
-
 	sigcache.Add(hash, signer)
 	return signer, nil
 }
@@ -383,7 +382,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
 				signersSize := len(checkpoint.Extra) - extraVanity - extraSeal
-				if signersSize %common.AddressLength == extraElaHeight {
+				if signersSize%common.AddressLength == extraElaHeight {
 					signersSize -= extraElaHeight
 				}
 
@@ -425,7 +424,7 @@ func (c *Clique) snapshot(chain consensus.ChainReader, number uint64, hash commo
 	beforeChangeEngine := false
 	for i := 0; i < len(headers); i++ {
 		beforeChangeEngine = c.isBeforeChangeEngine(chain, headers[i])
-		log.Info("snap headers","number:", headers[i].Number.Uint64(), "beforeChangeEngine", beforeChangeEngine)
+		log.Info("snap headers", "number:", headers[i].Number.Uint64(), "beforeChangeEngine", beforeChangeEngine)
 		if beforeChangeEngine {
 			log.Info("get before change engine header")
 			break
@@ -586,7 +585,7 @@ func (c *Clique) Finalize(chain consensus.ChainReader, header *types.Header, sta
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
-	log.Info("clique finalize", "height", header.Number.Uint64(), "hash",   header.Hash().String())
+	log.Info("clique finalize", "height", header.Number.Uint64(), "hash", header.Hash().String())
 }
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
@@ -615,7 +614,7 @@ func (c *Clique) isBeforeChangeEngine(chain consensus.ChainReader,
 	if chain.Config().PBFTBlock == nil {
 		return false
 	}
-	return chain.Config().PBFTBlock.Uint64() - 1 == header.Number.Uint64()
+	return chain.Config().PBFTBlock.Uint64()-1 == header.Number.Uint64()
 }
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
@@ -696,7 +695,7 @@ func (c *Clique) Seal(chain consensus.ChainReader, block *types.Block, results c
 	if err != nil {
 		return err
 	}
-	copy(header.Extra[length - extraSeal:], sighash)
+	copy(header.Extra[length-extraSeal:], sighash)
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
