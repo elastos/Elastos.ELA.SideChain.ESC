@@ -620,6 +620,11 @@ web3._extend({
 			params: 1,
 		}),
 		new web3._extend.Method({
+			name: 'getTransactionFeeDetails',
+			call: 'eth_getTransactionFeeDetails',
+			params: 1,
+		}),
+		new web3._extend.Method({
 			name: 'sendInvalidWithdrawTransaction',
 			call: 'eth_sendInvalidWithdrawTransaction',
 			params: 2,

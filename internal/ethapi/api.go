@@ -791,6 +791,49 @@ func (s *PublicBlockChainAPI) GetFailedRechargeTxByHash(ctx context.Context, has
 	return txid, nil
 }
 
+// GetTransactionFeeDetails returns the transaction fee detail info for the given transaction hash.
+func (s *PublicBlockChainAPI) GetTransactionFeeDetails(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
+	tx, blockHash, _, index := rawdb.ReadTransaction(s.b.ChainDb(), hash)
+	if tx == nil {
+		return nil, nil
+	}
+	receipts, err := s.b.GetReceipts(ctx, blockHash)
+	if err != nil {
+		return nil, err
+	}
+	if len(receipts) <= int(index) {
+		return nil, nil
+	}
+	receipt := receipts[index]
+	gasUsed := receipt.GasUsed
+	minerFee := big.NewInt(0).Mul(tx.GasPrice(), big.NewInt(0).SetUint64(gasUsed))
+	crossFee := big.NewInt(0)
+	for _, l := range receipt.Logs {
+		if l.Topics[0].String() == "0x09f15c376272c265d7fcb47bf57d8f84a928195e6ea156d12f5a3cd05b8fed5a" {
+			elaHash := l.Topics[2].String()
+			crossFee, _, _ = spv.FindOutputFeeAndaddressByTxHash(elaHash)
+			break
+		}
+	}
+	crossReward := big.NewInt(0)
+	if crossFee.Cmp(big.NewInt(0)) > 0 {
+		crossReward = big.NewInt(0).Sub(crossFee, minerFee)
+	}
+	fields := map[string]interface{}{
+		"transactionHash":  hash,
+		"status":           hexutil.Uint(receipt.Status),
+		"transactionIndex": hexutil.Uint64(index),
+
+		"gasUsed":     hexutil.Uint64(receipt.GasUsed),
+		"gasPrice":    tx.GasPrice().String(),
+		"crossFee":    crossFee.String(),
+		"minerFee":    minerFee.String(),
+		"crossReward": crossReward.String(),
+	}
+
+	return fields, nil
+}
+
 func (s *PublicBlockChainAPI) SendInvalidWithdrawTransaction(ctx context.Context, signature string, hash string) error {
 	txid := common.HexToHash(hash)
 	tx, _, _, _, err := s.b.GetTransaction(ctx, txid)
