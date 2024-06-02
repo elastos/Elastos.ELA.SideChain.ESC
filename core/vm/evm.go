@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"fmt"
 	"github.com/holiman/uint256"
 	"math/big"
 	"sync/atomic"
@@ -341,10 +340,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			ret, err = evm.interpreter.Run(contract, input, false)
 			gas = contract.Gas
 
-			list := contract.internalCallTable
-			for _, data := range list {
-				fmt.Println("callData>>>>>>>>>>>>>", "account", data.account.String(), "gasUsed", data.gasCost)
-			}
+			//list := contract.internalCallTable
+			//for _, data := range list {
+			//	fmt.Println("callData>>>>>>>>>>>>>", "account", data.account.String(), "gasUsed", data.gasCost)
+			//}
 		}
 	}
 
