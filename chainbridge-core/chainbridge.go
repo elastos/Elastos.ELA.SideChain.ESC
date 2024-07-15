@@ -375,6 +375,9 @@ func requireArbitersSignature(engine *pbft.Pbft) {
 					setRecoveryArbiterList()
 					return
 				}
+				if arbiterManager.GetCurrentTotalCount() <= 1 {
+					return
+				}
 				arbiterCount := len(arbiterManager.GetArbiterList())
 				selfProducer := engine.GetProducer()
 				msg := &dpos_msg.RequireArbitersSignature{
