@@ -780,8 +780,17 @@ func (p *Pbft) changeViewLoop() {
 }
 
 func (p *Pbft) Recover() {
+
 	if p.IsCurrent == nil || p.account == nil || p.isRecovering ||
 		!p.dispatcher.IsProducer(p.account.PublicKeyBytes()) {
+		if p.dispatcher.GetConsensusView().GetTotalProducersCount() == 1 {
+			if p.IsProducer() {
+				log.Info("start mine11111")
+				p.isRecoved = true
+				p.StartMine()
+			}
+			return
+		}
 		log.Info(" Recover Error")
 		p.dispatcher.GetConsensusView().DumpInfo()
 		return
