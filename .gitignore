@@ -50,3 +50,6 @@ profile.cov
 dpos/logs/
 consensus/pbft/logs
 go.sum
+oracle/node_modules/
+oracle/package-lock.json
+oracle/package.json
