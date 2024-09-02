@@ -124,21 +124,22 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
 // contracts used in the Berlin release.
 var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                             &ecrecover{},
-	common.BytesToAddress([]byte{2}):                             &sha256hash{},
-	common.BytesToAddress([]byte{3}):                             &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                             &dataCopy{},
-	common.BytesToAddress([]byte{5}):                             &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}):                             &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):                             &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):                             &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):                             &blake2F{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):         &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()):      &p256Verify{},
-	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):   &pbkVerifySignature{},
-	common.BytesToAddress(params.PledgeBillVerify.Bytes()):       &pledgeBillVerify{},
-	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
-	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
+	common.BytesToAddress([]byte{1}):                           &ecrecover{},
+	common.BytesToAddress([]byte{2}):                           &sha256hash{},
+	common.BytesToAddress([]byte{3}):                           &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                           &dataCopy{},
+	common.BytesToAddress([]byte{5}):                           &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):                           &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                           &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                           &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                           &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):       &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):    &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
+	// common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
+	// common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
 }
 
 var PrecompiledContractsShangHai = map[common.Address]PrecompiledContract{
@@ -899,7 +900,7 @@ func (b *pledgeBillTokenID) Run(input []byte) ([]byte, error) {
 		log.Info("pledgeBillTokenID", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String(), "tokenID", tokenID)
 		return false32Byte, err
 	}
-
+	fmt.Println(">>>>> pledgeBillTokenID>>>>>> tokenID: ", tokenID.String())
 	return tokenID.Bytes(), nil
 }
 
@@ -912,7 +913,7 @@ func (p *pledgeBillTokenDetail) RequiredGas(input []byte) uint64 {
 func (p *pledgeBillTokenDetail) Run(input []byte) ([]byte, error) {
 	//length := getData(input, 0, 32)
 	elaHash := getData(input, 32, 32)
-
+	fmt.Println("pledgeBillTokenDetail>>>>>", elaHash)
 	nftPayload, payloadVersion, err := pledgeBill.GetCreateNFTPayload(common.BytesToHash(elaHash).String())
 	if err != nil {
 		log.Info("pledgeBillTokenDetail", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String())
@@ -974,6 +975,7 @@ func (p *pledgeBillPayloadVersion) RequiredGas(input []byte) uint64 {
 
 func (p *pledgeBillPayloadVersion) Run(input []byte) ([]byte, error) {
 	elaHash := getData(input, 32, 32)
+	fmt.Println("pledgeBillPayloadVersion>>>>>", elaHash)
 	v, err := pledgeBill.GetBPosNftPayloadVersion(common.BytesToHash(elaHash).String())
 	version := big.NewInt(int64(v))
 	if err != nil {
