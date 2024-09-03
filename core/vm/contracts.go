@@ -138,6 +138,7 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()): &pbkVerifySignature{},
 	common.BytesToAddress(params.PledgeBillVerify.Bytes()):     &pledgeBillVerify{},
 	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):    &pledgeBillTokenID{},
+	//before release_v0.2.4.2 is not support this contract
 	// common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
 	// common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
 }
@@ -900,7 +901,6 @@ func (b *pledgeBillTokenID) Run(input []byte) ([]byte, error) {
 		log.Info("pledgeBillTokenID", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String(), "tokenID", tokenID)
 		return false32Byte, err
 	}
-	fmt.Println(">>>>> pledgeBillTokenID>>>>>> tokenID: ", tokenID.String())
 	return tokenID.Bytes(), nil
 }
 
@@ -913,7 +913,6 @@ func (p *pledgeBillTokenDetail) RequiredGas(input []byte) uint64 {
 func (p *pledgeBillTokenDetail) Run(input []byte) ([]byte, error) {
 	//length := getData(input, 0, 32)
 	elaHash := getData(input, 32, 32)
-	fmt.Println("pledgeBillTokenDetail>>>>>", elaHash)
 	nftPayload, payloadVersion, err := pledgeBill.GetCreateNFTPayload(common.BytesToHash(elaHash).String())
 	if err != nil {
 		log.Info("pledgeBillTokenDetail", "elaHash", elaHash, "hash", common.BytesToHash(elaHash).String())
@@ -975,7 +974,6 @@ func (p *pledgeBillPayloadVersion) RequiredGas(input []byte) uint64 {
 
 func (p *pledgeBillPayloadVersion) Run(input []byte) ([]byte, error) {
 	elaHash := getData(input, 32, 32)
-	fmt.Println("pledgeBillPayloadVersion>>>>>", elaHash)
 	v, err := pledgeBill.GetBPosNftPayloadVersion(common.BytesToHash(elaHash).String())
 	version := big.NewInt(int64(v))
 	if err != nil {
