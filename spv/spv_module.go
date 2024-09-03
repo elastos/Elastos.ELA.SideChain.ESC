@@ -309,7 +309,7 @@ func (s *Service) VerifyElaHeader(hash *common.Uint256) error {
 }
 
 func (s *Service) HandleBlockFunc(block interface{}) error {
-	err := s.BlockRecorder.SaveBlock(block.(*util.Block))
+	err := s.BlockRecorder.SaveBlockHeader(&block.(*util.Block).Header)
 	if err != nil {
 		log.Error("save block to ldb", "block", block, "err", err.Error())
 	}
