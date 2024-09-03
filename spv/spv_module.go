@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
+	"github.com/elastos/Elastos.ELA.SPV/util"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
@@ -22,6 +23,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
 	"math/big"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -127,6 +129,8 @@ type Service struct {
 	spv.SPVService
 	GenesisHash common.Uint256
 	mux         *event.TypeMux
+
+	BlockRecorder *BlockRecorder
 }
 
 // Spv database initialization
@@ -176,7 +180,12 @@ func NewService(cfg *Config, tmux *event.TypeMux, dynamicArbiterHeight uint64) (
 		return nil, err
 	}
 
-	SpvService = &Service{service, cfg.GenesisHash, tmux}
+	br, err := NewBlockRecorder(path.Join(cfg.DataDir, "blocks"))
+	if err != nil {
+		log.Error("Spv New Block Recorder: ", "err", err)
+		return nil, err
+	}
+	SpvService = &Service{service, cfg.GenesisHash, tmux, br}
 	err = service.RegisterTransactionListener(&listener{
 		address: cfg.GenesisAddress,
 		service: service,
@@ -185,9 +194,11 @@ func NewService(cfg *Config, tmux *event.TypeMux, dynamicArbiterHeight uint64) (
 		log.Error("Spv Register Transaction Listener: ", "err", err)
 		return nil, err
 	}
-	err = service.RegisterBlockListener(&BlockListener{
+	bl := &BlockListener{
 		dynamicArbiterHeight: dynamicArbiterHeight,
-	})
+	}
+	bl.RegisterFunc(SpvService.HandleBlockFunc)
+	err = service.RegisterBlockListener(bl)
 	if err != nil {
 		return nil, err
 	}
@@ -295,6 +306,14 @@ func (s *Service) VerifyElaHeader(hash *common.Uint256) error {
 		return errors.New("[VerifyElaHeader] Verify ela header failed.")
 	}
 	return nil
+}
+
+func (s *Service) HandleBlockFunc(block interface{}) error {
+	err := s.BlockRecorder.SaveBlock(block.(*util.Block))
+	if err != nil {
+		log.Error("save block to ldb", "block", block, "err", err.Error())
+	}
+	return err
 }
 
 type listener struct {
