@@ -15,21 +15,21 @@ import (
 const BITSPERKEY = 10
 
 // prefix of blocks in level db
-var BlockPrefix = []byte("merkle_block")
+var BlockHeaderPrefix = []byte("merkle_block_header")
 
 type BlockRecorder struct {
 	ldb *leveldb.DB
 }
 
-func (b *BlockRecorder) SaveBlock(block *util.Block) error {
+func (b *BlockRecorder) SaveBlockHeader(blockHeader *util.Header) error {
 
 	var key bytes.Buffer
-	key.Write(BlockPrefix)
+	key.Write(BlockHeaderPrefix)
 	var buf [4]byte
-	binary.LittleEndian.PutUint32(buf[:], block.Height)
+	binary.LittleEndian.PutUint32(buf[:], blockHeader.Height)
 	key.Write(buf[:])
 
-	data, err := block.Serialize()
+	data, err := blockHeader.Serialize()
 	if err != nil {
 		return err
 	}
@@ -37,9 +37,9 @@ func (b *BlockRecorder) SaveBlock(block *util.Block) error {
 	return b.ldb.Put(key.Bytes(), data, nil)
 }
 
-func (b *BlockRecorder) GetBlockByHeight(height uint32) (*util.Block, error) {
+func (b *BlockRecorder) GetBlockHeaderByHeight(height uint32) (*util.Header, error) {
 	var key bytes.Buffer
-	key.Write(BlockPrefix)
+	key.Write(BlockHeaderPrefix)
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], height)
 	key.Write(buf[:])
@@ -49,12 +49,12 @@ func (b *BlockRecorder) GetBlockByHeight(height uint32) (*util.Block, error) {
 		return nil, err
 	}
 
-	block := util.Block{}
-	if err = block.Deserialize(data); err != nil {
+	blockHeader := util.Header{}
+	if err = blockHeader.Deserialize(data); err != nil {
 		return nil, err
 	}
 
-	return &block, nil
+	return &blockHeader, nil
 }
 
 func NewBlockRecorder(filePath string) (*BlockRecorder, error) {
