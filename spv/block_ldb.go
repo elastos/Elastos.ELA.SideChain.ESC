@@ -3,7 +3,10 @@ package spv
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/elastos/Elastos.ELA.SPV/interface/iutil"
 	"github.com/elastos/Elastos.ELA.SPV/util"
+	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -37,6 +40,10 @@ func (b *BlockRecorder) SaveBlockHeader(blockHeader *util.Header) error {
 	return b.ldb.Put(key.Bytes(), data, nil)
 }
 
+func newBlockHeader() util.BlockHeader {
+	return iutil.NewHeader(&elacommon.Header{})
+}
+
 func (b *BlockRecorder) GetBlockHeaderByHeight(height uint32) (*util.Header, error) {
 	var key bytes.Buffer
 	key.Write(BlockHeaderPrefix)
@@ -49,12 +56,13 @@ func (b *BlockRecorder) GetBlockHeaderByHeight(height uint32) (*util.Header, err
 		return nil, err
 	}
 
-	blockHeader := util.Header{}
-	if err = blockHeader.Deserialize(data); err != nil {
+	var header util.Header
+	header.BlockHeader = newBlockHeader()
+	if err = header.Deserialize(data); err != nil {
 		return nil, err
 	}
 
-	return &blockHeader, nil
+	return &header, nil
 }
 
 func NewBlockRecorder(filePath string) (*BlockRecorder, error) {
