@@ -34,24 +34,30 @@ type BlockListener struct {
 	dynamicArbiterHeight uint64
 }
 
-func (l *BlockListener) NotifyBlock(block *util.Block) {
-	if block.Height <= l.blockNumber {
-		log.Warn("BlockListener handle block ", "height", l.blockNumber)
-		return
-	}
-	l.blockNumber = block.Height
-	l.StoreAuxBlock(block)
-	log.Info("BlockListener handle block ", "height", l.blockNumber, "l.dynamicArbiterHeight ", l.dynamicArbiterHeight)
+func (l *BlockListener) NotifyBlock(block *util.Block, isCurrent bool) {
+	if isCurrent {
+		if block.Height <= l.blockNumber {
+			log.Warn("BlockListener handle block ", "height", l.blockNumber)
+			return
+		}
+		l.blockNumber = block.Height
+		l.StoreAuxBlock(block)
+		log.Info("BlockListener handle block ", "height", l.blockNumber, "l.dynamicArbiterHeight ", l.dynamicArbiterHeight)
 
-	if uint64(l.blockNumber) < l.dynamicArbiterHeight {
-		return
+		if uint64(l.blockNumber) < l.dynamicArbiterHeight {
+			return
+		}
+
+		l.onBlockHandled(l.param.block)
 	}
 
-	l.onBlockHandled(l.param.block)
 	if l.handle != nil {
 		l.handle(l.param.block)
 	}
-	events.Notify(dpos.ETOnSPVHeight, l.blockNumber)
+
+	if isCurrent {
+		events.Notify(dpos.ETOnSPVHeight, l.blockNumber)
+	}
 }
 
 func (l *BlockListener) BlockHeight() uint32 {
