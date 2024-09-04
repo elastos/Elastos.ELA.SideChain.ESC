@@ -52,7 +52,7 @@ func (l *BlockListener) NotifyBlock(block *util.Block, isCurrent bool) {
 	}
 
 	if l.handle != nil {
-		l.handle(l.param.block)
+		l.handle(block)
 	}
 
 	if isCurrent {
