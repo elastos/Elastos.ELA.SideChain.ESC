@@ -141,25 +141,27 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	//before release_v0.2.4.2 is not support this contract
 	// common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
 	// common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
+	common.BytesToAddress(params.GetMainChainBlockHeight.Bytes()): &getMainChainBlockHeight{},
 }
 
 var PrecompiledContractsShangHai = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                             &ecrecover{},
-	common.BytesToAddress([]byte{2}):                             &sha256hash{},
-	common.BytesToAddress([]byte{3}):                             &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                             &dataCopy{},
-	common.BytesToAddress([]byte{5}):                             &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}):                             &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):                             &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):                             &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):                             &blake2F{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):         &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()):      &p256Verify{},
-	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):   &pbkVerifySignature{},
-	common.BytesToAddress(params.PledgeBillVerify.Bytes()):       &pledgeBillVerify{},
-	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):      &pledgeBillTokenID{},
-	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
-	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
+	common.BytesToAddress([]byte{1}):                              &ecrecover{},
+	common.BytesToAddress([]byte{2}):                              &sha256hash{},
+	common.BytesToAddress([]byte{3}):                              &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                              &dataCopy{},
+	common.BytesToAddress([]byte{5}):                              &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):                              &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                              &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                              &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                              &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):          &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):       &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):    &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):        &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):       &pledgeBillTokenID{},
+	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):   &pledgeBillTokenDetail{},
+	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()):  &pledgeBillPayloadVersion{},
+	common.BytesToAddress(params.GetMainChainBlockHeight.Bytes()): &getMainChainBlockHeight{},
 }
 
 var (
@@ -1405,4 +1407,50 @@ func (c *bls12381MapG2) Run(input []byte) ([]byte, error) {
 
 	// Encode the G2 point to 256 bytes
 	return g.EncodePoint(r), nil
+}
+
+type getMainChainBlockHeight struct{}
+
+func (c *getMainChainBlockHeight) RequiredGas(input []byte) uint64 {
+	return params.GetMainChainBlockHeightGas
+}
+
+func (c *getMainChainBlockHeight) Run(input []byte) ([]byte, error) {
+	data := getData(input, 32, 32)
+	height := big.NewInt(0).SetBytes(data)
+
+	header, err := spv.SpvService.GetELAHeader(uint32(height.Uint64()))
+	if err != nil {
+		log.Error("getMainChainBlockHeight failed", "error", err, " height", height)
+		return []byte{}, err
+	}
+
+	arguments := make([]abi.Argument, 0)
+	Bytes32, _ := abi.NewType("bytes32", "bytes32", nil)
+	UInt32, _ := abi.NewType("uint32", "uint32", nil)
+	// Bytes, _ := abi.NewType("bytes", "bytes", nil)
+
+	Previous := abi.Argument{Name: "Previous", Type: Bytes32}
+	arguments = append(arguments, Previous)
+
+	Bits := abi.Argument{Name: "Bits", Type: UInt32}
+	arguments = append(arguments, Bits)
+
+	MerkleRoot := abi.Argument{Name: "MerkleRoot", Type: Bytes32}
+	arguments = append(arguments, MerkleRoot)
+
+	Hash := abi.Argument{Name: "Hash", Type: Bytes32}
+	arguments = append(arguments, Hash)
+
+	Height := abi.Argument{Name: "Height", Type: UInt32}
+	arguments = append(arguments, Height)
+
+	m := abi.Method{Inputs: arguments}
+	ret, err := m.Inputs.Pack(header.Previous(), header.Bits(), header.MerkleRoot(), header.Hash(), header.Height)
+	if err != nil {
+		log.Error("getMainChainBlockHeight failed ", "error ", err)
+		return ret, err
+	}
+	fmt.Println("getMainChainBlockHeight success", ret, "len ", len(ret))
+	return ret, nil
 }
