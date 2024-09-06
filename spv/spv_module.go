@@ -6,10 +6,17 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
+	"path"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
+
 	"github.com/elastos/Elastos.ELA.SPV/bloom"
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
-	"github.com/elastos/Elastos.ELA.SideChain.ESC"
+	ethereum "github.com/elastos/Elastos.ELA.SideChain.ESC"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/blocksigner"
 	ethCommon "github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
@@ -22,12 +29,6 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/pledgeBill"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/smallcrosstx"
-	"math/big"
-	"path"
-	"path/filepath"
-	"strings"
-	"sync"
-	"sync/atomic"
 
 	"golang.org/x/net/context"
 
@@ -316,6 +317,12 @@ func (s *Service) HandleBlockFunc(block interface{}) error {
 	return err
 }
 
+func (s *Service) GetELAHeader(height uint32) (*util.Header, error) {
+	header, err := s.BlockRecorder.GetBlockHeaderByHeight(height)
+	return header, err
+
+}
+
 type listener struct {
 	address string
 	service spv.SPVService
@@ -418,7 +425,6 @@ func saveOutputPayload(outputs []*elacom.Output, txHash string) error {
 	if spvTxhash == txHash {
 		return nil
 	}
-	fmt.Println(">>>>>> saveOutputPayload", "addr", addr, "fee", fee, "output", output)
 	transactionDBMutex.Lock()
 	spvTxhash = txHash
 	err := spvTransactiondb.Put([]byte(txHash+"Fee"), []byte(fee))

@@ -165,6 +165,8 @@ const (
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529
 	RefundQuotient        uint64 = 2
 	RefundQuotientEIP3529 uint64 = 5
+
+	GetMainChainBlockHeightGas uint64 = 1000
 )
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations
@@ -176,11 +178,12 @@ var (
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
 
-	ArbiterAddress         = big.NewInt(1000)
-	P256VerifyAddress      = big.NewInt(1001)
-	SignatureVerifyByPbk   = big.NewInt(1002)
-	PledgeBillVerify       = big.NewInt(1003)
-	PledgeBillTokenID      = big.NewInt(1004)
-	PledgeBillTokenDetail  = big.NewInt(1005)
-	PledgeBillTokenVersion = big.NewInt(1006)
+	ArbiterAddress          = big.NewInt(1000)
+	P256VerifyAddress       = big.NewInt(1001)
+	SignatureVerifyByPbk    = big.NewInt(1002)
+	PledgeBillVerify        = big.NewInt(1003)
+	PledgeBillTokenID       = big.NewInt(1004)
+	PledgeBillTokenDetail   = big.NewInt(1005)
+	PledgeBillTokenVersion  = big.NewInt(1006)
+	GetMainChainBlockHeight = big.NewInt(1007)
 )

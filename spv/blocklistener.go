@@ -2,6 +2,7 @@ package spv
 
 import (
 	"bytes"
+
 	spv "github.com/elastos/Elastos.ELA.SPV/interface"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 

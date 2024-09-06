@@ -3,6 +3,7 @@ package spv
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/elastos/Elastos.ELA.SPV/interface/iutil"
 	"github.com/elastos/Elastos.ELA.SPV/util"
 	elacommon "github.com/elastos/Elastos.ELA/core/types/common"
@@ -25,7 +26,6 @@ type BlockRecorder struct {
 }
 
 func (b *BlockRecorder) SaveBlockHeader(blockHeader *util.Header) error {
-
 	var key bytes.Buffer
 	key.Write(BlockHeaderPrefix)
 	var buf [4]byte
@@ -36,7 +36,6 @@ func (b *BlockRecorder) SaveBlockHeader(blockHeader *util.Header) error {
 	if err != nil {
 		return err
 	}
-
 	return b.ldb.Put(key.Bytes(), data, nil)
 }
 
