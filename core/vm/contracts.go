@@ -1423,7 +1423,7 @@ func (c *getMainChainBlockByHeight) Run(input []byte) ([]byte, error) {
 
 	header, err := spv.SpvService.GetELAHeader(uint32(height.Uint64()))
 	if err != nil {
-		log.Error("getMainChainBlockHeight failed", "error", err, " height", height)
+		log.Error("getMainChainBlockByHeight failed", "error", err, " height", height)
 		return []byte{}, err
 	}
 
@@ -1450,10 +1450,9 @@ func (c *getMainChainBlockByHeight) Run(input []byte) ([]byte, error) {
 	m := abi.Method{Inputs: arguments}
 	ret, err := m.Inputs.Pack(header.Previous(), header.Bits(), header.MerkleRoot(), header.Hash(), header.Height)
 	if err != nil {
-		log.Error("getMainChainBlockHeight failed ", "error ", err)
+		log.Error("getMainChainBlockByHeight failed ", "error ", err)
 		return ret, err
 	}
-	fmt.Println("getMainChainBlockHeight success", ret, "len ", len(ret))
 	return ret, nil
 }
 
@@ -1469,6 +1468,17 @@ func (h *getMainChainLatestHeight) Run(input []byte) ([]byte, error) {
 		log.Error("getMainChainLatestHeight failed", "error", err)
 		return []byte{}, err
 	}
-	height := big.NewInt(0).SetUint64(uint64(head.Height))
-	return height.Bytes(), nil
+	UInt32, _ := abi.NewType("uint32", "uint32", nil)
+	arguments := make([]abi.Argument, 0)
+
+	Height := abi.Argument{Name: "Height", Type: UInt32}
+	arguments = append(arguments, Height)
+
+	m := abi.Method{Inputs: arguments}
+	ret, err := m.Inputs.Pack(head.Height)
+	if err != nil {
+		log.Error("getMainChainLatestHeight pack failed ", "error ", err)
+		return ret, err
+	}
+	return ret, nil
 }
