@@ -300,9 +300,7 @@ func (s *Service) VerifyElaHeader(hash *common.Uint256) error {
 }
 
 func (s *Service) GetELAHeader(height uint32) (*util.Header, error) {
-	header, err := s.SPVService.HeaderStore().GetByHeight(height)
-	return header, err
-
+	return s.HeaderStore().GetByHeight(height)
 }
 
 type listener struct {
