@@ -141,27 +141,29 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	//before release_v0.2.4.2 is not support this contract
 	// common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):  &pledgeBillTokenDetail{},
 	// common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()): &pledgeBillPayloadVersion{},
-	common.BytesToAddress(params.GetMainChainBlockHeight.Bytes()): &getMainChainBlockHeight{},
+	common.BytesToAddress(params.GetMainChainBlockByHeight.Bytes()): &getMainChainBlockByHeight{},
+	common.BytesToAddress(params.GetMainChainLatestHeight.Bytes()):  &getMainChainLatestHeight{},
 }
 
 var PrecompiledContractsShangHai = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):                              &ecrecover{},
-	common.BytesToAddress([]byte{2}):                              &sha256hash{},
-	common.BytesToAddress([]byte{3}):                              &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):                              &dataCopy{},
-	common.BytesToAddress([]byte{5}):                              &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}):                              &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):                              &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):                              &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}):                              &blake2F{},
-	common.BytesToAddress(params.ArbiterAddress.Bytes()):          &arbiters{},
-	common.BytesToAddress(params.P256VerifyAddress.Bytes()):       &p256Verify{},
-	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):    &pbkVerifySignature{},
-	common.BytesToAddress(params.PledgeBillVerify.Bytes()):        &pledgeBillVerify{},
-	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):       &pledgeBillTokenID{},
-	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):   &pledgeBillTokenDetail{},
-	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()):  &pledgeBillPayloadVersion{},
-	common.BytesToAddress(params.GetMainChainBlockHeight.Bytes()): &getMainChainBlockHeight{},
+	common.BytesToAddress([]byte{1}):                                &ecrecover{},
+	common.BytesToAddress([]byte{2}):                                &sha256hash{},
+	common.BytesToAddress([]byte{3}):                                &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):                                &dataCopy{},
+	common.BytesToAddress([]byte{5}):                                &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):                                &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):                                &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):                                &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):                                &blake2F{},
+	common.BytesToAddress(params.ArbiterAddress.Bytes()):            &arbiters{},
+	common.BytesToAddress(params.P256VerifyAddress.Bytes()):         &p256Verify{},
+	common.BytesToAddress(params.SignatureVerifyByPbk.Bytes()):      &pbkVerifySignature{},
+	common.BytesToAddress(params.PledgeBillVerify.Bytes()):          &pledgeBillVerify{},
+	common.BytesToAddress(params.PledgeBillTokenID.Bytes()):         &pledgeBillTokenID{},
+	common.BytesToAddress(params.PledgeBillTokenDetail.Bytes()):     &pledgeBillTokenDetail{},
+	common.BytesToAddress(params.PledgeBillTokenVersion.Bytes()):    &pledgeBillPayloadVersion{},
+	common.BytesToAddress(params.GetMainChainBlockByHeight.Bytes()): &getMainChainBlockByHeight{},
+	common.BytesToAddress(params.GetMainChainLatestHeight.Bytes()):  &getMainChainLatestHeight{},
 }
 
 var (
@@ -1409,13 +1411,13 @@ func (c *bls12381MapG2) Run(input []byte) ([]byte, error) {
 	return g.EncodePoint(r), nil
 }
 
-type getMainChainBlockHeight struct{}
+type getMainChainBlockByHeight struct{}
 
-func (c *getMainChainBlockHeight) RequiredGas(input []byte) uint64 {
-	return params.GetMainChainBlockHeightGas
+func (c *getMainChainBlockByHeight) RequiredGas(input []byte) uint64 {
+	return params.GetMainChainBlock
 }
 
-func (c *getMainChainBlockHeight) Run(input []byte) ([]byte, error) {
+func (c *getMainChainBlockByHeight) Run(input []byte) ([]byte, error) {
 	data := getData(input, 32, 32)
 	height := big.NewInt(0).SetBytes(data)
 
@@ -1453,4 +1455,20 @@ func (c *getMainChainBlockHeight) Run(input []byte) ([]byte, error) {
 	}
 	fmt.Println("getMainChainBlockHeight success", ret, "len ", len(ret))
 	return ret, nil
+}
+
+type getMainChainLatestHeight struct{}
+
+func (h *getMainChainLatestHeight) RequiredGas(input []byte) uint64 {
+	return params.GetMainChainBlockLatestHeight
+}
+
+func (h *getMainChainLatestHeight) Run(input []byte) ([]byte, error) {
+	head, err := spv.SpvService.HeaderStore().GetBest()
+	if err != nil {
+		log.Error("getMainChainLatestHeight failed", "error", err)
+		return []byte{}, err
+	}
+	height := big.NewInt(0).SetUint64(uint64(head.Height))
+	return height.Bytes(), nil
 }
