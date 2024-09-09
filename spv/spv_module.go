@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -130,8 +129,6 @@ type Service struct {
 	spv.SPVService
 	GenesisHash common.Uint256
 	mux         *event.TypeMux
-
-	BlockRecorder *BlockRecorder
 }
 
 // Spv database initialization
@@ -181,12 +178,7 @@ func NewService(cfg *Config, tmux *event.TypeMux, dynamicArbiterHeight uint64) (
 		return nil, err
 	}
 
-	br, err := NewBlockRecorder(path.Join(cfg.DataDir, "blocks"))
-	if err != nil {
-		log.Error("Spv New Block Recorder: ", "err", err)
-		return nil, err
-	}
-	SpvService = &Service{service, cfg.GenesisHash, tmux, br}
+	SpvService = &Service{service, cfg.GenesisHash, tmux}
 	err = service.RegisterTransactionListener(&listener{
 		address: cfg.GenesisAddress,
 		service: service,
@@ -195,11 +187,9 @@ func NewService(cfg *Config, tmux *event.TypeMux, dynamicArbiterHeight uint64) (
 		log.Error("Spv Register Transaction Listener: ", "err", err)
 		return nil, err
 	}
-	bl := &BlockListener{
+	err = service.RegisterBlockListener(&BlockListener{
 		dynamicArbiterHeight: dynamicArbiterHeight,
-	}
-	bl.RegisterFunc(SpvService.HandleBlockFunc)
-	err = service.RegisterBlockListener(bl)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -309,16 +299,8 @@ func (s *Service) VerifyElaHeader(hash *common.Uint256) error {
 	return nil
 }
 
-func (s *Service) HandleBlockFunc(block interface{}) error {
-	err := s.BlockRecorder.SaveBlockHeader(&block.(*util.Block).Header)
-	if err != nil {
-		log.Error("save block to ldb", "block", block, "err", err.Error())
-	}
-	return err
-}
-
 func (s *Service) GetELAHeader(height uint32) (*util.Header, error) {
-	header, err := s.BlockRecorder.GetBlockHeaderByHeight(height)
+	header, err := s.SPVService.HeaderStore().GetByHeight(height)
 	return header, err
 
 }
