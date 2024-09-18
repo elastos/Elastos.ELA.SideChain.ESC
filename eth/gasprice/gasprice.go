@@ -25,8 +25,10 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/types"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/internal/ethapi"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/params"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 )
 
 var maxPrice = big.NewInt(500 * params.GWei)
@@ -138,6 +140,13 @@ func (gpo *Oracle) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	}
 	if price.Cmp(maxPrice) > 0 {
 		price = new(big.Int).Set(maxPrice)
+	}
+
+	minPrice, err := spv.GetMinGasPrice(uint32(head.Number.Uint64()))
+	if err == nil && price.Cmp(minPrice) < 0 {
+		price = minPrice
+	} else {
+		log.Warn("spv GetMinGasPrice failed", "error", err)
 	}
 
 	gpo.cacheLock.Lock()

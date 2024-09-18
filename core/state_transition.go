@@ -53,8 +53,10 @@ The state transitioning model does all the necessary work to work out a valid ne
 3) Create a new state object if the recipient is \0*32
 4) Value transfer
 == If contract creation ==
-  4a) Attempt to run transaction data
-  4b) If valid, use result as code for the new state object
+
+	4a) Attempt to run transaction data
+	4b) If valid, use result as code for the new state object
+
 == end ==
 5) Run Script section
 6) Derive new state root
@@ -246,7 +248,7 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 		snapshot      = evm.StateDB.Snapshot()
 		blackaddr     common.Address
 		blackcontract common.Address
-		rules         = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil)
+		rules         = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil, st.evm.Context.Time.Uint64())
 	)
 	result = &ExecutionResult{0, nil, nil}
 	msg := st.msg
@@ -405,7 +407,7 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 	}
 	// Set up the initial access list.
 	if rules.IsBerlin {
-		st.state.PrepareAccessList(msg.From(), msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
+		st.state.PrepareAccessList(rules, msg.From(), st.evm.Context.Coinbase, msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
 	}
 	if contractCreation {
 		ret, _, st.gas, vmerr = evm.Create(sender, st.data, st.gas, st.value)
@@ -469,7 +471,19 @@ func (st *StateTransition) TransitionDb() (result *ExecutionResult, err error) {
 	if contractCreation && blackcontract.String() == evm.ChainConfig().BlackContractAddr || isRefundWithdrawTx {
 		st.state.AddBalance(st.msg.From(), new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)) // Refund the cost
 	} else {
-		st.state.AddBalance(st.evm.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice))
+		minerFee := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), st.gasPrice)
+		num := len(st.evm.ChainConfig().DeveloperContract)
+		if num > 0 && st.evm.ChainConfig().IsdeveloperSplitfeeTime(st.evm.Time.Uint64()) {
+			fee := big.NewInt(0).Mul(minerFee, big.NewInt(50))
+			fee = big.NewInt(0).Div(fee, big.NewInt(100))
+			subFee := fee.Div(fee, big.NewInt(int64(num)))
+			for _, account := range st.evm.ChainConfig().DeveloperContract {
+				developerAddress := common.HexToAddress(account)
+				st.state.AddBalance(developerAddress, subFee)
+				minerFee = minerFee.Sub(minerFee, subFee)
+			}
+		}
+		st.state.AddBalance(st.evm.Coinbase, minerFee)
 	}
 	return &ExecutionResult{st.gasUsed(), vmerr, ret}, err
 }

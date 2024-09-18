@@ -114,19 +114,25 @@ func GetPledgeBillData(txHash string) (sAddress string, tokenID *big.Int, err er
 	return sAddress, tokenID, nil
 }
 
+func GetBPosNftPayloadVersion(txHash string) (payloadVersion byte, err error) {
+	if txHash[0:2] == "0x" {
+		txHash = txHash[2:]
+	}
+	versionKey := getTxVersionKey(txHash)
+	payloadVersion, err = getPayloadVerion(versionKey)
+	return payloadVersion, err
+}
+
 func GetCreateNFTPayload(txHash string) (p *payload.CreateNFT, payloadVersion byte, err error) {
 	if txHash[0:2] == "0x" {
 		txHash = txHash[2:]
 	}
-
+	payloadVersion, _ = GetBPosNftPayloadVersion(txHash)
 	key := getTxKey(txHash)
 	v, err := getData(key)
 	if err != nil {
 		return nil, 0, errors.New("GetCreateNFTPayload getData error" + err.Error() + "hash " + txHash)
 	}
-
-	versionKey := getTxVersionKey(txHash)
-	payloadVersion, _ = getPayloadVerion(versionKey)
 	nr := bytes.NewReader([]byte(v))
 	p = new(payload.CreateNFT)
 	err = p.Deserialize(nr, payloadVersion)

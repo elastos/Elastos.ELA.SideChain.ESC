@@ -38,6 +38,7 @@ import (
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/log"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rlp"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/rpc"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/spv"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/trie"
 )
 
@@ -131,6 +132,13 @@ func (api *PrivateMinerAPI) SetExtra(extra string) (bool, error) {
 
 // SetGasPrice sets the minimum accepted gas price for the miner.
 func (api *PrivateMinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
+	header := api.e.blockchain.CurrentHeader()
+	minGasPrice, err := spv.GetMinGasPrice(uint32(header.Number.Uint64()))
+	if err == nil {
+		if (*big.Int)(&gasPrice).Cmp(minGasPrice) < 0 {
+			return false
+		}
+	}
 	api.e.lock.Lock()
 	api.e.gasPrice = (*big.Int)(&gasPrice)
 	api.e.lock.Unlock()
@@ -336,6 +344,15 @@ func (api *PrivateDebugAPI) GetBadBlocks(ctx context.Context) ([]*BadBlockArgs, 
 		}
 		if results[i].Block, err = ethapi.RPCMarshalBlock(block, true, true); err != nil {
 			results[i].Block = map[string]interface{}{"error": err.Error()}
+		} else {
+			log.Info(">>>>>> GetBadBlocks ", "block.Coinbase() ", block.Coinbase().String())
+			var zeroAddress common.Address
+			if block.Coinbase().String() == zeroAddress.String() {
+				coinbase, err := api.eth.engine.Author(block.Header())
+				if err == nil {
+					results[i].Block["miner"] = coinbase
+				}
+			}
 		}
 	}
 	return results, nil

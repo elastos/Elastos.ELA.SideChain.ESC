@@ -83,6 +83,8 @@ var (
 	ErrOversizedData = errors.New("oversized data")
 
 	ErrFrozenAccount = errors.New("is frozen account")
+
+	ErrLowGasPrice = errors.New("gasPrice too low")
 )
 
 var (
@@ -281,7 +283,6 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 	pool.signer.(types.EIP155Signer).SetForkData(chainconfig, chain.CurrentBlock().Number())
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
-		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
 	pool.priced = newTxPricedList(pool.all)
@@ -547,6 +548,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if !local && pool.gasPrice.Cmp(tx.GasPrice()) > 0 {
 		return ErrUnderpriced
 	}
+
+	height := pool.chain.CurrentBlock().Number().Uint64()
+	minGasPrice, err := spv.GetMinGasPrice(uint32(height))
+	log.Info(">>>>>>>>>>> spv.GetMinGasPrice", "minGasPrice", minGasPrice, "currentHeight", uint32(height), "error", err)
+	if err == nil && minGasPrice.Cmp(tx.GasPrice()) > 0 {
+		return ErrLowGasPrice
+	}
+
 	// Ensure the transaction adheres to nonce ordering
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
@@ -678,7 +687,6 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	// Mark local addresses and journal local transactions
 	if local {
 		if !pool.locals.contains(from) {
-			log.Info("Setting new local account", "address", from)
 			pool.locals.add(from)
 		}
 	}

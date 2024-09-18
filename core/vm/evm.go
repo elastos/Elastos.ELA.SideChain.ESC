@@ -48,6 +48,8 @@ type (
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	var precompiles map[common.Address]PrecompiledContract
 	switch {
+	case evm.chainRules.IsShanghai:
+		precompiles = PrecompiledContractsShangHai
 	case evm.chainRules.IsBerlin:
 		precompiles = PrecompiledContractsBerlin
 	case evm.chainRules.IsIstanbul:
@@ -131,12 +133,15 @@ type EVM struct {
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(ctx Context, statedb StateDB, chainConfig *params.ChainConfig, vmConfig Config) *EVM {
+	if ctx.Time == nil {
+		ctx.Time = big.NewInt(0)
+	}
 	evm := &EVM{
 		Context:     ctx,
 		StateDB:     statedb,
 		Config:      vmConfig,
 		chainConfig: chainConfig,
-		chainRules:  chainConfig.Rules(ctx.BlockNumber, ctx.Random != nil),
+		chainRules:  chainConfig.Rules(ctx.BlockNumber, ctx.Random != nil, ctx.Time.Uint64()),
 	}
 	evm.interpreter = NewEVMInterpreter(evm, vmConfig)
 	if chainConfig.IsEWASM(ctx.BlockNumber) {
@@ -334,6 +339,11 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			contract.SetCallCode(&addrCopy, evm.StateDB.GetCodeHash(addrCopy), code)
 			ret, err = evm.interpreter.Run(contract, input, false)
 			gas = contract.Gas
+
+			//list := contract.internalCallTable
+			//for _, data := range list {
+			//	fmt.Println("callData>>>>>>>>>>>>>", "account", data.account.String(), "gasUsed", data.gasCost)
+			//}
 		}
 	}
 
@@ -341,6 +351,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if to.Address().String() == evm.ChainConfig().BlackContractAddr && err == nil {
 		evm.StateDB.SubBalance(to.Address(), value)
 	}
+
 	// When an error was returned by the EVM or when setting the creation code
 	// above we revert to the snapshot and consume any gas remaining. Additionally
 	// when we're in homestead this also counts for code storage gas errors.

@@ -150,6 +150,14 @@ func (lc *LightChain) SetPOAEngine(engine consensus.Engine) {
 	lc.hc.SetPOAEngine(engine)
 }
 
+func (lc *LightChain) GetDposEngine() consensus.Engine {
+	return lc.hc.GetDposChain()
+}
+
+func (lc *LightChain) GetPOAEngine() consensus.Engine {
+	return lc.hc.GetPOAEngine()
+}
+
 // AddTrustedCheckpoint adds a trusted checkpoint to the blockchain
 func (lc *LightChain) AddTrustedCheckpoint(cp *params.TrustedCheckpoint) {
 	if lc.odr.ChtIndexer() != nil {

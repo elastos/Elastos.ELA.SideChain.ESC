@@ -23,6 +23,7 @@ import (
 
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/accounts"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/common"
+	"github.com/elastos/Elastos.ELA.SideChain.ESC/consensus"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/bloombits"
 	"github.com/elastos/Elastos.ELA.SideChain.ESC/core/state"
@@ -84,6 +85,7 @@ type Backend interface {
 
 	ChainConfig() *params.ChainConfig
 	CurrentBlock() *types.Block
+	Engine(number *big.Int) consensus.Engine
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

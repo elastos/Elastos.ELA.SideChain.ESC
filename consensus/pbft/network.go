@@ -76,6 +76,21 @@ func (p *Pbft) BroadMessage(msg elap2p.Message) {
 	}
 }
 
+func (p *Pbft) BroadMessageExcept(msg elap2p.Message, exceptPeer peer.PID) {
+	peers := p.network.DumpPeersInfo()
+	for _, peer := range peers {
+		pid := peer.PID[:]
+		producer := p.dispatcher.GetConsensusView().IsProducers(pid)
+		if producer == false {
+			continue
+		}
+		if peer.PID.Equal(exceptPeer) {
+			continue
+		}
+		p.network.SendMessageToPeer(peer.PID, msg)
+	}
+}
+
 func (p *Pbft) BroadMessageToPeers(msg elap2p.Message, peers [][]byte) {
 	for _, pbk := range peers {
 		pid := peer.PID{}
@@ -201,7 +216,7 @@ func (p *Pbft) OnPong(id peer.PID, height uint32) {
 }
 
 func (p *Pbft) OnBlock(id peer.PID, block *dmsg.BlockMsg) {
-	log.Info("-----OnBlock received------")
+	log.Info("-----PBFT OnBlock received------")
 	b := &types.Block{}
 
 	err := b.DecodeRLP(rlp.NewStream(bytes.NewBuffer(block.GetData()), 0))
@@ -306,6 +321,10 @@ func (p *Pbft) OnInv(id peer.PID, blockHash elacom.Uint256) {
 		return
 	}
 	hash := common.BytesToHash(blockHash.Bytes())
+	if p.chain.GetBlockByHash(hash) != nil {
+		return
+	}
+
 	if _, ok := p.requestedBlocks[hash]; ok {
 		return
 	}
@@ -317,8 +336,16 @@ func (p *Pbft) OnInv(id peer.PID, blockHash elacom.Uint256) {
 }
 
 func (p *Pbft) OnGetBlock(id peer.PID, blockHash elacom.Uint256) {
-	if block, ok := p.blockPool.GetBlock(blockHash); ok {
-		if b, suc := block.(*types.Block); suc {
+	ok := false
+	var block dpos.DBlock
+	block, ok = p.blockPool.GetBlock(blockHash)
+	if !ok {
+		hash := common.BytesToHash(blockHash.Bytes())
+		block = p.chain.GetBlockByHash(hash)
+		ok = block != nil
+	}
+	if ok {
+		if b, suc := block.(*types.Block); suc && b != nil {
 			buffer := bytes.NewBuffer([]byte{})
 			err := b.EncodeRLP(buffer)
 			if err != nil {
@@ -388,7 +415,7 @@ func (p *Pbft) OnIllegalVotesReceived(id peer.PID, votes *payload.DPOSIllegalVot
 }
 
 func (p *Pbft) OnProposalReceived(id peer.PID, proposal *payload.DPOSProposal) {
-	log.Info("OnProposalReceived", "hash:", proposal.Hash().String())
+	log.Info("OnProposalReceived", "hash:", proposal.Hash().String(), "from", id.String())
 	if _, ok := p.requestedProposals[proposal.Hash()]; ok {
 		delete(p.requestedProposals, proposal.Hash())
 	}
@@ -692,9 +719,27 @@ func (p *Pbft) OnBlockReceived(id peer.PID, b *dmsg.BlockMsg, confirmed bool) {
 		log.Warn("is bigger than local number")
 		return
 	}
+	if p.chain.GetBlockByHash(block.Hash()) != nil {
+		log.Error("insert chain is known block", "hash", block.Hash().String(), "number", block.NumberU64())
+		return
+	}
 	if _, err := p.chain.InsertChain(blocks); err != nil {
 		if p.OnInsertChainError != nil {
 			p.OnInsertChainError(id, block, err)
+		}
+	} else {
+		preHash, err := elacom.Uint256FromBytes(block.ParentHash().Bytes())
+		if err != nil {
+			log.Error("error parent block hash", "error", err, "parentHash", block.ParentHash().String())
+		} else {
+			p.BroadMessageExcept(msg.NewInventory(*preHash), id)
+		}
+
+		blockHash, err := elacom.Uint256FromBytes(block.Hash().Bytes())
+		if err != nil {
+			log.Error("error block hash", "error", err, "blockHash", block.Hash().String())
+		} else {
+			p.BroadMessageExcept(msg.NewInventory(*blockHash), id)
 		}
 	}
 }

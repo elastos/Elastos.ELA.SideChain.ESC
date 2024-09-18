@@ -824,6 +824,12 @@ var (
 		Usage: "configue pledged bill address",
 		Value: "",
 	}
+
+	DeveloperFeeContract = cli.StringSliceFlag{
+		Name:  "developer.fee.contract",
+		Usage: "configue developer fee contract address",
+		Value: &cli.StringSlice{},
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1163,6 +1169,19 @@ func MakePasswordList(ctx *cli.Context) []string {
 		lines[i] = strings.TrimRight(lines[i], "\r")
 	}
 	return lines
+}
+
+func MakeDeveloperFeeContractAddress(ctx *cli.Context) ([]string, error) {
+	list := ctx.StringSlice(DeveloperFeeContract.Name)
+	if len(list) == 0 {
+		return []string{}, nil
+	}
+	for _, account := range list {
+		if !common.IsHexAddress(account) {
+			return []string{}, errors.New("error address format")
+		}
+	}
+	return list, nil
 }
 
 func MakeMinerCoinbaseAddress(ctx *cli.Context) string {
@@ -1604,6 +1623,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *eth.Config) {
 
 	cfg.DynamicArbiterHeight = ctx.GlobalUint64(DynamicArbiter.Name)
 	cfg.PledgedBillContract = ctx.GlobalString(PledgedBillContract.Name)
+	listAccount, err := MakeDeveloperFeeContractAddress(ctx)
+	if err != nil {
+		log.Error("MakeDeveloperFeeContractAddress failed", "error", err)
+	} else {
+		cfg.DeveloperFeeContract = listAccount
+	}
 
 	cfg.FrozenAccountList = make([]string, 0)
 	// Override any default configs for hard coded networks.
