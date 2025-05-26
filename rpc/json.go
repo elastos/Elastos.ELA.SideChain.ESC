@@ -92,6 +92,9 @@ func (msg *jsonrpcMessage) String() string {
 }
 
 func (msg *jsonrpcMessage) errorResponse(err error) *jsonrpcMessage {
+	if err == nil {
+		err = errors.New("fast to call")
+	}
 	resp := errorMessage(err)
 	resp.ID = msg.ID
 	return resp
