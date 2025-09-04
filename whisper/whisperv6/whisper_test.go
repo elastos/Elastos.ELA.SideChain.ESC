@@ -623,7 +623,7 @@ func TestSymmetricSendCycle(t *testing.T) {
 	filter1.PoW = DefaultMinimumPoW
 
 	// Copy the first filter since some of its fields
-	// are randomly gnerated.
+	// are randomly generated.
 	filter2 := &Filter{
 		KeySym:   filter1.KeySym,
 		Topics:   filter1.Topics,

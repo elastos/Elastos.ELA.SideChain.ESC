@@ -30,7 +30,7 @@ var seed int64
 
 // InitSingleTest should be called in the beginning of every
 // test, which uses RNG, in order to make the tests
-// reproduciblity independent of their sequence.
+// reproducibility independent of their sequence.
 func InitSingleTest() {
 	seed = time.Now().Unix()
 	mrand.Seed(seed)
